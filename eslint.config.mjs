@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Stellarium Web Engine (third-party)
+    "public/stellarium-js/**",
+    // Tauri build artifacts
+    "src-tauri/target/**",
+    // Touch-N-Stars (reference code)
+    "Touch-N-Stars/**",
   ]),
 ]);
 

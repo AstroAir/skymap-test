@@ -1,0 +1,586 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
+import {
+  List,
+  Plus,
+  Trash2,
+  Play,
+  Check,
+  ChevronUp,
+  ChevronDown,
+  Target,
+  Clock,
+  Camera,
+  X,
+  Eye,
+  AlertTriangle,
+  TrendingUp,
+  Moon,
+  BarChart3,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
+import { useTargetListStore, useMountStore, type TargetItem } from '@/lib/starmap/stores';
+import { useStellariumStore } from '@/lib/starmap/stores';
+import {
+  planMultipleTargets,
+  calculateImagingFeasibility,
+  formatTimeShort,
+  formatDuration,
+  type ImagingFeasibility,
+} from '@/lib/starmap/astro-utils';
+
+interface ShotListProps {
+  onNavigateToTarget?: (ra: number, dec: number) => void;
+  currentSelection?: {
+    name: string;
+    ra: number;
+    dec: number;
+    raString: string;
+    decString: string;
+  } | null;
+  fovSettings?: {
+    sensorWidth: number;
+    sensorHeight: number;
+    focalLength: number;
+    rotationAngle: number;
+    mosaic?: {
+      enabled: boolean;
+      rows: number;
+      cols: number;
+      overlap: number;
+    };
+  };
+}
+
+export function ShotList({
+  onNavigateToTarget,
+  currentSelection,
+  fovSettings,
+}: ShotListProps) {
+  const t = useTranslations();
+  const [open, setOpen] = useState(false);
+  const [showPlanAnalysis, setShowPlanAnalysis] = useState(false);
+  
+  const targets = useTargetListStore((state) => state.targets);
+  const activeTargetId = useTargetListStore((state) => state.activeTargetId);
+  const addTarget = useTargetListStore((state) => state.addTarget);
+  const removeTarget = useTargetListStore((state) => state.removeTarget);
+  const updateTarget = useTargetListStore((state) => state.updateTarget);
+  const setActiveTarget = useTargetListStore((state) => state.setActiveTarget);
+  const reorderTargets = useTargetListStore((state) => state.reorderTargets);
+  const clearCompleted = useTargetListStore((state) => state.clearCompleted);
+  const clearAll = useTargetListStore((state) => state.clearAll);
+  
+  const setViewDirection = useStellariumStore((state) => state.setViewDirection);
+  const profileInfo = useMountStore((state) => state.profileInfo);
+  
+  const latitude = profileInfo.AstrometrySettings.Latitude || 0;
+  const longitude = profileInfo.AstrometrySettings.Longitude || 0;
+
+  // Calculate multi-target plan with feasibility
+  const targetPlan = useMemo(() => {
+    if (targets.length === 0) return null;
+    
+    const targetData = targets.map(t => ({
+      id: t.id,
+      name: t.name,
+      ra: t.ra,
+      dec: t.dec,
+    }));
+    
+    return planMultipleTargets(targetData, latitude, longitude);
+  }, [targets, latitude, longitude]);
+
+  // Get feasibility for individual targets
+  const targetFeasibility = useMemo(() => {
+    const feasibilityMap = new Map<string, ImagingFeasibility>();
+    
+    targets.forEach(target => {
+      const feasibility = calculateImagingFeasibility(
+        target.ra, target.dec, latitude, longitude
+      );
+      feasibilityMap.set(target.id, feasibility);
+    });
+    
+    return feasibilityMap;
+  }, [targets, latitude, longitude]);
+
+  const handleAddCurrentTarget = () => {
+    if (!currentSelection) return;
+    
+    addTarget({
+      name: currentSelection.name,
+      ra: currentSelection.ra,
+      dec: currentSelection.dec,
+      raString: currentSelection.raString,
+      decString: currentSelection.decString,
+      sensorWidth: fovSettings?.sensorWidth,
+      sensorHeight: fovSettings?.sensorHeight,
+      focalLength: fovSettings?.focalLength,
+      rotationAngle: fovSettings?.rotationAngle,
+      mosaic: fovSettings?.mosaic,
+      priority: 'medium',
+    });
+  };
+
+  const handleNavigate = (target: TargetItem) => {
+    setActiveTarget(target.id);
+    if (setViewDirection) {
+      setViewDirection(target.ra, target.dec);
+    }
+    onNavigateToTarget?.(target.ra, target.dec);
+  };
+
+  const handleMoveUp = (index: number) => {
+    if (index > 0) {
+      reorderTargets(index, index - 1);
+    }
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index < targets.length - 1) {
+      reorderTargets(index, index + 1);
+    }
+  };
+
+  const handleStatusChange = (id: string, status: TargetItem['status']) => {
+    updateTarget(id, { status });
+  };
+
+  const getStatusColor = (status: TargetItem['status']) => {
+    switch (status) {
+      case 'planned': return 'bg-muted-foreground';
+      case 'in_progress': return 'bg-amber-600';
+      case 'completed': return 'bg-green-600';
+    }
+  };
+
+  const getPriorityColor = (priority: TargetItem['priority']) => {
+    switch (priority) {
+      case 'low': return 'border-muted-foreground text-muted-foreground';
+      case 'medium': return 'border-primary text-primary';
+      case 'high': return 'border-red-500 text-red-400';
+    }
+  };
+
+  const getFeasibilityColor = (rec: ImagingFeasibility['recommendation']) => {
+    switch (rec) {
+      case 'excellent': return 'bg-green-600';
+      case 'good': return 'bg-emerald-600';
+      case 'fair': return 'bg-yellow-600';
+      case 'poor': return 'bg-orange-600';
+      case 'not_recommended': return 'bg-red-600';
+    }
+  };
+
+  const getFeasibilityIcon = (rec: ImagingFeasibility['recommendation']) => {
+    switch (rec) {
+      case 'excellent':
+      case 'good':
+        return <TrendingUp className="h-3 w-3" />;
+      case 'fair':
+        return <AlertTriangle className="h-3 w-3" />;
+      case 'poor':
+      case 'not_recommended':
+        return <AlertTriangle className="h-3 w-3" />;
+    }
+  };
+
+  const plannedCount = targets.filter((t) => t.status === 'planned').length;
+  const completedCount = targets.filter((t) => t.status === 'completed').length;
+
+  return (
+    <TooltipProvider>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-accent relative"
+              >
+                <List className="h-5 w-5" />
+                {targets.length > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary rounded-full text-[10px] flex items-center justify-center text-primary-foreground">
+                    {targets.length}
+                  </span>
+                )}
+              </Button>
+            </SheetTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p>{t('shotList.shotList')} ({targets.length})</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <SheetContent side="right" className="w-80 bg-card border-border">
+          <SheetHeader>
+            <SheetTitle className="text-foreground flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              {t('shotList.shotList')}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-4 space-y-4">
+            {/* Stats & Plan Analysis Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs">
+                <Badge variant="outline" className="border-border text-muted-foreground">
+                  {plannedCount} {t('shotList.planned')}
+                </Badge>
+                <Badge variant="outline" className="border-green-600 text-green-400">
+                  {completedCount} {t('shotList.done')}
+                </Badge>
+              </div>
+              {targets.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowPlanAnalysis(!showPlanAnalysis)}
+                >
+                  <BarChart3 className="h-3 w-3 mr-1" />
+                  {t('shotList.analysis')}
+                </Button>
+              )}
+            </div>
+
+            {/* Plan Analysis Panel */}
+            {showPlanAnalysis && targetPlan && (
+              <div className="p-2 rounded-lg bg-muted/50 border border-border space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{t('shotList.totalImaging')}</span>
+                  <span className="text-foreground">{formatDuration(targetPlan.totalImagingTime)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{t('shotList.nightCoverage')}</span>
+                  <span className={targetPlan.nightCoverage > 100 ? 'text-yellow-400' : 'text-green-400'}>
+                    {targetPlan.nightCoverage.toFixed(0)}%
+                  </span>
+                </div>
+                <Progress value={Math.min(100, targetPlan.nightCoverage)} className="h-1" />
+                {targetPlan.nightCoverage > 100 && (
+                  <div className="flex items-center gap-1 text-[10px] text-yellow-400">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>{t('shotList.tooManyTargets')}</span>
+                  </div>
+                )}
+                {targetPlan.recommendations.length > 0 && (
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    {targetPlan.recommendations[0]}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Add current target */}
+            {currentSelection && (
+              <Button
+                className="w-full bg-primary hover:bg-primary/90"
+                onClick={handleAddCurrentTarget}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add: {currentSelection.name}
+              </Button>
+            )}
+
+            <Separator className="bg-border" />
+
+            {/* Target list */}
+            <ScrollArea className="h-[calc(100vh-280px)]">
+              {targets.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">{t('shotList.noTargetsInList')}</p>
+                  <p className="text-xs mt-1">{t('shotList.selectAndAdd')}</p>
+                </div>
+              ) : (
+                <div className="space-y-2 pr-2">
+                  {targets.map((target, index) => (
+                    <div
+                      key={target.id}
+                      className={`p-2 rounded-lg border transition-colors ${
+                        activeTargetId === target.id
+                          ? 'bg-primary/20 border-primary'
+                          : 'bg-muted/50 border-border hover:border-muted-foreground'
+                      }`}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground font-medium truncate">
+                            {target.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground font-mono">
+                            {target.raString} / {target.decString}
+                          </p>
+                        </div>
+                        <Badge className={`${getStatusColor(target.status)} text-white text-[10px] h-5`}>
+                          {target.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+
+                      {/* FOV info */}
+                      {target.focalLength && (
+                        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <Camera className="h-3 w-3" />
+                          <span>{target.focalLength}mm</span>
+                          {target.mosaic?.enabled && (
+                            <span>• {target.mosaic.cols}×{target.mosaic.rows}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Exposure plan */}
+                      {target.exposurePlan && (
+                        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>
+                            {target.exposurePlan.subFrames}× {target.exposurePlan.singleExposure}s
+                            ({target.exposurePlan.totalExposure}m)
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Feasibility indicator */}
+                      {(() => {
+                        const feasibility = targetFeasibility.get(target.id);
+                        const planTarget = targetPlan?.targets.find(t => t.id === target.id);
+                        if (!feasibility) return null;
+                        
+                        return (
+                          <div className="mt-1.5 space-y-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-2">
+                                  <Badge className={`${getFeasibilityColor(feasibility.recommendation)} text-white text-[10px] h-5`}>
+                                    {getFeasibilityIcon(feasibility.recommendation)}
+                                    <span className="ml-1 capitalize">{feasibility.recommendation.replace('_', ' ')}</span>
+                                  </Badge>
+                                  <span className="text-[10px] text-muted-foreground">{feasibility.score}/100</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-48">
+                                <div className="text-xs space-y-1">
+                                  <div>Moon: {feasibility.moonScore} | Alt: {feasibility.altitudeScore}</div>
+                                  <div>Duration: {feasibility.durationScore} | Twilight: {feasibility.twilightScore}</div>
+                                  {feasibility.warnings.length > 0 && (
+                                    <div className="text-yellow-400">{feasibility.warnings[0]}</div>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                            
+                            {/* Dark window times */}
+                            {planTarget?.windowStart && planTarget?.windowEnd && (
+                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <Moon className="h-3 w-3" />
+                                <span>
+                                  {formatTimeShort(planTarget.windowStart)} - {formatTimeShort(planTarget.windowEnd)}
+                                  ({formatDuration(planTarget.duration)})
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Conflicts warning */}
+                            {planTarget?.conflicts && planTarget.conflicts.length > 0 && (
+                              <div className="flex items-center gap-1 text-[10px] text-yellow-400">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span>Overlaps with {planTarget.conflicts.length} target(s)</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Actions */}
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleMoveUp(index)}
+                            disabled={index === 0}
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleMoveDown(index)}
+                            disabled={index === targets.length - 1}
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] h-5 cursor-pointer ${getPriorityColor(target.priority)}`}
+                            onClick={() => {
+                              const priorities: TargetItem['priority'][] = ['low', 'medium', 'high'];
+                              const currentIdx = priorities.indexOf(target.priority);
+                              const nextPriority = priorities[(currentIdx + 1) % 3];
+                              updateTarget(target.id, { priority: nextPriority });
+                            }}
+                          >
+                            {target.priority}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-primary hover:text-primary/80"
+                                onClick={() => handleNavigate(target)}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('actions.goToTarget')}</TooltipContent>
+                          </Tooltip>
+
+                          {target.status === 'planned' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-amber-400 hover:text-amber-300"
+                                  onClick={() => handleStatusChange(target.id, 'in_progress')}
+                                >
+                                  <Play className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t('actions.startImaging')}</TooltipContent>
+                            </Tooltip>
+                          )}
+
+                          {target.status === 'in_progress' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-green-400 hover:text-green-300"
+                                  onClick={() => handleStatusChange(target.id, 'completed')}
+                                >
+                                  <Check className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t('actions.markComplete')}</TooltipContent>
+                            </Tooltip>
+                          )}
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-red-400 hover:text-red-300"
+                                onClick={() => removeTarget(target.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('common.remove')}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+
+            {/* Footer actions */}
+            {targets.length > 0 && (
+              <>
+                <Separator className="bg-border" />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 border-border text-muted-foreground hover:bg-accent"
+                    onClick={clearCompleted}
+                    disabled={completedCount === 0}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    {t('shotList.clearDone')}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-red-600 text-red-400 hover:bg-red-900/30"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        {t('shotList.clearAll')}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="bg-card border-border">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="text-foreground">{t('shotList.clearAllTargets')}</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground">
+                          This will remove all {targets.length} targets from your shot list.
+                          This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-muted border-border text-muted-foreground hover:bg-accent">
+                          {t('common.cancel')}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-600 hover:bg-red-700"
+                          onClick={clearAll}
+                        >
+                          {t('shotList.clearAll')}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </TooltipProvider>
+  );
+}
