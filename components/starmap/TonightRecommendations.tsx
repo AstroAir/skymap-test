@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
@@ -35,9 +35,10 @@ import {
   Sunset,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTonightRecommendations, type RecommendedTarget, type TwilightInfo } from '@/lib/starmap/hooks';
+import { useTonightRecommendations, useGeolocation, type RecommendedTarget, type TwilightInfo } from '@/lib/starmap/hooks';
 import { useStellariumStore } from '@/lib/starmap/stores';
 import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
+import { useMountStore } from '@/lib/starmap/stores';
 
 // ============================================================================
 // Utility Functions
@@ -66,13 +67,32 @@ interface NightTimelineProps {
 function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
   const t = useTranslations();
   
-  // Calculate timeline from 6 PM to 6 AM (12 hours)
-  const timelineStart = new Date(currentTime);
-  timelineStart.setHours(18, 0, 0, 0);
+  // Dynamically calculate timeline based on actual sunset/sunrise
+  // Use sunset - 1 hour as start, sunrise + 1 hour as end
+  const timelineStart = useMemo(() => {
+    if (twilight.sunset) {
+      const start = new Date(twilight.sunset);
+      start.setHours(start.getHours() - 1);
+      return start;
+    }
+    // Fallback: 6 PM today
+    const fallback = new Date(currentTime);
+    fallback.setHours(18, 0, 0, 0);
+    return fallback;
+  }, [twilight.sunset, currentTime]);
   
-  const timelineEnd = new Date(currentTime);
-  timelineEnd.setDate(timelineEnd.getDate() + 1);
-  timelineEnd.setHours(6, 0, 0, 0);
+  const timelineEnd = useMemo(() => {
+    if (twilight.sunrise) {
+      const end = new Date(twilight.sunrise);
+      end.setHours(end.getHours() + 1);
+      return end;
+    }
+    // Fallback: 6 AM next day
+    const fallback = new Date(currentTime);
+    fallback.setDate(fallback.getDate() + 1);
+    fallback.setHours(6, 0, 0, 0);
+    return fallback;
+  }, [twilight.sunrise, currentTime]);
   
   const totalMs = timelineEnd.getTime() - timelineStart.getTime();
   
@@ -93,8 +113,19 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
   const sunrisePos = getPosition(twilight.sunrise);
   const currentPos = getPosition(currentTime);
   
-  // Time labels
-  const timeLabels = ['18:00', '20:00', '22:00', '00:00', '02:00', '04:00', '06:00'];
+  // Generate dynamic time labels based on timeline span
+  const timeLabels = useMemo(() => {
+    const labels: string[] = [];
+    const spanHours = totalMs / (1000 * 60 * 60);
+    const interval = spanHours > 10 ? 2 : 1; // 2 hour intervals for long nights
+    
+    const labelTime = new Date(timelineStart);
+    while (labelTime <= timelineEnd) {
+      labels.push(labelTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      labelTime.setHours(labelTime.getHours() + interval);
+    }
+    return labels.slice(0, 7); // Max 7 labels for display
+  }, [timelineStart, timelineEnd, totalMs]);
   
   return (
     <div className="space-y-2">
@@ -492,6 +523,30 @@ export function TonightRecommendations() {
   const { recommendations, conditions, isLoading, refresh } = useTonightRecommendations();
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const addTarget = useTargetListStore((state) => state.addTarget);
+  const setProfileInfo = useMountStore((state) => state.setProfileInfo);
+  
+  // Geolocation hook
+  const geolocation = useGeolocation({ autoRequest: false });
+  
+  // Handle location request and update mount store
+  const handleRequestLocation = useCallback(async () => {
+    await geolocation.requestLocation();
+  }, [geolocation]);
+  
+  // Update profile when geolocation changes
+  useEffect(() => {
+    if (geolocation.latitude !== null && geolocation.longitude !== null) {
+      setProfileInfo({
+        AstrometrySettings: {
+          Latitude: geolocation.latitude,
+          Longitude: geolocation.longitude,
+          Elevation: geolocation.altitude ?? 0,
+        },
+      });
+      // Refresh recommendations with new location
+      refresh();
+    }
+  }, [geolocation.latitude, geolocation.longitude, geolocation.altitude, setProfileInfo, refresh]);
   
   // Sort and filter recommendations
   const filteredRecommendations = useMemo(() => {
@@ -565,16 +620,22 @@ export function TonightRecommendations() {
   
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2"
-        >
-          <Sparkles className="h-4 w-4" />
-          <span className="hidden sm:inline">{t('tonight.recommendations')}</span>
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10"
+            >
+              <Sparkles className="h-5 w-5" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{t('tonight.recommendations')}</p>
+        </TooltipContent>
+      </Tooltip>
       
       <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="shrink-0">
@@ -619,10 +680,21 @@ export function TonightRecommendations() {
                   <Clock className="h-3.5 w-3.5 text-slate-400" />
                   <span>{conditions.totalDarkHours.toFixed(1)}h {t('tonight.darkHours')}</span>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <MapPin className="h-3.5 w-3.5" />
-                  <span>{conditions.latitude.toFixed(2)}°, {conditions.longitude.toFixed(2)}°</span>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                      onClick={handleRequestLocation}
+                      disabled={geolocation.loading}
+                    >
+                      <MapPin className={cn('h-3.5 w-3.5', geolocation.loading && 'animate-pulse')} />
+                      <span>{conditions.latitude.toFixed(2)}°, {conditions.longitude.toFixed(2)}°</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{t('tonight.clickToUpdateLocation')}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </div>

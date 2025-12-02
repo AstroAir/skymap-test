@@ -1,0 +1,653 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Telescope,
+  Search,
+  Filter,
+  Moon,
+  Sun,
+  Sparkles,
+  Target,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Plus,
+  ArrowUpDown,
+  Loader2,
+  MapPin,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { degreesToHMS, degreesToDMS } from '@/lib/starmap/utils';
+import { useMountStore } from '@/lib/starmap/stores';
+import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
+import {
+  useSkyAtlasStore,
+  initializeSkyAtlas,
+  type DeepSkyObject,
+  type DSOType,
+  MOON_PHASE_NAMES,
+  DSO_TYPE_LABELS,
+  CONSTELLATIONS,
+  CONSTELLATION_NAMES,
+} from '@/lib/starmap/sky-atlas';
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+function formatTime(date: Date | null): string {
+  if (!date) return '--:--';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function getScoreBadgeVariant(score: number): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (score >= 80) return 'default';
+  if (score >= 60) return 'secondary';
+  if (score >= 40) return 'outline';
+  return 'destructive';
+}
+
+// ============================================================================
+// DSO Card Component
+// ============================================================================
+
+interface DSOCardProps {
+  object: DeepSkyObject;
+  onSelect: (object: DeepSkyObject) => void;
+  onAddToList?: (object: DeepSkyObject) => void;
+  onGoto?: (object: DeepSkyObject) => void;
+  isSelected?: boolean;
+}
+
+function DSOCard({ object, onSelect, onAddToList, onGoto, isSelected }: DSOCardProps) {
+  const t = useTranslations();
+  
+  return (
+    <Card 
+      className={cn(
+        'cursor-pointer transition-all hover:bg-accent/50',
+        isSelected && 'ring-2 ring-primary'
+      )}
+      onClick={() => onSelect(object)}
+    >
+      <CardContent className="p-3">
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm truncate">{object.name}</span>
+              {object.imagingScore !== undefined && (
+                <Badge variant={getScoreBadgeVariant(object.imagingScore)} className="text-xs px-1.5">
+                  {object.imagingScore}
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1 mt-1">
+              <Badge variant="outline" className="text-xs">
+                {DSO_TYPE_LABELS[object.type] || object.type}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {CONSTELLATION_NAMES[object.constellation] || object.constellation}
+              </Badge>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            {onAddToList && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddToList(object);
+                    }}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('skyAtlas.addToShotList')}</TooltipContent>
+              </Tooltip>
+            )}
+            {onGoto && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGoto(object);
+                    }}
+                  >
+                    <Target className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('skyAtlas.goToObject')}</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+        
+        {/* Object Details */}
+        <div className="grid grid-cols-3 gap-2 mt-2 text-xs text-muted-foreground">
+          <div>
+            <span className="text-muted-foreground/70">{t('skyAtlas.magnitude')}:</span>{' '}
+            {object.magnitude?.toFixed(1) ?? '--'}
+          </div>
+          <div>
+            <span className="text-muted-foreground/70">{t('skyAtlas.size')}:</span>{' '}
+            {object.sizeMax ? `${object.sizeMax.toFixed(1)}'` : '--'}
+          </div>
+          <div>
+            <span className="text-muted-foreground/70">{t('skyAtlas.altitude')}:</span>{' '}
+            <span className={object.altitude && object.altitude > 30 ? 'text-green-400' : ''}>
+              {object.altitude?.toFixed(0) ?? '--'}°
+            </span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-2 mt-1 text-xs text-muted-foreground">
+          <div>
+            <span className="text-muted-foreground/70">RA:</span>{' '}
+            {degreesToHMS(object.ra)}
+          </div>
+          <div>
+            <span className="text-muted-foreground/70">Dec:</span>{' '}
+            {degreesToDMS(object.dec)}
+          </div>
+        </div>
+        
+        {object.moonDistance !== undefined && (
+          <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+            <Moon className="h-3 w-3" />
+            {t('skyAtlas.moonDistance')}: {object.moonDistance.toFixed(0)}°
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================================
+// Filter Panel Component
+// ============================================================================
+
+interface FilterPanelProps {
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+function FilterPanel({ isOpen, onToggle }: FilterPanelProps) {
+  const t = useTranslations();
+  const {
+    filters,
+    setFilters,
+    resetFilters,
+  } = useSkyAtlasStore();
+  
+  const [localObjectName, setLocalObjectName] = useState(filters.objectName);
+  
+  // Debounce object name filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localObjectName !== filters.objectName) {
+        setFilters({ objectName: localObjectName });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localObjectName, filters.objectName, setFilters]);
+  
+  return (
+    <Collapsible open={isOpen} onOpenChange={onToggle}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" className="w-full justify-between px-2 py-1 h-auto">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            <span className="font-medium text-sm">{t('skyAtlas.filters')}</span>
+          </div>
+          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-3 pt-2">
+        {/* Object Name Search */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('skyAtlas.searchByName')}</Label>
+          <div className="relative">
+            <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={t('skyAtlas.searchPlaceholder')}
+              value={localObjectName}
+              onChange={(e) => setLocalObjectName(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+        </div>
+        
+        {/* Object Types */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('skyAtlas.objectTypes')}</Label>
+          <div className="flex flex-wrap gap-1">
+            {filters.objectTypes.map((typeFilter) => (
+              <Badge
+                key={typeFilter.type}
+                variant={typeFilter.selected ? 'default' : 'outline'}
+                className="cursor-pointer text-xs"
+                onClick={() => {
+                  setFilters({
+                    objectTypes: filters.objectTypes.map(tf =>
+                      tf.type === typeFilter.type
+                        ? { ...tf, selected: !tf.selected }
+                        : tf
+                    ),
+                  });
+                }}
+              >
+                {DSO_TYPE_LABELS[typeFilter.type as DSOType] || typeFilter.type}
+              </Badge>
+            ))}
+          </div>
+        </div>
+        
+        {/* Constellation Filter */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('skyAtlas.constellation')}</Label>
+          <Select
+            value={filters.constellation || 'all'}
+            onValueChange={(v) => setFilters({ constellation: v === 'all' ? '' : v })}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder={t('skyAtlas.allConstellations')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('skyAtlas.allConstellations')}</SelectItem>
+              {CONSTELLATIONS.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {CONSTELLATION_NAMES[c] || c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* Altitude Filter */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <Label className="text-xs">{t('skyAtlas.minimumAltitude')}</Label>
+            <span className="text-xs text-muted-foreground">{filters.minimumAltitude}°</span>
+          </div>
+          <Slider
+            value={[filters.minimumAltitude]}
+            onValueChange={([v]) => setFilters({ minimumAltitude: v })}
+            min={0}
+            max={80}
+            step={10}
+            className="w-full"
+          />
+        </div>
+        
+        {/* Moon Distance Filter */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <Label className="text-xs">{t('skyAtlas.minimumMoonDistance')}</Label>
+            <span className="text-xs text-muted-foreground">{filters.minimumMoonDistance}°</span>
+          </div>
+          <Slider
+            value={[filters.minimumMoonDistance]}
+            onValueChange={([v]) => setFilters({ minimumMoonDistance: v })}
+            min={0}
+            max={180}
+            step={15}
+            className="w-full"
+          />
+        </div>
+        
+        {/* Magnitude Range */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('skyAtlas.magnitudeFrom')}</Label>
+            <Select
+              value={filters.magnitudeRange.from?.toString() || 'any'}
+              onValueChange={(v) => setFilters({
+                magnitudeRange: { ...filters.magnitudeRange, from: v === 'any' ? null : Number(v) },
+              })}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t('skyAtlas.any')}</SelectItem>
+                {Array.from({ length: 15 }, (_, i) => i + 1).map((m) => (
+                  <SelectItem key={m} value={m.toString()}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('skyAtlas.magnitudeTo')}</Label>
+            <Select
+              value={filters.magnitudeRange.through?.toString() || 'any'}
+              onValueChange={(v) => setFilters({
+                magnitudeRange: { ...filters.magnitudeRange, through: v === 'any' ? null : Number(v) },
+              })}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t('skyAtlas.any')}</SelectItem>
+                {Array.from({ length: 15 }, (_, i) => i + 6).map((m) => (
+                  <SelectItem key={m} value={m.toString()}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        
+        {/* Reset Filters */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={resetFilters}
+        >
+          <RefreshCw className="h-3 w-3 mr-2" />
+          {t('skyAtlas.resetFilters')}
+        </Button>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// ============================================================================
+// Nighttime Info Component
+// ============================================================================
+
+function NighttimeInfo() {
+  const t = useTranslations();
+  const { nighttimeData } = useSkyAtlasStore();
+  
+  if (!nighttimeData) return null;
+  
+  return (
+    <div className="space-y-2 p-2 bg-muted/30 rounded-lg">
+      <div className="text-xs font-medium flex items-center gap-1">
+        <Moon className="h-3 w-3" />
+        {t('skyAtlas.moonInfo')}
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+        <div>
+          {t('skyAtlas.phase')}: {MOON_PHASE_NAMES[nighttimeData.moonPhase]}
+        </div>
+        <div>
+          {t('skyAtlas.illumination')}: {nighttimeData.moonIllumination.toFixed(0)}%
+        </div>
+      </div>
+      
+      <Separator className="my-2" />
+      
+      <div className="text-xs font-medium flex items-center gap-1">
+        <Sun className="h-3 w-3" />
+        {t('skyAtlas.twilightInfo')}
+      </div>
+      <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+        <div>{t('skyAtlas.sunset')}: {formatTime(nighttimeData.sunRiseAndSet.set)}</div>
+        <div>{t('skyAtlas.sunrise')}: {formatTime(nighttimeData.sunRiseAndSet.rise)}</div>
+        <div>{t('skyAtlas.astronomicalDusk')}: {formatTime(nighttimeData.twilightRiseAndSet.set)}</div>
+        <div>{t('skyAtlas.astronomicalDawn')}: {formatTime(nighttimeData.twilightRiseAndSet.rise)}</div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main Sky Atlas Panel Component
+// ============================================================================
+
+export function SkyAtlasPanel() {
+  const t = useTranslations();
+  const [isOpen, setIsOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
+  
+  // Get location from mount store
+  const profileInfo = useMountStore((state) => state.profileInfo);
+  const latitude = profileInfo.AstrometrySettings.Latitude || 0;
+  const longitude = profileInfo.AstrometrySettings.Longitude || 0;
+  
+  // Sky Atlas store
+  const {
+    catalog,
+    searchResult,
+    isSearching,
+    selectedObject,
+    tonightsBest,
+    setLocation,
+    search,
+    selectObject,
+    filters,
+    setFilters,
+  } = useSkyAtlasStore();
+  
+  // Target list store for adding objects
+  const addTarget = useTargetListStore((state) => state.addTarget);
+  
+  // Initialize when opened
+  useEffect(() => {
+    if (isOpen && catalog.length === 0) {
+      initializeSkyAtlas(latitude, longitude);
+    }
+  }, [isOpen, catalog.length, latitude, longitude]);
+  
+  // Update location when it changes
+  useEffect(() => {
+    if (latitude !== 0 || longitude !== 0) {
+      setLocation(latitude, longitude);
+    }
+  }, [latitude, longitude, setLocation]);
+  
+  // Handle search
+  const handleSearch = useCallback(() => {
+    search();
+  }, [search]);
+  
+  // Handle add to shot list
+  const handleAddToList = useCallback((object: DeepSkyObject) => {
+    addTarget({
+      name: object.name,
+      ra: object.ra,
+      dec: object.dec,
+      raString: degreesToHMS(object.ra),
+      decString: degreesToDMS(object.dec),
+      priority: 'medium',
+      notes: `${DSO_TYPE_LABELS[object.type] || object.type} in ${CONSTELLATION_NAMES[object.constellation] || object.constellation}${object.magnitude ? ` | Mag: ${object.magnitude.toFixed(1)}` : ''}`,
+    });
+  }, [addTarget]);
+  
+  // Handle go to object
+  const handleGoto = useCallback((object: DeepSkyObject) => {
+    // This would integrate with the stellarium view
+    // For now, just select the object
+    selectObject(object);
+  }, [selectObject]);
+  
+  return (
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Telescope className="h-4 w-4" />
+          {t('skyAtlas.title')}
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-[400px] sm:w-[540px] p-0 flex flex-col">
+        <SheetHeader className="p-4 pb-2 border-b">
+          <SheetTitle className="flex items-center gap-2">
+            <Telescope className="h-5 w-5" />
+            {t('skyAtlas.title')}
+          </SheetTitle>
+        </SheetHeader>
+        
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Location Info */}
+          {(latitude !== 0 || longitude !== 0) && (
+            <div className="px-4 py-2 text-xs text-muted-foreground flex items-center gap-1 border-b">
+              <MapPin className="h-3 w-3" />
+              {latitude.toFixed(2)}°, {longitude.toFixed(2)}°
+            </div>
+          )}
+          
+          {/* Nighttime Info */}
+          <div className="px-4 py-2 border-b">
+            <NighttimeInfo />
+          </div>
+          
+          {/* Filters */}
+          <div className="px-4 py-2 border-b">
+            <FilterPanel isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
+          </div>
+          
+          {/* Sort & Search Controls */}
+          <div className="px-4 py-2 border-b flex gap-2">
+            <Select
+              value={filters.orderByField}
+              onValueChange={(v) => setFilters({ orderByField: v as typeof filters.orderByField })}
+            >
+              <SelectTrigger className="flex-1 h-8 text-sm">
+                <ArrowUpDown className="h-3 w-3 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="imagingScore">{t('skyAtlas.sortByScore')}</SelectItem>
+                <SelectItem value="name">{t('skyAtlas.sortByName')}</SelectItem>
+                <SelectItem value="magnitude">{t('skyAtlas.sortByMagnitude')}</SelectItem>
+                <SelectItem value="size">{t('skyAtlas.sortBySize')}</SelectItem>
+                <SelectItem value="altitude">{t('skyAtlas.sortByAltitude')}</SelectItem>
+                <SelectItem value="transitTime">{t('skyAtlas.sortByTransit')}</SelectItem>
+                <SelectItem value="moonDistance">{t('skyAtlas.sortByMoonDistance')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              onClick={handleSearch}
+              disabled={isSearching}
+            >
+              {isSearching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+              {t('skyAtlas.search')}
+            </Button>
+          </div>
+          
+          {/* Tonight's Best */}
+          {tonightsBest.length > 0 && !searchResult && (
+            <div className="px-4 py-2 border-b">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="h-4 w-4 text-yellow-500" />
+                <span className="text-sm font-medium">{t('skyAtlas.tonightsBest')}</span>
+              </div>
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-2 pr-4">
+                  {tonightsBest.slice(0, 5).map((obj) => (
+                    <DSOCard
+                      key={obj.id}
+                      object={obj}
+                      onSelect={selectObject}
+                      onAddToList={handleAddToList}
+                      onGoto={handleGoto}
+                      isSelected={selectedObject?.id === obj.id}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+          
+          {/* Search Results */}
+          {searchResult && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="px-4 py-2 text-xs text-muted-foreground border-b">
+                {t('skyAtlas.resultsCount', { count: searchResult.totalCount })}
+                {searchResult.totalPages > 1 && (
+                  <span className="ml-2">
+                    ({t('skyAtlas.pageInfo', { 
+                      current: searchResult.currentPage, 
+                      total: searchResult.totalPages 
+                    })})
+                  </span>
+                )}
+              </div>
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-2">
+                  {searchResult.objects.map((obj) => (
+                    <DSOCard
+                      key={obj.id}
+                      object={obj}
+                      onSelect={selectObject}
+                      onAddToList={handleAddToList}
+                      onGoto={handleGoto}
+                      isSelected={selectedObject?.id === obj.id}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+          
+          {/* Empty State */}
+          {!searchResult && tonightsBest.length === 0 && !isSearching && (
+            <div className="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground">
+              <div>
+                <Telescope className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm">{t('skyAtlas.emptyState')}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-4"
+                  onClick={handleSearch}
+                >
+                  {t('skyAtlas.startSearch')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}

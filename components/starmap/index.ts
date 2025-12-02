@@ -15,3 +15,6 @@ export { InfoPanel } from './InfoPanel';
 export { ExposureCalculator } from './ExposureCalculator';
 export { ShotList } from './ShotList';
 export { OfflineCacheManager } from './OfflineCacheManager';
+export { SkyAtlasPanel } from './SkyAtlasPanel';
+export { SplashScreen } from './SplashScreen';
+export { AboutDialog } from './AboutDialog';

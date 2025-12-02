@@ -50,8 +50,9 @@ export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomCont
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30"
               onClick={onZoomIn}
+              disabled={fov <= MIN_FOV}
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -79,8 +80,9 @@ export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomCont
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30"
               onClick={onZoomOut}
+              disabled={fov >= MAX_FOV}
             >
               <ZoomOut className="h-4 w-4" />
             </Button>

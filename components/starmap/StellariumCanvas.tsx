@@ -53,6 +53,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
   const profileInfo = useMountStore((state) => state.profileInfo);
 
   // Helper to get coordinates from click position
+  // Uses gnomonic (rectilinear) projection - inverse of convertToScreen in SkyMarkers
   const getClickCoordinates = useCallback((clientX: number, clientY: number) => {
     if (!stelRef.current || !canvasRef.current) return null;
     
@@ -62,50 +63,32 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     
     try {
       const core = stel.core;
+      const fov = core.fov; // FOV in radians
+      const aspect = rect.width / rect.height;
       
-      // Calculate pixel position relative to canvas center
+      // Calculate pixel position relative to canvas
       const pixelX = clientX - rect.left;
       const pixelY = clientY - rect.top;
       
-      // Normalized device coordinates (-1 to 1), with Y inverted for screen coordinates
+      // Convert to normalized device coordinates (-1 to 1)
+      // Screen Y is inverted (0 at top, increases downward)
       const ndcX = (pixelX / rect.width) * 2 - 1;
-      const ndcY = -((pixelY / rect.height) * 2 - 1);
+      const ndcY = 1 - (pixelY / rect.height) * 2;
       
-      const fov = core.fov;
-      const aspect = rect.width / rect.height;
+      // Gnomonic projection inverse:
+      // Forward: ndcX = (viewX / -viewZ) * scale / aspect
+      //          ndcY = (viewY / -viewZ) * scale
+      // where scale = 1 / tan(fov/2)
+      // Inverse: projX = ndcX * aspect / scale = ndcX * aspect * tan(fov/2)
+      //          projY = ndcY / scale = ndcY * tan(fov/2)
+      const tanHalfFov = Math.tan(fov / 2);
+      const projX = ndcX * aspect * tanHalfFov;
+      const projY = ndcY * tanHalfFov;
       
-      // Calculate angular offset from center (in degrees, then convert to radians)
-      // For stereographic projection (commonly used in planetarium software)
-      const halfFovH = fov / 2;
-      const halfFovV = halfFovH / aspect;
-      
-      // Angular offsets in radians
-      const xAngle = ndcX * halfFovH * stel.D2R;
-      const yAngle = ndcY * halfFovV * stel.D2R;
-      
-      // Create direction vector in VIEW frame
-      // VIEW frame: looking at -Z, X is right, Y is up
-      // For small angles, we can use a simple approximation
-      // For larger FOV, we need proper spherical projection
-      const r = Math.sqrt(xAngle * xAngle + yAngle * yAngle);
-      let viewVec: number[];
-      
-      if (r < 0.001) {
-        // At center, just look forward
-        viewVec = [0, 0, -1];
-      } else {
-        // Use gnomonic (rectilinear) projection inverse
-        // This is what most planetarium software uses
-        const theta = Math.atan(r);
-        const sinTheta = Math.sin(theta);
-        const cosTheta = Math.cos(theta);
-        
-        viewVec = [
-          sinTheta * (xAngle / r),
-          sinTheta * (yAngle / r),
-          -cosTheta
-        ];
-      }
+      // Build VIEW frame vector: [projX, projY, -1] then normalize
+      // VIEW frame: -Z is forward, X is right, Y is up
+      const length = Math.sqrt(projX * projX + projY * projY + 1);
+      const viewVec = [projX / length, projY / length, -1 / length];
       
       // Convert VIEW -> ICRF (equatorial coordinates)
       const icrfVec = stel.convertFrame(stel.observer, 'VIEW', 'ICRF', viewVec);

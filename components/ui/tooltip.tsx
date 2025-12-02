@@ -5,14 +5,34 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils"
 
+// Hook to detect touch device
+function useIsTouchDevice() {
+  const [isTouch, setIsTouch] = React.useState(false);
+  
+  React.useEffect(() => {
+    const checkTouch = () => {
+      setIsTouch(
+        'ontouchstart' in window || 
+        navigator.maxTouchPoints > 0
+      );
+    };
+    checkTouch();
+    window.addEventListener('touchstart', () => setIsTouch(true), { once: true });
+  }, []);
+  
+  return isTouch;
+}
+
 function TooltipProvider({
   delayDuration = 0,
+  skipDelayDuration = 300,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Provider> & { skipDelayDuration?: number }) {
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
       delayDuration={delayDuration}
+      skipDelayDuration={skipDelayDuration}
       {...props}
     />
   )
@@ -40,6 +60,13 @@ function TooltipContent({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  const isTouch = useIsTouchDevice();
+  
+  // Don't render tooltip on touch devices to prevent sticky hover issues
+  if (isTouch) {
+    return null;
+  }
+  
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
@@ -52,7 +79,7 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="bg-foreground fill-foreground z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
+        <TooltipPrimitive.Arrow className="bg-foreground fill-foreground z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px]" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

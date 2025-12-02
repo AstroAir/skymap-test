@@ -43,6 +43,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { Compass } from 'lucide-react';
 import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
 import { useSettingsStore } from '@/lib/starmap/stores/settings-store';
@@ -54,14 +56,19 @@ import { StellariumCredits } from './StellariumCredits';
 import { StellariumClock } from './StellariumClock';
 import { StellariumMount } from './StellariumMount';
 import { ZoomControls } from './ZoomControls';
-import { FOVSimulator, type GridType } from './FOVSimulator';
+import { FOVSimulator, type MosaicSettings, type GridType } from './FOVSimulator';
 import { FOVOverlay } from './FOVOverlay';
 import { InfoPanel } from './InfoPanel';
 import { ExposureCalculator } from './ExposureCalculator';
 import { ShotList } from './ShotList';
 import { OfflineCacheManager } from './OfflineCacheManager';
 import { TonightRecommendations } from './TonightRecommendations';
+import { AboutDialog } from './AboutDialog';
+import { SkyMarkers } from './SkyMarkers';
+import { MarkerManager } from './MarkerManager';
+import { useMarkerStore } from '@/lib/starmap/stores';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 // Context menu click coordinates type
 interface ClickCoords {
@@ -200,7 +207,7 @@ export function StellariumView() {
   const [sensorHeight, setSensorHeight] = useState(15.6);
   const [focalLength, setFocalLength] = useState(400);
   const [rotationAngle, setRotationAngle] = useState(0);
-  const [mosaic, setMosaic] = useState({ enabled: false, rows: 2, cols: 2, overlap: 20 });
+  const [mosaic, setMosaic] = useState<MosaicSettings>({ enabled: false, rows: 2, cols: 2, overlap: 20, overlapUnit: 'percent' });
   const [gridType, setGridType] = useState<GridType>('crosshair');
   const [showSessionPanel, setShowSessionPanel] = useState(true);
   const [contextMenuCoords, setContextMenuCoords] = useState<ClickCoords | null>(null);
@@ -234,6 +241,10 @@ export function StellariumView() {
   // Settings store
   const stellariumSettings = useSettingsStore((state) => state.stellarium);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
+  
+  // Marker store - for adding and editing markers from context menu
+  const setPendingMarkerCoords = useMarkerStore((state) => state.setPendingCoords);
+  const setEditingMarkerId = useMarkerStore((state) => state.setEditingMarkerId);
 
   // Track container bounds on resize
   useEffect(() => {
@@ -550,6 +561,25 @@ export function StellariumView() {
               {t('actions.addToTargetList')}
             </DropdownMenuItem>
 
+            {/* Add Marker Here */}
+            {contextMenuCoords && (
+              <DropdownMenuItem 
+                onClick={() => {
+                  setPendingMarkerCoords({
+                    ra: contextMenuCoords.ra,
+                    dec: contextMenuCoords.dec,
+                    raString: contextMenuCoords.raStr,
+                    decString: contextMenuCoords.decStr,
+                  });
+                  setContextMenuOpen(false);
+                }}
+                className="text-foreground"
+              >
+                <MapPin className="h-4 w-4 mr-2" />
+                {t('markers.addMarkerHere')}
+              </DropdownMenuItem>
+            )}
+
             {/* Center View on Click */}
             {contextMenuCoords && (
               <DropdownMenuItem 
@@ -824,6 +854,27 @@ export function StellariumView() {
           gridType={gridType}
         />
 
+        {/* Sky Markers Overlay */}
+        {containerBounds && (
+          <SkyMarkers
+            containerWidth={containerBounds.width}
+            containerHeight={containerBounds.height}
+            onMarkerDoubleClick={(marker) => {
+              if (setViewDirection) {
+                setViewDirection(marker.ra, marker.dec);
+              }
+            }}
+            onMarkerEdit={(marker) => {
+              setEditingMarkerId(marker.id);
+            }}
+            onMarkerNavigate={(marker) => {
+              if (setViewDirection) {
+                setViewDirection(marker.ra, marker.dec);
+              }
+            }}
+          />
+        )}
+
         {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-3 flex items-center justify-between pointer-events-none">
           {/* Left: Menu & Search */}
@@ -839,16 +890,67 @@ export function StellariumView() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 bg-card border-border">
-                <SheetHeader>
-                  <SheetTitle className="text-foreground">{t('starmap.title')}</SheetTitle>
+              <SheetContent side="left" className="w-80 bg-card border-border p-0 flex flex-col">
+                <SheetHeader className="p-4 border-b border-border shrink-0">
+                  <SheetTitle className="text-foreground flex items-center gap-2">
+                    <Compass className="h-5 w-5 text-primary" />
+                    {t('starmap.title')}
+                  </SheetTitle>
                 </SheetHeader>
-                <div className="mt-6 space-y-4">
-                  <StellariumSettings />
-                  <OfflineCacheManager />
-                  <StellariumCredits />
-                  {stel && <StellariumClock />}
-                </div>
+                
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-4">
+                    {/* Time Display */}
+                    {stel && (
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <StellariumClock />
+                      </div>
+                    )}
+                    
+                    {/* Quick Actions */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="flex flex-col items-center">
+                        <TonightRecommendations />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('tonight.title')}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <ThemeToggle />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('common.darkMode')}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <LanguageSwitcher className="h-10 w-10" />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('common.language')}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <AboutDialog />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('about.title')}</span>
+                      </div>
+                    </div>
+                    
+                    <Separator />
+                    
+                    {/* Display Settings */}
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{t('settings.displaySettings')}</h3>
+                      <StellariumSettings />
+                    </div>
+                    
+                    <Separator />
+                    
+                    {/* Offline Storage */}
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{t('cache.offlineStorage')}</h3>
+                      <OfflineCacheManager />
+                    </div>
+                    
+                    <Separator />
+                    
+                    {/* Credits */}
+                    <div className="pt-2">
+                      <StellariumCredits />
+                    </div>
+                  </div>
+                </ScrollArea>
               </SheetContent>
             </Sheet>
 
@@ -907,14 +1009,22 @@ export function StellariumView() {
                 </SheetContent>
               </Sheet>
               
-              <LanguageSwitcher className="h-10 w-10 bg-black/60 backdrop-blur-sm text-white hover:bg-black/80" />
+              <div className="flex gap-1 bg-black/60 backdrop-blur-sm rounded-md">
+                <ThemeToggle />
+                <LanguageSwitcher className="h-10 w-10 text-white hover:bg-black/80" />
+              </div>
               
-              {/* Tonight's Recommendations */}
+              {/* Tonight's Recommendations - Now powered by Sky Atlas */}
               <div className="bg-black/60 backdrop-blur-sm rounded-md">
                 <TonightRecommendations />
               </div>
               
               <StellariumCredits />
+              
+              {/* About */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <AboutDialog />
+              </div>
             </div>
             
             {/* Reset View */}
@@ -978,18 +1088,21 @@ export function StellariumView() {
         )}
 
 
-        {/* Right Side Controls */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto">
+        {/* Right Side Controls - Desktop Only */}
+        <div className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto">
           {/* Zoom Controls */}
-          <ZoomControls
-            fov={currentFov}
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-            onFovChange={handleFovSliderChange}
-          />
-
-          {/* FOV Simulator */}
           <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border">
+            <ZoomControls
+              fov={currentFov}
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onFovChange={handleFovSliderChange}
+            />
+          </div>
+
+          {/* Tool Buttons - Vertical */}
+          <div className="flex flex-col gap-1 bg-black/80 backdrop-blur-sm rounded-lg border border-border p-1">
+            <MarkerManager initialCoords={contextMenuCoords} />
             <FOVSimulator
               enabled={fovSimEnabled}
               onEnabledChange={setFovSimEnabled}
@@ -1024,6 +1137,60 @@ export function StellariumView() {
           </div>
 
           {/* Mount Controls */}
+          {stel && (
+            <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border">
+              <StellariumMount />
+            </div>
+          )}
+        </div>
+        
+        {/* Mobile Controls - Bottom Right Corner */}
+        <div className="sm:hidden absolute right-2 bottom-14 flex flex-col items-center gap-1 pointer-events-auto">
+          {/* Compact Zoom */}
+          <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border">
+            <ZoomControls
+              fov={currentFov}
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onFovChange={handleFovSliderChange}
+            />
+          </div>
+        </div>
+        
+        {/* Mobile Bottom Tools Bar - Horizontal */}
+        <div className="sm:hidden absolute bottom-14 left-2 flex items-center gap-1 bg-black/80 backdrop-blur-sm rounded-lg border border-border p-1 pointer-events-auto">
+          <MarkerManager initialCoords={contextMenuCoords} />
+          <FOVSimulator
+            enabled={fovSimEnabled}
+            onEnabledChange={setFovSimEnabled}
+            sensorWidth={sensorWidth}
+            sensorHeight={sensorHeight}
+            focalLength={focalLength}
+            onSensorWidthChange={setSensorWidth}
+            onSensorHeightChange={setSensorHeight}
+            onFocalLengthChange={setFocalLength}
+            mosaic={mosaic}
+            onMosaicChange={setMosaic}
+            gridType={gridType}
+            onGridTypeChange={setGridType}
+          />
+          <ExposureCalculator focalLength={focalLength} />
+          <ShotList
+            currentSelection={selectedObject ? {
+              name: selectedObject.names[0] || 'Unknown',
+              ra: selectedObject.raDeg,
+              dec: selectedObject.decDeg,
+              raString: selectedObject.ra,
+              decString: selectedObject.dec,
+            } : null}
+            fovSettings={{
+              sensorWidth,
+              sensorHeight,
+              focalLength,
+              rotationAngle,
+              mosaic,
+            }}
+          />
           {stel && <StellariumMount />}
         </div>
 
