@@ -47,6 +47,9 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
   
   const stellariumSettings = useSettingsStore((state) => state.stellarium);
   
+  // Track if engine is ready for settings updates
+  const [engineReady, setEngineReady] = useState(false);
+  
   const profileInfo = useMountStore((state) => state.profileInfo);
 
   // Helper to get coordinates from click position
@@ -57,30 +60,59 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     
-    // Calculate normalized device coordinates (-1 to 1)
-    const x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -(((clientY - rect.top) / rect.height) * 2 - 1);
-    
     try {
-      // Get view direction at click position
-      const fov = stel.core.fov;
+      const core = stel.core;
+      
+      // Calculate pixel position relative to canvas center
+      const pixelX = clientX - rect.left;
+      const pixelY = clientY - rect.top;
+      
+      // Normalized device coordinates (-1 to 1), with Y inverted for screen coordinates
+      const ndcX = (pixelX / rect.width) * 2 - 1;
+      const ndcY = -((pixelY / rect.height) * 2 - 1);
+      
+      const fov = core.fov;
       const aspect = rect.width / rect.height;
       
-      // Calculate angular offset from center
+      // Calculate angular offset from center (in degrees, then convert to radians)
+      // For stereographic projection (commonly used in planetarium software)
       const halfFovH = fov / 2;
       const halfFovV = halfFovH / aspect;
       
-      const azOffset = x * halfFovH;
-      const altOffset = y * halfFovV;
+      // Angular offsets in radians
+      const xAngle = ndcX * halfFovH * stel.D2R;
+      const yAngle = ndcY * halfFovV * stel.D2R;
       
-      // Get current view center
-      const viewVec = [0, 0, -1];
-      const cirsVec = stel.convertFrame(stel.observer, 'VIEW', 'CIRS', viewVec);
-      const centerSpherical = stel.c2s(cirsVec);
+      // Create direction vector in VIEW frame
+      // VIEW frame: looking at -Z, X is right, Y is up
+      // For small angles, we can use a simple approximation
+      // For larger FOV, we need proper spherical projection
+      const r = Math.sqrt(xAngle * xAngle + yAngle * yAngle);
+      let viewVec: number[];
       
-      // Apply offset (simplified - works well for small FOV)
-      const raRad = stel.anp(centerSpherical[0] + azOffset * stel.D2R);
-      const decRad = Math.max(-Math.PI/2, Math.min(Math.PI/2, centerSpherical[1] + altOffset * stel.D2R));
+      if (r < 0.001) {
+        // At center, just look forward
+        viewVec = [0, 0, -1];
+      } else {
+        // Use gnomonic (rectilinear) projection inverse
+        // This is what most planetarium software uses
+        const theta = Math.atan(r);
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+        
+        viewVec = [
+          sinTheta * (xAngle / r),
+          sinTheta * (yAngle / r),
+          -cosTheta
+        ];
+      }
+      
+      // Convert VIEW -> ICRF (equatorial coordinates)
+      const icrfVec = stel.convertFrame(stel.observer, 'VIEW', 'ICRF', viewVec);
+      const spherical = stel.c2s(icrfVec);
+      
+      const raRad = stel.anp(spherical[0]);
+      const decRad = spherical[1];
       
       const raDeg = rad2deg(raRad);
       const decDeg = rad2deg(decRad);
@@ -97,36 +129,40 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     }
   }, []);
 
+  // Helper to set FOV with proper engine update
+  const setEngineFov = useCallback((fovDeg: number) => {
+    if (!stelRef.current) return;
+    const clampedFov = Math.max(MIN_FOV, Math.min(MAX_FOV, fovDeg));
+    const fovRad = fovToRad(clampedFov);
+    // Use direct property assignment for better compatibility with Stellarium engine
+    stelRef.current.core.fov = fovRad;
+    onFovChange?.(clampedFov);
+  }, [onFovChange]);
+
   // Expose zoom methods via ref
   useImperativeHandle(ref, () => ({
     zoomIn: () => {
       if (stelRef.current) {
         const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
         const newFovDeg = Math.max(MIN_FOV, currentFovDeg * 0.8);
-        Object.assign(stelRef.current.core, { fov: fovToRad(newFovDeg) });
-        onFovChange?.(newFovDeg);
+        setEngineFov(newFovDeg);
       }
     },
     zoomOut: () => {
       if (stelRef.current) {
         const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
         const newFovDeg = Math.min(MAX_FOV, currentFovDeg * 1.25);
-        Object.assign(stelRef.current.core, { fov: fovToRad(newFovDeg) });
-        onFovChange?.(newFovDeg);
+        setEngineFov(newFovDeg);
       }
     },
     setFov: (fov: number) => {
-      if (stelRef.current) {
-        const clampedFov = Math.max(MIN_FOV, Math.min(MAX_FOV, fov));
-        Object.assign(stelRef.current.core, { fov: fovToRad(clampedFov) });
-        onFovChange?.(clampedFov);
-      }
+      setEngineFov(fov);
     },
     getFov: () => {
       return stelRef.current ? fovToDeg(stelRef.current.core.fov) : DEFAULT_FOV;
     },
     getClickCoordinates,
-  }), [onFovChange, getClickCoordinates]);
+  }), [setEngineFov, getClickCoordinates]);
 
   // Initialize Stellarium
   const initStellarium = useCallback((stel: StellariumEngine) => {
@@ -139,18 +175,17 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     const lon = profileInfo.AstrometrySettings.Longitude || 0;
     const elev = profileInfo.AstrometrySettings.Elevation || 0;
     
-    Object.assign(stel.core.observer, {
-      latitude: lat * stel.D2R,
-      longitude: lon * stel.D2R,
-      elevation: elev,
-    });
+    // Use direct property assignment for Stellarium engine compatibility
+    stel.core.observer.latitude = lat * stel.D2R;
+    stel.core.observer.longitude = lon * stel.D2R;
+    stel.core.observer.elevation = elev;
 
     // Set time speed to 1 and initial FOV
     // Use setTimeout to ensure the engine is fully initialized before setting FOV
-    Object.assign(stel.core, { time_speed: 1 });
+    stel.core.time_speed = 1;
     setTimeout(() => {
       if (stelRef.current) {
-        Object.assign(stelRef.current.core, { fov: fovToRad(DEFAULT_FOV) });
+        stelRef.current.core.fov = fovToRad(DEFAULT_FOV);
         onFovChange?.(DEFAULT_FOV);
       }
     }, 100);
@@ -189,7 +224,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
 
         targetCircle.pos = cirsVec;
         targetCircle.update();
-        Object.assign(stel.core, { selection: targetCircle });
+        stel.core.selection = targetCircle;
         stel.pointAndLock(targetCircle);
       } catch (error) {
         console.error('Error setting view direction:', error);
@@ -208,7 +243,8 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     core.stars.addDataSource({ url: baseUrl + 'stars' });
     core.skycultures.addDataSource({ url: baseUrl + 'skycultures/western', key: 'western' });
     core.dsos.addDataSource({ url: baseUrl + 'dso' });
-    core.dss.addDataSource({ url: baseUrl + 'surveys/dss' });
+    // Use remote CDS server for DSS - local data only has limited resolution (Norder3-4)
+    core.dss.addDataSource({ url: 'https://alasky.cds.unistra.fr/DSS/DSSColor/' });
     core.milkyway.addDataSource({ url: baseUrl + 'surveys/milkyway' });
     core.minor_planets.addDataSource({ url: baseUrl + 'mpcorb.dat', key: 'mpc_asteroids' });
     
@@ -234,7 +270,11 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
 
     // Apply initial settings - get latest from store to avoid stale closure
     const currentSettings = useSettingsStore.getState().stellarium;
-    updateStellariumCore(currentSettings);
+    // Delay initial settings application to ensure engine is fully ready
+    setTimeout(() => {
+      updateStellariumCore(currentSettings);
+      setEngineReady(true);
+    }, 200);
 
     // Watch for selection changes
     stel.change((_obj: unknown, attr: string) => {
@@ -333,7 +373,8 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
 
   // Apply settings changes to Stellarium core with debouncing
   useEffect(() => {
-    if (!stelRef.current) return;
+    // Only apply settings after engine is ready (initial settings already applied)
+    if (!engineReady || !stelRef.current) return;
     
     // Clear any pending update
     if (settingsTimeoutRef.current) {
@@ -352,7 +393,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
         clearTimeout(settingsTimeoutRef.current);
       }
     };
-  }, [stellariumSettings, updateStellariumCore]);
+  }, [stellariumSettings, updateStellariumCore, engineReady]);
 
   // Handle mouse wheel zoom
   useEffect(() => {
@@ -366,7 +407,8 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
       const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
       const newFovDeg = Math.max(MIN_FOV, Math.min(MAX_FOV, currentFovDeg * zoomFactor));
-      Object.assign(stelRef.current.core, { fov: fovToRad(newFovDeg) });
+      // Use direct property assignment for better compatibility
+      stelRef.current.core.fov = fovToRad(newFovDeg);
       onFovChange?.(newFovDeg);
     };
 
@@ -380,26 +422,65 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
   const LONG_PRESS_DURATION = 500; // ms
   const TOUCH_MOVE_THRESHOLD = 10; // pixels
 
-  // Handle right-click context menu - intercept in capture phase to prevent Stellarium from blocking it
-  // Then re-dispatch a synthetic event that will bubble to ContextMenuTrigger
+  // Right-click drag detection - only show context menu on click, not drag
+  const rightMouseDownPosRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const RIGHT_CLICK_THRESHOLD = 5; // pixels - if moved more than this, it's a drag
+  const RIGHT_CLICK_TIME_THRESHOLD = 300; // ms - max time for a click
+
+  // Handle right-click context menu - distinguish between click and drag
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Custom property to mark our synthetic events
-    const SYNTHETIC_MARKER = '__stellarium_ctx_synthetic__';
+    // Track right mouse button down
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 2) { // Right button
+        rightMouseDownPosRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          time: Date.now(),
+        };
+      }
+    };
+
+    // Track mouse movement to detect drag
+    const handleMouseMove = (e: MouseEvent) => {
+      if (rightMouseDownPosRef.current && (e.buttons & 2)) { // Right button held
+        const dx = e.clientX - rightMouseDownPosRef.current.x;
+        const dy = e.clientY - rightMouseDownPosRef.current.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // If moved too far, mark as drag (not a click)
+        if (distance > RIGHT_CLICK_THRESHOLD) {
+          rightMouseDownPosRef.current = null;
+        }
+      }
+    };
+
+    // Handle mouse up - clear tracking (needed for cleanup)
+    const handleMouseUp = () => {
+      // Context menu event will handle the actual action
+      // This is just for cleanup if needed
+    };
 
     const handleContextMenu = (e: Event) => {
       const mouseEvent = e as MouseEvent;
       
-      // Skip our own synthetic events to avoid infinite loop
-      if ((mouseEvent as unknown as Record<string, boolean>)[SYNTHETIC_MARKER]) {
+      // Check if this was a click (not a drag)
+      const wasClick = rightMouseDownPosRef.current !== null && 
+        (Date.now() - rightMouseDownPosRef.current.time) < RIGHT_CLICK_TIME_THRESHOLD;
+      
+      // Clear the tracking
+      rightMouseDownPosRef.current = null;
+      
+      // If it was a drag, let Stellarium handle it (don't show context menu)
+      if (!wasClick) {
+        mouseEvent.preventDefault(); // Still prevent browser context menu
         return;
       }
       
       // Prevent default browser context menu
       mouseEvent.preventDefault();
-      // Stop propagation to prevent Stellarium engine from handling/blocking it
       mouseEvent.stopPropagation();
       
       // Call the onContextMenu callback if provided
@@ -414,23 +495,6 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
         } as unknown as React.MouseEvent;
         onContextMenu(syntheticEvent, coords);
       }
-      
-      // Create and dispatch a new synthetic event that will bubble to ContextMenuTrigger
-      const syntheticMouseEvent = new MouseEvent('contextmenu', {
-        bubbles: true,
-        cancelable: true,
-        clientX: mouseEvent.clientX,
-        clientY: mouseEvent.clientY,
-        screenX: mouseEvent.screenX,
-        screenY: mouseEvent.screenY,
-        button: mouseEvent.button,
-        buttons: mouseEvent.buttons,
-      });
-      // Mark as synthetic to avoid re-processing
-      (syntheticMouseEvent as unknown as Record<string, boolean>)[SYNTHETIC_MARKER] = true;
-      
-      // Dispatch from container - it will bubble up to ContextMenuTrigger
-      container.dispatchEvent(syntheticMouseEvent);
     };
 
     // Long press handlers for mobile
@@ -444,7 +508,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       longPressTimeoutRef.current = setTimeout(() => {
         if (!touchStartPosRef.current) return;
         
-        // Call callback first
+        // Call callback directly for long press (no need for synthetic event)
         if (onContextMenu) {
           const coords = getClickCoordinates(touchStartPosRef.current.x, touchStartPosRef.current.y);
           const syntheticEvent = {
@@ -455,20 +519,6 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
           } as unknown as React.MouseEvent;
           onContextMenu(syntheticEvent, coords);
         }
-        
-        // Trigger context menu via synthetic event (marked to skip our handler)
-        const syntheticMouseEvent = new MouseEvent('contextmenu', {
-          bubbles: true,
-          cancelable: true,
-          clientX: touchStartPosRef.current.x,
-          clientY: touchStartPosRef.current.y,
-          screenX: touch.screenX,
-          screenY: touch.screenY,
-          button: 2,
-          buttons: 2,
-        });
-        (syntheticMouseEvent as unknown as Record<string, boolean>)[SYNTHETIC_MARKER] = true;
-        container.dispatchEvent(syntheticMouseEvent);
         
         touchStartPosRef.current = null;
       }, LONG_PRESS_DURATION);
@@ -499,14 +549,22 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       touchStartPosRef.current = null;
     };
 
+    // Mouse event listeners for right-click detection
+    container.addEventListener('mousedown', handleMouseDown, { capture: true });
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseup', handleMouseUp);
     // Use capture phase to intercept BEFORE Stellarium engine's handlers
     container.addEventListener('contextmenu', handleContextMenu, { capture: true });
+    // Touch event listeners for mobile long press
     container.addEventListener('touchstart', handleTouchStart, { passive: true });
     container.addEventListener('touchmove', handleTouchMove, { passive: true });
     container.addEventListener('touchend', handleTouchEnd);
     container.addEventListener('touchcancel', handleTouchEnd);
     
     return () => {
+      container.removeEventListener('mousedown', handleMouseDown, { capture: true });
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('contextmenu', handleContextMenu, { capture: true });
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);

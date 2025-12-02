@@ -62,7 +62,7 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
     const core = stel.core;
     
     try {
-      // Grid and line settings
+      // Grid and line settings - use direct property assignment for Stellarium engine compatibility
       if (core.constellations) {
         core.constellations.lines_visible = settings.constellationsLinesVisible;
         core.constellations.labels_visible = settings.constellationsLinesVisible;
@@ -103,13 +103,20 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
       
       // Handle sky survey (HiPS) with proper error handling
       if (core.hips) {
-        const selectedSurvey = SKY_SURVEYS.find(s => s.id === settings.surveyId);
+        // First check for direct URL (online surveys), then fall back to local survey lookup
+        let surveyUrl: string | undefined = settings.surveyUrl;
         
-        if (settings.surveyEnabled && selectedSurvey) {
+        if (!surveyUrl) {
+          const selectedSurvey = SKY_SURVEYS.find(s => s.id === settings.surveyId);
+          surveyUrl = selectedSurvey?.url;
+        }
+        
+        if (settings.surveyEnabled && surveyUrl) {
           try {
-            // Set visibility first, then URL
+            // Set visibility first, then URL using direct property assignment
             core.hips.visible = true;
-            Object.assign(core.hips, { url: selectedSurvey.url });
+            core.hips.url = surveyUrl;
+            console.log('HiPS survey set to:', surveyUrl);
           } catch (hipsError) {
             console.warn('Failed to update HiPS survey:', hipsError);
           }

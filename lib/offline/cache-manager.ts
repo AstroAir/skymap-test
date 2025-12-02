@@ -1,7 +1,9 @@
 /**
- * Offline Cache Manager for Stellarium data layers
+ * Offline Cache Manager for Stellarium data layers and HiPS survey tiles
  * Uses Cache Storage API for offline support
  */
+
+import type { HiPSSurvey } from '@/lib/starmap/hips-service';
 
 export interface LayerConfig {
   id: string;
@@ -31,6 +33,39 @@ export interface CacheStatus {
   cachedBytes: number;
   totalBytes: number;
   lastUpdated?: Date;
+  // New fields for integrity checking
+  missingFiles?: string[];
+  isComplete: boolean;
+  integrityChecked?: boolean;
+}
+
+export interface StorageInfo {
+  used: number;
+  quota: number;
+  available: number;
+  usagePercent: number;
+}
+
+// HiPS Survey cache configuration
+export interface HiPSCacheConfig {
+  surveyId: string;
+  surveyUrl: string;
+  surveyName: string;
+  maxOrder: number; // Maximum HiPS order to cache (higher = more detail, more tiles)
+  cachedOrders: number[]; // Which orders are cached
+}
+
+export interface HiPSCacheStatus {
+  surveyId: string;
+  surveyName: string;
+  surveyUrl: string;
+  cached: boolean;
+  cachedTiles: number;
+  totalTiles: number;
+  cachedBytes: number;
+  estimatedTotalBytes: number;
+  cachedOrders: number[];
+  maxCachedOrder: number;
 }
 
 // Define available layers with their resources
@@ -143,16 +178,44 @@ export const STELLARIUM_LAYERS: LayerConfig[] = [
 ];
 
 const CACHE_NAME_PREFIX = 'skymap-offline-';
+const HIPS_CACHE_PREFIX = 'skymap-hips-';
 const CACHE_VERSION = 'v1';
+
+// Average tile size for estimation (50KB)
+const AVG_TILE_SIZE = 50 * 1024;
+
+// Calculate number of tiles for a given HiPS order
+function getTileCountForOrder(order: number): number {
+  const nside = Math.pow(2, order);
+  return 12 * nside * nside;
+}
+
+// Get total tiles up to and including a given order
+function getTotalTilesUpToOrder(maxOrder: number): number {
+  let total = 0;
+  for (let o = 0; o <= maxOrder; o++) {
+    total += getTileCountForOrder(o);
+  }
+  return total;
+}
 
 class OfflineCacheManager {
   private downloadAbortControllers: Map<string, AbortController> = new Map();
+  private hipsCacheConfigs: Map<string, HiPSCacheConfig> = new Map();
+  private readonly hipsProxyEndpoint = '/api/hips';
 
   /**
    * Get the cache name for a layer
    */
   private getCacheName(layerId: string): string {
     return `${CACHE_NAME_PREFIX}${layerId}-${CACHE_VERSION}`;
+  }
+
+  /**
+   * Get the cache name for a HiPS survey
+   */
+  private getHiPSCacheName(surveyId: string): string {
+    return `${HIPS_CACHE_PREFIX}${surveyId.replace(/[^a-zA-Z0-9]/g, '_')}-${CACHE_VERSION}`;
   }
 
   /**
@@ -175,6 +238,7 @@ class OfflineCacheManager {
         totalFiles: 0,
         cachedBytes: 0,
         totalBytes: 0,
+        isComplete: false,
       };
     }
 
@@ -186,25 +250,41 @@ class OfflineCacheManager {
         totalFiles: layer.files.length,
         cachedBytes: 0,
         totalBytes: layer.size,
+        isComplete: false,
       };
     }
 
     try {
       const cache = await caches.open(this.getCacheName(layerId));
       const keys = await cache.keys();
-      const cachedFiles = keys.length;
+      const cachedUrls = new Set(keys.map(k => k.url));
+      
+      // Check which files are missing
+      const missingFiles: string[] = [];
+      for (const file of layer.files) {
+        const fullUrl = new URL(layer.baseUrl + file, window.location.origin).href;
+        if (!cachedUrls.has(fullUrl)) {
+          missingFiles.push(file);
+        }
+      }
+      
+      const cachedFiles = layer.files.length - missingFiles.length;
+      const isComplete = missingFiles.length === 0;
       
       // Estimate cached bytes based on proportion of files
       const cachedBytes = Math.round((cachedFiles / layer.files.length) * layer.size);
 
       return {
         layerId,
-        cached: cachedFiles >= layer.files.length,
+        cached: isComplete,
         cachedFiles,
         totalFiles: layer.files.length,
         cachedBytes,
         totalBytes: layer.size,
         lastUpdated: cachedFiles > 0 ? new Date() : undefined,
+        missingFiles: missingFiles.length > 0 ? missingFiles : undefined,
+        isComplete,
+        integrityChecked: true,
       };
     } catch (error) {
       console.error(`Error getting cache status for ${layerId}:`, error);
@@ -215,8 +295,95 @@ class OfflineCacheManager {
         totalFiles: layer.files.length,
         cachedBytes: 0,
         totalBytes: layer.size,
+        isComplete: false,
       };
     }
+  }
+
+  /**
+   * Get storage usage information
+   */
+  async getStorageInfo(): Promise<StorageInfo> {
+    if (!('storage' in navigator && 'estimate' in navigator.storage)) {
+      return { used: 0, quota: 0, available: 0, usagePercent: 0 };
+    }
+
+    try {
+      const estimate = await navigator.storage.estimate();
+      const used = estimate.usage || 0;
+      const quota = estimate.quota || 0;
+      const available = quota - used;
+      const usagePercent = quota > 0 ? (used / quota) * 100 : 0;
+
+      return { used, quota, available, usagePercent };
+    } catch {
+      return { used: 0, quota: 0, available: 0, usagePercent: 0 };
+    }
+  }
+
+  /**
+   * Verify and repair cache integrity for a layer
+   */
+  async verifyAndRepairLayer(
+    layerId: string,
+    onProgress?: (progress: DownloadProgress) => void
+  ): Promise<{ verified: boolean; repaired: number; failed: number }> {
+    const status = await this.getLayerStatus(layerId);
+    
+    if (status.isComplete) {
+      return { verified: true, repaired: 0, failed: 0 };
+    }
+
+    if (!status.missingFiles || status.missingFiles.length === 0) {
+      return { verified: true, repaired: 0, failed: 0 };
+    }
+
+    const layer = STELLARIUM_LAYERS.find(l => l.id === layerId);
+    if (!layer) {
+      return { verified: false, repaired: 0, failed: status.missingFiles.length };
+    }
+
+    // Download missing files
+    const cache = await caches.open(this.getCacheName(layerId));
+    let repaired = 0;
+    let failed = 0;
+
+    const progress: DownloadProgress = {
+      layerId,
+      totalFiles: status.missingFiles.length,
+      downloadedFiles: 0,
+      totalBytes: Math.round((status.missingFiles.length / layer.files.length) * layer.size),
+      downloadedBytes: 0,
+      status: 'downloading',
+    };
+
+    onProgress?.(progress);
+
+    for (const file of status.missingFiles) {
+      try {
+        const url = layer.baseUrl + file;
+        const response = await fetch(url);
+        if (response.ok) {
+          await cache.put(url, response.clone());
+          repaired++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+
+      progress.downloadedFiles++;
+      progress.downloadedBytes = Math.round(
+        (progress.downloadedFiles / progress.totalFiles) * progress.totalBytes
+      );
+      onProgress?.(progress);
+    }
+
+    progress.status = failed === 0 ? 'completed' : 'error';
+    onProgress?.(progress);
+
+    return { verified: failed === 0, repaired, failed };
   }
 
   /**
@@ -439,10 +606,10 @@ class OfflineCacheManager {
       return fetch(url);
     }
 
-    // Try to find in any cache
+    // Try to find in any cache (including HiPS caches)
     const cacheNames = await caches.keys();
     const skymapCaches = cacheNames.filter(name => 
-      name.startsWith(CACHE_NAME_PREFIX)
+      name.startsWith(CACHE_NAME_PREFIX) || name.startsWith(HIPS_CACHE_PREFIX)
     );
 
     for (const cacheName of skymapCaches) {
@@ -463,6 +630,311 @@ class OfflineCacheManager {
     }
 
     return null;
+  }
+
+  // ==================== HiPS Survey Caching ====================
+
+  /**
+   * Get HiPS cache status for a specific survey
+   */
+  async getHiPSCacheStatus(survey: HiPSSurvey): Promise<HiPSCacheStatus> {
+    const surveyId = survey.id;
+    
+    if (!this.isAvailable()) {
+      return {
+        surveyId,
+        surveyName: survey.name,
+        surveyUrl: survey.url,
+        cached: false,
+        cachedTiles: 0,
+        totalTiles: 0,
+        cachedBytes: 0,
+        estimatedTotalBytes: 0,
+        cachedOrders: [],
+        maxCachedOrder: -1,
+      };
+    }
+
+    try {
+      const cacheName = this.getHiPSCacheName(surveyId);
+      const cache = await caches.open(cacheName);
+      const keys = await cache.keys();
+      
+      // Analyze cached tiles to determine which orders are cached
+      const cachedOrders = new Set<number>();
+      for (const request of keys) {
+        const url = request.url;
+        const orderMatch = url.match(/Norder(\d+)/);
+        if (orderMatch) {
+          cachedOrders.add(parseInt(orderMatch[1], 10));
+        }
+      }
+      
+      const ordersArray = Array.from(cachedOrders).sort((a, b) => a - b);
+      const maxCachedOrder = ordersArray.length > 0 ? Math.max(...ordersArray) : -1;
+      const cachedTiles = keys.length;
+      const cachedBytes = cachedTiles * AVG_TILE_SIZE;
+      
+      // Estimate total based on max order we'd want to cache (order 3 is reasonable for offline)
+      const targetOrder = Math.min(survey.maxOrder, 3);
+      const totalTiles = getTotalTilesUpToOrder(targetOrder);
+      const estimatedTotalBytes = totalTiles * AVG_TILE_SIZE;
+
+      return {
+        surveyId,
+        surveyName: survey.name,
+        surveyUrl: survey.url,
+        cached: cachedTiles > 0,
+        cachedTiles,
+        totalTiles,
+        cachedBytes,
+        estimatedTotalBytes,
+        cachedOrders: ordersArray,
+        maxCachedOrder,
+      };
+    } catch (error) {
+      console.error(`Error getting HiPS cache status for ${surveyId}:`, error);
+      return {
+        surveyId,
+        surveyName: survey.name,
+        surveyUrl: survey.url,
+        cached: false,
+        cachedTiles: 0,
+        totalTiles: 0,
+        cachedBytes: 0,
+        estimatedTotalBytes: 0,
+        cachedOrders: [],
+        maxCachedOrder: -1,
+      };
+    }
+  }
+
+  /**
+   * Download and cache HiPS tiles for a survey up to a specific order
+   */
+  async downloadHiPSSurvey(
+    survey: HiPSSurvey,
+    maxOrder = 3, // Order 3 = 768 tiles, reasonable for offline
+    onProgress?: (progress: DownloadProgress) => void
+  ): Promise<boolean> {
+    if (!this.isAvailable()) {
+      throw new Error('Cache API not available');
+    }
+
+    const surveyId = survey.id;
+    const abortController = new AbortController();
+    this.downloadAbortControllers.set(`hips-${surveyId}`, abortController);
+
+    // Calculate total tiles
+    const totalTiles = getTotalTilesUpToOrder(maxOrder);
+    const estimatedBytes = totalTiles * AVG_TILE_SIZE;
+
+    const progress: DownloadProgress = {
+      layerId: `hips-${surveyId}`,
+      totalFiles: totalTiles,
+      downloadedFiles: 0,
+      totalBytes: estimatedBytes,
+      downloadedBytes: 0,
+      status: 'downloading',
+    };
+
+    onProgress?.(progress);
+
+    try {
+      const cacheName = this.getHiPSCacheName(surveyId);
+      const cache = await caches.open(cacheName);
+      let failedTiles = 0;
+
+      // Download tiles for each order
+      for (let order = 0; order <= maxOrder; order++) {
+        if (abortController.signal.aborted) {
+          progress.status = 'error';
+          progress.error = 'Download cancelled';
+          onProgress?.(progress);
+          return false;
+        }
+
+        const tilesInOrder = getTileCountForOrder(order);
+        
+        // Download tiles in batches to avoid overwhelming the network
+        const batchSize = 10;
+        for (let i = 0; i < tilesInOrder; i += batchSize) {
+          if (abortController.signal.aborted) {
+            progress.status = 'error';
+            progress.error = 'Download cancelled';
+            onProgress?.(progress);
+            return false;
+          }
+
+          const batch = [];
+          for (let j = i; j < Math.min(i + batchSize, tilesInOrder); j++) {
+            const { cacheKey, fetchUrl } = this.buildHiPSTileUrls(survey, order, j);
+            batch.push(this.fetchAndCacheTile(cache, cacheKey, fetchUrl, abortController.signal));
+          }
+
+          const results = await Promise.allSettled(batch);
+          const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
+          const batchFailures = batch.length - successCount;
+          failedTiles += batchFailures;
+          
+          progress.downloadedFiles += successCount;
+          progress.downloadedBytes = progress.downloadedFiles * AVG_TILE_SIZE;
+          onProgress?.(progress);
+        }
+      }
+
+      // Store cache config
+      this.hipsCacheConfigs.set(surveyId, {
+        surveyId,
+        surveyUrl: survey.url,
+        surveyName: survey.name,
+        maxOrder,
+        cachedOrders: Array.from({ length: maxOrder + 1 }, (_, i) => i),
+      });
+
+      if (failedTiles > 0) {
+        progress.status = 'error';
+        progress.error = `${failedTiles} tiles failed to download`;
+      } else {
+        progress.status = 'completed';
+      }
+      onProgress?.(progress);
+      
+      this.downloadAbortControllers.delete(`hips-${surveyId}`);
+      return failedTiles === 0;
+    } catch (error) {
+      progress.status = 'error';
+      progress.error = (error as Error).message;
+      onProgress?.(progress);
+      this.downloadAbortControllers.delete(`hips-${surveyId}`);
+      return false;
+    }
+  }
+
+  /**
+   * Fetch and cache a single tile
+   */
+  private async fetchAndCacheTile(
+    cache: Cache,
+    cacheKey: string,
+    fetchUrl: string,
+    signal: AbortSignal
+  ): Promise<boolean> {
+    try {
+      // Check if already cached
+      const existing = await cache.match(cacheKey);
+      if (existing) {
+        return true;
+      }
+
+      const response = await fetch(fetchUrl, { signal });
+      if (!response.ok) {
+        return false;
+      }
+
+      await cache.put(cacheKey, response.clone());
+      return true;
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        throw error;
+      }
+      console.warn(`Failed to cache tile: ${fetchUrl}`, error);
+      return false;
+    }
+  }
+
+  private buildHiPSTileUrls(
+    survey: HiPSSurvey,
+    order: number,
+    pixelIndex: number
+  ): { cacheKey: string; fetchUrl: string } {
+    const dir = Math.floor(pixelIndex / 10000) * 10000;
+    const format = survey.tileFormat.split(' ')[0] || 'jpeg';
+    const cacheKey = `${survey.url}Norder${order}/Dir${dir}/Npix${pixelIndex}.${format}`;
+    const needsProxy = cacheKey.startsWith('http://') || cacheKey.startsWith('https://');
+    const fetchUrl = needsProxy
+      ? `${this.hipsProxyEndpoint}?url=${encodeURIComponent(cacheKey)}`
+      : cacheKey;
+    return { cacheKey, fetchUrl };
+  }
+
+  /**
+   * Cancel HiPS survey download
+   */
+  cancelHiPSDownload(surveyId: string): void {
+    const controller = this.downloadAbortControllers.get(`hips-${surveyId}`);
+    if (controller) {
+      controller.abort();
+      this.downloadAbortControllers.delete(`hips-${surveyId}`);
+    }
+  }
+
+  /**
+   * Clear HiPS cache for a specific survey
+   */
+  async clearHiPSCache(surveyId: string): Promise<boolean> {
+    if (!this.isAvailable()) return false;
+
+    try {
+      const cacheName = this.getHiPSCacheName(surveyId);
+      const deleted = await caches.delete(cacheName);
+      this.hipsCacheConfigs.delete(surveyId);
+      return deleted;
+    } catch (error) {
+      console.error(`Error clearing HiPS cache for ${surveyId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Clear all HiPS caches
+   */
+  async clearAllHiPSCaches(): Promise<boolean> {
+    if (!this.isAvailable()) return false;
+
+    try {
+      const cacheNames = await caches.keys();
+      const hipsCaches = cacheNames.filter(name => 
+        name.startsWith(HIPS_CACHE_PREFIX)
+      );
+
+      await Promise.all(hipsCaches.map(name => caches.delete(name)));
+      this.hipsCacheConfigs.clear();
+      return true;
+    } catch (error) {
+      console.error('Error clearing all HiPS caches:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get all cached HiPS surveys
+   */
+  async getAllCachedHiPSSurveys(): Promise<string[]> {
+    if (!this.isAvailable()) return [];
+
+    try {
+      const cacheNames = await caches.keys();
+      return cacheNames
+        .filter(name => name.startsWith(HIPS_CACHE_PREFIX))
+        .map(name => {
+          // Extract survey ID from cache name
+          const match = name.match(new RegExp(`^${HIPS_CACHE_PREFIX}(.+)-${CACHE_VERSION}$`));
+          return match ? match[1] : null;
+        })
+        .filter((id): id is string => id !== null);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get a HiPS tile from cache or fetch from network
+   */
+  async getHiPSTile(surveyUrl: string, order: number, pixelIndex: number, format = 'jpeg'): Promise<Response | null> {
+    const dir = Math.floor(pixelIndex / 10000) * 10000;
+    const tileUrl = `${surveyUrl}Norder${order}/Dir${dir}/Npix${pixelIndex}.${format}`;
+    return this.getResource(tileUrl);
   }
 }
 

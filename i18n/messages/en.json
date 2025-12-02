@@ -33,14 +33,18 @@
   "starmap": {
     "title": "Star Map",
     "searchObjects": "Search Objects",
-    "searchPlaceholder": "Search M31, NGC7000, Mars...",
+    "searchPlaceholder": "Search M31, NGC7000, Mars, or coordinates...",
     "noObjectsFound": "No objects found",
     "trySearching": "Try searching for M31, NGC7000, or planet names",
+    "fuzzySearchHint": "Fuzzy search enabled - partial matches will be shown",
+    "coordinateSearchHint": "Enter coordinates: 10.68 41.27 or 00h42m44s +41°16'09\"",
     "popularObjects": "Popular Objects",
     "resetView": "Reset View",
     "sessionInfo": "Session Info",
     "hideSessionInfo": "Hide Session Info",
-    "showSessionInfo": "Show Session Info"
+    "showSessionInfo": "Show Session Info",
+    "recentSearches": "Recent Searches",
+    "clearHistory": "Clear History"
   },
   "coordinates": {
     "ra": "RA",
@@ -51,7 +55,13 @@
     "copyObjectCoordinates": "Copy Object Coordinates",
     "copyClickPosition": "Copy Click Position",
     "copyViewCenter": "Copy View Center",
-    "coordinates": "Coordinates"
+    "coordinates": "Coordinates",
+    "goToCoordinates": "Go to Coordinates",
+    "inputCoordinates": "Input Coordinates",
+    "raPlaceholder": "e.g. 10.68 or 00h42m44s",
+    "decPlaceholder": "e.g. 41.27 or +41°16'09\"",
+    "invalidCoordinates": "Invalid coordinates format",
+    "goTo": "Go To"
   },
   "objects": {
     "comet": "Comet",
@@ -59,6 +69,8 @@
     "dso": "DSO",
     "star": "Star",
     "moon": "Moon",
+    "constellation": "Constellation",
+    "coordinates": "Coordinates",
     "unknown": "Unknown"
   },
   "actions": {
@@ -68,6 +80,47 @@
     "goToTarget": "Go to target",
     "startImaging": "Start imaging",
     "markComplete": "Mark complete"
+  },
+  "tonight": {
+    "recommendations": "Tonight's Picks",
+    "title": "Tonight's Recommended Targets",
+    "conditions": "Tonight's Conditions",
+    "darkHours": "dark hours",
+    "topTargets": "Top Targets",
+    "sortedByScore": "Sorted by score",
+    "noRecommendations": "No recommendations available",
+    "goToTarget": "Go to target",
+    "maxAltitude": "Maximum altitude",
+    "imagingTime": "Imaging time available",
+    "moonDistance": "Distance from moon",
+    "transitTime": "Transit time",
+    "excellent": "Excellent",
+    "good": "Good",
+    "fair": "Fair",
+    "evening": "Evening",
+    "morning": "Morning",
+    "sunset": "Sunset",
+    "sunrise": "Sunrise",
+    "astronomicalDusk": "Astro. Dusk",
+    "astronomicalDawn": "Astro. Dawn",
+    "twilight": "Twilight",
+    "darkSky": "Dark Sky",
+    "now": "Now",
+    "illuminated": "illuminated",
+    "filter": "Filter",
+    "sort": "Sort",
+    "addTop10": "Add Top 10",
+    "filterType": {
+      "all": "All",
+      "galaxy": "Galaxies",
+      "nebula": "Nebulae",
+      "cluster": "Clusters"
+    },
+    "sortType": {
+      "score": "Score",
+      "altitude": "Altitude",
+      "time": "Time"
+    }
   },
   "zoom": {
     "zoom": "Zoom",
@@ -204,7 +257,32 @@
     "clearAllDescription": "This will remove all {count} targets from your shot list. This action cannot be undone.",
     "overlapsWith": "Overlaps with {count} target(s)",
     "inProgress": "in progress",
-    "completed": "completed"
+    "completed": "completed",
+    "allTargets": "All Targets",
+    "highPriority": "High Priority",
+    "mediumPriority": "Medium Priority",
+    "lowPriority": "Low Priority",
+    "untagged": "Untagged",
+    "groupBy": "Group By",
+    "noGrouping": "No Grouping",
+    "byPriority": "By Priority",
+    "byStatus": "By Status",
+    "byTag": "By Tag",
+    "showArchived": "Show Archived",
+    "setStatus": "Status",
+    "setPriority": "Priority"
+  },
+  "search": {
+    "filterByType": "Filter by Type",
+    "sortBy": "Sort By",
+    "sortByName": "Name",
+    "sortByType": "Type",
+    "clearSelection": "Clear",
+    "selectAll": "Select All",
+    "selectedCount": "{count} selected",
+    "addToList": "Add to List",
+    "recentSearches": "Recent",
+    "quickCategories": "Categories"
   },
   "exposure": {
     "exposureCalculator": "Exposure Calculator",
@@ -248,10 +326,39 @@
     "clearAllCache": "Clear all cache?",
     "clearAllCacheDescription": "This will remove all cached data ({size}). You will need to re-download for offline use.",
     "autoDownloadOnWifi": "Auto-download on WiFi",
-    "manageIndividualLayers": "Manage individual layers",
+    "manageIndividualLayers": "Data Layers",
     "layersCached": "{cached}/{total} layers cached ({size})",
     "selected": "{count} selected",
-    "cancelDownloads": "Cancel Downloads"
+    "cancelDownloads": "Cancel Downloads",
+    "storageUsed": "Storage Used",
+    "available": "available",
+    "incomplete": "Incomplete",
+    "repair": "Repair Cache",
+    "repairing": "Repairing...",
+    "repairComplete": "Cache Repaired",
+    "repairFailed": "Repair Failed"
+  },
+  "survey": {
+    "builtinSurveys": "Built-in Surveys",
+    "onlineSearch": "Online Search",
+    "searchPlaceholder": "Search DSS, PanSTARRS, WISE...",
+    "searchForSurveys": "Search for sky surveys",
+    "searchHint": "Try DSS, SDSS, 2MASS, WISE, etc.",
+    "searchFailed": "Failed to search surveys",
+    "cachedOffline": "Cached for offline use",
+    "builtin": "Built-in",
+    "downloadForOffline": "Download for offline use",
+    "downloadingTiles": "Downloading tiles",
+    "downloadComplete": "Survey tiles downloaded",
+    "downloadFailed": "Failed to download survey tiles",
+    "clearCache": "Clear cached tiles",
+    "cacheCleared": "Survey cache cleared",
+    "tilesCount": "{count} tiles cached",
+    "estimatedSize": "~{size}",
+    "surveyInfo": "Survey Info",
+    "wavelength": "Wavelength",
+    "resolution": "Resolution",
+    "coverage": "Coverage"
   },
   "credits": {
     "dataCredits": "Data Credits",

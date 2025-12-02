@@ -3,68 +3,102 @@
 import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore } from '@/lib/starmap/stores';
-import { rad2deg } from '@/lib/starmap/utils';
+import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
+import { useObjectSearch, type ObjectType } from '@/lib/starmap/hooks';
+import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/starmap/utils';
 import type { SearchResultItem } from '@/lib/starmap/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Star, Globe, Moon as MoonIcon, Sparkles, CircleDot, Loader2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Search,
+  Star,
+  Globe,
+  Moon as MoonIcon,
+  Sparkles,
+  CircleDot,
+  Loader2,
+  Filter,
+  Plus,
+  CheckSquare,
+  Square,
+  X,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  ListPlus,
+} from 'lucide-react';
 
-// Celestial bodies list for search
-const celestialBodies: SearchResultItem[] = [
-  { Name: 'Sun', Type: 'Star' },
-  { Name: 'Mercury', Type: 'Planet' },
-  { Name: 'Venus', Type: 'Planet' },
-  { Name: 'Moon', Type: 'Moon' },
-  { Name: 'Mars', Type: 'Planet' },
-  { Name: 'Jupiter', Type: 'Planet' },
-  { Name: 'Saturn', Type: 'Planet' },
-  { Name: 'Uranus', Type: 'Planet' },
-  { Name: 'Neptune', Type: 'Planet' },
-  { Name: 'Pluto', Type: 'Planet' },
-];
-
-// Popular DSO catalog for quick search
-const popularDSOs: SearchResultItem[] = [
-  { Name: 'M31', Type: 'DSO', RA: 10.6847, Dec: 41.2689, 'Common names': 'Andromeda Galaxy' },
-  { Name: 'M42', Type: 'DSO', RA: 83.8221, Dec: -5.3911, 'Common names': 'Orion Nebula' },
-  { Name: 'M45', Type: 'DSO', RA: 56.75, Dec: 24.1167, 'Common names': 'Pleiades' },
-  { Name: 'M1', Type: 'DSO', RA: 83.6333, Dec: 22.0167, 'Common names': 'Crab Nebula' },
-  { Name: 'M51', Type: 'DSO', RA: 202.4696, Dec: 47.1952, 'Common names': 'Whirlpool Galaxy' },
-  { Name: 'M101', Type: 'DSO', RA: 210.8024, Dec: 54.3488, 'Common names': 'Pinwheel Galaxy' },
-  { Name: 'M104', Type: 'DSO', RA: 189.9976, Dec: -11.6231, 'Common names': 'Sombrero Galaxy' },
-  { Name: 'M13', Type: 'DSO', RA: 250.4217, Dec: 36.4613, 'Common names': 'Hercules Cluster' },
-  { Name: 'M57', Type: 'DSO', RA: 283.3962, Dec: 33.0286, 'Common names': 'Ring Nebula' },
-  { Name: 'M27', Type: 'DSO', RA: 299.9017, Dec: 22.7211, 'Common names': 'Dumbbell Nebula' },
-  { Name: 'NGC7000', Type: 'DSO', RA: 314.6833, Dec: 44.3167, 'Common names': 'North America Nebula' },
-  { Name: 'NGC6992', Type: 'DSO', RA: 312.7583, Dec: 31.7167, 'Common names': 'Veil Nebula' },
-  { Name: 'IC1396', Type: 'DSO', RA: 324.7458, Dec: 57.4833, 'Common names': 'Elephant Trunk Nebula' },
-  { Name: 'NGC2244', Type: 'DSO', RA: 97.9833, Dec: 4.9333, 'Common names': 'Rosette Nebula' },
-  { Name: 'M8', Type: 'DSO', RA: 270.9208, Dec: -24.3833, 'Common names': 'Lagoon Nebula' },
-  { Name: 'M20', Type: 'DSO', RA: 270.6208, Dec: -23.0333, 'Common names': 'Trifid Nebula' },
-  { Name: 'M16', Type: 'DSO', RA: 274.7, Dec: -13.8167, 'Common names': 'Eagle Nebula' },
-  { Name: 'M17', Type: 'DSO', RA: 275.1958, Dec: -16.1833, 'Common names': 'Omega Nebula' },
-  { Name: 'NGC6888', Type: 'DSO', RA: 303.0583, Dec: 38.35, 'Common names': 'Crescent Nebula' },
-  { Name: 'M33', Type: 'DSO', RA: 23.4621, Dec: 30.6599, 'Common names': 'Triangulum Galaxy' },
-];
+// ============================================================================
+// Types
+// ============================================================================
 
 export interface StellariumSearchRef {
   focusSearchInput: () => void;
 }
 
 interface StellariumSearchProps {
-  onSelect?: () => void;
+  onSelect?: (item?: SearchResultItem) => void;
+  enableMultiSelect?: boolean;
+  onBatchAdd?: (items: SearchResultItem[]) => void;
 }
 
+// Helper to get unique ID for a search result
+function getResultId(item: SearchResultItem): string {
+  return `${item.Type || 'unknown'}-${item.Name}`;
+}
+
+// ============================================================================
+// Component
+// ============================================================================
+
 export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearchProps>(
-  function StellariumSearch({ onSelect }, ref) {
+  function StellariumSearch({ onSelect, enableMultiSelect = true, onBatchAdd }, ref) {
     const t = useTranslations();
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const stel = useStellariumStore((state) => state.stel);
+    const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
+    
+    // Use the enhanced search hook
+    const {
+      query,
+      results,
+      groupedResults,
+      isSearching,
+      selectedIds,
+      filters,
+      sortBy,
+      recentSearches,
+      setQuery,
+      clearSearch,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      setFilters,
+      setSortBy,
+      addRecentSearch,
+      getSelectedItems,
+      isSelected,
+      popularObjects,
+      quickCategories,
+    } = useObjectSearch();
+    
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['DSO', 'Planet']));
 
     useImperativeHandle(ref, () => ({
       focusSearchInput: () => {
@@ -74,107 +108,30 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       },
     }));
 
-    const fetchTargetSearch = useCallback(async (query: string) => {
-      if (query.trim() === '') {
-        setSearchResults([]);
-        return;
-      }
-
-      setIsSearching(true);
-      const results: SearchResultItem[] = [];
-      const lowerQuery = query.toLowerCase();
-
-      // Search DSO catalog first (M, NGC, IC objects)
-      for (const dso of popularDSOs) {
-        if (
-          dso.Name.toLowerCase().includes(lowerQuery) ||
-          dso['Common names']?.toLowerCase().includes(lowerQuery)
-        ) {
-          results.push(dso);
+    // Toggle group expansion
+    const toggleGroup = useCallback((group: string) => {
+      setExpandedGroups(prev => {
+        const next = new Set(prev);
+        if (next.has(group)) {
+          next.delete(group);
+        } else {
+          next.add(group);
         }
-      }
+        return next;
+      });
+    }, []);
 
-      // Search celestial bodies
-      if (stel) {
-        for (const body of celestialBodies) {
-          if (body.Name.toLowerCase().includes(lowerQuery)) {
-            try {
-              const obj = stel.getObj(`NAME ${body.Name}`);
-              if (obj && obj.designations && obj.designations().length > 0) {
-                results.push({
-                  ...body,
-                  StellariumObj: obj,
-                });
-              } else {
-                results.push(body);
-              }
-            } catch {
-              results.push(body);
-            }
-          }
-        }
-
-        // Search comets
-        try {
-          const comets = stel.core.comets;
-          if (comets && comets.listObjs) {
-            const cometList = comets.listObjs(stel.core.observer, 100, () => true);
-            for (const comet of cometList) {
-              if (comet.designations) {
-                const designations = comet.designations();
-                for (const designation of designations) {
-                  const name = designation.replace(/^NAME /, '');
-                  if (name.toLowerCase().includes(lowerQuery)) {
-                    const exists = results.some((r) => r.Name === name);
-                    if (!exists) {
-                      results.push({
-                        Name: name,
-                        Type: 'Comet',
-                        StellariumObj: comet,
-                      });
-                    }
-                    break;
-                  }
-                }
-              }
-              if (results.length >= 20) break;
-            }
-          }
-        } catch (error) {
-          console.log('Comet search error:', error);
-        }
-      } else {
-        // Fallback when Stellarium not available
-        results.push(
-          ...celestialBodies.filter((body) =>
-            body.Name.toLowerCase().includes(lowerQuery)
-          )
-        );
-      }
-
-      setSearchResults(results.slice(0, 20));
-      setIsSearching(false);
-    }, [stel]);
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      setSearchQuery(value);
-      fetchTargetSearch(value);
-    };
-
+    // Navigate to target in Stellarium
     const selectTarget = useCallback(async (item: SearchResultItem) => {
-      searchInputRef.current?.blur();
-      setSearchResults([]);
-
       if (!stel) return;
 
       try {
         // Handle Stellarium objects (Comets, Planets)
         if (item.StellariumObj) {
-          // Use Object.assign to work around eslint react-compiler rule
           Object.assign(stel.core, { selection: item.StellariumObj });
           stel.pointAndLock(item.StellariumObj);
-          onSelect?.();
+          addRecentSearch(item.Name);
+          onSelect?.(item);
           return;
         }
 
@@ -211,12 +168,45 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           stel.pointAndLock(targetCircle);
         }
 
-        onSelect?.();
+        addRecentSearch(item.Name);
+        onSelect?.(item);
       } catch (error) {
         console.error('Error selecting target:', error);
       }
-    }, [stel, onSelect]);
+    }, [stel, onSelect, addRecentSearch]);
 
+    // Handle batch add to target list
+    const handleBatchAdd = useCallback(() => {
+      const selected = getSelectedItems();
+      if (selected.length === 0) return;
+      
+      const batchItems = selected
+        .filter(item => item.RA !== undefined && item.Dec !== undefined)
+        .map(item => ({
+          name: item.Name,
+          ra: item.RA!,
+          dec: item.Dec!,
+          raString: degreesToHMS(item.RA!),
+          decString: degreesToDMS(item.Dec!),
+        }));
+      
+      if (batchItems.length > 0) {
+        addTargetsBatch(batchItems);
+        clearSelection();
+        onBatchAdd?.(selected);
+      }
+    }, [getSelectedItems, addTargetsBatch, clearSelection, onBatchAdd]);
+
+    // Type filter toggle
+    const toggleTypeFilter = useCallback((type: ObjectType) => {
+      const currentTypes = filters.types;
+      const newTypes = currentTypes.includes(type)
+        ? currentTypes.filter(t => t !== type)
+        : [...currentTypes, type];
+      setFilters({ types: newTypes });
+    }, [filters.types, setFilters]);
+
+    // Icon helpers
     const getTypeIcon = (type?: string) => {
       switch (type) {
         case 'Comet': return <Sparkles className="h-4 w-4 text-green-400" />;
@@ -228,107 +218,310 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       }
     };
 
-    const getTypeBadge = (type?: string) => {
-      const colors: Record<string, string> = {
-        'Comet': 'bg-green-500/20 text-green-400 border-green-500/30',
-        'Planet': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-        'DSO': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-        'Star': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-        'Moon': 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-      };
-      return colors[type || ''] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-    };
+
+    const selectedCount = selectedIds.size;
+    const hasResults = results.length > 0;
 
     return (
       <div className="flex flex-col gap-3">
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            value={searchQuery}
-            onChange={handleInputChange}
-            ref={searchInputRef}
-            placeholder={t('starmap.searchPlaceholder')}
-            className="h-10 w-full pl-10"
-          />
-          {isSearching && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-          )}
+        {/* Search Input Row */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              ref={searchInputRef}
+              placeholder={t('starmap.searchPlaceholder')}
+              className="h-9 w-full pl-9 pr-8"
+            />
+            {query && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                onClick={clearSearch}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          
+          {/* Filter Button */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
+                <Filter className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>{t('search.filterByType')}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {(['DSO', 'Planet', 'Star', 'Moon', 'Comet'] as ObjectType[]).map((type) => (
+                <DropdownMenuCheckboxItem
+                  key={type}
+                  checked={filters.types.includes(type)}
+                  onCheckedChange={() => toggleTypeFilter(type)}
+                >
+                  <span className="flex items-center gap-2">
+                    {getTypeIcon(type)}
+                    {type}
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{t('search.sortBy')}</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={sortBy === 'name'}
+                onCheckedChange={() => setSortBy('name')}
+              >
+                {t('search.sortByName')}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={sortBy === 'type'}
+                onCheckedChange={() => setSortBy('type')}
+              >
+                {t('search.sortByType')}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <ScrollArea className="max-h-64">
-            <div className="space-y-1">
-              {searchResults.map((item, index) => (
-                <Button
-                  key={index}
-                  variant="ghost"
-                  className="w-full flex items-center gap-3 p-2 h-auto justify-start hover:bg-accent/50"
-                  onClick={() => selectTarget(item)}
-                >
-                  {/* Type Icon */}
-                  <div className="shrink-0">
-                    {getTypeIcon(item.Type)}
-                  </div>
-                  
-                  {/* Object Info */}
-                  <div className="flex-1 min-w-0 text-left">
-                    <p className="text-foreground font-medium truncate">
-                      {item.Name}
-                      {item['Common names'] && (
-                        <span className="text-muted-foreground font-normal ml-1">
-                          ({item['Common names']})
-                        </span>
-                      )}
-                    </p>
-                    {item.RA !== undefined && item.Dec !== undefined && (
-                      <p className="text-xs text-muted-foreground font-mono">
-                        RA: {item.RA.toFixed(2)}° Dec: {item.Dec.toFixed(2)}°
-                      </p>
-                    )}
-                  </div>
+        {/* Loading indicator */}
+        {isSearching && (
+          <div className="flex items-center justify-center py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-xs text-muted-foreground">{t('common.loading')}</span>
+          </div>
+        )}
 
-                  {/* Type Badge */}
-                  {item.Type && (
-                    <Badge variant="outline" className={`shrink-0 ${getTypeBadge(item.Type)}`}>
-                      {item.Type}
+        {/* Multi-select toolbar */}
+        {enableMultiSelect && hasResults && (
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => selectedCount > 0 ? clearSelection() : selectAll()}
+              >
+                {selectedCount > 0 ? (
+                  <>
+                    <CheckSquare className="h-3 w-3 mr-1" />
+                    {t('search.clearSelection')}
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-3 w-3 mr-1" />
+                    {t('search.selectAll')}
+                  </>
+                )}
+              </Button>
+              {selectedCount > 0 && (
+                <span className="text-muted-foreground">
+                  {t('search.selectedCount', { count: selectedCount })}
+                </span>
+              )}
+            </div>
+            {selectedCount > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={handleBatchAdd}
+              >
+                <ListPlus className="h-3 w-3 mr-1" />
+                {t('search.addToList')}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Search Results - Grouped */}
+        {hasResults && !isSearching && (
+          <ScrollArea className="max-h-72">
+            <div className="space-y-2">
+              {Array.from(groupedResults.entries()).map(([groupName, items]) => (
+                <div key={groupName} className="space-y-1">
+                  {/* Group Header */}
+                  <button
+                    className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted-foreground hover:text-foreground py-1"
+                    onClick={() => toggleGroup(groupName)}
+                  >
+                    {expandedGroups.has(groupName) ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    {getTypeIcon(groupName)}
+                    <span className="ml-1">{groupName}</span>
+                    <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
+                      {items.length}
                     </Badge>
+                  </button>
+                  
+                  {/* Group Items */}
+                  {expandedGroups.has(groupName) && (
+                    <div className="space-y-0.5 pl-4">
+                      {items.map((item) => {
+                        const itemId = getResultId(item);
+                        const checked = isSelected(itemId);
+                        
+                        return (
+                          <div
+                            key={itemId}
+                            className={`flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors ${
+                              checked ? 'bg-accent/30' : ''
+                            }`}
+                          >
+                            {/* Checkbox for multi-select */}
+                            {enableMultiSelect && (
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleSelection(itemId)}
+                                className="h-4 w-4"
+                              />
+                            )}
+                            
+                            {/* Clickable content */}
+                            <button
+                              className="flex-1 flex items-center gap-2 min-w-0 text-left"
+                              onClick={() => selectTarget(item)}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-foreground font-medium truncate">
+                                  {item.Name}
+                                </p>
+                                {item['Common names'] && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {item['Common names']}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              {/* Coordinates */}
+                              {item.RA !== undefined && item.Dec !== undefined && (
+                                <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                                  {item.RA.toFixed(1)}° / {item.Dec.toFixed(1)}°
+                                </span>
+                              )}
+                            </button>
+                            
+                            {/* Quick add button */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (item.RA !== undefined && item.Dec !== undefined) {
+                                      addTargetsBatch([{
+                                        name: item.Name,
+                                        ra: item.RA,
+                                        dec: item.Dec,
+                                        raString: degreesToHMS(item.RA),
+                                        decString: degreesToDMS(item.Dec),
+                                      }]);
+                                    }
+                                  }}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">
+                                {t('actions.addToTargetList')}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                </Button>
+                </div>
               ))}
             </div>
           </ScrollArea>
         )}
 
         {/* Empty State */}
-        {searchQuery && searchResults.length === 0 && !isSearching && (
+        {query && !hasResults && !isSearching && (
           <div className="text-center py-4 text-muted-foreground">
-            <p>{t('starmap.noObjectsFound')}</p>
+            <CircleDot className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">{t('starmap.noObjectsFound')}</p>
             <p className="text-xs mt-1">{t('starmap.trySearching')}</p>
           </div>
         )}
 
-        {/* Quick Access */}
-        {!searchQuery && (
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">{t('starmap.popularObjects')}</p>
-            <div className="flex flex-wrap gap-1">
-              {['M31', 'M42', 'M45', 'M51', 'NGC7000'].map((name) => (
-                <Button
-                  key={name}
-                  variant="secondary"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => {
-                    setSearchQuery(name);
-                    fetchTargetSearch(name);
-                  }}
-                >
-                  {name}
-                </Button>
-              ))}
+        {/* Quick Access - when no query */}
+        {!query && (
+          <div className="space-y-3">
+            {/* Recent Searches */}
+            {recentSearches.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {t('search.recentSearches')}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {recentSearches.slice(0, 5).map((term) => (
+                    <Button
+                      key={term}
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => setQuery(term)}
+                    >
+                      {term}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Popular Objects */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                {t('starmap.popularObjects')}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {popularObjects.slice(0, 8).map((obj) => (
+                  <Button
+                    key={obj.Name}
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setQuery(obj.Name)}
+                  >
+                    {obj.Name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Categories */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                {t('search.quickCategories')}
+              </p>
+              <div className="grid grid-cols-2 gap-1">
+                {quickCategories.map((cat) => (
+                  <Button
+                    key={cat.label}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 justify-start text-xs"
+                    onClick={() => setQuery(cat.items[0]?.Name || cat.label)}
+                  >
+                    {cat.label}
+                    <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
+                      {cat.items.length}
+                    </Badge>
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
         )}

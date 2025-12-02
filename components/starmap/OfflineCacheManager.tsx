@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Download,
@@ -10,10 +10,9 @@ import {
   Check,
   Loader2,
   HardDrive,
-  ChevronDown,
-  ChevronUp,
   Package,
   RefreshCw,
+  Telescope,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -22,11 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,13 +40,38 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import { useOfflineStore, formatBytes, STELLARIUM_LAYERS } from '@/lib/offline';
+import { useOfflineStore, formatBytes, STELLARIUM_LAYERS, offlineCacheManager, type HiPSCacheStatus, type StorageInfo } from '@/lib/offline';
+import { SKY_SURVEYS } from '@/lib/starmap/types';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { AlertTriangle, CheckCircle2, Wrench } from 'lucide-react';
+
+// Convert SKY_SURVEYS to HiPSSurvey format for cache operations
+function convertToHiPSSurvey(survey: typeof SKY_SURVEYS[0]) {
+  return {
+    id: survey.id,
+    name: survey.name,
+    url: survey.url,
+    description: survey.description,
+    category: survey.category,
+    maxOrder: 11,
+    tileFormat: 'jpeg',
+    frame: 'equatorial',
+  };
+}
 
 export function OfflineCacheManager() {
   const t = useTranslations();
-  const [expanded, setExpanded] = useState(false);
   const [selectedLayers, setSelectedLayers] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'layers' | 'surveys'>('layers');
+  
+  // HiPS survey cache state
+  const [surveyStatuses, setSurveyStatuses] = useState<Record<string, HiPSCacheStatus>>({});
+  const [downloadingSurveys, setDownloadingSurveys] = useState<string[]>([]);
+  
+  // Storage info state
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [repairingLayers, setRepairingLayers] = useState<string[]>([]);
   
   const {
     isOnline,
@@ -77,6 +97,124 @@ export function OfflineCacheManager() {
       initialize();
     }
   }, [isInitialized, initialize]);
+
+  // Fetch storage info
+  const refreshStorageInfo = useCallback(async () => {
+    const info = await offlineCacheManager.getStorageInfo();
+    setStorageInfo(info);
+  }, []);
+
+  // Refresh storage info on mount and after operations
+  useEffect(() => {
+    refreshStorageInfo();
+  }, [refreshStorageInfo, layerStatuses]);
+
+  // Repair incomplete layer cache
+  const handleRepairLayer = useCallback(async (layerId: string) => {
+    if (repairingLayers.includes(layerId)) return;
+    
+    setRepairingLayers(prev => [...prev, layerId]);
+    toast.loading(t('cache.repairing'), { id: `repair-${layerId}` });
+    
+    try {
+      const result = await offlineCacheManager.verifyAndRepairLayer(layerId);
+      toast.dismiss(`repair-${layerId}`);
+      
+      if (result.verified) {
+        toast.success(t('cache.repairComplete'), {
+          description: result.repaired > 0 
+            ? `${result.repaired} files recovered` 
+            : 'Cache is complete',
+        });
+      } else {
+        toast.error(t('cache.repairFailed'), {
+          description: `${result.failed} files could not be recovered`,
+        });
+      }
+      
+      await refreshStatuses();
+      await refreshStorageInfo();
+    } catch (error) {
+      toast.dismiss(`repair-${layerId}`);
+      toast.error(t('cache.repairFailed'));
+      console.error('Error repairing layer:', error);
+    } finally {
+      setRepairingLayers(prev => prev.filter(id => id !== layerId));
+    }
+  }, [repairingLayers, t, refreshStatuses, refreshStorageInfo]);
+
+  // Fetch survey cache statuses
+  const refreshSurveyStatuses = useCallback(async () => {
+    const statuses: Record<string, HiPSCacheStatus> = {};
+    for (const survey of SKY_SURVEYS) {
+      const hipsSurvey = convertToHiPSSurvey(survey);
+      const status = await offlineCacheManager.getHiPSCacheStatus(hipsSurvey);
+      statuses[survey.id] = status;
+    }
+    setSurveyStatuses(statuses);
+  }, []);
+
+  // Refresh survey statuses on mount and when tab changes
+  useEffect(() => {
+    if (activeTab === 'surveys') {
+      refreshSurveyStatuses();
+    }
+  }, [activeTab, refreshSurveyStatuses]);
+
+  // Download survey tiles
+  const handleDownloadSurvey = useCallback(async (surveyId: string) => {
+    const survey = SKY_SURVEYS.find(s => s.id === surveyId);
+    if (!survey || downloadingSurveys.includes(surveyId)) return;
+
+    setDownloadingSurveys(prev => [...prev, surveyId]);
+    
+    try {
+      const hipsSurvey = convertToHiPSSurvey(survey);
+      toast.loading(t('survey.downloadingTiles'), { id: `survey-${surveyId}` });
+      
+      const success = await offlineCacheManager.downloadHiPSSurvey(
+        hipsSurvey,
+        3,
+        (progress) => {
+          const percent = Math.round((progress.downloadedFiles / progress.totalFiles) * 100);
+          toast.loading(`${t('survey.downloadingTiles')} ${percent}%`, { id: `survey-${surveyId}` });
+        }
+      );
+      
+      toast.dismiss(`survey-${surveyId}`);
+      
+      if (success) {
+        toast.success(t('survey.downloadComplete'));
+        await refreshSurveyStatuses();
+      } else {
+        toast.error(t('survey.downloadFailed'));
+      }
+    } catch (error) {
+      toast.dismiss(`survey-${surveyId}`);
+      toast.error(t('survey.downloadFailed'));
+      console.error('Error downloading survey:', error);
+    } finally {
+      setDownloadingSurveys(prev => prev.filter(id => id !== surveyId));
+    }
+  }, [downloadingSurveys, t, refreshSurveyStatuses]);
+
+  // Clear survey cache
+  const handleClearSurveyCache = useCallback(async (surveyId: string) => {
+    const success = await offlineCacheManager.clearHiPSCache(surveyId);
+    if (success) {
+      toast.success(t('survey.cacheCleared'));
+      await refreshSurveyStatuses();
+    }
+  }, [t, refreshSurveyStatuses]);
+
+  // Clear all survey caches
+  const handleClearAllSurveyCaches = useCallback(async () => {
+    const success = await offlineCacheManager.clearAllHiPSCaches();
+    if (success) {
+      toast.success(t('survey.cacheCleared'));
+      await refreshSurveyStatuses();
+    }
+  }, [t, refreshSurveyStatuses]);
 
   // Toggle layer selection
   const toggleLayerSelection = (layerId: string) => {
@@ -143,6 +281,22 @@ export function OfflineCacheManager() {
         </CardHeader>
         
         <CardContent className="space-y-3">
+          {/* Storage Info */}
+          {storageInfo && storageInfo.quota > 0 && (
+            <div className="space-y-1 p-2 bg-muted/30 rounded-lg">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">{t('cache.storageUsed')}</span>
+                <span className="text-foreground font-mono">
+                  {formatBytes(storageInfo.used)} / {formatBytes(storageInfo.quota)}
+                </span>
+              </div>
+              <Progress value={storageInfo.usagePercent} className="h-1.5" />
+              <div className="text-xs text-muted-foreground">
+                {formatBytes(storageInfo.available)} {t('cache.available')}
+              </div>
+            </div>
+          )}
+
           {/* Overall progress */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
@@ -217,25 +371,37 @@ export function OfflineCacheManager() {
             />
           </div>
 
-          {/* Expandable layer list */}
-          <Collapsible open={expanded} onOpenChange={setExpanded}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
-              <span>{t('cache.manageIndividualLayers')}</span>
-              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </CollapsibleTrigger>
+          {/* Tabbed content for layers and surveys */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'layers' | 'surveys')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="layers" className="text-xs">
+                <Package className="h-3.5 w-3.5 mr-1" />
+                {t('cache.manageIndividualLayers')}
+              </TabsTrigger>
+              <TabsTrigger value="surveys" className="text-xs">
+                <Telescope className="h-3.5 w-3.5 mr-1" />
+                {t('settings.skySurveys')}
+              </TabsTrigger>
+            </TabsList>
             
-            <CollapsibleContent>
-              <ScrollArea className="h-[280px] mt-2">
+            {/* Data Layers Tab */}
+            <TabsContent value="layers" className="mt-2">
+              <ScrollArea className="h-[240px]">
                 <div className="space-y-2 pr-2">
                   {STELLARIUM_LAYERS.map((layer) => {
                     const status = layerStatuses.find((s) => s.layerId === layer.id);
                     const download = currentDownloads[layer.id];
                     const isCached = status?.cached ?? false;
+                    const isComplete = status?.isComplete ?? false;
+                    const isRepairing = repairingLayers.includes(layer.id);
+                    const hasPartialCache = status && status.cachedFiles > 0 && !isComplete;
                     const isSelected = selectedLayers.has(layer.id);
                     const progress = download
                       ? (download.downloadedFiles / download.totalFiles) * 100
                       : isCached
                       ? 100
+                      : status
+                      ? (status.cachedFiles / status.totalFiles) * 100
                       : 0;
 
                     return (
@@ -245,6 +411,8 @@ export function OfflineCacheManager() {
                           'p-2 rounded-lg border transition-colors',
                           isSelected
                             ? 'border-primary bg-primary/5'
+                            : hasPartialCache
+                            ? 'border-yellow-500/50 bg-yellow-500/5'
                             : 'border-border bg-muted/30 hover:bg-muted/50'
                         )}
                       >
@@ -255,15 +423,27 @@ export function OfflineCacheManager() {
                           >
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium">{layer.name}</span>
-                              {isCached && (
-                                <Check className="h-3 w-3 text-green-500" />
-                              )}
+                              {isComplete ? (
+                                <CheckCircle2 className="h-3 w-3 text-green-500" />
+                              ) : hasPartialCache ? (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{t('cache.incomplete')}: {status?.cachedFiles}/{status?.totalFiles} files</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : null}
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {layer.description}
                             </p>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                              {formatBytes(layer.size)}
+                              {status && status.cachedFiles > 0 
+                                ? `${formatBytes(status.cachedBytes)} / ${formatBytes(layer.size)}`
+                                : formatBytes(layer.size)
+                              }
                             </p>
                           </div>
                           
@@ -273,7 +453,45 @@ export function OfflineCacheManager() {
                                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                                 {progress.toFixed(0)}%
                               </Badge>
-                            ) : isCached ? (
+                            ) : isRepairing ? (
+                              <Badge variant="secondary" className="text-xs">
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                {t('cache.repairing')}
+                              </Badge>
+                            ) : hasPartialCache ? (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-yellow-500 hover:text-yellow-600"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRepairLayer(layer.id);
+                                      }}
+                                      disabled={!isOnline}
+                                    >
+                                      <Wrench className="h-3 w-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{t('cache.repair')}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    clearLayer(layer.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </>
+                            ) : isComplete ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -302,7 +520,7 @@ export function OfflineCacheManager() {
                           </div>
                         </div>
                         
-                        {download && (
+                        {(download || hasPartialCache) && (
                           <Progress value={progress} className="h-1 mt-2" />
                         )}
                       </div>
@@ -337,8 +555,134 @@ export function OfflineCacheManager() {
                   </div>
                 </div>
               )}
-            </CollapsibleContent>
-          </Collapsible>
+            </TabsContent>
+            
+            {/* Sky Surveys Tab */}
+            <TabsContent value="surveys" className="mt-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">
+                  {Object.values(surveyStatuses).filter(s => s.cached).length}/{SKY_SURVEYS.length} surveys cached
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={refreshSurveyStatuses}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                  {Object.values(surveyStatuses).some(s => s.cached) && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{t('survey.clearCache')}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will remove all cached survey tiles.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleClearAllSurveyCaches}>
+                            {t('shotList.clearAll')}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+              </div>
+              
+              <ScrollArea className="h-[220px]">
+                <div className="space-y-2 pr-2">
+                  {SKY_SURVEYS.map((survey) => {
+                    const status = surveyStatuses[survey.id];
+                    const isDownloading = downloadingSurveys.includes(survey.id);
+                    const isCached = status?.cached ?? false;
+                    const progress = status 
+                      ? (status.cachedTiles / Math.max(status.totalTiles, 1)) * 100 
+                      : 0;
+
+                    return (
+                      <div
+                        key={survey.id}
+                        className={cn(
+                          'p-2 rounded-lg border transition-colors',
+                          isCached
+                            ? 'border-green-500/30 bg-green-500/5'
+                            : 'border-border bg-muted/30'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">{survey.name}</span>
+                              {isCached && (
+                                <Check className="h-3 w-3 text-green-500 shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {survey.description}
+                            </p>
+                            {status && status.cachedTiles > 0 && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {status.cachedTiles} tiles (~{formatBytes(status.cachedBytes)})
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isDownloading ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            ) : isCached ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleClearSurveyCache(survey.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => handleDownloadSurvey(survey.id)}
+                                    disabled={!isOnline}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {t('survey.downloadForOffline')}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {isDownloading && (
+                          <Progress value={progress} className="h-1 mt-2" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
 
           {/* Cancel button when downloading */}
           {isDownloading && (

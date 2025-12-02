@@ -67,10 +67,11 @@ export function StellariumSettings() {
   }, []);
 
   // Update survey settings locally
-  const handleSurveyChange = useCallback((surveyId: string) => {
+  const handleSurveyChange = useCallback((surveyId: string, surveyUrl?: string) => {
     setLocalSettings((prev) => ({
       ...prev,
       surveyId,
+      surveyUrl,
     }));
   }, []);
 
@@ -107,6 +108,7 @@ export function StellariumSettings() {
       dsosVisible: true,
       surveyEnabled: true,
       surveyId: 'dss',
+      surveyUrl: undefined,
     });
   }, []);
 
@@ -172,6 +174,7 @@ export function StellariumSettings() {
             <StellariumSurveySelector
               surveyEnabled={localSettings.surveyEnabled}
               surveyId={localSettings.surveyId}
+              surveyUrl={localSettings.surveyUrl}
               onSurveyChange={handleSurveyChange}
               onSurveyToggle={handleSurveyToggle}
             />

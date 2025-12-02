@@ -41,6 +41,7 @@ export const useSettingsStore = create<SettingsState>()(
         dsosVisible: true,
         surveyEnabled: true,
         surveyId: 'dss', // Default to DSS
+        surveyUrl: undefined, // Direct URL for online surveys
       },
       
       setConnection: (connection) => set((state) => ({
@@ -55,12 +56,34 @@ export const useSettingsStore = create<SettingsState>()(
       
       setStellariumSettings: (settings) => set({ stellarium: settings }),
       
-      toggleStellariumSetting: (key) => set((state) => ({
-        stellarium: { ...state.stellarium, [key]: !state.stellarium[key] }
-      })),
+      toggleStellariumSetting: (key) => set((state) => {
+        const currentValue = state.stellarium[key];
+        // Only toggle boolean values
+        if (typeof currentValue === 'boolean') {
+          return {
+            stellarium: { ...state.stellarium, [key]: !currentValue }
+          };
+        }
+        return state;
+      }),
     }),
     {
       name: 'starmap-settings',
+      version: 2, // Bump version to reset incompatible persisted state
+      migrate: (persistedState, version) => {
+        const state = persistedState as SettingsState;
+        if (version < 2) {
+          // Ensure surveyUrl exists in migrated state
+          return {
+            ...state,
+            stellarium: {
+              ...state.stellarium,
+              surveyUrl: undefined,
+            },
+          };
+        }
+        return state;
+      },
     }
   )
 );

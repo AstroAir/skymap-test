@@ -86,7 +86,7 @@ export interface StellariumCometsModule extends StellariumDataModule {
 // Search result types
 export interface SearchResultItem {
   Name: string;
-  Type?: 'Comet' | 'Planet' | 'Star' | 'Moon' | 'StellariumObject' | 'DSO';
+  Type?: 'Comet' | 'Planet' | 'Star' | 'Moon' | 'StellariumObject' | 'DSO' | 'Constellation' | 'Coordinates';
   RA?: number;
   Dec?: number;
   'Common names'?: string;
@@ -224,7 +224,8 @@ export interface StellariumSettings {
   dsosVisible: boolean;
   // Survey settings
   surveyEnabled: boolean;
-  surveyId: string; // ID from SKY_SURVEYS
+  surveyId: string; // ID from SKY_SURVEYS or online survey
+  surveyUrl?: string; // Direct URL for online surveys
 }
 
 // Mount info types

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   List,
@@ -19,12 +19,18 @@ import {
   TrendingUp,
   Moon,
   BarChart3,
+  Star,
+  Archive,
+  Square,
+  Heart,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Sheet,
   SheetContent,
@@ -49,6 +55,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+} from '@/components/ui/dropdown-menu';
 
 import { useTargetListStore, useMountStore, type TargetItem } from '@/lib/starmap/stores';
 import { useStellariumStore } from '@/lib/starmap/stores';
@@ -92,8 +107,14 @@ export function ShotList({
   const [open, setOpen] = useState(false);
   const [showPlanAnalysis, setShowPlanAnalysis] = useState(false);
   
+  // Store state
   const targets = useTargetListStore((state) => state.targets);
   const activeTargetId = useTargetListStore((state) => state.activeTargetId);
+  const selectedIds = useTargetListStore((state) => state.selectedIds);
+  const groupBy = useTargetListStore((state) => state.groupBy);
+  const showArchived = useTargetListStore((state) => state.showArchived);
+  
+  // Store actions
   const addTarget = useTargetListStore((state) => state.addTarget);
   const removeTarget = useTargetListStore((state) => state.removeTarget);
   const updateTarget = useTargetListStore((state) => state.updateTarget);
@@ -101,6 +122,15 @@ export function ShotList({
   const reorderTargets = useTargetListStore((state) => state.reorderTargets);
   const clearCompleted = useTargetListStore((state) => state.clearCompleted);
   const clearAll = useTargetListStore((state) => state.clearAll);
+  const toggleSelection = useTargetListStore((state) => state.toggleSelection);
+  const selectAll = useTargetListStore((state) => state.selectAll);
+  const clearSelection = useTargetListStore((state) => state.clearSelection);
+  const setGroupBy = useTargetListStore((state) => state.setGroupBy);
+  const setShowArchived = useTargetListStore((state) => state.setShowArchived);
+  const removeTargetsBatch = useTargetListStore((state) => state.removeTargetsBatch);
+  const setStatusBatch = useTargetListStore((state) => state.setStatusBatch);
+  const setPriorityBatch = useTargetListStore((state) => state.setPriorityBatch);
+  const getFilteredTargets = useTargetListStore((state) => state.getFilteredTargets);
   
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const profileInfo = useMountStore((state) => state.profileInfo);
@@ -136,7 +166,10 @@ export function ShotList({
     return feasibilityMap;
   }, [targets, latitude, longitude]);
 
-  const handleAddCurrentTarget = () => {
+  // Filtered targets
+  const filteredTargets = useMemo(() => getFilteredTargets(), [getFilteredTargets]);
+
+  const handleAddCurrentTarget = useCallback(() => {
     if (!currentSelection) return;
     
     addTarget({
@@ -152,32 +185,52 @@ export function ShotList({
       mosaic: fovSettings?.mosaic,
       priority: 'medium',
     });
-  };
+  }, [currentSelection, fovSettings, addTarget]);
 
-  const handleNavigate = (target: TargetItem) => {
+  const handleNavigate = useCallback((target: TargetItem) => {
     setActiveTarget(target.id);
     if (setViewDirection) {
       setViewDirection(target.ra, target.dec);
     }
     onNavigateToTarget?.(target.ra, target.dec);
-  };
+  }, [setActiveTarget, setViewDirection, onNavigateToTarget]);
 
-  const handleMoveUp = (index: number) => {
+  const handleMoveUp = useCallback((index: number) => {
     if (index > 0) {
       reorderTargets(index, index - 1);
     }
-  };
+  }, [reorderTargets]);
 
-  const handleMoveDown = (index: number) => {
-    if (index < targets.length - 1) {
+  const handleMoveDown = useCallback((index: number, total: number) => {
+    if (index < total - 1) {
       reorderTargets(index, index + 1);
     }
-  };
+  }, [reorderTargets]);
 
-  const handleStatusChange = (id: string, status: TargetItem['status']) => {
+  const handleStatusChange = useCallback((id: string, status: TargetItem['status']) => {
     updateTarget(id, { status });
-  };
+  }, [updateTarget]);
 
+
+  // Batch actions
+  const handleBatchDelete = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    removeTargetsBatch(ids);
+  }, [selectedIds, removeTargetsBatch]);
+
+  const handleBatchStatus = useCallback((status: TargetItem['status']) => {
+    const ids = Array.from(selectedIds);
+    setStatusBatch(ids, status);
+    clearSelection();
+  }, [selectedIds, setStatusBatch, clearSelection]);
+
+  const handleBatchPriority = useCallback((priority: TargetItem['priority']) => {
+    const ids = Array.from(selectedIds);
+    setPriorityBatch(ids, priority);
+    clearSelection();
+  }, [selectedIds, setPriorityBatch, clearSelection]);
+
+  // Style helpers
   const getStatusColor = (status: TargetItem['status']) => {
     switch (status) {
       case 'planned': return 'bg-muted-foreground';
@@ -210,15 +263,16 @@ export function ShotList({
       case 'good':
         return <TrendingUp className="h-3 w-3" />;
       case 'fair':
-        return <AlertTriangle className="h-3 w-3" />;
       case 'poor':
       case 'not_recommended':
         return <AlertTriangle className="h-3 w-3" />;
     }
   };
 
-  const plannedCount = targets.filter((t) => t.status === 'planned').length;
-  const completedCount = targets.filter((t) => t.status === 'completed').length;
+
+  const plannedCount = filteredTargets.filter((t) => t.status === 'planned').length;
+  const completedCount = filteredTargets.filter((t) => t.status === 'completed').length;
+  const selectedCount = selectedIds.size;
 
   return (
     <TooltipProvider>
@@ -254,26 +308,164 @@ export function ShotList({
           </SheetHeader>
 
           <div className="mt-4 space-y-4">
-            {/* Stats & Plan Analysis Toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs">
-                <Badge variant="outline" className="border-border text-muted-foreground">
-                  {plannedCount} {t('shotList.planned')}
-                </Badge>
-                <Badge variant="outline" className="border-green-600 text-green-400">
-                  {completedCount} {t('shotList.done')}
-                </Badge>
+            {/* Stats & Toolbar */}
+            <div className="space-y-2">
+              {/* Stats Row */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs">
+                  <Badge variant="outline" className="border-border text-muted-foreground">
+                    {plannedCount} {t('shotList.planned')}
+                  </Badge>
+                  <Badge variant="outline" className="border-green-600 text-green-400">
+                    {completedCount} {t('shotList.done')}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1">
+                  {targets.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowPlanAnalysis(!showPlanAnalysis)}
+                    >
+                      <BarChart3 className="h-3 w-3 mr-1" />
+                      {t('shotList.analysis')}
+                    </Button>
+                  )}
+                  
+                  {/* View Options Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <Layers className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuLabel>{t('shotList.groupBy')}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuCheckboxItem
+                        checked={groupBy === 'none'}
+                        onCheckedChange={() => setGroupBy('none')}
+                      >
+                        {t('shotList.noGrouping')}
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={groupBy === 'priority'}
+                        onCheckedChange={() => setGroupBy('priority')}
+                      >
+                        {t('shotList.byPriority')}
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={groupBy === 'status'}
+                        onCheckedChange={() => setGroupBy('status')}
+                      >
+                        {t('shotList.byStatus')}
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={groupBy === 'tag'}
+                        onCheckedChange={() => setGroupBy('tag')}
+                      >
+                        {t('shotList.byTag')}
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuCheckboxItem
+                        checked={showArchived}
+                        onCheckedChange={setShowArchived}
+                      >
+                        <Archive className="h-3 w-3 mr-2" />
+                        {t('shotList.showArchived')}
+                      </DropdownMenuCheckboxItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-              {targets.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setShowPlanAnalysis(!showPlanAnalysis)}
-                >
-                  <BarChart3 className="h-3 w-3 mr-1" />
-                  {t('shotList.analysis')}
-                </Button>
+              
+              {/* Multi-select toolbar */}
+              {selectedCount > 0 && (
+                <div className="flex items-center justify-between p-2 rounded-lg bg-primary/10 border border-primary/30">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={clearSelection}
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      {t('search.clearSelection')}
+                    </Button>
+                    <span className="text-muted-foreground">
+                      {t('search.selectedCount', { count: selectedCount })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {/* Batch Status */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                          <Play className="h-3 w-3 mr-1" />
+                          {t('shotList.setStatus')}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleBatchStatus('planned')}>
+                          {t('shotList.planned')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBatchStatus('in_progress')}>
+                          {t('shotList.inProgress')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBatchStatus('completed')}>
+                          {t('shotList.completed')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    
+                    {/* Batch Priority */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                          <Star className="h-3 w-3 mr-1" />
+                          {t('shotList.setPriority')}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleBatchPriority('high')}>
+                          {t('shotList.highPriority')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBatchPriority('medium')}>
+                          {t('shotList.mediumPriority')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBatchPriority('low')}>
+                          {t('shotList.lowPriority')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    
+                    {/* Batch Delete */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-red-400 hover:text-red-300"
+                      onClick={handleBatchDelete}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Select All / Clear when not in selection mode */}
+              {targets.length > 0 && selectedCount === 0 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={selectAll}
+                  >
+                    <Square className="h-3 w-3 mr-1" />
+                    {t('search.selectAll')}
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -328,202 +520,238 @@ export function ShotList({
                 </div>
               ) : (
                 <div className="space-y-2 pr-2">
-                  {targets.map((target, index) => (
-                    <div
-                      key={target.id}
-                      className={`p-2 rounded-lg border transition-colors ${
-                        activeTargetId === target.id
-                          ? 'bg-primary/20 border-primary'
-                          : 'bg-muted/50 border-border hover:border-muted-foreground'
-                      }`}
-                    >
-                      {/* Header */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-foreground font-medium truncate">
-                            {target.name}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground font-mono">
-                            {target.raString} / {target.decString}
-                          </p>
-                        </div>
-                        <Badge className={`${getStatusColor(target.status)} text-white text-[10px] h-5`}>
-                          {target.status.replace('_', ' ')}
-                        </Badge>
-                      </div>
-
-                      {/* FOV info */}
-                      {target.focalLength && (
-                        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                          <Camera className="h-3 w-3" />
-                          <span>{target.focalLength}mm</span>
-                          {target.mosaic?.enabled && (
-                            <span>• {target.mosaic.cols}×{target.mosaic.rows}</span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Exposure plan */}
-                      {target.exposurePlan && (
-                        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>
-                            {target.exposurePlan.subFrames}× {target.exposurePlan.singleExposure}s
-                            ({target.exposurePlan.totalExposure}m)
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Feasibility indicator */}
-                      {(() => {
-                        const feasibility = targetFeasibility.get(target.id);
-                        const planTarget = targetPlan?.targets.find(t => t.id === target.id);
-                        if (!feasibility) return null;
+                  {filteredTargets.map((target, index) => {
+                    const isSelected = selectedIds.has(target.id);
+                    
+                    return (
+                      <div
+                        key={target.id}
+                        className={`p-2 rounded-lg border transition-colors ${
+                          activeTargetId === target.id
+                            ? 'bg-primary/20 border-primary'
+                            : isSelected
+                            ? 'bg-accent/30 border-accent'
+                            : 'bg-muted/50 border-border hover:border-muted-foreground'
+                        }`}
+                      >
+                        {/* Header */}
+                        <div className="flex items-start gap-2">
+                          {/* Checkbox */}
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSelection(target.id)}
+                            className="mt-0.5 h-4 w-4"
+                          />
                         
-                        return (
-                          <div className="mt-1.5 space-y-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-2">
-                                  <Badge className={`${getFeasibilityColor(feasibility.recommendation)} text-white text-[10px] h-5`}>
-                                    {getFeasibilityIcon(feasibility.recommendation)}
-                                    <span className="ml-1 capitalize">{feasibility.recommendation.replace('_', ' ')}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <p className="text-sm text-foreground font-medium truncate flex-1">
+                                {target.name}
+                              </p>
+                              {target.isFavorite && (
+                                <Heart className="h-3 w-3 text-red-400 fill-red-400" />
+                              )}
+                              {target.isArchived && (
+                                <Archive className="h-3 w-3 text-muted-foreground" />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground font-mono">
+                              {target.raString} / {target.decString}
+                            </p>
+                            {/* Tags */}
+                            {target.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {target.tags.slice(0, 3).map(tag => (
+                                  <Badge key={tag} variant="secondary" className="h-4 text-[9px] px-1">
+                                    {tag}
                                   </Badge>
-                                  <span className="text-[10px] text-muted-foreground">{feasibility.score}/100</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="max-w-48">
-                                <div className="text-xs space-y-1">
-                                  <div>Moon: {feasibility.moonScore} | Alt: {feasibility.altitudeScore}</div>
-                                  <div>Duration: {feasibility.durationScore} | Twilight: {feasibility.twilightScore}</div>
-                                  {feasibility.warnings.length > 0 && (
-                                    <div className="text-yellow-400">{feasibility.warnings[0]}</div>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                            
-                            {/* Dark window times */}
-                            {planTarget?.windowStart && planTarget?.windowEnd && (
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                <Moon className="h-3 w-3" />
-                                <span>
-                                  {formatTimeShort(planTarget.windowStart)} - {formatTimeShort(planTarget.windowEnd)}
-                                  ({formatDuration(planTarget.duration)})
-                                </span>
-                              </div>
-                            )}
-                            
-                            {/* Conflicts warning */}
-                            {planTarget?.conflicts && planTarget.conflicts.length > 0 && (
-                              <div className="flex items-center gap-1 text-[10px] text-yellow-400">
-                                <AlertTriangle className="h-3 w-3" />
-                                <span>Overlaps with {planTarget.conflicts.length} target(s)</span>
+                                ))}
+                                {target.tags.length > 3 && (
+                                  <Badge variant="secondary" className="h-4 text-[9px] px-1">
+                                    +{target.tags.length - 3}
+                                  </Badge>
+                                )}
                               </div>
                             )}
                           </div>
-                        );
-                      })()}
-
-                      {/* Actions */}
-                      <div className="mt-2 flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleMoveUp(index)}
-                            disabled={index === 0}
-                          >
-                            <ChevronUp className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleMoveDown(index)}
-                            disabled={index === targets.length - 1}
-                          >
-                            <ChevronDown className="h-3 w-3" />
-                          </Button>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] h-5 cursor-pointer ${getPriorityColor(target.priority)}`}
-                            onClick={() => {
-                              const priorities: TargetItem['priority'][] = ['low', 'medium', 'high'];
-                              const currentIdx = priorities.indexOf(target.priority);
-                              const nextPriority = priorities[(currentIdx + 1) % 3];
-                              updateTarget(target.id, { priority: nextPriority });
-                            }}
-                          >
-                            {target.priority}
+                          <Badge className={`${getStatusColor(target.status)} text-white text-[10px] h-5`}>
+                            {target.status.replace('_', ' ')}
                           </Badge>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-primary hover:text-primary/80"
-                                onClick={() => handleNavigate(target)}
-                              >
-                                <Eye className="h-3 w-3" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t('actions.goToTarget')}</TooltipContent>
-                          </Tooltip>
+                        {/* FOV info */}
+                        {target.focalLength && (
+                          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <Camera className="h-3 w-3" />
+                            <span>{target.focalLength}mm</span>
+                            {target.mosaic?.enabled && (
+                              <span>• {target.mosaic.cols}×{target.mosaic.rows}</span>
+                            )}
+                          </div>
+                        )}
 
-                          {target.status === 'planned' && (
+                        {/* Exposure plan */}
+                        {target.exposurePlan && (
+                          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              {target.exposurePlan.subFrames}× {target.exposurePlan.singleExposure}s
+                              ({target.exposurePlan.totalExposure}m)
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Feasibility indicator */}
+                        {(() => {
+                          const feasibility = targetFeasibility.get(target.id);
+                          const planTarget = targetPlan?.targets.find(t => t.id === target.id);
+                          if (!feasibility) return null;
+                          
+                          return (
+                            <div className="mt-1.5 space-y-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-2">
+                                    <Badge className={`${getFeasibilityColor(feasibility.recommendation)} text-white text-[10px] h-5`}>
+                                      {getFeasibilityIcon(feasibility.recommendation)}
+                                      <span className="ml-1 capitalize">{feasibility.recommendation.replace('_', ' ')}</span>
+                                    </Badge>
+                                    <span className="text-[10px] text-muted-foreground">{feasibility.score}/100</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="max-w-48">
+                                  <div className="text-xs space-y-1">
+                                    <div>Moon: {feasibility.moonScore} | Alt: {feasibility.altitudeScore}</div>
+                                    <div>Duration: {feasibility.durationScore} | Twilight: {feasibility.twilightScore}</div>
+                                    {feasibility.warnings.length > 0 && (
+                                      <div className="text-yellow-400">{feasibility.warnings[0]}</div>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                              
+                              {/* Dark window times */}
+                              {planTarget?.windowStart && planTarget?.windowEnd && (
+                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <Moon className="h-3 w-3" />
+                                  <span>
+                                    {formatTimeShort(planTarget.windowStart)} - {formatTimeShort(planTarget.windowEnd)}
+                                    ({formatDuration(planTarget.duration)})
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Conflicts warning */}
+                              {planTarget?.conflicts && planTarget.conflicts.length > 0 && (
+                                <div className="flex items-center gap-1 text-[10px] text-yellow-400">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span>Overlaps with {planTarget.conflicts.length} target(s)</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Actions */}
+                        <div className="mt-2 flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              onClick={() => handleMoveUp(index)}
+                              disabled={index === 0}
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              onClick={() => handleMoveDown(index, filteredTargets.length)}
+                              disabled={index === filteredTargets.length - 1}
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] h-5 cursor-pointer ${getPriorityColor(target.priority)}`}
+                              onClick={() => {
+                                const priorities: TargetItem['priority'][] = ['low', 'medium', 'high'];
+                                const currentIdx = priorities.indexOf(target.priority);
+                                const nextPriority = priorities[(currentIdx + 1) % 3];
+                                updateTarget(target.id, { priority: nextPriority });
+                              }}
+                            >
+                              {target.priority}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center gap-1">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6 text-amber-400 hover:text-amber-300"
-                                  onClick={() => handleStatusChange(target.id, 'in_progress')}
+                                  className="h-6 w-6 text-primary hover:text-primary/80"
+                                  onClick={() => handleNavigate(target)}
                                 >
-                                  <Play className="h-3 w-3" />
+                                  <Eye className="h-3 w-3" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>{t('actions.startImaging')}</TooltipContent>
+                              <TooltipContent>{t('actions.goToTarget')}</TooltipContent>
                             </Tooltip>
-                          )}
 
-                          {target.status === 'in_progress' && (
+                            {target.status === 'planned' && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-amber-400 hover:text-amber-300"
+                                    onClick={() => handleStatusChange(target.id, 'in_progress')}
+                                  >
+                                    <Play className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t('actions.startImaging')}</TooltipContent>
+                              </Tooltip>
+                            )}
+
+                            {target.status === 'in_progress' && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-green-400 hover:text-green-300"
+                                    onClick={() => handleStatusChange(target.id, 'completed')}
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t('actions.markComplete')}</TooltipContent>
+                              </Tooltip>
+                            )}
+
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6 text-green-400 hover:text-green-300"
-                                  onClick={() => handleStatusChange(target.id, 'completed')}
+                                  className="h-6 w-6 text-red-400 hover:text-red-300"
+                                  onClick={() => removeTarget(target.id)}
                                 >
-                                  <Check className="h-3 w-3" />
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>{t('actions.markComplete')}</TooltipContent>
+                              <TooltipContent>{t('common.remove')}</TooltipContent>
                             </Tooltip>
-                          )}
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-red-400 hover:text-red-300"
-                                onClick={() => removeTarget(target.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t('common.remove')}</TooltipContent>
-                          </Tooltip>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

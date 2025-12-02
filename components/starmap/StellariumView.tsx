@@ -23,17 +23,27 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-  ContextMenuShortcut,
-  ContextMenuCheckboxItem,
-} from '@/components/ui/context-menu';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuShortcut,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Compass } from 'lucide-react';
 import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
 import { useSettingsStore } from '@/lib/starmap/stores/settings-store';
 
@@ -50,6 +60,7 @@ import { InfoPanel } from './InfoPanel';
 import { ExposureCalculator } from './ExposureCalculator';
 import { ShotList } from './ShotList';
 import { OfflineCacheManager } from './OfflineCacheManager';
+import { TonightRecommendations } from './TonightRecommendations';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
 
 // Context menu click coordinates type
@@ -58,6 +69,125 @@ interface ClickCoords {
   dec: number;
   raStr: string;
   decStr: string;
+}
+
+// Sub-component: View Center Display
+function ViewCenterDisplay() {
+  const t = useTranslations();
+  const getCurrentViewDirection = useStellariumStore((state) => state.getCurrentViewDirection);
+  const [viewCenter, setViewCenter] = useState<{ ra: string; dec: string; alt: string; az: string } | null>(null);
+
+  useEffect(() => {
+    const updateViewCenter = () => {
+      if (getCurrentViewDirection) {
+        try {
+          const dir = getCurrentViewDirection();
+          const raDeg = rad2deg(dir.ra);
+          const decDeg = rad2deg(dir.dec);
+          const altDeg = rad2deg(dir.alt);
+          const azDeg = rad2deg(dir.az);
+          
+          setViewCenter({
+            ra: degreesToHMS(((raDeg % 360) + 360) % 360),
+            dec: degreesToDMS(decDeg),
+            alt: `${altDeg.toFixed(1)}°`,
+            az: `${(((azDeg % 360) + 360) % 360).toFixed(1)}°`,
+          });
+        } catch {
+          // Ignore errors during initialization
+        }
+      }
+    };
+
+    updateViewCenter();
+    const interval = setInterval(updateViewCenter, 500);
+    return () => clearInterval(interval);
+  }, [getCurrentViewDirection]);
+
+  if (!viewCenter) return null;
+
+  return (
+    <div className="flex items-center gap-3 text-muted-foreground">
+      <span>
+        {t('coordinates.ra')}: <span className="text-foreground font-mono">{viewCenter.ra}</span>
+      </span>
+      <span>
+        {t('coordinates.dec')}: <span className="text-foreground font-mono">{viewCenter.dec}</span>
+      </span>
+      <span className="hidden sm:inline">
+        {t('coordinates.alt')}: <span className="text-foreground font-mono">{viewCenter.alt}</span>
+      </span>
+      <span className="hidden sm:inline">
+        {t('coordinates.az')}: <span className="text-foreground font-mono">{viewCenter.az}</span>
+      </span>
+    </div>
+  );
+}
+
+// Sub-component: Location & Time Display
+function LocationTimeDisplay() {
+  const t = useTranslations();
+  const profileInfo = useMountStore((state) => state.profileInfo);
+  const stel = useStellariumStore((state) => state.stel);
+  const [currentTime, setCurrentTime] = useState<string>('');
+  const [lst, setLst] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      // Current UTC time
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      
+      // Calculate LST if we have observer info
+      if (stel?.core?.observer) {
+        try {
+          const observer = stel.core.observer;
+          // Get sidereal time from Stellarium if available
+          if (observer.utc !== undefined) {
+            const jd = observer.utc;
+            const T = (jd - 2451545.0) / 36525.0;
+            const lon = profileInfo.AstrometrySettings.Longitude || 0;
+            // Greenwich Mean Sidereal Time
+            let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T;
+            gmst = ((gmst % 360) + 360) % 360;
+            // Local Sidereal Time
+            let lstDeg = gmst + lon;
+            lstDeg = ((lstDeg % 360) + 360) % 360;
+            const lstHours = lstDeg / 15;
+            const h = Math.floor(lstHours);
+            const m = Math.floor((lstHours - h) * 60);
+            const s = Math.floor(((lstHours - h) * 60 - m) * 60);
+            setLst(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+          }
+        } catch {
+          // Ignore LST calculation errors
+        }
+      }
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [stel, profileInfo]);
+
+  const lat = profileInfo.AstrometrySettings.Latitude || 0;
+  const lon = profileInfo.AstrometrySettings.Longitude || 0;
+
+  return (
+    <div className="flex items-center gap-3 text-muted-foreground">
+      <span className="hidden md:inline">
+        {t('session.location')}: <span className="text-foreground font-mono">{lat.toFixed(2)}°, {lon.toFixed(2)}°</span>
+      </span>
+      {lst && (
+        <span className="hidden sm:inline">
+          {t('session.lst')}: <span className="text-foreground font-mono">{lst}</span>
+        </span>
+      )}
+      <span>
+        <span className="text-foreground font-mono">{currentTime}</span>
+      </span>
+    </div>
+  );
 }
 
 export function StellariumView() {
@@ -76,6 +206,16 @@ export function StellariumView() {
   const [contextMenuCoords, setContextMenuCoords] = useState<ClickCoords | null>(null);
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | undefined>();
   const [containerBounds, setContainerBounds] = useState<{ width: number; height: number } | undefined>();
+  
+  // Context menu state - controlled positioning (stores absolute screen position)
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  
+  // Go to coordinates dialog state
+  const [goToDialogOpen, setGoToDialogOpen] = useState(false);
+  const [goToRa, setGoToRa] = useState('');
+  const [goToDec, setGoToDec] = useState('');
+  const [coordError, setCoordError] = useState('');
   
   const canvasRef = useRef<StellariumCanvasRef>(null);
   const searchRef = useRef<StellariumSearchRef>(null);
@@ -187,10 +327,23 @@ export function StellariumView() {
     setRotationAngle(0);
   }, []);
 
-  // Handle context menu open - capture click coordinates
-  const handleContextMenuCapture = useCallback((e: React.MouseEvent) => {
-    const coords = canvasRef.current?.getClickCoordinates(e.clientX, e.clientY);
-    setContextMenuCoords(coords || null);
+  // Handle context menu open - capture click coordinates and position
+  const handleContextMenuCapture = useCallback((e: React.MouseEvent, coords: { ra: number; dec: number; raStr: string; decStr: string } | null) => {
+    e.preventDefault();
+    setContextMenuCoords(coords);
+    
+    // Store absolute screen position (clientX/clientY are already absolute)
+    setContextMenuPosition({
+      x: e.clientX,
+      y: e.clientY,
+    });
+    
+    // Always close and reopen to force position update
+    setContextMenuOpen(false);
+    // Use requestAnimationFrame to ensure state updates before reopening
+    requestAnimationFrame(() => {
+      setContextMenuOpen(true);
+    });
   }, []);
 
   // Add current location to target list
@@ -231,24 +384,108 @@ export function StellariumView() {
     if (contextMenuCoords && setViewDirection) {
       setViewDirection(contextMenuCoords.ra, contextMenuCoords.dec);
     }
+    setContextMenuOpen(false);
   }, [contextMenuCoords, setViewDirection]);
+
+  // Parse coordinate string (supports degrees or HMS/DMS format)
+  const parseCoordinate = useCallback((value: string, isDec: boolean): number | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    
+    // Try parsing as decimal degrees first
+    const decimal = parseFloat(trimmed);
+    if (!isNaN(decimal)) {
+      if (isDec && (decimal < -90 || decimal > 90)) return null;
+      if (!isDec && (decimal < 0 || decimal > 360)) return null;
+      return decimal;
+    }
+    
+    // Try parsing HMS format for RA (e.g., "00h42m44s" or "00:42:44")
+    if (!isDec) {
+      const hmsMatch = trimmed.match(/^(\d+)[h:]\s*(\d+)[m:]\s*([\d.]+)s?$/i);
+      if (hmsMatch) {
+        const h = parseFloat(hmsMatch[1]);
+        const m = parseFloat(hmsMatch[2]);
+        const s = parseFloat(hmsMatch[3]);
+        if (h >= 0 && h < 24 && m >= 0 && m < 60 && s >= 0 && s < 60) {
+          return (h + m / 60 + s / 3600) * 15; // Convert to degrees
+        }
+      }
+    }
+    
+    // Try parsing DMS format for Dec (e.g., "+41°16'09\"" or "+41:16:09")
+    if (isDec) {
+      const dmsMatch = trimmed.match(/^([+-]?)(\d+)[°:]\s*(\d+)[':](\s*([\d.]+)["']?)?$/i);
+      if (dmsMatch) {
+        const sign = dmsMatch[1] === '-' ? -1 : 1;
+        const d = parseFloat(dmsMatch[2]);
+        const m = parseFloat(dmsMatch[3]);
+        const s = dmsMatch[5] ? parseFloat(dmsMatch[5]) : 0;
+        if (d >= 0 && d <= 90 && m >= 0 && m < 60 && s >= 0 && s < 60) {
+          const result = sign * (d + m / 60 + s / 3600);
+          if (result >= -90 && result <= 90) return result;
+        }
+      }
+    }
+    
+    return null;
+  }, []);
+
+  // Handle go to coordinates
+  const handleGoToCoordinates = useCallback(() => {
+    const ra = parseCoordinate(goToRa, false);
+    const dec = parseCoordinate(goToDec, true);
+    
+    if (ra === null || dec === null) {
+      setCoordError(t('coordinates.invalidCoordinates'));
+      return;
+    }
+    
+    if (setViewDirection) {
+      setViewDirection(ra, dec);
+    }
+    
+    setGoToDialogOpen(false);
+    setGoToRa('');
+    setGoToDec('');
+    setCoordError('');
+  }, [goToRa, goToDec, parseCoordinate, setViewDirection, t]);
+
+  // Open go to coordinates dialog
+  const openGoToDialog = useCallback(() => {
+    setContextMenuOpen(false);
+    setGoToDialogOpen(true);
+  }, []);
 
   return (
     <TooltipProvider>
       <div ref={containerRef} className="relative w-full h-full bg-black overflow-hidden">
-        {/* Context Menu wrapping canvas trigger div */}
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <div className="absolute inset-0">
-              <StellariumCanvas
-                ref={canvasRef}
-                onSelectionChange={handleSelectionChange}
-                onFovChange={handleFovChange}
-                onContextMenu={handleContextMenuCapture}
-              />
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent className="w-64 bg-card border-border">
+        {/* Canvas with context menu handling */}
+        <div className="absolute inset-0">
+          <StellariumCanvas
+            ref={canvasRef}
+            onSelectionChange={handleSelectionChange}
+            onFovChange={handleFovChange}
+            onContextMenu={handleContextMenuCapture}
+          />
+        </div>
+
+        {/* Custom positioned context menu using DropdownMenu */}
+        <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+          {/* Invisible trigger positioned at click location */}
+          <DropdownMenuTrigger asChild>
+            <div 
+              className="fixed w-0 h-0 pointer-events-none"
+              style={{
+                left: contextMenuPosition.x,
+                top: contextMenuPosition.y,
+              }}
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent 
+            className="w-64 bg-card border-border"
+            align="start"
+          >
             {/* Click Position Info */}
             {contextMenuCoords && (
               <>
@@ -257,7 +494,7 @@ export function StellariumView() {
                   <div className="font-mono">RA: {contextMenuCoords.raStr}</div>
                   <div className="font-mono">Dec: {contextMenuCoords.decStr}</div>
                 </div>
-                <ContextMenuSeparator className="bg-border" />
+                <DropdownMenuSeparator className="bg-border" />
               </>
             )}
 
@@ -267,210 +504,227 @@ export function StellariumView() {
                 <div className="px-2 py-1.5 text-xs">
                   <div className="font-medium text-primary truncate">{selectedObject.names[0]}</div>
                 </div>
-                <ContextMenuItem 
+                <DropdownMenuItem 
                   onClick={() => {
                     navigator.clipboard.writeText(`${selectedObject.ra} ${selectedObject.dec}`);
+                    setContextMenuOpen(false);
                   }} 
                   className="text-foreground"
                 >
                   <Copy className="h-4 w-4 mr-2" />
                   {t('coordinates.copyObjectCoordinates')}
-                  <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
-                </ContextMenuItem>
+                  <DropdownMenuShortcut>Ctrl+C</DropdownMenuShortcut>
+                </DropdownMenuItem>
                 {mountConnected && (
-                  <ContextMenuItem 
-                    onClick={() => handleSetFramingCoordinates({
-                      ra: selectedObject.raDeg,
-                      dec: selectedObject.decDeg,
-                      raString: selectedObject.ra,
-                      decString: selectedObject.dec,
-                      name: selectedObject.names[0] || '',
-                    })}
+                  <DropdownMenuItem 
+                    onClick={() => {
+                      handleSetFramingCoordinates({
+                        ra: selectedObject.raDeg,
+                        dec: selectedObject.decDeg,
+                        raString: selectedObject.ra,
+                        decString: selectedObject.dec,
+                        name: selectedObject.names[0] || '',
+                      });
+                      setContextMenuOpen(false);
+                    }}
                     className="text-foreground"
                   >
                     <Navigation className="h-4 w-4 mr-2" />
                     {t('actions.slewToObject')}
-                  </ContextMenuItem>
+                  </DropdownMenuItem>
                 )}
-                <ContextMenuSeparator className="bg-border" />
+                <DropdownMenuSeparator className="bg-border" />
               </>
             )}
 
             {/* Add to Target List */}
-            <ContextMenuItem 
-              onClick={handleAddToTargetList}
+            <DropdownMenuItem 
+              onClick={() => {
+                handleAddToTargetList();
+                setContextMenuOpen(false);
+              }}
               disabled={!contextMenuCoords && !selectedObject}
               className="text-foreground"
             >
               <Plus className="h-4 w-4 mr-2" />
               {t('actions.addToTargetList')}
-            </ContextMenuItem>
+            </DropdownMenuItem>
 
             {/* Center View on Click */}
             {contextMenuCoords && (
-              <ContextMenuItem 
+              <DropdownMenuItem 
                 onClick={handleNavigateToCoords}
                 className="text-foreground"
               >
                 <Target className="h-4 w-4 mr-2" />
                 {t('actions.centerViewHere')}
-              </ContextMenuItem>
+              </DropdownMenuItem>
             )}
 
-            <ContextMenuSeparator className="bg-border" />
+            {/* Go to Coordinates */}
+            <DropdownMenuItem 
+              onClick={openGoToDialog}
+              className="text-foreground"
+            >
+              <Compass className="h-4 w-4 mr-2" />
+              {t('coordinates.goToCoordinates')}
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator className="bg-border" />
 
             {/* Zoom Controls */}
-            <ContextMenuSub>
-              <ContextMenuSubTrigger className="text-foreground">
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="text-foreground">
                 <ZoomIn className="h-4 w-4 mr-2" />
                 {t('zoom.zoom')}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="bg-card border-border">
-                <ContextMenuItem onClick={handleZoomIn} className="text-foreground">
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="bg-card border-border">
+                <DropdownMenuItem onClick={() => { handleZoomIn(); setContextMenuOpen(false); }} className="text-foreground">
                   <ZoomIn className="h-4 w-4 mr-2" />
                   {t('zoom.zoomIn')}
-                  <ContextMenuShortcut>+</ContextMenuShortcut>
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleZoomOut} className="text-foreground">
+                  <DropdownMenuShortcut>+</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { handleZoomOut(); setContextMenuOpen(false); }} className="text-foreground">
                   <ZoomOut className="h-4 w-4 mr-2" />
                   {t('zoom.zoomOut')}
-                  <ContextMenuShortcut>-</ContextMenuShortcut>
-                </ContextMenuItem>
-                <ContextMenuSeparator className="bg-border" />
-                <ContextMenuItem onClick={() => canvasRef.current?.setFov(1)} className="text-foreground">
+                  <DropdownMenuShortcut>-</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuItem onClick={() => { canvasRef.current?.setFov(1); setContextMenuOpen(false); }} className="text-foreground">
                   1° FOV
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => canvasRef.current?.setFov(5)} className="text-foreground">
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { canvasRef.current?.setFov(5); setContextMenuOpen(false); }} className="text-foreground">
                   5° FOV
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => canvasRef.current?.setFov(15)} className="text-foreground">
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { canvasRef.current?.setFov(15); setContextMenuOpen(false); }} className="text-foreground">
                   15° FOV
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => canvasRef.current?.setFov(30)} className="text-foreground">
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { canvasRef.current?.setFov(30); setContextMenuOpen(false); }} className="text-foreground">
                   30° FOV
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => canvasRef.current?.setFov(60)} className="text-foreground">
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { canvasRef.current?.setFov(60); setContextMenuOpen(false); }} className="text-foreground">
                   60° FOV ({t('zoom.default')})
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => canvasRef.current?.setFov(90)} className="text-foreground">
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { canvasRef.current?.setFov(90); setContextMenuOpen(false); }} className="text-foreground">
                   90° FOV
-                </ContextMenuItem>
-              </ContextMenuSubContent>
-            </ContextMenuSub>
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
             {/* FOV Overlay */}
-            <ContextMenuSub>
-              <ContextMenuSubTrigger className="text-foreground">
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="text-foreground">
                 <Camera className="h-4 w-4 mr-2" />
                 {t('fov.fovOverlay')}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="bg-card border-border">
-                <ContextMenuCheckboxItem
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="bg-card border-border">
+                <DropdownMenuCheckboxItem
                   checked={fovSimEnabled}
                   onCheckedChange={setFovSimEnabled}
                   className="text-foreground"
                 >
                   {t('fov.showFovOverlay')}
-                </ContextMenuCheckboxItem>
+                </DropdownMenuCheckboxItem>
                 {fovSimEnabled && (
                   <>
-                    <ContextMenuSeparator className="bg-border" />
-                    <ContextMenuItem 
-                      onClick={() => setRotationAngle(0)} 
+                    <DropdownMenuSeparator className="bg-border" />
+                    <DropdownMenuItem 
+                      onClick={() => { setRotationAngle(0); setContextMenuOpen(false); }} 
                       className="text-foreground"
                     >
                       <RotateCw className="h-4 w-4 mr-2" />
                       {t('fov.resetRotation')}
-                    </ContextMenuItem>
-                    <ContextMenuCheckboxItem
+                    </DropdownMenuItem>
+                    <DropdownMenuCheckboxItem
                       checked={mosaic.enabled}
-                      onCheckedChange={(checked) => setMosaic({ ...mosaic, enabled: checked })}
+                      onCheckedChange={(checked: boolean) => setMosaic({ ...mosaic, enabled: checked })}
                       className="text-foreground"
                     >
                       <Grid3X3 className="h-4 w-4 mr-2" />
                       {t('fov.enableMosaic')}
-                    </ContextMenuCheckboxItem>
+                    </DropdownMenuCheckboxItem>
                   </>
                 )}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
-            <ContextMenuSeparator className="bg-border" />
+            <DropdownMenuSeparator className="bg-border" />
 
             {/* Display Settings */}
-            <ContextMenuSub>
-              <ContextMenuSubTrigger className="text-foreground">
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="text-foreground">
                 <Settings className="h-4 w-4 mr-2" />
                 {t('settings.display')}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="bg-card border-border w-48">
-                <ContextMenuCheckboxItem
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="bg-card border-border w-48">
+                <DropdownMenuCheckboxItem
                   checked={stellariumSettings.constellationsLinesVisible}
                   onCheckedChange={() => toggleStellariumSetting('constellationsLinesVisible')}
                   className="text-foreground"
                 >
                   {t('settings.constellationLines')}
-                </ContextMenuCheckboxItem>
-                <ContextMenuCheckboxItem
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
                   checked={stellariumSettings.equatorialLinesVisible}
                   onCheckedChange={() => toggleStellariumSetting('equatorialLinesVisible')}
                   className="text-foreground"
                 >
                   {t('settings.equatorialGrid')}
-                </ContextMenuCheckboxItem>
-                <ContextMenuCheckboxItem
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
                   checked={stellariumSettings.azimuthalLinesVisible}
                   onCheckedChange={() => toggleStellariumSetting('azimuthalLinesVisible')}
                   className="text-foreground"
                 >
                   {t('settings.azimuthalGrid')}
-                </ContextMenuCheckboxItem>
-                <ContextMenuCheckboxItem
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
                   checked={stellariumSettings.dsosVisible}
                   onCheckedChange={() => toggleStellariumSetting('dsosVisible')}
                   className="text-foreground"
                 >
                   {t('settings.deepSkyObjects')}
-                </ContextMenuCheckboxItem>
-                <ContextMenuSeparator className="bg-border" />
-                <ContextMenuCheckboxItem
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuCheckboxItem
                   checked={stellariumSettings.surveyEnabled}
                   onCheckedChange={() => toggleStellariumSetting('surveyEnabled')}
                   className="text-foreground"
                 >
                   {t('settings.skySurveys')}
-                </ContextMenuCheckboxItem>
-                <ContextMenuCheckboxItem
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
                   checked={stellariumSettings.atmosphereVisible}
                   onCheckedChange={() => toggleStellariumSetting('atmosphereVisible')}
                   className="text-foreground"
                 >
                   {t('settings.atmosphere')}
-                </ContextMenuCheckboxItem>
-              </ContextMenuSubContent>
-            </ContextMenuSub>
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
-            <ContextMenuSeparator className="bg-border" />
+            <DropdownMenuSeparator className="bg-border" />
 
             {/* Coordinates */}
-            <ContextMenuSub>
-              <ContextMenuSubTrigger className="text-foreground">
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="text-foreground">
                 <MapPin className="h-4 w-4 mr-2" />
                 {t('coordinates.coordinates')}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="bg-card border-border">
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="bg-card border-border">
                 {contextMenuCoords && (
-                  <ContextMenuItem 
+                  <DropdownMenuItem 
                     onClick={() => {
                       navigator.clipboard.writeText(`${contextMenuCoords.raStr} ${contextMenuCoords.decStr}`);
+                      setContextMenuOpen(false);
                     }}
                     className="text-foreground"
                   >
                     <Copy className="h-4 w-4 mr-2" />
                     {t('coordinates.copyClickPosition')}
-                  </ContextMenuItem>
+                  </DropdownMenuItem>
                 )}
-                <ContextMenuItem 
+                <DropdownMenuItem 
                   onClick={() => {
                     const getCurrentViewDirection = useStellariumStore.getState().getCurrentViewDirection;
                     if (getCurrentViewDirection) {
@@ -481,37 +735,81 @@ export function StellariumView() {
                       const decStr = degreesToDMS(dec);
                       navigator.clipboard.writeText(`${raStr} ${decStr}`);
                     }
+                    setContextMenuOpen(false);
                   }} 
                   className="text-foreground"
                 >
                   <Crosshair className="h-4 w-4 mr-2" />
                   {t('coordinates.copyViewCenter')}
-                </ContextMenuItem>
-              </ContextMenuSubContent>
-            </ContextMenuSub>
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
-            <ContextMenuSeparator className="bg-border" />
+            <DropdownMenuSeparator className="bg-border" />
 
             {/* Search */}
-            <ContextMenuItem 
+            <DropdownMenuItem 
               onClick={() => {
                 setIsSearchOpen(true);
+                setContextMenuOpen(false);
                 setTimeout(() => searchRef.current?.focusSearchInput(), 100);
               }} 
               className="text-foreground"
             >
               <Search className="h-4 w-4 mr-2" />
               {t('starmap.searchObjects')}
-              <ContextMenuShortcut>Ctrl+F</ContextMenuShortcut>
-            </ContextMenuItem>
+              <DropdownMenuShortcut>Ctrl+F</DropdownMenuShortcut>
+            </DropdownMenuItem>
 
             {/* Reset View */}
-            <ContextMenuItem onClick={handleResetView} className="text-foreground">
+            <DropdownMenuItem onClick={() => { handleResetView(); setContextMenuOpen(false); }} className="text-foreground">
               <RotateCcw className="h-4 w-4 mr-2" />
               {t('starmap.resetView')}
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Go to Coordinates Dialog */}
+        <Dialog open={goToDialogOpen} onOpenChange={setGoToDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t('coordinates.goToCoordinates')}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ra">{t('coordinates.ra')}</Label>
+                <Input
+                  id="ra"
+                  value={goToRa}
+                  onChange={(e) => { setGoToRa(e.target.value); setCoordError(''); }}
+                  placeholder={t('coordinates.raPlaceholder')}
+                  className="font-mono"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="dec">{t('coordinates.dec')}</Label>
+                <Input
+                  id="dec"
+                  value={goToDec}
+                  onChange={(e) => { setGoToDec(e.target.value); setCoordError(''); }}
+                  placeholder={t('coordinates.decPlaceholder')}
+                  className="font-mono"
+                />
+              </div>
+              {coordError && (
+                <p className="text-sm text-destructive">{coordError}</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setGoToDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={handleGoToCoordinates}>
+                {t('coordinates.goTo')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* FOV Overlay */}
         <FOVOverlay
@@ -611,6 +909,11 @@ export function StellariumView() {
               
               <LanguageSwitcher className="h-10 w-10 bg-black/60 backdrop-blur-sm text-white hover:bg-black/80" />
               
+              {/* Tonight's Recommendations */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <TonightRecommendations />
+              </div>
+              
               <StellariumCredits />
             </div>
             
@@ -650,16 +953,25 @@ export function StellariumView() {
           </div>
         </div>
 
-        {/* Search Panel */}
+        {/* Search Panel - Enhanced */}
         {isSearchOpen && (
-          <Card className="absolute top-16 left-3 w-80 max-w-[calc(100vw-24px)] bg-card/95 backdrop-blur-sm border-border z-50">
-            <CardHeader className="pb-2">
+          <Card className="absolute top-16 left-3 w-96 max-w-[calc(100vw-24px)] bg-card/95 backdrop-blur-sm border-border z-50 shadow-xl">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-lg text-foreground">{t('starmap.searchObjects')}</CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setIsSearchOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-h-[70vh] overflow-y-auto">
               <StellariumSearch
                 ref={searchRef}
                 onSelect={() => setIsSearchOpen(false)}
+                enableMultiSelect={true}
               />
             </CardContent>
           </Card>
@@ -728,12 +1040,27 @@ export function StellariumView() {
           </div>
         )}
 
-        {/* Bottom Center: Crosshair Info */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-4 py-2 border border-border">
-            <p className="text-xs text-muted-foreground text-center">
-              FOV: <span className="text-foreground font-mono">{currentFov < 1 ? currentFov.toFixed(2) : currentFov.toFixed(1)}°</span>
-            </p>
+        {/* Bottom Status Bar */}
+        <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+          <div className="bg-black/80 backdrop-blur-sm border-t border-border px-4 py-2">
+            <div className="flex items-center justify-between text-xs">
+              {/* Left: View Center Coordinates */}
+              <div className="flex items-center gap-4">
+                <ViewCenterDisplay />
+              </div>
+              
+              {/* Center: FOV */}
+              <div className="flex items-center gap-4">
+                <span className="text-muted-foreground">
+                  FOV: <span className="text-foreground font-mono">{currentFov < 1 ? currentFov.toFixed(2) : currentFov.toFixed(1)}°</span>
+                </span>
+              </div>
+              
+              {/* Right: Location & Time */}
+              <div className="flex items-center gap-4">
+                <LocationTimeDisplay />
+              </div>
+            </div>
           </div>
         </div>
 
