@@ -4,11 +4,19 @@ import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSettingsStore } from '@/lib/starmap/stores';
 import type { StellariumSettings as StellariumSettingsType } from '@/lib/starmap/types';
-import { Settings, Save, X, RotateCcw } from 'lucide-react';
+import { Settings, Save, X, RotateCcw, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { SkyCultureLanguage } from '@/lib/starmap/types';
 import {
   Dialog,
   DialogContent,
@@ -109,7 +117,16 @@ export function StellariumSettings() {
       surveyEnabled: true,
       surveyId: 'dss',
       surveyUrl: undefined,
+      skyCultureLanguage: 'native',
     });
+  }, []);
+
+  // Update sky culture language
+  const handleSkyCultureLanguageChange = useCallback((value: SkyCultureLanguage) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      skyCultureLanguage: value,
+    }));
   }, []);
 
   return (
@@ -164,6 +181,32 @@ export function StellariumSettings() {
                 />
               </div>
             ))}
+          </div>
+
+          <Separator />
+
+          {/* Sky Culture Language Settings */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              {t('settings.skyCultureLanguage')}
+            </h3>
+            <Select
+              value={localSettings.skyCultureLanguage}
+              onValueChange={handleSkyCultureLanguageChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t('settings.selectLanguage')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="native">{t('settings.languageNative')}</SelectItem>
+                <SelectItem value="en">{t('settings.languageEnglish')}</SelectItem>
+                <SelectItem value="zh">{t('settings.languageChinese')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {t('settings.skyCultureLanguageDescription')}
+            </p>
           </div>
 
           <Separator />

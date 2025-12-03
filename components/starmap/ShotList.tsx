@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   List,
@@ -32,12 +32,12 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import {
   Tooltip,
   TooltipContent,
@@ -67,6 +67,7 @@ import {
 
 import { useTargetListStore, useMountStore, type TargetItem } from '@/lib/starmap/stores';
 import { useStellariumStore } from '@/lib/starmap/stores';
+import { TranslatedName } from './TranslatedName';
 import {
   planMultipleTargets,
   calculateImagingFeasibility,
@@ -276,10 +277,10 @@ export function ShotList({
 
   return (
     <TooltipProvider>
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Drawer open={open} onOpenChange={setOpen} direction="right">
         <Tooltip>
           <TooltipTrigger asChild>
-            <SheetTrigger asChild>
+            <DrawerTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
@@ -292,20 +293,20 @@ export function ShotList({
                   </span>
                 )}
               </Button>
-            </SheetTrigger>
+            </DrawerTrigger>
           </TooltipTrigger>
           <TooltipContent side="left">
             <p>{t('shotList.shotList')} ({targets.length})</p>
           </TooltipContent>
         </Tooltip>
 
-        <SheetContent side="right" className="w-80 bg-card border-border">
-          <SheetHeader>
-            <SheetTitle className="text-foreground flex items-center gap-2">
+        <DrawerContent className="w-[320px] sm:w-[400px] md:w-[450px] h-full bg-card border-border">
+          <DrawerHeader>
+            <DrawerTitle className="text-foreground flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               {t('shotList.shotList')}
-            </SheetTitle>
-          </SheetHeader>
+            </DrawerTitle>
+          </DrawerHeader>
 
           <div className="mt-4 space-y-4">
             {/* Stats & Toolbar */}
@@ -546,7 +547,7 @@ export function ShotList({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1">
                               <p className="text-sm text-foreground font-medium truncate flex-1">
-                                {target.name}
+                                <TranslatedName name={target.name} />
                               </p>
                               {target.isFavorite && (
                                 <Heart className="h-3 w-3 text-red-400 fill-red-400" />
@@ -807,8 +808,8 @@ export function ShotList({
               </>
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
     </TooltipProvider>
   );
 }

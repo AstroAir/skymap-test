@@ -42,6 +42,7 @@ export const useSettingsStore = create<SettingsState>()(
         surveyEnabled: true,
         surveyId: 'dss', // Default to DSS
         surveyUrl: undefined, // Direct URL for online surveys
+        skyCultureLanguage: 'native', // Default to native (Latin) names
       },
       
       setConnection: (connection) => set((state) => ({
@@ -69,7 +70,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'starmap-settings',
-      version: 2, // Bump version to reset incompatible persisted state
+      version: 3, // Bump version to add skyCultureLanguage
       migrate: (persistedState, version) => {
         const state = persistedState as SettingsState;
         if (version < 2) {
@@ -79,6 +80,17 @@ export const useSettingsStore = create<SettingsState>()(
             stellarium: {
               ...state.stellarium,
               surveyUrl: undefined,
+              skyCultureLanguage: 'native',
+            },
+          };
+        }
+        if (version < 3) {
+          // Add skyCultureLanguage setting
+          return {
+            ...state,
+            stellarium: {
+              ...state.stellarium,
+              skyCultureLanguage: 'native',
             },
           };
         }

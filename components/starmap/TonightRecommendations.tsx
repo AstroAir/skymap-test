@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
@@ -39,6 +39,7 @@ import { useTonightRecommendations, useGeolocation, type RecommendedTarget, type
 import { useStellariumStore } from '@/lib/starmap/stores';
 import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
 import { useMountStore } from '@/lib/starmap/stores';
+import { TranslatedName } from './TranslatedName';
 
 // ============================================================================
 // Utility Functions
@@ -307,7 +308,7 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
       {/* Legend */}
       <div className="flex items-center justify-center gap-3 text-[10px] text-muted-foreground">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-2 rounded-sm bg-gradient-to-r from-orange-500 to-orange-700" />
+          <div className="w-3 h-2 rounded-sm bg-linear-to-r from-orange-500 to-orange-700" />
           <span>{t('tonight.twilight')}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -397,19 +398,20 @@ function TargetCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="link"
+              className="h-auto p-0 text-sm font-medium hover:text-primary transition-colors truncate"
               onClick={onSelect}
-              className="text-sm font-medium hover:text-primary transition-colors truncate"
             >
-              {target.Name}
-            </button>
+              <TranslatedName name={target.Name} />
+            </Button>
             <Badge variant={getScoreBadgeVariant(target.score)} className="shrink-0">
               {target.score}
             </Badge>
           </div>
           {target['Common names'] && (
             <p className="text-xs text-muted-foreground truncate mt-0.5">
-              {target['Common names']}
+              <TranslatedName name={target['Common names']} />
             </p>
           )}
         </div>
@@ -584,13 +586,13 @@ export function TonightRecommendations() {
     return filtered;
   }, [recommendations, sortBy, filterType]);
   
-  const handleSelectTarget = (target: RecommendedTarget) => {
+  const handleSelectTarget = useCallback((target: RecommendedTarget) => {
     if (setViewDirection && target.RA !== undefined && target.Dec !== undefined) {
       setViewDirection(target.RA, target.Dec);
     }
-  };
+  }, [setViewDirection]);
   
-  const handleAddToList = (target: RecommendedTarget) => {
+  const handleAddToList = useCallback((target: RecommendedTarget) => {
     if (target.RA !== undefined && target.Dec !== undefined) {
       addTarget({
         name: target.Name,
@@ -601,9 +603,9 @@ export function TonightRecommendations() {
         priority: 'medium',
       });
     }
-  };
+  }, [addTarget]);
   
-  const handleAddAllToList = () => {
+  const handleAddAllToList = useCallback(() => {
     filteredRecommendations.slice(0, 10).forEach(target => {
       if (target.RA !== undefined && target.Dec !== undefined) {
         addTarget({
@@ -616,7 +618,7 @@ export function TonightRecommendations() {
         });
       }
     });
-  };
+  }, [filteredRecommendations, addTarget]);
   
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -647,7 +649,7 @@ export function TonightRecommendations() {
         
         {/* Tonight's conditions with beautiful visualization */}
         {conditions && (
-          <div className="shrink-0 space-y-4 p-4 rounded-xl bg-gradient-to-br from-slate-900/80 to-slate-800/80 border border-slate-700/50">
+          <div className="shrink-0 space-y-4 p-4 rounded-xl bg-linear-to-br from-slate-900/80 to-slate-800/80 border border-slate-700/50">
             {/* Header with refresh */}
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-slate-200">{t('tonight.conditions')}</span>

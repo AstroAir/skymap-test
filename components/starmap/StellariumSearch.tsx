@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useCallback, forwardRef, useImperativeHandle, useEffect, memo, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore } from '@/lib/starmap/stores';
 import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
-import { useObjectSearch, type ObjectType } from '@/lib/starmap/hooks';
+import { useObjectSearch, type ObjectType, useSkyCultureLanguage } from '@/lib/starmap/hooks';
+import { translateCelestialName } from '@/lib/starmap/translations';
 import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/starmap/utils';
-import type { SearchResultItem } from '@/lib/starmap/types';
+import type { SearchResultItem, SkyCultureLanguage } from '@/lib/starmap/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -42,7 +43,14 @@ import {
   ChevronDown,
   ChevronRight,
   ListPlus,
+  SlidersHorizontal,
+  Trash2,
+  MapPin,
+  ArrowUp,
+  ArrowDown,
+  CornerDownLeft,
 } from 'lucide-react';
+import { AdvancedSearchDialog } from './AdvancedSearchDialog';
 
 // ============================================================================
 // Types
@@ -50,12 +58,14 @@ import {
 
 export interface StellariumSearchRef {
   focusSearchInput: () => void;
+  closeSearch: () => void;
 }
 
 interface StellariumSearchProps {
   onSelect?: (item?: SearchResultItem) => void;
   enableMultiSelect?: boolean;
   onBatchAdd?: (items: SearchResultItem[]) => void;
+  onFocusChange?: (focused: boolean) => void;
 }
 
 // Helper to get unique ID for a search result
@@ -64,13 +74,125 @@ function getResultId(item: SearchResultItem): string {
 }
 
 // ============================================================================
-// Component
+// Memoized Search Result Item Component
+// ============================================================================
+
+interface SearchResultItemProps {
+  item: SearchResultItem;
+  itemId: string;
+  checked: boolean;
+  isHighlighted: boolean;
+  globalIndex: number;
+  enableMultiSelect: boolean;
+  skyCultureLanguage: SkyCultureLanguage | string;
+  onSelect: (item: SearchResultItem) => void;
+  onToggleSelection: (id: string) => void;
+  onMouseEnter: (index: number) => void;
+  onAddToTargetList: (item: SearchResultItem) => void;
+  t: ReturnType<typeof useTranslations>;
+}
+
+const SearchResultItemRow = memo(function SearchResultItemRow({
+  item,
+  itemId,
+  checked,
+  isHighlighted,
+  globalIndex,
+  enableMultiSelect,
+  skyCultureLanguage,
+  onSelect,
+  onToggleSelection,
+  onMouseEnter,
+  onAddToTargetList,
+  t,
+}: SearchResultItemProps) {
+  return (
+    <div
+      className={`flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors ${
+        checked ? 'bg-accent/30' : ''
+      } ${isHighlighted ? 'ring-2 ring-primary bg-accent/40' : ''}`}
+      onMouseEnter={() => onMouseEnter(globalIndex)}
+    >
+      {/* Checkbox for multi-select */}
+      {enableMultiSelect && (
+        <Checkbox
+          checked={checked}
+          onCheckedChange={() => onToggleSelection(itemId)}
+          className="h-4 w-4"
+        />
+      )}
+      
+      {/* Clickable content */}
+      <button
+        className="flex-1 flex items-center gap-2 min-w-0 text-left"
+        onClick={() => onSelect(item)}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-foreground font-medium truncate">
+            {translateCelestialName(item.Name, skyCultureLanguage as SkyCultureLanguage)}
+          </p>
+          {item['Common names'] && (
+            <p className="text-xs text-muted-foreground truncate">
+              {translateCelestialName(item['Common names'], skyCultureLanguage as SkyCultureLanguage)}
+            </p>
+          )}
+        </div>
+        
+        {/* Object details */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Magnitude */}
+          {item.Magnitude !== undefined && (
+            <span className="text-[10px] text-muted-foreground bg-muted/50 px-1 rounded">
+              {item.Magnitude.toFixed(1)}m
+            </span>
+          )}
+          {/* Size */}
+          {item.Size && (
+            <span className="text-[10px] text-muted-foreground">
+              {item.Size}
+            </span>
+          )}
+          {/* Coordinates */}
+          {item.RA !== undefined && item.Dec !== undefined && (
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {item.RA.toFixed(1)}°/{item.Dec.toFixed(1)}°
+            </span>
+          )}
+        </div>
+      </button>
+      
+      {/* Quick add button */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToTargetList(item);
+            }}
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          {t('actions.addToTargetList')}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+});
+
+// ============================================================================
+// Main Component
 // ============================================================================
 
 export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearchProps>(
-  function StellariumSearch({ onSelect, enableMultiSelect = true, onBatchAdd }, ref) {
+  function StellariumSearch({ onSelect, enableMultiSelect = true, onBatchAdd, onFocusChange }, ref) {
     const t = useTranslations();
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const stel = useStellariumStore((state) => state.stel);
     const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
     
@@ -92,21 +214,99 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       setFilters,
       setSortBy,
       addRecentSearch,
+      clearRecentSearches,
       getSelectedItems,
       isSelected,
       popularObjects,
       quickCategories,
+      searchStats,
     } = useObjectSearch();
     
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['DSO', 'Planet']));
+    const [isFocused, setIsFocused] = useState(false);
+    const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+    
+    // Get sky culture language for name translation
+    const skyCultureLanguage = useSkyCultureLanguage();
 
     useImperativeHandle(ref, () => ({
       focusSearchInput: () => {
         setTimeout(() => {
           searchInputRef.current?.focus();
+          setIsFocused(true);
         }, 100);
       },
+      closeSearch: () => {
+        setIsFocused(false);
+        searchInputRef.current?.blur();
+      },
     }));
+
+    // Memoize flattened results for keyboard navigation
+    const flatResults = useMemo(() => 
+      Array.from(groupedResults.values()).flat(),
+      [groupedResults]
+    );
+    
+    // Memoize handler for adding to target list
+    const handleAddToTargetList = useCallback((item: SearchResultItem) => {
+      if (item.RA !== undefined && item.Dec !== undefined) {
+        addTargetsBatch([{
+          name: item.Name,
+          ra: item.RA,
+          dec: item.Dec,
+          raString: degreesToHMS(item.RA),
+          decString: degreesToDMS(item.Dec),
+        }]);
+      }
+    }, [addTargetsBatch]);
+
+    // Handle click outside to close search results
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (
+          containerRef.current &&
+          !containerRef.current.contains(event.target as Node) &&
+          !advancedSearchOpen
+        ) {
+          setIsFocused(false);
+          onFocusChange?.(false);
+          setHighlightedIndex(-1);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [advancedSearchOpen, onFocusChange]);
+
+    // Wrap setQuery to also reset highlighted index
+    const handleQueryChange = useCallback((newQuery: string) => {
+      setQuery(newQuery);
+      setHighlightedIndex(-1);
+    }, [setQuery]);
+
+    // Handle focus change
+    const handleFocus = useCallback(() => {
+      setIsFocused(true);
+      onFocusChange?.(true);
+      setShowKeyboardHints(true);
+      // Hide keyboard hints after 3 seconds
+      setTimeout(() => setShowKeyboardHints(false), 3000);
+    }, [onFocusChange]);
+
+
+    // Handle advanced search select
+    const handleAdvancedSelect = useCallback((item?: SearchResultItem) => {
+      if (item) {
+        onSelect?.(item);
+        setIsFocused(false);
+        onFocusChange?.(false);
+      }
+    }, [onSelect, onFocusChange]);
 
     // Toggle group expansion
     const toggleGroup = useCallback((group: string) => {
@@ -175,6 +375,44 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       }
     }, [stel, onSelect, addRecentSearch]);
 
+    // Handle keyboard navigation (must be after selectTarget)
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+      if (!isFocused) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setHighlightedIndex(prev => 
+            prev < flatResults.length - 1 ? prev + 1 : prev
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (highlightedIndex >= 0 && highlightedIndex < flatResults.length) {
+            selectTarget(flatResults[highlightedIndex]);
+            setIsFocused(false);
+            onFocusChange?.(false);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setIsFocused(false);
+          onFocusChange?.(false);
+          setHighlightedIndex(-1);
+          searchInputRef.current?.blur();
+          break;
+        case 'Tab':
+          // Allow tab to work normally but close search
+          setIsFocused(false);
+          onFocusChange?.(false);
+          break;
+      }
+    }, [isFocused, flatResults, highlightedIndex, selectTarget, onFocusChange]);
+
     // Handle batch add to target list
     const handleBatchAdd = useCallback(() => {
       const selected = getSelectedItems();
@@ -214,7 +452,19 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         case 'DSO': return <CircleDot className="h-4 w-4 text-purple-400" />;
         case 'Star': return <Star className="h-4 w-4 text-orange-400" />;
         case 'Moon': return <MoonIcon className="h-4 w-4 text-gray-400" />;
+        case 'Constellation': return <MapPin className="h-4 w-4 text-cyan-400" />;
         default: return <CircleDot className="h-4 w-4 text-gray-400" />;
+      }
+    };
+
+    // Category icon helper
+    const getCategoryIcon = (label: string) => {
+      switch (label) {
+        case 'Galaxies': return <CircleDot className="h-3 w-3 text-purple-400" />;
+        case 'Nebulae': return <Sparkles className="h-3 w-3 text-pink-400" />;
+        case 'Planets': return <Globe className="h-3 w-3 text-blue-400" />;
+        case 'Clusters': return <Star className="h-3 w-3 text-yellow-400" />;
+        default: return <CircleDot className="h-3 w-3" />;
       }
     };
 
@@ -222,8 +472,11 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const selectedCount = selectedIds.size;
     const hasResults = results.length > 0;
 
+    // Determine if we should show the results panel
+    const showResultsPanel = isFocused || query.length > 0;
+
     return (
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3" ref={containerRef}>
         {/* Search Input Row */}
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -231,22 +484,47 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
             <Input
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleQueryChange(e.target.value)}
               ref={searchInputRef}
               placeholder={t('starmap.searchPlaceholder')}
               className="h-9 w-full pl-9 pr-8"
+              onFocus={handleFocus}
+              onKeyDown={handleKeyDown}
+              aria-label={t('starmap.searchObjects')}
+              aria-expanded={showResultsPanel}
+              aria-autocomplete="list"
+              role="combobox"
             />
             {query && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-                onClick={clearSearch}
+                onClick={() => {
+                  clearSearch();
+                  setIsFocused(false);
+                  onFocusChange?.(false);
+                }}
               >
                 <X className="h-3 w-3" />
               </Button>
             )}
           </div>
+          
+          {/* Advanced Search Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setAdvancedSearchOpen(true)}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('search.advancedSearch')}</TooltipContent>
+          </Tooltip>
           
           {/* Filter Button */}
           <DropdownMenu>
@@ -288,6 +566,29 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           </DropdownMenu>
         </div>
 
+        {/* Advanced Search Dialog */}
+        <AdvancedSearchDialog
+          open={advancedSearchOpen}
+          onOpenChange={setAdvancedSearchOpen}
+          onSelect={handleAdvancedSelect}
+        />
+
+        {/* Keyboard hints */}
+        {showResultsPanel && showKeyboardHints && hasResults && (
+          <div className="flex items-center justify-center gap-3 py-1 text-[10px] text-muted-foreground bg-muted/30 rounded-md">
+            <span className="flex items-center gap-1">
+              <ArrowUp className="h-3 w-3" />
+              <ArrowDown className="h-3 w-3" />
+              {t('search.navigateHint')}
+            </span>
+            <span className="flex items-center gap-1">
+              <CornerDownLeft className="h-3 w-3" />
+              {t('search.selectHint')}
+            </span>
+            <span>Esc {t('search.closeHint')}</span>
+          </div>
+        )}
+
         {/* Loading indicator */}
         {isSearching && (
           <div className="flex items-center justify-center py-2">
@@ -296,8 +597,17 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           </div>
         )}
 
+        {/* Search Statistics */}
+        {showResultsPanel && searchStats && hasResults && !isSearching && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground py-1">
+            <span>{t('search.foundResults', { count: searchStats.totalResults })}</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span>{searchStats.searchTimeMs}ms</span>
+          </div>
+        )}
+
         {/* Multi-select toolbar */}
-        {enableMultiSelect && hasResults && (
+        {showResultsPanel && enableMultiSelect && hasResults && (
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <Button
@@ -339,7 +649,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         )}
 
         {/* Search Results - Grouped */}
-        {hasResults && !isSearching && (
+        {showResultsPanel && hasResults && !isSearching && (
           <ScrollArea className="max-h-72">
             <div className="space-y-2">
               {Array.from(groupedResults.entries()).map(([groupName, items]) => (
@@ -361,81 +671,29 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                     </Badge>
                   </button>
                   
-                  {/* Group Items */}
+                  {/* Group Items - Using memoized component for performance */}
                   {expandedGroups.has(groupName) && (
                     <div className="space-y-0.5 pl-4">
                       {items.map((item) => {
                         const itemId = getResultId(item);
-                        const checked = isSelected(itemId);
+                        const globalIndex = flatResults.findIndex(r => getResultId(r) === itemId);
                         
                         return (
-                          <div
+                          <SearchResultItemRow
                             key={itemId}
-                            className={`flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors ${
-                              checked ? 'bg-accent/30' : ''
-                            }`}
-                          >
-                            {/* Checkbox for multi-select */}
-                            {enableMultiSelect && (
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={() => toggleSelection(itemId)}
-                                className="h-4 w-4"
-                              />
-                            )}
-                            
-                            {/* Clickable content */}
-                            <button
-                              className="flex-1 flex items-center gap-2 min-w-0 text-left"
-                              onClick={() => selectTarget(item)}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-foreground font-medium truncate">
-                                  {item.Name}
-                                </p>
-                                {item['Common names'] && (
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {item['Common names']}
-                                  </p>
-                                )}
-                              </div>
-                              
-                              {/* Coordinates */}
-                              {item.RA !== undefined && item.Dec !== undefined && (
-                                <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                                  {item.RA.toFixed(1)}° / {item.Dec.toFixed(1)}°
-                                </span>
-                              )}
-                            </button>
-                            
-                            {/* Quick add button */}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 shrink-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (item.RA !== undefined && item.Dec !== undefined) {
-                                      addTargetsBatch([{
-                                        name: item.Name,
-                                        ra: item.RA,
-                                        dec: item.Dec,
-                                        raString: degreesToHMS(item.RA),
-                                        decString: degreesToDMS(item.Dec),
-                                      }]);
-                                    }
-                                  }}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="left">
-                                {t('actions.addToTargetList')}
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
+                            item={item}
+                            itemId={itemId}
+                            checked={isSelected(itemId)}
+                            isHighlighted={globalIndex === highlightedIndex}
+                            globalIndex={globalIndex}
+                            enableMultiSelect={enableMultiSelect}
+                            skyCultureLanguage={skyCultureLanguage}
+                            onSelect={selectTarget}
+                            onToggleSelection={toggleSelection}
+                            onMouseEnter={setHighlightedIndex}
+                            onAddToTargetList={handleAddToTargetList}
+                            t={t}
+                          />
                         );
                       })}
                     </div>
@@ -447,7 +705,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         )}
 
         {/* Empty State */}
-        {query && !hasResults && !isSearching && (
+        {showResultsPanel && query && !hasResults && !isSearching && (
           <div className="text-center py-4 text-muted-foreground">
             <CircleDot className="h-8 w-8 mx-auto mb-2 opacity-30" />
             <p className="text-sm">{t('starmap.noObjectsFound')}</p>
@@ -456,15 +714,30 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         )}
 
         {/* Quick Access - when no query */}
-        {!query && (
+        {showResultsPanel && !query && (
           <div className="space-y-3">
             {/* Recent Searches */}
             {recentSearches.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {t('search.recentSearches')}
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {t('search.recentSearches')}
+                  </p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        onClick={clearRecentSearches}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('starmap.clearHistory')}</TooltipContent>
+                  </Tooltip>
+                </div>
                 <div className="flex flex-wrap gap-1">
                   {recentSearches.slice(0, 5).map((term) => (
                     <Button
@@ -472,7 +745,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                       variant="outline"
                       size="sm"
                       className="h-6 px-2 text-xs"
-                      onClick={() => setQuery(term)}
+                      onClick={() => handleQueryChange(term)}
                     >
                       {term}
                     </Button>
@@ -493,7 +766,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                     variant="secondary"
                     size="sm"
                     className="h-6 px-2 text-xs"
-                    onClick={() => setQuery(obj.Name)}
+                    onClick={() => handleQueryChange(obj.Name)}
                   >
                     {obj.Name}
                   </Button>
@@ -513,15 +786,25 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                     variant="ghost"
                     size="sm"
                     className="h-7 justify-start text-xs"
-                    onClick={() => setQuery(cat.items[0]?.Name || cat.label)}
+                    onClick={() => handleQueryChange(cat.items[0]?.Name || cat.label)}
                   >
-                    {cat.label}
+                    {getCategoryIcon(cat.label)}
+                    <span className="ml-1">{cat.label}</span>
                     <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
                       {cat.items.length}
                     </Badge>
                   </Button>
                 ))}
               </div>
+            </div>
+
+            {/* Search Tips */}
+            <div className="text-[10px] text-muted-foreground space-y-0.5 pt-2 border-t">
+              <p className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {t('starmap.coordinateSearchHint')}
+              </p>
+              <p>{t('starmap.fuzzySearchHint')}</p>
             </div>
           </div>
         )}

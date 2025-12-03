@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   X, ChevronDown, ChevronUp, Star, Crosshair, Plus,
@@ -32,6 +32,7 @@ import {
 } from 'recharts';
 
 import { useMountStore, useTargetListStore } from '@/lib/starmap/stores';
+import { useCelestialName, useCelestialNames } from '@/lib/starmap/hooks';
 import { raDecToAltAz, getLST, degreesToHMS } from '@/lib/starmap/utils';
 import {
   getMoonPhase,
@@ -88,6 +89,10 @@ export function InfoPanel({
   
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
+
+  // Translate celestial object names
+  const primaryName = useCelestialName(selectedObject?.names[0]);
+  const secondaryNames = useCelestialNames(selectedObject?.names.slice(1, 3));
 
   // Measure panel size for positioning
   useEffect(() => {
@@ -203,7 +208,7 @@ export function InfoPanel({
     }
   };
 
-  const handleSlew = () => {
+  const handleSlew = useCallback(() => {
     if (!selectedObject) return;
     onSetFramingCoordinates?.({
       ra: selectedObject.raDeg,
@@ -212,9 +217,9 @@ export function InfoPanel({
       decString: selectedObject.dec,
       name: selectedObject.names[0] || '',
     });
-  };
+  }, [selectedObject, onSetFramingCoordinates]);
 
-  const handleAddToList = () => {
+  const handleAddToList = useCallback(() => {
     if (!selectedObject) return;
     addTarget({
       name: selectedObject.names[0] || 'Unknown',
@@ -224,7 +229,7 @@ export function InfoPanel({
       decString: selectedObject.dec,
       priority: 'medium',
     });
-  };
+  }, [selectedObject, addTarget]);
 
   const hasCustomPosition = clickPosition && containerBounds;
 
@@ -251,7 +256,7 @@ export function InfoPanel({
                 <div className="flex items-center justify-between">
                   <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors flex-1">
                     <Star className="h-4 w-4 text-primary shrink-0" />
-                    <span className="text-sm font-medium truncate">{selectedObject.names[0]}</span>
+                    <span className="text-sm font-medium truncate">{primaryName || selectedObject.names[0]}</span>
                     {objectExpanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
                   </CollapsibleTrigger>
                   <Button
@@ -265,10 +270,10 @@ export function InfoPanel({
                 </div>
                 
                 <CollapsibleContent className="mt-2 space-y-2">
-                  {/* Names */}
+                  {/* Names - show translated secondary names or original if no translation */}
                   {selectedObject.names.length > 1 && (
                     <p className="text-xs text-muted-foreground truncate">
-                      {selectedObject.names.slice(1, 3).join(' · ')}
+                      {secondaryNames.length > 0 ? secondaryNames.join(' · ') : selectedObject.names.slice(1, 3).join(' · ')}
                     </p>
                   )}
                   
@@ -531,15 +536,23 @@ function AltitudeChartCompact({
       {/* Zoom indicator */}
       <div className="flex items-center justify-between mb-1">
         <span className="text-[9px] text-muted-foreground">Time range: {hoursAhead}h</span>
-        <div className="flex items-center gap-1">
-          <button 
+        <div className="flex items-center gap-0.5">
+          <Button 
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 text-muted-foreground hover:text-foreground"
             onClick={() => setHoursAhead(prev => Math.max(minHours, prev - 2))}
-            className="text-[9px] text-muted-foreground hover:text-foreground px-1"
-          >−</button>
-          <button 
+          >
+            <span className="text-xs">−</span>
+          </Button>
+          <Button 
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 text-muted-foreground hover:text-foreground"
             onClick={() => setHoursAhead(prev => Math.min(maxHours, prev + 2))}
-            className="text-[9px] text-muted-foreground hover:text-foreground px-1"
-          >+</button>
+          >
+            <span className="text-xs">+</span>
+          </Button>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={100}>

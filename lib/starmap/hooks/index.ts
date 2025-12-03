@@ -3,3 +3,4 @@ export { useObjectSearch, type UseObjectSearchReturn, type ObjectType, type Sort
 export { useTonightRecommendations, type RecommendedTarget, type TonightConditions, type TwilightInfo } from './use-tonight-recommendations';
 export { useGeolocation, getLocationWithFallback, type GeolocationState, type UseGeolocationOptions, type UseGeolocationReturn } from './use-geolocation';
 export { useTargetPlanner, type TargetVisibility, type SessionPlan, type SessionConflict, type TargetScheduleSlot } from './use-target-planner';
+export { useCelestialName, useCelestialNames, useCelestialNameWithOriginal, useSkyCultureLanguage, getCelestialNameTranslation } from './use-celestial-name';

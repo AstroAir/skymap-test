@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
 
 // Pre-generate star data to avoid impure render
 function generateStars(count: number) {
@@ -68,7 +69,7 @@ export function SplashScreen({
   return (
     <div 
       className={cn(
-        'fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden transition-opacity duration-300',
+        'fixed inset-0 z-100 bg-black flex flex-col items-center justify-center overflow-hidden transition-opacity duration-300',
         phase === 'fadeout' && 'opacity-0 pointer-events-none'
       )}
     >
@@ -100,7 +101,7 @@ export function SplashScreen({
           {[...Array(3)].map((_, i) => (
             <div
               key={`shooting-${i}`}
-              className="absolute w-[100px] h-[1px] bg-gradient-to-r from-transparent via-white to-transparent opacity-0"
+              className="absolute w-[100px] h-px bg-linear-to-r from-transparent via-white to-transparent opacity-0"
               style={{
                 left: `${20 + i * 30}%`,
                 top: `${10 + i * 20}%`,
@@ -114,7 +115,7 @@ export function SplashScreen({
         {/* Milky Way glow */}
         <div 
           className={cn(
-            'absolute inset-0 bg-gradient-to-b from-transparent via-purple-900/10 to-transparent transition-opacity duration-1000',
+            'absolute inset-0 bg-linear-to-b from-transparent via-purple-900/10 to-transparent transition-opacity duration-1000',
             phase !== 'stars' ? 'opacity-100' : 'opacity-0'
           )}
           style={{
@@ -201,16 +202,13 @@ export function SplashScreen({
         {/* Loading Bar */}
         <div 
           className={cn(
-            'w-48 h-1 bg-slate-800 rounded-full overflow-hidden transition-opacity duration-300',
+            'w-48 transition-opacity duration-300',
             phase === 'loading' ? 'opacity-100' : 'opacity-0'
           )}
         >
-          <div 
-            className="h-full bg-gradient-to-r from-primary via-blue-400 to-primary rounded-full transition-all duration-200"
-            style={{ 
-              width: `${Math.min(progress, 100)}%`,
-              boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
-            }}
+          <Progress 
+            value={Math.min(progress, 100)} 
+            className="h-1 bg-slate-800"
           />
         </div>
         

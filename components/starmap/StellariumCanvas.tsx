@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useState } from 'react';
 import { useStellariumStore, useSettingsStore, useMountStore } from '@/lib/starmap/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/starmap/utils';
+import { createStellariumTranslator } from '@/lib/starmap/translations';
 import { Spinner } from '@/components/ui/spinner';
 import type { StellariumEngine, SelectedObjectData } from '@/lib/starmap/types';
 
@@ -324,9 +325,15 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
         console.log('WASM file loaded successfully. Size (bytes):', wasmArrayBuffer.byteLength);
 
         setLoadingStatus('Initializing star map...');
+        
+        // Get current sky culture language setting
+        const currentLanguage = useSettingsStore.getState().stellarium.skyCultureLanguage;
+        const translateFn = createStellariumTranslator(currentLanguage);
+        
         window.StelWebEngine({
           wasmFile: wasmPath,
           canvas: canvasRef.current!,
+          translateFn: translateFn,
           onReady: (stel: StellariumEngine) => {
             initStellarium(stel);
             setIsLoading(false);

@@ -88,15 +88,26 @@ const SEASONAL_DATA: Record<string, SeasonalInfo> = {
 // Utility Functions
 // ============================================================================
 
+// Memoized visibility check functions
+const neverRisesCache = new Map<string, boolean>();
+const circumpolarCache = new Map<string, boolean>();
+
 function neverRises(dec: number, latitude: number): boolean {
-  if (latitude >= 0) {
-    return dec < -(90 - latitude);
-  }
-  return dec > (90 + latitude);
+  const key = `${dec.toFixed(2)}_${latitude.toFixed(2)}`;
+  if (neverRisesCache.has(key)) return neverRisesCache.get(key)!;
+  
+  const result = latitude >= 0 ? dec < -(90 - latitude) : dec > (90 + latitude);
+  neverRisesCache.set(key, result);
+  return result;
 }
 
 function isCircumpolar(dec: number, latitude: number): boolean {
-  return Math.abs(dec) > (90 - Math.abs(latitude));
+  const key = `${dec.toFixed(2)}_${latitude.toFixed(2)}`;
+  if (circumpolarCache.has(key)) return circumpolarCache.get(key)!;
+  
+  const result = Math.abs(dec) > (90 - Math.abs(latitude));
+  circumpolarCache.set(key, result);
+  return result;
 }
 
 function calculateImagingHours(

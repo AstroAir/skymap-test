@@ -4,18 +4,18 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore, useFramingStore, useMountStore } from '@/lib/starmap/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/starmap/utils';
-import { Search, X, Crosshair, RotateCcw, Menu, ZoomIn, ZoomOut, Camera, Copy, MapPin, RotateCw, PanelLeftClose, PanelLeft, Plus, Settings, Target, Navigation, Grid3X3, HardDrive } from 'lucide-react';
+import { Search, X, Crosshair, RotateCcw, Menu, ZoomIn, ZoomOut, Camera, Copy, MapPin, RotateCw, PanelLeftClose, PanelLeft, Plus, Settings, Target, Navigation, Grid3X3 } from 'lucide-react';
 import type { SelectedObjectData } from '@/lib/starmap/types';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import {
   Tooltip,
   TooltipContent,
@@ -52,6 +52,7 @@ import { useSettingsStore } from '@/lib/starmap/stores/settings-store';
 import { StellariumCanvas, type StellariumCanvasRef } from './StellariumCanvas';
 import { StellariumSearch, type StellariumSearchRef } from './StellariumSearch';
 import { StellariumSettings } from './StellariumSettings';
+import { UnifiedSettings } from './UnifiedSettings';
 import { StellariumCredits } from './StellariumCredits';
 import { StellariumClock } from './StellariumClock';
 import { StellariumMount } from './StellariumMount';
@@ -64,6 +65,10 @@ import { ShotList } from './ShotList';
 import { OfflineCacheManager } from './OfflineCacheManager';
 import { TonightRecommendations } from './TonightRecommendations';
 import { AboutDialog } from './AboutDialog';
+import { AstroEventsCalendar } from './AstroEventsCalendar';
+import { OcularSimulator } from './OcularSimulator';
+import { SatelliteTracker } from './SatelliteTracker';
+import { SatelliteOverlay } from './SatelliteOverlay';
 import { SkyMarkers } from './SkyMarkers';
 import { MarkerManager } from './MarkerManager';
 import { useMarkerStore } from '@/lib/starmap/stores';
@@ -875,13 +880,21 @@ export function StellariumView() {
           />
         )}
 
+        {/* Satellite Overlay */}
+        {containerBounds && (
+          <SatelliteOverlay
+            containerWidth={containerBounds.width}
+            containerHeight={containerBounds.height}
+          />
+        )}
+
         {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-3 flex items-center justify-between pointer-events-none">
           {/* Left: Menu & Search */}
           <div className="flex items-center gap-2 pointer-events-auto">
             {/* Mobile Menu */}
-            <Sheet>
-              <SheetTrigger asChild>
+            <Drawer direction="left">
+              <DrawerTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -889,14 +902,14 @@ export function StellariumView() {
                 >
                   <Menu className="h-5 w-5" />
                 </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-80 bg-card border-border p-0 flex flex-col">
-                <SheetHeader className="p-4 border-b border-border shrink-0">
-                  <SheetTitle className="text-foreground flex items-center gap-2">
+              </DrawerTrigger>
+              <DrawerContent className="w-80 h-full bg-card border-border p-0 flex flex-col">
+                <DrawerHeader className="p-4 border-b border-border shrink-0">
+                  <DrawerTitle className="text-foreground flex items-center gap-2">
                     <Compass className="h-5 w-5 text-primary" />
                     {t('starmap.title')}
-                  </SheetTitle>
-                </SheetHeader>
+                  </DrawerTitle>
+                </DrawerHeader>
                 
                 <ScrollArea className="flex-1">
                   <div className="p-4 space-y-4">
@@ -951,8 +964,8 @@ export function StellariumView() {
                     </div>
                   </div>
                 </ScrollArea>
-              </SheetContent>
-            </Sheet>
+              </DrawerContent>
+            </Drawer>
 
             {/* Search Button */}
             <Tooltip>
@@ -986,28 +999,8 @@ export function StellariumView() {
           {/* Right: Settings */}
           <div className="flex items-center gap-2 pointer-events-auto">
             <div className="hidden md:flex items-center gap-2">
-              <StellariumSettings />
-              
-              {/* Offline Cache Manager */}
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10 bg-black/60 backdrop-blur-sm text-white hover:bg-black/80"
-                  >
-                    <HardDrive className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-80 bg-card border-border overflow-y-auto">
-                  <SheetHeader>
-                    <SheetTitle className="text-foreground">{t('cache.offlineStorage')}</SheetTitle>
-                  </SheetHeader>
-                  <div className="mt-4">
-                    <OfflineCacheManager />
-                  </div>
-                </SheetContent>
-              </Sheet>
+              {/* Unified Settings Panel */}
+              <UnifiedSettings />
               
               <div className="flex gap-1 bg-black/60 backdrop-blur-sm rounded-md">
                 <ThemeToggle />
@@ -1017,6 +1010,21 @@ export function StellariumView() {
               {/* Tonight's Recommendations - Now powered by Sky Atlas */}
               <div className="bg-black/60 backdrop-blur-sm rounded-md">
                 <TonightRecommendations />
+              </div>
+              
+              {/* Astronomical Events Calendar */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <AstroEventsCalendar />
+              </div>
+              
+              {/* Satellite Tracker */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <SatelliteTracker />
+              </div>
+              
+              {/* Ocular Simulator */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <OcularSimulator />
               </div>
               
               <StellariumCredits />

@@ -14,6 +14,45 @@ const RAD_TO_DEG = 180 / Math.PI;
 const SYNODIC_MONTH = 29.53058867;
 const KNOWN_NEW_MOON_JD = 2451550.1; // Jan 6, 2000
 
+// ============================================================================
+// Calculation Caches for Performance
+// ============================================================================
+
+// Cache for nighttime data (keyed by lat_lon_dateKey)
+const nighttimeCache = new Map<string, { data: NighttimeData; timestamp: number }>();
+const NIGHTTIME_CACHE_TTL = 60000; // 1 minute TTL
+
+// Cache for sun/moon positions (keyed by JD rounded to 0.01)
+const sunPositionCache = new Map<string, { ra: number; dec: number }>();
+const moonPositionCache = new Map<string, { ra: number; dec: number; distance: number }>();
+
+// Cache for hour angle calculations
+const hourAngleCache = new Map<string, number | null>();
+
+/**
+ * Generate cache key for nighttime data
+ */
+function getNighttimeCacheKey(lat: number, lon: number, date: Date): string {
+  const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  return `${lat.toFixed(2)}_${lon.toFixed(2)}_${dateKey}`;
+}
+
+/**
+ * Clear expired cache entries
+ */
+function clearExpiredCache(): void {
+  const now = Date.now();
+  for (const [key, value] of nighttimeCache.entries()) {
+    if (now - value.timestamp > NIGHTTIME_CACHE_TTL) {
+      nighttimeCache.delete(key);
+    }
+  }
+  // Limit cache sizes
+  if (sunPositionCache.size > 1000) sunPositionCache.clear();
+  if (moonPositionCache.size > 1000) moonPositionCache.clear();
+  if (hourAngleCache.size > 1000) hourAngleCache.clear();
+}
+
 // Sun altitude thresholds
 const SUN_HORIZON_ALTITUDE = -0.833; // Refraction corrected
 const CIVIL_TWILIGHT_ALTITUDE = -6;
@@ -112,9 +151,14 @@ function getSunEclipticLongitude(jd: number): number {
 }
 
 /**
- * Calculate sun's RA and Dec
+ * Calculate sun's RA and Dec (with caching)
  */
 export function getSunPosition(jd: number): { ra: number; dec: number } {
+  // Check cache first
+  const cacheKey = jd.toFixed(2);
+  const cached = sunPositionCache.get(cacheKey);
+  if (cached) return cached;
+  
   const T = (jd - 2451545.0) / 36525;
   
   // Obliquity of ecliptic
@@ -129,7 +173,9 @@ export function getSunPosition(jd: number): { ra: number; dec: number } {
   const ra = Math.atan2(Math.cos(epsilonRad) * Math.sin(lambdaRad), Math.cos(lambdaRad)) * RAD_TO_DEG;
   const dec = Math.asin(Math.sin(epsilonRad) * Math.sin(lambdaRad)) * RAD_TO_DEG;
   
-  return { ra: ((ra % 360) + 360) % 360, dec };
+  const result = { ra: ((ra % 360) + 360) % 360, dec };
+  sunPositionCache.set(cacheKey, result);
+  return result;
 }
 
 // ============================================================================
@@ -137,9 +183,14 @@ export function getSunPosition(jd: number): { ra: number; dec: number } {
 // ============================================================================
 
 /**
- * Calculate moon position (RA/Dec)
+ * Calculate moon position (RA/Dec) with caching
  */
 export function getMoonPosition(jd: number): { ra: number; dec: number; distance: number } {
+  // Check cache first
+  const cacheKey = jd.toFixed(2);
+  const cached = moonPositionCache.get(cacheKey);
+  if (cached) return cached;
+  
   const T = (jd - 2451545.0) / 36525;
   
   // Mean longitude of the Moon
@@ -196,7 +247,9 @@ export function getMoonPosition(jd: number): { ra: number; dec: number; distance
     Math.sin(latRad) * Math.cos(epsilonRad) + Math.cos(latRad) * Math.sin(epsilonRad) * Math.sin(lonRad)
   ) * RAD_TO_DEG;
   
-  return { ra: ((ra % 360) + 360) % 360, dec, distance };
+  const result = { ra: ((ra % 360) + 360) % 360, dec, distance };
+  moonPositionCache.set(cacheKey, result);
+  return result;
 }
 
 /**
@@ -418,13 +471,23 @@ export function getReferenceDate(date: Date = new Date()): Date {
 
 /**
  * Calculate complete nighttime data for a given date and location
- * Ported from NINA NighttimeCalculator
+ * Ported from NINA NighttimeCalculator (with caching)
  */
 export function calculateNighttimeData(
   latitude: number,
   longitude: number,
   date: Date = new Date()
 ): NighttimeData {
+  // Check cache first
+  const cacheKey = getNighttimeCacheKey(latitude, longitude, date);
+  const cached = nighttimeCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < NIGHTTIME_CACHE_TTL) {
+    return cached.data;
+  }
+  
+  // Clear expired entries periodically
+  clearExpiredCache();
+  
   const referenceDate = getReferenceDate(date);
   const jd = dateToJulianDate(referenceDate);
   
@@ -451,7 +514,7 @@ export function calculateNighttimeData(
     return riseAndSet;
   };
   
-  return {
+  const result: NighttimeData = {
     date,
     referenceDate,
     sunRiseAndSet: adjustDawn(sunRiseAndSet),
@@ -463,6 +526,11 @@ export function calculateNighttimeData(
     moonPhaseValue,
     moonIllumination,
   };
+  
+  // Store in cache
+  nighttimeCache.set(cacheKey, { data: result, timestamp: Date.now() });
+  
+  return result;
 }
 
 /**

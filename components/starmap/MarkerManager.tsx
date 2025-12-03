@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   useMarkerStore,
@@ -11,12 +11,12 @@ import {
   MARKER_ICONS,
 } from '@/lib/starmap/stores';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import {
   Dialog,
   DialogContent,
@@ -34,13 +34,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -60,7 +53,6 @@ import {
   Edit,
   Eye,
   EyeOff,
-  MoreVertical,
   Navigation,
   Star,
   Circle,
@@ -280,27 +272,27 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
 
   return (
     <>
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground/80 hover:text-foreground">
-                <MapPin className="h-4 w-4" />
+      <Drawer open={isOpen} onOpenChange={setIsOpen} direction="right">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DrawerTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-10 w-10">
+                <MapPin className="h-5 w-5" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>{t('markers.skyMarkers')}</p>
-            </TooltipContent>
-          </Tooltip>
-        </SheetTrigger>
+            </DrawerTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p>{t('markers.skyMarkers')}</p>
+          </TooltipContent>
+        </Tooltip>
 
-        <SheetContent side="right" className="w-80 sm:w-96 p-0">
-          <SheetHeader className="p-4 pb-2">
+        <DrawerContent className="w-[320px] sm:w-[400px] md:w-[450px] h-full">
+          <DrawerHeader className="p-4 pb-2">
             <div className="flex items-center justify-between">
-              <SheetTitle className="flex items-center gap-2">
+              <DrawerTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5" />
                 {t('markers.skyMarkers')}
-              </SheetTitle>
+              </DrawerTitle>
               <div className="flex items-center gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -327,7 +319,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
                 </Button>
               </div>
             </div>
-          </SheetHeader>
+          </DrawerHeader>
 
           <div className="px-4 pb-2">
             <div className="flex gap-1 flex-wrap">
@@ -385,57 +377,78 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
                           {marker.raString} / {marker.decString}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => handleNavigate(marker)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNavigate(marker);
+                              }}
                             >
                               <Navigation className="h-3.5 w-3.5" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>{t('markers.goTo')}</TooltipContent>
+                          <TooltipContent side="top">{t('markers.goTo')}</TooltipContent>
                         </Tooltip>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7">
-                              <MoreVertical className="h-3.5 w-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => toggleMarkerVisibility(marker.id)}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMarkerVisibility(marker.id);
+                              }}
+                            >
                               {marker.visible ? (
-                                <>
-                                  <EyeOff className="h-4 w-4 mr-2" />
-                                  {t('markers.hide')}
-                                </>
+                                <Eye className="h-3.5 w-3.5" />
                               ) : (
-                                <>
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  {t('markers.show')}
-                                </>
+                                <EyeOff className="h-3.5 w-3.5" />
                               )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEditMarker(marker)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              {t('common.edit')}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => {
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            {marker.visible ? t('markers.hide') : t('markers.show')}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditMarker(marker);
+                              }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{t('common.edit')}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditingMarker(marker);
                                 setDeleteDialogOpen(true);
                               }}
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              {t('common.delete')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{t('common.delete')}</TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   );
@@ -463,8 +476,8 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       {/* Add/Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>

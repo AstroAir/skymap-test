@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Camera,
@@ -784,9 +784,11 @@ export function FOVSimulator({
                   <Label className="text-sm">{t('fov.frameColor')}</Label>
                   <div className="flex gap-1">
                     {['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ffffff'].map((color) => (
-                      <button
+                      <Button
                         key={color}
-                        className="w-7 h-7 rounded border border-border hover:scale-110 transition-transform"
+                        variant="outline"
+                        size="icon"
+                        className="w-7 h-7 p-0 hover:scale-110 transition-transform"
                         style={{ backgroundColor: color }}
                       />
                     ))}

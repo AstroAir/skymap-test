@@ -1,6 +1,7 @@
 export { StellariumView } from './StellariumView';
 export { StellariumCanvas, type StellariumCanvasRef } from './StellariumCanvas';
 export { StellariumSearch } from './StellariumSearch';
+export { AdvancedSearchDialog } from './AdvancedSearchDialog';
 export { StellariumMount } from './StellariumMount';
 export { StellariumSettings } from './StellariumSettings';
 export { StellariumSurveySelector } from './StellariumSurveySelector';
@@ -18,3 +19,9 @@ export { OfflineCacheManager } from './OfflineCacheManager';
 export { SkyAtlasPanel } from './SkyAtlasPanel';
 export { SplashScreen } from './SplashScreen';
 export { AboutDialog } from './AboutDialog';
+export { AstroEventsCalendar } from './AstroEventsCalendar';
+export { OcularSimulator } from './OcularSimulator';
+export { TonightRecommendations } from './TonightRecommendations';
+export { SatelliteTracker } from './SatelliteTracker';
+export { SatelliteOverlay } from './SatelliteOverlay';
+export { UnifiedSettings } from './UnifiedSettings';

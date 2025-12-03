@@ -91,6 +91,8 @@ export interface SearchResultItem {
   Dec?: number;
   'Common names'?: string;
   M?: string;
+  Magnitude?: number;
+  Size?: string; // Angular size, e.g., "10'x8'"
   StellariumObj?: StellariumObject;
 }
 
@@ -212,6 +214,9 @@ export const SKY_SURVEYS: SkySurvey[] = [
   },
 ];
 
+// Sky culture language options
+export type SkyCultureLanguage = 'native' | 'en' | 'zh';
+
 // Settings store types
 export interface StellariumSettings {
   constellationsLinesVisible: boolean;
@@ -226,6 +231,8 @@ export interface StellariumSettings {
   surveyEnabled: boolean;
   surveyId: string; // ID from SKY_SURVEYS or online survey
   surveyUrl?: string; // Direct URL for online surveys
+  // Sky culture language settings
+  skyCultureLanguage: SkyCultureLanguage; // Language for constellation/star names
 }
 
 // Mount info types
@@ -260,6 +267,7 @@ declare global {
     StelWebEngine: (options: {
       wasmFile: string;
       canvas: HTMLCanvasElement;
+      translateFn?: (domain: string, text: string) => string;
       onReady: (stel: StellariumEngine) => void;
     }) => void;
   }

@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -54,6 +54,7 @@ import { cn } from '@/lib/utils';
 import { degreesToHMS, degreesToDMS } from '@/lib/starmap/utils';
 import { useMountStore } from '@/lib/starmap/stores';
 import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
+import { TranslatedName } from './TranslatedName';
 import {
   useSkyAtlasStore,
   initializeSkyAtlas,
@@ -93,7 +94,7 @@ interface DSOCardProps {
   isSelected?: boolean;
 }
 
-function DSOCard({ object, onSelect, onAddToList, onGoto, isSelected }: DSOCardProps) {
+const DSOCard = memo(function DSOCard({ object, onSelect, onAddToList, onGoto, isSelected }: DSOCardProps) {
   const t = useTranslations();
   
   return (
@@ -108,7 +109,7 @@ function DSOCard({ object, onSelect, onAddToList, onGoto, isSelected }: DSOCardP
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-sm truncate">{object.name}</span>
+              <span className="font-medium text-sm truncate"><TranslatedName name={object.name} /></span>
               {object.imagingScore !== undefined && (
                 <Badge variant={getScoreBadgeVariant(object.imagingScore)} className="text-xs px-1.5">
                   {object.imagingScore}
@@ -202,7 +203,7 @@ function DSOCard({ object, onSelect, onAddToList, onGoto, isSelected }: DSOCardP
       </CardContent>
     </Card>
   );
-}
+});
 
 // ============================================================================
 // Filter Panel Component
@@ -506,20 +507,20 @@ export function SkyAtlasPanel() {
   }, [selectObject]);
   
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetTrigger asChild>
+    <Drawer open={isOpen} onOpenChange={setIsOpen} direction="right">
+      <DrawerTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Telescope className="h-4 w-4" />
           {t('skyAtlas.title')}
         </Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-[400px] sm:w-[540px] p-0 flex flex-col">
-        <SheetHeader className="p-4 pb-2 border-b">
-          <SheetTitle className="flex items-center gap-2">
+      </DrawerTrigger>
+      <DrawerContent className="w-[320px] sm:w-[450px] md:w-[540px] h-full p-0 flex flex-col">
+        <DrawerHeader className="p-4 pb-2 border-b">
+          <DrawerTitle className="flex items-center gap-2">
             <Telescope className="h-5 w-5" />
             {t('skyAtlas.title')}
-          </SheetTitle>
-        </SheetHeader>
+          </DrawerTitle>
+        </DrawerHeader>
         
         <div className="flex-1 flex flex-col min-h-0">
           {/* Location Info */}
@@ -647,7 +648,7 @@ export function SkyAtlasPanel() {
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

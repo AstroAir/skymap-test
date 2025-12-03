@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   Moon, Sun, Clock, MapPin, Eye, Compass, TrendingUp, 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, useTransition } from 'react';
 import { useStellariumStore } from '@/lib/starmap/stores';
 import type { SearchResultItem } from '@/lib/starmap/types';
 import { useTargetListStore } from '@/lib/starmap/stores/target-list-store';
@@ -23,38 +23,38 @@ const CELESTIAL_BODIES: SearchResultItem[] = [
   { Name: 'Pluto', Type: 'Planet' },
 ];
 
-/** Popular DSO catalog for quick search */
+/** Popular DSO catalog for quick search (with magnitude and size data) */
 const POPULAR_DSOS: SearchResultItem[] = [
-  { Name: 'M31', Type: 'DSO', RA: 10.6847, Dec: 41.2689, 'Common names': 'Andromeda Galaxy' },
-  { Name: 'M42', Type: 'DSO', RA: 83.8221, Dec: -5.3911, 'Common names': 'Orion Nebula' },
-  { Name: 'M45', Type: 'DSO', RA: 56.75, Dec: 24.1167, 'Common names': 'Pleiades' },
-  { Name: 'M1', Type: 'DSO', RA: 83.6333, Dec: 22.0167, 'Common names': 'Crab Nebula' },
-  { Name: 'M51', Type: 'DSO', RA: 202.4696, Dec: 47.1952, 'Common names': 'Whirlpool Galaxy' },
-  { Name: 'M101', Type: 'DSO', RA: 210.8024, Dec: 54.3488, 'Common names': 'Pinwheel Galaxy' },
-  { Name: 'M104', Type: 'DSO', RA: 189.9976, Dec: -11.6231, 'Common names': 'Sombrero Galaxy' },
-  { Name: 'M13', Type: 'DSO', RA: 250.4217, Dec: 36.4613, 'Common names': 'Hercules Cluster' },
-  { Name: 'M57', Type: 'DSO', RA: 283.3962, Dec: 33.0286, 'Common names': 'Ring Nebula' },
-  { Name: 'M27', Type: 'DSO', RA: 299.9017, Dec: 22.7211, 'Common names': 'Dumbbell Nebula' },
-  { Name: 'NGC7000', Type: 'DSO', RA: 314.6833, Dec: 44.3167, 'Common names': 'North America Nebula' },
-  { Name: 'NGC6992', Type: 'DSO', RA: 312.7583, Dec: 31.7167, 'Common names': 'Veil Nebula' },
-  { Name: 'IC1396', Type: 'DSO', RA: 324.7458, Dec: 57.4833, 'Common names': 'Elephant Trunk Nebula' },
-  { Name: 'NGC2244', Type: 'DSO', RA: 97.9833, Dec: 4.9333, 'Common names': 'Rosette Nebula' },
-  { Name: 'M8', Type: 'DSO', RA: 270.9208, Dec: -24.3833, 'Common names': 'Lagoon Nebula' },
-  { Name: 'M20', Type: 'DSO', RA: 270.6208, Dec: -23.0333, 'Common names': 'Trifid Nebula' },
-  { Name: 'M16', Type: 'DSO', RA: 274.7, Dec: -13.8167, 'Common names': 'Eagle Nebula' },
-  { Name: 'M17', Type: 'DSO', RA: 275.1958, Dec: -16.1833, 'Common names': 'Omega Nebula' },
-  { Name: 'NGC6888', Type: 'DSO', RA: 303.0583, Dec: 38.35, 'Common names': 'Crescent Nebula' },
-  { Name: 'M33', Type: 'DSO', RA: 23.4621, Dec: 30.6599, 'Common names': 'Triangulum Galaxy' },
-  { Name: 'M81', Type: 'DSO', RA: 148.8882, Dec: 69.0653, 'Common names': "Bode's Galaxy" },
-  { Name: 'M82', Type: 'DSO', RA: 148.9685, Dec: 69.6797, 'Common names': 'Cigar Galaxy' },
-  { Name: 'NGC6960', Type: 'DSO', RA: 312.2417, Dec: 30.7333, 'Common names': "Witch's Broom Nebula" },
-  { Name: 'M78', Type: 'DSO', RA: 86.6917, Dec: 0.0833, 'Common names': 'Reflection Nebula' },
-  { Name: 'NGC2024', Type: 'DSO', RA: 85.4208, Dec: -1.9, 'Common names': 'Flame Nebula' },
-  { Name: 'IC434', Type: 'DSO', RA: 85.25, Dec: -2.4583, 'Common names': 'Horsehead Nebula' },
-  { Name: 'M97', Type: 'DSO', RA: 168.6988, Dec: 55.0192, 'Common names': 'Owl Nebula' },
-  { Name: 'NGC7293', Type: 'DSO', RA: 337.4108, Dec: -20.8372, 'Common names': 'Helix Nebula' },
-  { Name: 'M64', Type: 'DSO', RA: 194.1825, Dec: 21.6828, 'Common names': 'Black Eye Galaxy' },
-  { Name: 'NGC253', Type: 'DSO', RA: 11.888, Dec: -25.2883, 'Common names': 'Sculptor Galaxy' },
+  { Name: 'M31', Type: 'DSO', RA: 10.6847, Dec: 41.2689, 'Common names': 'Andromeda Galaxy', Magnitude: 3.4, Size: "178'x63'" },
+  { Name: 'M42', Type: 'DSO', RA: 83.8221, Dec: -5.3911, 'Common names': 'Orion Nebula', Magnitude: 4.0, Size: "85'x60'" },
+  { Name: 'M45', Type: 'DSO', RA: 56.75, Dec: 24.1167, 'Common names': 'Pleiades', Magnitude: 1.6, Size: "110'" },
+  { Name: 'M1', Type: 'DSO', RA: 83.6333, Dec: 22.0167, 'Common names': 'Crab Nebula', Magnitude: 8.4, Size: "6'x4'" },
+  { Name: 'M51', Type: 'DSO', RA: 202.4696, Dec: 47.1952, 'Common names': 'Whirlpool Galaxy', Magnitude: 8.4, Size: "11'x7'" },
+  { Name: 'M101', Type: 'DSO', RA: 210.8024, Dec: 54.3488, 'Common names': 'Pinwheel Galaxy', Magnitude: 7.9, Size: "29'x27'" },
+  { Name: 'M104', Type: 'DSO', RA: 189.9976, Dec: -11.6231, 'Common names': 'Sombrero Galaxy', Magnitude: 8.0, Size: "9'x4'" },
+  { Name: 'M13', Type: 'DSO', RA: 250.4217, Dec: 36.4613, 'Common names': 'Hercules Cluster', Magnitude: 5.8, Size: "20'" },
+  { Name: 'M57', Type: 'DSO', RA: 283.3962, Dec: 33.0286, 'Common names': 'Ring Nebula', Magnitude: 8.8, Size: "1.4'x1'" },
+  { Name: 'M27', Type: 'DSO', RA: 299.9017, Dec: 22.7211, 'Common names': 'Dumbbell Nebula', Magnitude: 7.5, Size: "8'x6'" },
+  { Name: 'NGC7000', Type: 'DSO', RA: 314.6833, Dec: 44.3167, 'Common names': 'North America Nebula', Magnitude: 4.0, Size: "120'x100'" },
+  { Name: 'NGC6992', Type: 'DSO', RA: 312.7583, Dec: 31.7167, 'Common names': 'Veil Nebula', Magnitude: 7.0, Size: "60'" },
+  { Name: 'IC1396', Type: 'DSO', RA: 324.7458, Dec: 57.4833, 'Common names': 'Elephant Trunk Nebula', Magnitude: 3.5, Size: "170'" },
+  { Name: 'NGC2244', Type: 'DSO', RA: 97.9833, Dec: 4.9333, 'Common names': 'Rosette Nebula', Magnitude: 4.8, Size: "80'" },
+  { Name: 'M8', Type: 'DSO', RA: 270.9208, Dec: -24.3833, 'Common names': 'Lagoon Nebula', Magnitude: 6.0, Size: "90'x40'" },
+  { Name: 'M20', Type: 'DSO', RA: 270.6208, Dec: -23.0333, 'Common names': 'Trifid Nebula', Magnitude: 6.3, Size: "28'" },
+  { Name: 'M16', Type: 'DSO', RA: 274.7, Dec: -13.8167, 'Common names': 'Eagle Nebula', Magnitude: 6.4, Size: "35'x28'" },
+  { Name: 'M17', Type: 'DSO', RA: 275.1958, Dec: -16.1833, 'Common names': 'Omega Nebula', Magnitude: 6.0, Size: "11'" },
+  { Name: 'NGC6888', Type: 'DSO', RA: 303.0583, Dec: 38.35, 'Common names': 'Crescent Nebula', Magnitude: 7.4, Size: "20'x10'" },
+  { Name: 'M33', Type: 'DSO', RA: 23.4621, Dec: 30.6599, 'Common names': 'Triangulum Galaxy', Magnitude: 5.7, Size: "73'x45'" },
+  { Name: 'M81', Type: 'DSO', RA: 148.8882, Dec: 69.0653, 'Common names': "Bode's Galaxy", Magnitude: 6.9, Size: "27'x14'" },
+  { Name: 'M82', Type: 'DSO', RA: 148.9685, Dec: 69.6797, 'Common names': 'Cigar Galaxy', Magnitude: 8.4, Size: "11'x5'" },
+  { Name: 'NGC6960', Type: 'DSO', RA: 312.2417, Dec: 30.7333, 'Common names': "Witch's Broom Nebula", Magnitude: 7.0, Size: "70'" },
+  { Name: 'M78', Type: 'DSO', RA: 86.6917, Dec: 0.0833, 'Common names': 'Reflection Nebula', Magnitude: 8.3, Size: "8'x6'" },
+  { Name: 'NGC2024', Type: 'DSO', RA: 85.4208, Dec: -1.9, 'Common names': 'Flame Nebula', Magnitude: 7.2, Size: "30'x30'" },
+  { Name: 'IC434', Type: 'DSO', RA: 85.25, Dec: -2.4583, 'Common names': 'Horsehead Nebula', Magnitude: 6.8, Size: "60'x10'" },
+  { Name: 'M97', Type: 'DSO', RA: 168.6988, Dec: 55.0192, 'Common names': 'Owl Nebula', Magnitude: 9.9, Size: "3.4'x3.3'" },
+  { Name: 'NGC7293', Type: 'DSO', RA: 337.4108, Dec: -20.8372, 'Common names': 'Helix Nebula', Magnitude: 7.6, Size: "13'" },
+  { Name: 'M64', Type: 'DSO', RA: 194.1825, Dec: 21.6828, 'Common names': 'Black Eye Galaxy', Magnitude: 8.5, Size: "10'x5'" },
+  { Name: 'NGC253', Type: 'DSO', RA: 11.888, Dec: -25.2883, 'Common names': 'Sculptor Galaxy', Magnitude: 7.2, Size: "28'x7'" },
 ];
 
 /** Extended Messier catalog */
@@ -221,6 +221,15 @@ export interface SearchFilters {
   types: ObjectType[];
   includeTargetList: boolean;
   searchMode: SearchMode;
+  minMagnitude?: number;
+  maxMagnitude?: number;
+  searchRadius?: number; // degrees for coordinate search
+}
+
+export interface SearchStats {
+  totalResults: number;
+  resultsByType: Record<string, number>;
+  searchTimeMs: number;
 }
 
 // Constellation data for search
@@ -352,6 +361,7 @@ export interface UseObjectSearchReturn {
   filters: SearchFilters;
   sortBy: SortOption;
   recentSearches: string[];
+  searchStats: SearchStats | null;
   
   // Actions
   setQuery: (query: string) => void;
@@ -363,6 +373,7 @@ export interface UseObjectSearchReturn {
   setFilters: (filters: Partial<SearchFilters>) => void;
   setSortBy: (sort: SortOption) => void;
   addRecentSearch: (query: string) => void;
+  clearRecentSearches: () => void;
   
   // Helpers
   getSelectedItems: () => SearchResultItem[];
@@ -382,6 +393,20 @@ const MAX_RESULTS = 50;
 const MAX_RECENT = 8;
 const FUZZY_THRESHOLD = 0.3; // Minimum score to include in results
 
+// Pre-computed search indices for faster lookups
+const DSO_NAME_INDEX = new Map<string, SearchResultItem[]>();
+const initializeSearchIndex = () => {
+  // Build index for first character of names
+  [...POPULAR_DSOS, ...MESSIER_CATALOG].forEach(item => {
+    const firstChar = item.Name[0].toUpperCase();
+    if (!DSO_NAME_INDEX.has(firstChar)) {
+      DSO_NAME_INDEX.set(firstChar, []);
+    }
+    DSO_NAME_INDEX.get(firstChar)!.push(item);
+  });
+};
+initializeSearchIndex();
+
 // Generate unique ID for search result
 function getResultId(item: SearchResultItem): string {
   return `${item.Type || 'unknown'}-${item.Name}`;
@@ -400,9 +425,14 @@ export function useObjectSearch(): UseObjectSearchReturn {
       types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'TargetList', 'Constellation'],
       includeTargetList: true,
       searchMode: 'name',
+      minMagnitude: undefined,
+      maxMagnitude: undefined,
+      searchRadius: 5,
     },
     sortBy: 'relevance',
   });
+  
+  const [searchStats, setSearchStats] = useState<SearchStats | null>(null);
   
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
@@ -415,6 +445,8 @@ export function useObjectSearch(): UseObjectSearchReturn {
   });
   
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [isPending, startTransition] = useTransition();
   
   // Save recent searches to localStorage
   useEffect(() => {
@@ -423,10 +455,31 @@ export function useObjectSearch(): UseObjectSearchReturn {
     }
   }, [recentSearches]);
   
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   // Search implementation
   const performSearch = useCallback(async (query: string, filters: SearchFilters) => {
+    const startTime = performance.now();
+    
+    // Cancel previous search
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
     if (!query.trim()) {
       setState(prev => ({ ...prev, results: [], isSearching: false }));
+      setSearchStats(null);
       return;
     }
     
@@ -436,10 +489,21 @@ export function useObjectSearch(): UseObjectSearchReturn {
     const lowerQuery = query.toLowerCase().trim();
     const addedNames = new Set<string>();
     
+    // Helper to check magnitude filter
+    const passesMagnitudeFilter = (magnitude?: number): boolean => {
+      if (magnitude === undefined) return true; // No magnitude data, include by default
+      if (filters.minMagnitude !== undefined && magnitude < filters.minMagnitude) return false;
+      if (filters.maxMagnitude !== undefined && magnitude > filters.maxMagnitude) return false;
+      return true;
+    };
+    
     // Helper to add result without duplicates, with fuzzy score
     const addResult = (item: SearchResultItem, score: number = 1) => {
       const key = `${item.Type}-${item.Name}`;
       if (!addedNames.has(key)) {
+        // Check magnitude filter if item has magnitude
+        if (!passesMagnitudeFilter(item.Magnitude)) return;
+        
         addedNames.add(key);
         results.push({ ...item, _fuzzyScore: score } as SearchResultItem & { _fuzzyScore: number });
       }
@@ -573,6 +637,20 @@ export function useObjectSearch(): UseObjectSearchReturn {
       })
       .slice(0, MAX_RESULTS);
     
+    // Calculate search statistics
+    const endTime = performance.now();
+    const resultsByType: Record<string, number> = {};
+    for (const result of sortedResults) {
+      const type = result.Type || 'Unknown';
+      resultsByType[type] = (resultsByType[type] || 0) + 1;
+    }
+    
+    setSearchStats({
+      totalResults: sortedResults.length,
+      resultsByType,
+      searchTimeMs: Math.round(endTime - startTime),
+    });
+    
     setState(prev => ({
       ...prev,
       results: sortedResults,
@@ -580,7 +658,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
     }));
   }, [stel, targets]);
   
-  // Debounced search
+  // Debounced search with transition for smoother UI
   const search = useCallback((query: string) => {
     setState(prev => ({ ...prev, query }));
     
@@ -589,9 +667,12 @@ export function useObjectSearch(): UseObjectSearchReturn {
     }
     
     debounceRef.current = setTimeout(() => {
-      performSearch(query, state.filters);
+      // Use startTransition for non-urgent state updates
+      startTransition(() => {
+        performSearch(query, state.filters);
+      });
     }, DEBOUNCE_MS);
-  }, [performSearch, state.filters]);
+  }, [performSearch, state.filters, startTransition]);
   
   const setQuery = useCallback((query: string) => {
     search(query);
@@ -663,6 +744,13 @@ export function useObjectSearch(): UseObjectSearchReturn {
     });
   }, []);
   
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('starmap-recent-searches');
+    }
+  }, []);
+  
   // Grouped results by type
   const groupedResults = useMemo(() => {
     const groups = new Map<string, SearchResultItem[]>();
@@ -712,6 +800,8 @@ export function useObjectSearch(): UseObjectSearchReturn {
     sortBy: state.sortBy,
     recentSearches,
     
+    searchStats,
+    
     setQuery,
     search,
     clearSearch,
@@ -721,6 +811,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
     setFilters,
     setSortBy,
     addRecentSearch,
+    clearRecentSearches,
     
     getSelectedItems,
     isSelected,

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { StellariumEngine, StellariumSettings } from '../types';
 import { SKY_SURVEYS } from '../types';
+import { updateStellariumTranslation } from '../translations';
 
 interface StellariumState {
   // Engine instance
@@ -123,6 +124,11 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
         } else {
           core.hips.visible = false;
         }
+      }
+      
+      // Update sky culture language translation
+      if (settings.skyCultureLanguage) {
+        updateStellariumTranslation(settings.skyCultureLanguage);
       }
       
       console.log('Stellarium settings updated successfully');

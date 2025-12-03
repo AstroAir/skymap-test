@@ -203,26 +203,26 @@ export function StellariumSurveySelector({
       <div
         key={survey.id}
         className={cn(
-          'flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors',
+          'flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors overflow-hidden',
           isSelected 
             ? 'bg-primary/20 border border-primary/50' 
             : 'hover:bg-muted/50 border border-transparent'
         )}
         onClick={() => handleSelectSurvey(survey)}
       >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">{survey.name}</span>
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-medium truncate max-w-[140px]">{survey.name}</span>
             {isCached && (
               <Tooltip>
                 <TooltipTrigger>
-                  <HardDrive className="h-3 w-3 text-green-500" />
+                  <HardDrive className="h-3 w-3 text-green-500 shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent>{t('survey.cachedOffline')}</TooltipContent>
               </Tooltip>
             )}
             {survey.isLocal && (
-              <Badge variant="outline" className="text-xs py-0 h-4">
+              <Badge variant="outline" className="text-[10px] py-0 h-4 shrink-0">
                 {t('survey.builtin')}
               </Badge>
             )}
@@ -230,7 +230,7 @@ export function StellariumSurveySelector({
           <p className="text-xs text-muted-foreground truncate">{survey.description}</p>
         </div>
         
-        <div className="flex items-center gap-1 ml-2">
+        <div className="flex items-center gap-1 shrink-0">
           {isDownloading ? (
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
           ) : !isCached && isOnline ? (
@@ -239,20 +239,20 @@ export function StellariumSurveySelector({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-6 w-6"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDownloadSurvey(survey);
                   }}
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-3 w-3" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t('survey.downloadForOffline')}</TooltipContent>
             </Tooltip>
           ) : null}
           
-          {isSelected && <Check className="h-4 w-4 text-primary" />}
+          {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
         </div>
       </div>
     );
@@ -260,16 +260,16 @@ export function StellariumSurveySelector({
 
   return (
     <TooltipProvider>
-      <div className="space-y-4">
+      <div className="space-y-3 w-full overflow-hidden">
         {/* Survey Enable Toggle */}
-        <div className="flex items-center justify-between bg-muted/50 border border-border p-3 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Map className="h-4 w-4 text-primary" />
-            <Label htmlFor="survey-enabled" className="text-foreground cursor-pointer text-sm">
+        <div className="flex items-center justify-between bg-muted/50 border border-border p-2.5 rounded-lg overflow-hidden">
+          <div className="flex items-center gap-2 min-w-0">
+            <Map className="h-4 w-4 text-primary shrink-0" />
+            <Label htmlFor="survey-enabled" className="text-foreground cursor-pointer text-sm truncate">
               {t('settings.skySurveyOverlay')}
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {isOnline ? (
               <Wifi className="h-3.5 w-3.5 text-green-500" />
             ) : (
@@ -285,22 +285,22 @@ export function StellariumSurveySelector({
 
         {/* Survey Selector */}
         {surveyEnabled && (
-          <div className="space-y-3">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'local' | 'online')}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="local" className="text-xs">
-                  <Star className="h-3.5 w-3.5 mr-1" />
-                  {t('survey.builtinSurveys')}
+          <div className="space-y-2 overflow-hidden">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'local' | 'online')} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 h-8">
+                <TabsTrigger value="local" className="text-xs h-7 px-2">
+                  <Star className="h-3 w-3 mr-1 shrink-0" />
+                  <span className="truncate">{t('survey.builtinSurveys')}</span>
                 </TabsTrigger>
-                <TabsTrigger value="online" className="text-xs" disabled={!isOnline}>
-                  <Globe className="h-3.5 w-3.5 mr-1" />
-                  {t('survey.onlineSearch')}
+                <TabsTrigger value="online" className="text-xs h-7 px-2" disabled={!isOnline}>
+                  <Globe className="h-3 w-3 mr-1 shrink-0" />
+                  <span className="truncate">{t('survey.onlineSearch')}</span>
                 </TabsTrigger>
               </TabsList>
               
               {/* Local/Built-in Surveys */}
-              <TabsContent value="local" className="mt-3">
-                <ScrollArea className="h-[280px] pr-2">
+              <TabsContent value="local" className="mt-2">
+                <ScrollArea className="h-[220px] pr-1">
                   <div className="space-y-3">
                     {/* Optical Surveys */}
                     <div>
@@ -342,35 +342,36 @@ export function StellariumSurveySelector({
               </TabsContent>
               
               {/* Online Survey Search */}
-              <TabsContent value="online" className="mt-3">
-                <div className="space-y-3">
+              <TabsContent value="online" className="mt-2">
+                <div className="space-y-2">
                   {/* Search Input */}
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <div className="flex gap-1.5">
+                    <div className="relative flex-1 min-w-0">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                       <Input
                         placeholder={t('survey.searchPlaceholder')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        className="pl-8 h-9"
+                        className="pl-7 h-8 text-sm"
                       />
                     </div>
                     <Button
                       size="sm"
+                      className="h-8 px-2 shrink-0"
                       onClick={handleSearch}
                       disabled={isSearching || !searchQuery.trim()}
                     >
                       {isSearching ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <Search className="h-4 w-4" />
+                        <Search className="h-3.5 w-3.5" />
                       )}
                     </Button>
                   </div>
                   
                   {/* Search Results */}
-                  <ScrollArea className="h-[240px] pr-2">
+                  <ScrollArea className="h-[180px] pr-1">
                     {isSearching ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -396,13 +397,13 @@ export function StellariumSurveySelector({
             {/* Selected Survey Info */}
             {selectedSurvey && (
               <div className="bg-muted/30 rounded-lg p-2 border border-border">
-                <div className="flex items-center gap-2 mb-1">
-                  <Telescope className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">{selectedSurvey.name}</span>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <Telescope className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-xs font-medium truncate">{selectedSurvey.name}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">{selectedSurvey.description}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{selectedSurvey.description}</p>
                 {selectedSurvey.regime && (
-                  <Badge variant="outline" className="mt-1 text-xs">
+                  <Badge variant="outline" className="mt-1 text-[10px] h-4">
                     {selectedSurvey.regime}
                   </Badge>
                 )}
