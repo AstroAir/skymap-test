@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getZustandStorage } from '@/lib/storage';
 import type { StellariumSettings } from '../types';
 
 interface SettingsState {
@@ -70,6 +71,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'starmap-settings',
+      storage: getZustandStorage(),
       version: 3, // Bump version to add skyCultureLanguage
       migrate: (persistedState, version) => {
         const state = persistedState as SettingsState;

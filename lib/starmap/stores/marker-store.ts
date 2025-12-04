@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getZustandStorage } from '@/lib/storage';
 
 /**
  * Sky marker for annotating positions on the celestial sphere
@@ -229,6 +230,7 @@ export const useMarkerStore = create<MarkerState>()(
     }),
     {
       name: 'starmap-markers',
+      storage: getZustandStorage(),
       partialize: (state) => ({
         markers: state.markers,
         groups: state.groups,

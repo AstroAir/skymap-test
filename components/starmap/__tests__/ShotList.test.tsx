@@ -53,10 +53,28 @@ const mockUseMountStore = jest.fn((selector) => {
   return selector ? selector(state) : state;
 });
 
+const mockUseEquipmentStore = jest.fn((selector) => {
+  const state = {
+    sensorWidth: 23.5,
+    sensorHeight: 15.6,
+    focalLength: 400,
+    rotationAngle: 0,
+    mosaic: {
+      enabled: false,
+      rows: 2,
+      cols: 2,
+      overlap: 20,
+      overlapUnit: 'percent',
+    },
+  };
+  return selector ? selector(state) : state;
+});
+
 jest.mock('@/lib/starmap/stores', () => ({
   useTargetListStore: (selector: (state: unknown) => unknown) => mockUseTargetListStore(selector),
   useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
   useMountStore: (selector: (state: unknown) => unknown) => mockUseMountStore(selector),
+  useEquipmentStore: (selector: (state: unknown) => unknown) => mockUseEquipmentStore(selector),
 }));
 
 // Mock astro-utils
@@ -172,7 +190,6 @@ describe('ShotList', () => {
   const defaultProps = {
     onNavigateToTarget: jest.fn(),
     currentSelection: null,
-    fovSettings: undefined,
   };
 
   beforeEach(() => {

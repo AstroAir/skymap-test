@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Calculator,
@@ -63,6 +63,7 @@ import {
   calculateExposure,
   calculateTotalIntegration,
 } from '@/lib/starmap/astro-utils';
+import { useEquipmentStore } from '@/lib/starmap/stores';
 
 // ============================================================================
 // Types
@@ -240,39 +241,43 @@ function ExposureTimeSlider({
 // ============================================================================
 
 export function ExposureCalculator({
-  focalLength: propFocalLength = 400,
-  aperture: propAperture = 80,
-  pixelSize: propPixelSize = 3.76,
+  focalLength: propFocalLength,
+  aperture: propAperture,
+  pixelSize: propPixelSize,
   onExposurePlanChange,
 }: ExposureCalculatorProps) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   
-  // Equipment settings
-  const [focalLength, setFocalLength] = useState(propFocalLength);
-  const [aperture, setAperture] = useState(propAperture);
-  const [pixelSize, setPixelSize] = useState(propPixelSize);
+  // Get defaults from equipment store
+  const equipmentStore = useEquipmentStore();
+  const exposureDefaults = equipmentStore.exposureDefaults;
   
-  // Environment
-  const [bortle, setBortle] = useState(5);
+  // Equipment settings - prefer props, fallback to store
+  const [focalLength, setFocalLength] = useState(propFocalLength ?? equipmentStore.focalLength);
+  const [aperture, setAperture] = useState(propAperture ?? equipmentStore.aperture);
+  const [pixelSize, setPixelSize] = useState(propPixelSize ?? equipmentStore.pixelSize);
   
-  // Exposure settings
-  const [exposureTime, setExposureTime] = useState(120);
-  const [gain, setGain] = useState(100);
-  const [offset, setOffset] = useState(30);
-  const [binning, setBinning] = useState<typeof BINNING_OPTIONS[number]>('1x1');
+  // Environment - use store defaults
+  const [bortle, setBortle] = useState(exposureDefaults.bortle);
+  
+  // Exposure settings - use store defaults
+  const [exposureTime, setExposureTime] = useState(exposureDefaults.exposureTime);
+  const [gain, setGain] = useState(exposureDefaults.gain);
+  const [offset, setOffset] = useState(exposureDefaults.offset);
+  const [binning, setBinning] = useState<typeof BINNING_OPTIONS[number]>(exposureDefaults.binning);
   const [imageType, setImageType] = useState<'LIGHT' | 'DARK' | 'FLAT' | 'BIAS'>('LIGHT');
-  const [filter, setFilter] = useState('L');
-  const [frameCount, setFrameCount] = useState(30);
+  const [filter, setFilter] = useState(exposureDefaults.filter);
+  const [frameCount, setFrameCount] = useState(exposureDefaults.frameCount);
   
-  // Dither settings
-  const [ditherEnabled, setDitherEnabled] = useState(true);
-  const [ditherEvery, setDitherEvery] = useState(3);
+  // Dither settings - use store defaults
+  const [ditherEnabled, setDitherEnabled] = useState(exposureDefaults.ditherEnabled);
+  const [ditherEvery, setDitherEvery] = useState(exposureDefaults.ditherEvery);
   
-  // Target settings
-  const [targetType, setTargetType] = useState<'galaxy' | 'nebula' | 'cluster' | 'planetary'>('nebula');
-  const [tracking, setTracking] = useState<'none' | 'basic' | 'guided'>('guided');
+  // Target settings - use store defaults
+  const [targetType, setTargetType] = useState<'galaxy' | 'nebula' | 'cluster' | 'planetary'>(exposureDefaults.targetType);
+  const [tracking, setTracking] = useState<'none' | 'basic' | 'guided'>(exposureDefaults.tracking);
   
   // UI state
   const [showAdvanced, setShowAdvanced] = useState(false);

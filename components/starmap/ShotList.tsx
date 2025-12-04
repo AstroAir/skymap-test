@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   List,
@@ -65,8 +65,7 @@ import {
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
 
-import { useTargetListStore, useMountStore, type TargetItem } from '@/lib/starmap/stores';
-import { useStellariumStore } from '@/lib/starmap/stores';
+import { useTargetListStore, useMountStore, useEquipmentStore, useStellariumStore, type TargetItem } from '@/lib/starmap/stores';
 import { TranslatedName } from './TranslatedName';
 import {
   planMultipleTargets,
@@ -85,24 +84,11 @@ interface ShotListProps {
     raString: string;
     decString: string;
   } | null;
-  fovSettings?: {
-    sensorWidth: number;
-    sensorHeight: number;
-    focalLength: number;
-    rotationAngle: number;
-    mosaic?: {
-      enabled: boolean;
-      rows: number;
-      cols: number;
-      overlap: number;
-    };
-  };
 }
 
 export function ShotList({
   onNavigateToTarget,
   currentSelection,
-  fovSettings,
 }: ShotListProps) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
@@ -135,6 +121,13 @@ export function ShotList({
   
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const profileInfo = useMountStore((state) => state.profileInfo);
+  
+  // Equipment store for FOV settings
+  const sensorWidth = useEquipmentStore((state) => state.sensorWidth);
+  const sensorHeight = useEquipmentStore((state) => state.sensorHeight);
+  const focalLength = useEquipmentStore((state) => state.focalLength);
+  const rotationAngle = useEquipmentStore((state) => state.rotationAngle);
+  const mosaic = useEquipmentStore((state) => state.mosaic);
   
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
@@ -179,14 +172,19 @@ export function ShotList({
       dec: currentSelection.dec,
       raString: currentSelection.raString,
       decString: currentSelection.decString,
-      sensorWidth: fovSettings?.sensorWidth,
-      sensorHeight: fovSettings?.sensorHeight,
-      focalLength: fovSettings?.focalLength,
-      rotationAngle: fovSettings?.rotationAngle,
-      mosaic: fovSettings?.mosaic,
+      sensorWidth,
+      sensorHeight,
+      focalLength,
+      rotationAngle,
+      mosaic: mosaic.enabled ? {
+        enabled: mosaic.enabled,
+        rows: mosaic.rows,
+        cols: mosaic.cols,
+        overlap: mosaic.overlap,
+      } : undefined,
       priority: 'medium',
     });
-  }, [currentSelection, fovSettings, addTarget]);
+  }, [currentSelection, sensorWidth, sensorHeight, focalLength, rotationAngle, mosaic, addTarget]);
 
   const handleNavigate = useCallback((target: TargetItem) => {
     setActiveTarget(target.id);

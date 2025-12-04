@@ -2,15 +2,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
-
-interface MosaicSettings {
-  enabled: boolean;
-  rows: number;
-  cols: number;
-  overlap: number; // percentage 0-50
-}
-
-export type GridType = 'none' | 'crosshair' | 'thirds' | 'golden' | 'diagonal';
+import { type MosaicSettings, type GridType } from '@/lib/starmap/stores';
 
 interface FOVOverlayProps {
   enabled: boolean;

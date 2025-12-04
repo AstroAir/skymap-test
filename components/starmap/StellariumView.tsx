@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { useStellariumStore, useFramingStore, useMountStore } from '@/lib/starmap/stores';
+import { useStellariumStore, useFramingStore, useMountStore, useEquipmentStore } from '@/lib/starmap/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/starmap/utils';
 import { Search, X, Crosshair, RotateCcw, Menu, ZoomIn, ZoomOut, Camera, Copy, MapPin, RotateCw, PanelLeftClose, PanelLeft, Plus, Settings, Target, Navigation, Grid3X3 } from 'lucide-react';
 import type { SelectedObjectData } from '@/lib/starmap/types';
@@ -57,9 +57,10 @@ import { StellariumCredits } from './StellariumCredits';
 import { StellariumClock } from './StellariumClock';
 import { StellariumMount } from './StellariumMount';
 import { ZoomControls } from './ZoomControls';
-import { FOVSimulator, type MosaicSettings, type GridType } from './FOVSimulator';
+import { FOVSimulator } from './FOVSimulator';
 import { FOVOverlay } from './FOVOverlay';
 import { InfoPanel } from './InfoPanel';
+import { ObjectDetailDrawer } from './ObjectDetailDrawer';
 import { ExposureCalculator } from './ExposureCalculator';
 import { ShotList } from './ShotList';
 import { OfflineCacheManager } from './OfflineCacheManager';
@@ -207,13 +208,21 @@ export function StellariumView() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedObject, setSelectedObject] = useState<SelectedObjectData | null>(null);
   const [currentFov, setCurrentFov] = useState(60);
-  const [fovSimEnabled, setFovSimEnabled] = useState(false);
-  const [sensorWidth, setSensorWidth] = useState(23.5);
-  const [sensorHeight, setSensorHeight] = useState(15.6);
-  const [focalLength, setFocalLength] = useState(400);
-  const [rotationAngle, setRotationAngle] = useState(0);
-  const [mosaic, setMosaic] = useState<MosaicSettings>({ enabled: false, rows: 2, cols: 2, overlap: 20, overlapUnit: 'percent' });
-  const [gridType, setGridType] = useState<GridType>('crosshair');
+  // Equipment store - centralized FOV settings
+  const fovSimEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
+  const setFovSimEnabled = useEquipmentStore((state) => state.setFOVEnabled);
+  const sensorWidth = useEquipmentStore((state) => state.sensorWidth);
+  const sensorHeight = useEquipmentStore((state) => state.sensorHeight);
+  const focalLength = useEquipmentStore((state) => state.focalLength);
+  const rotationAngle = useEquipmentStore((state) => state.rotationAngle);
+  const mosaic = useEquipmentStore((state) => state.mosaic);
+  const gridType = useEquipmentStore((state) => state.fovDisplay.gridType);
+  const setSensorWidth = useEquipmentStore((state) => state.setSensorWidth);
+  const setSensorHeight = useEquipmentStore((state) => state.setSensorHeight);
+  const setFocalLength = useEquipmentStore((state) => state.setFocalLength);
+  const setRotationAngle = useEquipmentStore((state) => state.setRotationAngle);
+  const setMosaic = useEquipmentStore((state) => state.setMosaic);
+  const setGridType = useEquipmentStore((state) => state.setGridType);
   const [showSessionPanel, setShowSessionPanel] = useState(true);
   const [contextMenuCoords, setContextMenuCoords] = useState<ClickCoords | null>(null);
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | undefined>();
@@ -228,6 +237,9 @@ export function StellariumView() {
   const [goToRa, setGoToRa] = useState('');
   const [goToDec, setGoToDec] = useState('');
   const [coordError, setCoordError] = useState('');
+  
+  // Object detail drawer state
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   
   const canvasRef = useRef<StellariumCanvasRef>(null);
   const searchRef = useRef<StellariumSearchRef>(null);
@@ -341,7 +353,7 @@ export function StellariumView() {
   const handleResetView = useCallback(() => {
     canvasRef.current?.setFov(60);
     setRotationAngle(0);
-  }, []);
+  }, [setRotationAngle]);
 
   // Handle context menu open - capture click coordinates and position
   const handleContextMenuCapture = useCallback((e: React.MouseEvent, coords: { ra: number; dec: number; raStr: string; decStr: string } | null) => {
@@ -1134,13 +1146,6 @@ export function StellariumView() {
                 raString: selectedObject.ra,
                 decString: selectedObject.dec,
               } : null}
-              fovSettings={{
-                sensorWidth,
-                sensorHeight,
-                focalLength,
-                rotationAngle,
-                mosaic,
-              }}
             />
           </div>
 
@@ -1191,13 +1196,6 @@ export function StellariumView() {
               raString: selectedObject.ra,
               decString: selectedObject.dec,
             } : null}
-            fovSettings={{
-              sensorWidth,
-              sensorHeight,
-              focalLength,
-              rotationAngle,
-              mosaic,
-            }}
           />
           {stel && <StellariumMount />}
         </div>
@@ -1209,11 +1207,20 @@ export function StellariumView() {
               selectedObject={selectedObject}
               onClose={() => setSelectedObject(null)}
               onSetFramingCoordinates={handleSetFramingCoordinates}
+              onViewDetails={() => setDetailDrawerOpen(true)}
               clickPosition={clickPosition}
               containerBounds={containerBounds}
             />
           </div>
         )}
+
+        {/* Object Detail Drawer */}
+        <ObjectDetailDrawer
+          open={detailDrawerOpen}
+          onOpenChange={setDetailDrawerOpen}
+          selectedObject={selectedObject}
+          onSetFramingCoordinates={handleSetFramingCoordinates}
+        />
 
         {/* Bottom Status Bar */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none">

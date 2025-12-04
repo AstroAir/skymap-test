@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getZustandStorage } from '@/lib/storage';
 import { 
   offlineCacheManager, 
   STELLARIUM_LAYERS,
@@ -283,6 +284,7 @@ export const useOfflineStore = create<OfflineState>()(
     }),
     {
       name: 'skymap-offline',
+      storage: getZustandStorage(),
     }
   )
 );

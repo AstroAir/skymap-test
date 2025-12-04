@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getZustandStorage } from '@/lib/storage';
 
 /**
  * Observable window for a target
@@ -407,6 +408,7 @@ export const useTargetListStore = create<TargetListState>()(
     }),
     {
       name: 'starmap-target-list',
+      storage: getZustandStorage(),
       partialize: (state) => ({
         targets: state.targets,
         activeTargetId: state.activeTargetId,

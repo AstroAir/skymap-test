@@ -1,0 +1,255 @@
+/**
+ * Tauri API wrapper for Rust backend commands
+ * Only available in Tauri desktop environment
+ */
+
+import { isTauri } from '@/lib/storage/platform';
+import type {
+  EquipmentData,
+  Telescope,
+  Camera,
+  Eyepiece,
+  LocationsData,
+  ObservationLocation,
+  ObservationLogData,
+  ObservationSession,
+  Observation,
+  ObservationStats,
+  TargetExportItem,
+  ImportTargetsResult,
+  ExportFormat,
+  AppSettings,
+  SystemInfo,
+} from './types';
+
+// Lazy import to avoid errors in web environment
+async function getInvoke() {
+  if (!isTauri()) {
+    throw new Error('Tauri API is only available in desktop environment');
+  }
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke;
+}
+
+// ============================================================================
+// Equipment API
+// ============================================================================
+
+export const equipmentApi = {
+  async load(): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('load_equipment');
+  },
+
+  async save(equipment: EquipmentData): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('save_equipment', { equipment });
+  },
+
+  async addTelescope(telescope: Omit<Telescope, 'id' | 'created_at' | 'updated_at'>): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('add_telescope', { telescope });
+  },
+
+  async addCamera(camera: Omit<Camera, 'id' | 'created_at' | 'updated_at'>): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('add_camera', { camera });
+  },
+
+  async addEyepiece(eyepiece: Omit<Eyepiece, 'id' | 'created_at' | 'updated_at'>): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('add_eyepiece', { eyepiece });
+  },
+
+  async delete(equipmentId: string): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('delete_equipment', { equipmentId });
+  },
+};
+
+// ============================================================================
+// Locations API
+// ============================================================================
+
+export const locationsApi = {
+  async load(): Promise<LocationsData> {
+    const invoke = await getInvoke();
+    return invoke('load_locations');
+  },
+
+  async save(locations: LocationsData): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('save_locations', { locations });
+  },
+
+  async add(location: Omit<ObservationLocation, 'id' | 'created_at' | 'updated_at'>): Promise<LocationsData> {
+    const invoke = await getInvoke();
+    return invoke('add_location', { location });
+  },
+
+  async update(location: ObservationLocation): Promise<LocationsData> {
+    const invoke = await getInvoke();
+    return invoke('update_location', { location });
+  },
+
+  async delete(locationId: string): Promise<LocationsData> {
+    const invoke = await getInvoke();
+    return invoke('delete_location', { locationId });
+  },
+
+  async setCurrent(locationId: string): Promise<LocationsData> {
+    const invoke = await getInvoke();
+    return invoke('set_current_location', { locationId });
+  },
+
+  async getCurrent(): Promise<ObservationLocation | null> {
+    const invoke = await getInvoke();
+    return invoke('get_current_location');
+  },
+};
+
+// ============================================================================
+// Observation Log API
+// ============================================================================
+
+export const observationLogApi = {
+  async load(): Promise<ObservationLogData> {
+    const invoke = await getInvoke();
+    return invoke('load_observation_log');
+  },
+
+  async save(log: ObservationLogData): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('save_observation_log', { log });
+  },
+
+  async createSession(
+    date: string,
+    locationId?: string,
+    locationName?: string
+  ): Promise<ObservationSession> {
+    const invoke = await getInvoke();
+    return invoke('create_session', { date, locationId, locationName });
+  },
+
+  async addObservation(
+    sessionId: string,
+    observation: Omit<Observation, 'id' | 'observed_at'>
+  ): Promise<ObservationSession> {
+    const invoke = await getInvoke();
+    return invoke('add_observation', { sessionId, observation });
+  },
+
+  async updateSession(session: ObservationSession): Promise<ObservationSession> {
+    const invoke = await getInvoke();
+    return invoke('update_session', { session });
+  },
+
+  async endSession(sessionId: string): Promise<ObservationSession> {
+    const invoke = await getInvoke();
+    return invoke('end_session', { sessionId });
+  },
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('delete_session', { sessionId });
+  },
+
+  async getStats(): Promise<ObservationStats> {
+    const invoke = await getInvoke();
+    return invoke('get_observation_stats');
+  },
+
+  async search(query: string): Promise<Observation[]> {
+    const invoke = await getInvoke();
+    return invoke('search_observations', { query });
+  },
+};
+
+// ============================================================================
+// Target Import/Export API
+// ============================================================================
+
+export const targetIoApi = {
+  async exportTargets(
+    targets: TargetExportItem[],
+    format: ExportFormat,
+    path?: string
+  ): Promise<string> {
+    const invoke = await getInvoke();
+    return invoke('export_targets', { targets, format, path });
+  },
+
+  async importTargets(path?: string): Promise<ImportTargetsResult> {
+    const invoke = await getInvoke();
+    return invoke('import_targets', { path });
+  },
+};
+
+// ============================================================================
+// App Settings API
+// ============================================================================
+
+export const appSettingsApi = {
+  async load(): Promise<AppSettings> {
+    const invoke = await getInvoke();
+    return invoke('load_app_settings');
+  },
+
+  async save(settings: AppSettings): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('save_app_settings', { settings });
+  },
+
+  async saveWindowState(): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('save_window_state');
+  },
+
+  async restoreWindowState(): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('restore_window_state');
+  },
+
+  async addRecentFile(path: string, fileType: string): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('add_recent_file', { path, fileType });
+  },
+
+  async clearRecentFiles(): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('clear_recent_files');
+  },
+
+  async getSystemInfo(): Promise<SystemInfo> {
+    const invoke = await getInvoke();
+    return invoke('get_system_info');
+  },
+
+  async openPath(path: string): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('open_path', { path });
+  },
+
+  async revealInFileManager(path: string): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('reveal_in_file_manager', { path });
+  },
+};
+
+// ============================================================================
+// Unified API Object
+// ============================================================================
+
+export const tauriApi = {
+  equipment: equipmentApi,
+  locations: locationsApi,
+  observationLog: observationLogApi,
+  targetIo: targetIoApi,
+  appSettings: appSettingsApi,
+  
+  /** Check if Tauri API is available */
+  isAvailable: isTauri,
+};
+
+export default tauriApi;

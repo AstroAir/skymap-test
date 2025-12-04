@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Camera,
@@ -57,20 +57,13 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import {
+  type MosaicSettings,
+  type GridType,
+} from '@/lib/starmap/stores';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface MosaicSettings {
-  enabled: boolean;
-  rows: number;
-  cols: number;
-  overlap: number;
-  overlapUnit: 'percent' | 'pixels';
-}
-
-export type GridType = 'none' | 'crosshair' | 'thirds' | 'golden' | 'diagonal';
+// Re-export types from equipment store for backward compatibility
+export type { MosaicSettings, GridType } from '@/lib/starmap/stores';
 
 interface FOVSimulatorProps {
   enabled: boolean;

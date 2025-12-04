@@ -89,6 +89,36 @@ jest.mock('@/components/ui/badge', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => <span data-testid="badge">{children}</span>,
 }));
 
+jest.mock('@/components/ui/collapsible', () => ({
+  Collapsible: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  CollapsibleContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  CollapsibleTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+// Mock equipment store
+const mockUseEquipmentStore = jest.fn(() => ({
+  focalLength: 400,
+  aperture: 80,
+  pixelSize: 3.76,
+  exposureDefaults: {
+    exposureTime: 120,
+    gain: 100,
+    offset: 30,
+    binning: '1x1',
+    filter: 'L',
+    frameCount: 30,
+    ditherEnabled: true,
+    ditherEvery: 3,
+    tracking: 'guided',
+    targetType: 'nebula',
+    bortle: 5,
+  },
+}));
+
+jest.mock('@/lib/starmap/stores', () => ({
+  useEquipmentStore: () => mockUseEquipmentStore(),
+}));
+
 import { ExposureCalculator } from '../ExposureCalculator';
 
 describe('ExposureCalculator', () => {

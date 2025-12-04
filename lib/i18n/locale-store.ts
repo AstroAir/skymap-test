@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getZustandStorage } from '@/lib/storage';
 import { defaultLocale, type Locale } from '@/i18n/config';
 
 interface LocaleState {
@@ -17,6 +18,7 @@ export const useLocaleStore = create(
     }),
     {
       name: 'skymap-locale',
+      storage: getZustandStorage(),
     }
   )
 );

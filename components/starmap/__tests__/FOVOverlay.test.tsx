@@ -28,6 +28,7 @@ describe('FOVOverlay', () => {
       rows: 1,
       cols: 1,
       overlap: 10,
+      overlapUnit: 'percent' as const,
     },
     gridType: 'crosshair' as const,
   };
@@ -50,7 +51,7 @@ describe('FOVOverlay', () => {
     render(
       <FOVOverlay
         {...defaultProps}
-        mosaic={{ enabled: true, rows: 2, cols: 2, overlap: 10 }}
+        mosaic={{ enabled: true, rows: 2, cols: 2, overlap: 10, overlapUnit: 'percent' }}
       />
     );
     expect(document.body).toBeInTheDocument();

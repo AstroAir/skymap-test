@@ -1,0 +1,577 @@
+/**
+ * Object Information Sources Configuration
+ * Allows customization of image and data sources with connectivity checking
+ */
+
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export type ImageSourceType = 'aladin' | 'skyview' | 'dss' | 'eso' | 'custom';
+export type DataSourceType = 'simbad' | 'vizier' | 'ned' | 'custom';
+
+export interface ImageSourceConfig {
+  id: string;
+  name: string;
+  type: ImageSourceType;
+  enabled: boolean;
+  priority: number;
+  baseUrl: string;
+  // Template for URL generation: {ra}, {dec}, {size}, {format}
+  urlTemplate: string;
+  // Additional parameters
+  params?: Record<string, string>;
+  // Source attribution
+  credit: string;
+  // Description
+  description: string;
+  // Health status
+  status: 'unknown' | 'checking' | 'online' | 'offline' | 'error';
+  lastChecked?: number;
+  responseTime?: number;
+  // Is built-in (cannot be deleted)
+  builtIn: boolean;
+}
+
+export interface DataSourceConfig {
+  id: string;
+  name: string;
+  type: DataSourceType;
+  enabled: boolean;
+  priority: number;
+  baseUrl: string;
+  // API endpoint template
+  apiEndpoint: string;
+  // Timeout in ms
+  timeout: number;
+  // Description
+  description: string;
+  // Health status
+  status: 'unknown' | 'checking' | 'online' | 'offline' | 'error';
+  lastChecked?: number;
+  responseTime?: number;
+  // Is built-in (cannot be deleted)
+  builtIn: boolean;
+}
+
+export interface ObjectInfoConfig {
+  // Image sources
+  imageSources: ImageSourceConfig[];
+  // Data sources
+  dataSources: DataSourceConfig[];
+  // Global settings
+  settings: {
+    // Max concurrent requests
+    maxConcurrentRequests: number;
+    // Default timeout for image loading (ms)
+    imageTimeout: number;
+    // Default timeout for API requests (ms)
+    apiTimeout: number;
+    // Auto-skip offline sources
+    autoSkipOffline: boolean;
+    // Check interval for source health (ms), 0 = disabled
+    healthCheckInterval: number;
+    // Cache duration for object info (ms)
+    cacheDuration: number;
+    // Preferred image format
+    preferredImageFormat: 'jpg' | 'png' | 'gif';
+    // Default image size in arcminutes
+    defaultImageSize: number;
+  };
+}
+
+// ============================================================================
+// Default Configuration
+// ============================================================================
+
+export const DEFAULT_IMAGE_SOURCES: ImageSourceConfig[] = [
+  {
+    id: 'aladin-dss2-color',
+    name: 'Aladin DSS2 Color',
+    type: 'aladin',
+    enabled: true,
+    priority: 1,
+    baseUrl: 'https://alasky.cds.unistra.fr',
+    urlTemplate: '/hips-image-services/hips2fits?hips=CDS/P/DSS2/color&ra={ra}&dec={dec}&fov={size}&width=500&height=500&format={format}',
+    credit: 'CDS Aladin Sky Atlas - DSS2 Color',
+    description: 'High-quality color composite from DSS2 via Aladin',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'skyview-dss2-red',
+    name: 'SkyView DSS2 Red',
+    type: 'skyview',
+    enabled: true,
+    priority: 2,
+    baseUrl: 'https://skyview.gsfc.nasa.gov',
+    urlTemplate: '/current/cgi/runquery.pl?Position={ra},{dec}&Survey=DSS2+Red&Coordinates=J2000&Size={size}&Pixels=500&Return=GIF',
+    credit: 'NASA SkyView - DSS2 Red',
+    description: 'Digitized Sky Survey 2 Red band via NASA SkyView',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'skyview-2mass-j',
+    name: 'SkyView 2MASS J-band',
+    type: 'skyview',
+    enabled: true,
+    priority: 3,
+    baseUrl: 'https://skyview.gsfc.nasa.gov',
+    urlTemplate: '/current/cgi/runquery.pl?Position={ra},{dec}&Survey=2MASS-J&Coordinates=J2000&Size={size}&Pixels=500&Return=GIF',
+    credit: 'NASA SkyView - 2MASS J-band',
+    description: 'Near-infrared J-band from Two Micron All Sky Survey',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'skyview-sdss-r',
+    name: 'SkyView SDSS r-band',
+    type: 'skyview',
+    enabled: true,
+    priority: 4,
+    baseUrl: 'https://skyview.gsfc.nasa.gov',
+    urlTemplate: '/current/cgi/runquery.pl?Position={ra},{dec}&Survey=SDSSr&Coordinates=J2000&Size={size}&Pixels=500&Return=GIF',
+    credit: 'NASA SkyView - SDSS r-band',
+    description: 'Sloan Digital Sky Survey r-band (northern sky only)',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'skyview-wise',
+    name: 'SkyView WISE 3.4μm',
+    type: 'skyview',
+    enabled: true,
+    priority: 5,
+    baseUrl: 'https://skyview.gsfc.nasa.gov',
+    urlTemplate: '/current/cgi/runquery.pl?Position={ra},{dec}&Survey=WISE+3.4&Coordinates=J2000&Size={size}&Pixels=500&Return=GIF',
+    credit: 'NASA SkyView - WISE 3.4μm',
+    description: 'Wide-field Infrared Survey Explorer mid-infrared',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'aladin-panstarrs',
+    name: 'Aladin PanSTARRS',
+    type: 'aladin',
+    enabled: false,
+    priority: 6,
+    baseUrl: 'https://alasky.cds.unistra.fr',
+    urlTemplate: '/hips-image-services/hips2fits?hips=CDS/P/PanSTARRS/DR1/color-z-zg-g&ra={ra}&dec={dec}&fov={size}&width=500&height=500&format={format}',
+    credit: 'CDS Aladin - PanSTARRS DR1',
+    description: 'Panoramic Survey Telescope and Rapid Response System',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'aladin-allwise',
+    name: 'Aladin AllWISE Color',
+    type: 'aladin',
+    enabled: false,
+    priority: 7,
+    baseUrl: 'https://alasky.cds.unistra.fr',
+    urlTemplate: '/hips-image-services/hips2fits?hips=CDS/P/allWISE/color&ra={ra}&dec={dec}&fov={size}&width=500&height=500&format={format}',
+    credit: 'CDS Aladin - AllWISE Color',
+    description: 'AllWISE infrared color composite',
+    status: 'unknown',
+    builtIn: true,
+  },
+];
+
+export const DEFAULT_DATA_SOURCES: DataSourceConfig[] = [
+  {
+    id: 'simbad',
+    name: 'SIMBAD',
+    type: 'simbad',
+    enabled: true,
+    priority: 1,
+    baseUrl: 'https://simbad.u-strasbg.fr',
+    apiEndpoint: '/simbad/sim-tap/sync',
+    timeout: 5000,
+    description: 'SIMBAD Astronomical Database - comprehensive object data',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'vizier',
+    name: 'VizieR',
+    type: 'vizier',
+    enabled: false,
+    priority: 2,
+    baseUrl: 'https://vizier.cds.unistra.fr',
+    apiEndpoint: '/viz-bin/votable',
+    timeout: 5000,
+    description: 'VizieR catalog service - extensive catalog data',
+    status: 'unknown',
+    builtIn: true,
+  },
+  {
+    id: 'ned',
+    name: 'NASA/IPAC NED',
+    type: 'ned',
+    enabled: false,
+    priority: 3,
+    baseUrl: 'https://ned.ipac.caltech.edu',
+    apiEndpoint: '/srs/ObjectLookup',
+    timeout: 5000,
+    description: 'NASA Extragalactic Database - galaxy and extragalactic data',
+    status: 'unknown',
+    builtIn: true,
+  },
+];
+
+export const DEFAULT_SETTINGS: ObjectInfoConfig['settings'] = {
+  maxConcurrentRequests: 3,
+  imageTimeout: 10000,
+  apiTimeout: 5000,
+  autoSkipOffline: true,
+  healthCheckInterval: 300000, // 5 minutes
+  cacheDuration: 3600000, // 1 hour
+  preferredImageFormat: 'jpg',
+  defaultImageSize: 15, // arcminutes
+};
+
+// ============================================================================
+// Store
+// ============================================================================
+
+interface ObjectInfoConfigStore extends ObjectInfoConfig {
+  // Actions
+  setImageSourceEnabled: (id: string, enabled: boolean) => void;
+  setImageSourcePriority: (id: string, priority: number) => void;
+  updateImageSource: (id: string, updates: Partial<ImageSourceConfig>) => void;
+  addImageSource: (source: Omit<ImageSourceConfig, 'id' | 'builtIn' | 'status'>) => void;
+  removeImageSource: (id: string) => void;
+  
+  setDataSourceEnabled: (id: string, enabled: boolean) => void;
+  setDataSourcePriority: (id: string, priority: number) => void;
+  updateDataSource: (id: string, updates: Partial<DataSourceConfig>) => void;
+  addDataSource: (source: Omit<DataSourceConfig, 'id' | 'builtIn' | 'status'>) => void;
+  removeDataSource: (id: string) => void;
+  
+  updateSettings: (settings: Partial<ObjectInfoConfig['settings']>) => void;
+  
+  // Health check
+  setImageSourceStatus: (id: string, status: ImageSourceConfig['status'], responseTime?: number) => void;
+  setDataSourceStatus: (id: string, status: DataSourceConfig['status'], responseTime?: number) => void;
+  
+  // Reset
+  resetToDefaults: () => void;
+}
+
+export const useObjectInfoConfigStore = create<ObjectInfoConfigStore>()(
+  persist(
+    (set) => ({
+      imageSources: DEFAULT_IMAGE_SOURCES,
+      dataSources: DEFAULT_DATA_SOURCES,
+      settings: DEFAULT_SETTINGS,
+
+      setImageSourceEnabled: (id, enabled) => {
+        set((state) => ({
+          imageSources: state.imageSources.map((s) =>
+            s.id === id ? { ...s, enabled } : s
+          ),
+        }));
+      },
+
+      setImageSourcePriority: (id, priority) => {
+        set((state) => ({
+          imageSources: state.imageSources.map((s) =>
+            s.id === id ? { ...s, priority } : s
+          ),
+        }));
+      },
+
+      updateImageSource: (id, updates) => {
+        set((state) => ({
+          imageSources: state.imageSources.map((s) =>
+            s.id === id ? { ...s, ...updates } : s
+          ),
+        }));
+      },
+
+      addImageSource: (source) => {
+        const id = `custom-${Date.now()}`;
+        set((state) => ({
+          imageSources: [
+            ...state.imageSources,
+            { ...source, id, builtIn: false, status: 'unknown' as const },
+          ],
+        }));
+      },
+
+      removeImageSource: (id) => {
+        set((state) => ({
+          imageSources: state.imageSources.filter((s) => s.id !== id || s.builtIn),
+        }));
+      },
+
+      setDataSourceEnabled: (id, enabled) => {
+        set((state) => ({
+          dataSources: state.dataSources.map((s) =>
+            s.id === id ? { ...s, enabled } : s
+          ),
+        }));
+      },
+
+      setDataSourcePriority: (id, priority) => {
+        set((state) => ({
+          dataSources: state.dataSources.map((s) =>
+            s.id === id ? { ...s, priority } : s
+          ),
+        }));
+      },
+
+      updateDataSource: (id, updates) => {
+        set((state) => ({
+          dataSources: state.dataSources.map((s) =>
+            s.id === id ? { ...s, ...updates } : s
+          ),
+        }));
+      },
+
+      addDataSource: (source) => {
+        const id = `custom-${Date.now()}`;
+        set((state) => ({
+          dataSources: [
+            ...state.dataSources,
+            { ...source, id, builtIn: false, status: 'unknown' as const },
+          ],
+        }));
+      },
+
+      removeDataSource: (id) => {
+        set((state) => ({
+          dataSources: state.dataSources.filter((s) => s.id !== id || s.builtIn),
+        }));
+      },
+
+      updateSettings: (settings) => {
+        set((state) => ({
+          settings: { ...state.settings, ...settings },
+        }));
+      },
+
+      setImageSourceStatus: (id, status, responseTime) => {
+        set((state) => ({
+          imageSources: state.imageSources.map((s) =>
+            s.id === id
+              ? { ...s, status, lastChecked: Date.now(), responseTime }
+              : s
+          ),
+        }));
+      },
+
+      setDataSourceStatus: (id, status, responseTime) => {
+        set((state) => ({
+          dataSources: state.dataSources.map((s) =>
+            s.id === id
+              ? { ...s, status, lastChecked: Date.now(), responseTime }
+              : s
+          ),
+        }));
+      },
+
+      resetToDefaults: () => {
+        set({
+          imageSources: DEFAULT_IMAGE_SOURCES,
+          dataSources: DEFAULT_DATA_SOURCES,
+          settings: DEFAULT_SETTINGS,
+        });
+      },
+    }),
+    {
+      name: 'object-info-config',
+      version: 1,
+    }
+  )
+);
+
+// ============================================================================
+// Health Check Functions
+// ============================================================================
+
+/**
+ * Check if an image source is accessible
+ */
+export async function checkImageSourceHealth(
+  source: ImageSourceConfig
+): Promise<{ online: boolean; responseTime: number }> {
+  const startTime = performance.now();
+  
+  try {
+    // Generate a test URL for a known object (M31)
+    const testRa = 10.68;
+    const testDec = 41.27;
+    const testSize = 0.5;
+    
+    const url = source.baseUrl + source.urlTemplate
+      .replace('{ra}', testRa.toString())
+      .replace('{dec}', testDec.toString())
+      .replace('{size}', testSize.toString())
+      .replace('{format}', 'jpg');
+    
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5000),
+    });
+    
+    const responseTime = Math.round(performance.now() - startTime);
+    return { online: response.ok, responseTime };
+  } catch {
+    const responseTime = Math.round(performance.now() - startTime);
+    return { online: false, responseTime };
+  }
+}
+
+/**
+ * Check if a data source is accessible
+ */
+export async function checkDataSourceHealth(
+  source: DataSourceConfig
+): Promise<{ online: boolean; responseTime: number }> {
+  const startTime = performance.now();
+  
+  try {
+    let testUrl = source.baseUrl;
+    
+    // Use a simple ping-like request based on source type
+    switch (source.type) {
+      case 'simbad':
+        testUrl = `${source.baseUrl}/simbad/sim-tap/sync?request=doQuery&lang=adql&format=json&query=${encodeURIComponent('SELECT TOP 1 main_id FROM basic LIMIT 1')}`;
+        break;
+      case 'vizier':
+        testUrl = `${source.baseUrl}/viz-bin/votable?-source=I/239/hip_main&-c=M31&-c.rs=1`;
+        break;
+      case 'ned':
+        testUrl = `${source.baseUrl}/cgi-bin/nph-objsearch?objname=M31&of=xml_main`;
+        break;
+      default:
+        testUrl = source.baseUrl + source.apiEndpoint;
+    }
+    
+    const response = await fetch(testUrl, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(source.timeout),
+    });
+    
+    const responseTime = Math.round(performance.now() - startTime);
+    return { online: response.ok || response.status === 405, responseTime }; // 405 is ok for HEAD on some APIs
+  } catch {
+    const responseTime = Math.round(performance.now() - startTime);
+    return { online: false, responseTime };
+  }
+}
+
+/**
+ * Check all sources health
+ */
+export async function checkAllSourcesHealth(): Promise<void> {
+  const store = useObjectInfoConfigStore.getState();
+  
+  // Check image sources
+  for (const source of store.imageSources) {
+    if (!source.enabled) continue;
+    
+    store.setImageSourceStatus(source.id, 'checking');
+    const result = await checkImageSourceHealth(source);
+    store.setImageSourceStatus(
+      source.id,
+      result.online ? 'online' : 'offline',
+      result.responseTime
+    );
+  }
+  
+  // Check data sources
+  for (const source of store.dataSources) {
+    if (!source.enabled) continue;
+    
+    store.setDataSourceStatus(source.id, 'checking');
+    const result = await checkDataSourceHealth(source);
+    store.setDataSourceStatus(
+      source.id,
+      result.online ? 'online' : 'offline',
+      result.responseTime
+    );
+  }
+}
+
+/**
+ * Start periodic health checks
+ */
+let healthCheckIntervalId: ReturnType<typeof setInterval> | null = null;
+
+export function startHealthChecks(): void {
+  const settings = useObjectInfoConfigStore.getState().settings;
+  
+  if (settings.healthCheckInterval <= 0) return;
+  
+  // Initial check
+  checkAllSourcesHealth();
+  
+  // Periodic checks
+  if (healthCheckIntervalId) {
+    clearInterval(healthCheckIntervalId);
+  }
+  
+  healthCheckIntervalId = setInterval(() => {
+    checkAllSourcesHealth();
+  }, settings.healthCheckInterval);
+}
+
+export function stopHealthChecks(): void {
+  if (healthCheckIntervalId) {
+    clearInterval(healthCheckIntervalId);
+    healthCheckIntervalId = null;
+  }
+}
+
+// ============================================================================
+// URL Generation with Config
+// ============================================================================
+
+/**
+ * Generate image URL from source config
+ */
+export function generateImageUrl(
+  source: ImageSourceConfig,
+  ra: number,
+  dec: number,
+  sizeArcmin?: number
+): string {
+  const settings = useObjectInfoConfigStore.getState().settings;
+  const size = (sizeArcmin || settings.defaultImageSize) / 60; // Convert to degrees
+  
+  return source.baseUrl + source.urlTemplate
+    .replace('{ra}', ra.toString())
+    .replace('{dec}', dec.toString())
+    .replace('{size}', size.toString())
+    .replace('{format}', settings.preferredImageFormat);
+}
+
+/**
+ * Get enabled and sorted image sources
+ */
+export function getActiveImageSources(): ImageSourceConfig[] {
+  const store = useObjectInfoConfigStore.getState();
+  
+  return store.imageSources
+    .filter((s) => s.enabled)
+    .filter((s) => !store.settings.autoSkipOffline || s.status !== 'offline')
+    .sort((a, b) => a.priority - b.priority);
+}
+
+/**
+ * Get enabled and sorted data sources
+ */
+export function getActiveDataSources(): DataSourceConfig[] {
+  const store = useObjectInfoConfigStore.getState();
+  
+  return store.dataSources
+    .filter((s) => s.enabled)
+    .filter((s) => !store.settings.autoSkipOffline || s.status !== 'offline')
+    .sort((a, b) => a.priority - b.priority);
+}

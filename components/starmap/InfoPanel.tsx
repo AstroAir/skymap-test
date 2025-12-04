@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   X, ChevronDown, ChevronUp, Star, Crosshair, Plus,
-  Compass, TrendingUp, ArrowUp
+  Compass, TrendingUp, ArrowUp, Info
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,8 @@ interface InfoPanelProps {
     decString: string;
     name: string;
   }) => void;
+  /** Callback to open the detail drawer */
+  onViewDetails?: () => void;
   className?: string;
   /** Click position for adaptive positioning */
   clickPosition?: { x: number; y: number };
@@ -72,6 +74,7 @@ export function InfoPanel({
   selectedObject,
   onClose,
   onSetFramingCoordinates,
+  onViewDetails,
   className,
   clickPosition,
   containerBounds,
@@ -392,6 +395,19 @@ export function InfoPanel({
                           {t('common.add')}
                         </Button>
                       </div>
+                      
+                      {/* View Details Button */}
+                      {onViewDetails && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="w-full h-7 text-xs mt-2"
+                          onClick={onViewDetails}
+                        >
+                          <Info className="h-3 w-3 mr-1" />
+                          {t('objectDetail.viewDetails')}
+                        </Button>
+                      )}
                     </>
                   )}
                 </CollapsibleContent>

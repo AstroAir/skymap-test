@@ -260,6 +260,11 @@ export interface SelectedObjectData {
   dec: string;
   raDeg: number;
   decDeg: number;
+  // Optional extended info from Stellarium
+  type?: string;
+  magnitude?: number;
+  size?: string; // Angular size, e.g., "10'x8'"
+  constellation?: string;
 }
 
 declare global {
