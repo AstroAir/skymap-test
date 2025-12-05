@@ -9,6 +9,10 @@ use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
 
+// ============================================================================
+// Types
+// ============================================================================
+
 /// Telescope configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Telescope {
@@ -124,6 +128,10 @@ pub struct EquipmentData {
     pub barlow_reducers: Vec<BarlowReducer>,
     pub filters: Vec<Filter>,
 }
+
+// ============================================================================
+// Path Helpers
+// ============================================================================
 
 fn get_equipment_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
     let app_data_dir = app
@@ -276,4 +284,215 @@ fn rand_simple() -> u32 {
         .unwrap()
         .subsec_nanos();
     nanos.wrapping_mul(1103515245).wrapping_add(12345)
+}
+
+// ============================================================================
+// Additional Equipment Commands
+// ============================================================================
+
+/// Add a barlow/reducer
+#[tauri::command]
+pub async fn add_barlow_reducer(
+    app: AppHandle,
+    mut barlow: BarlowReducer,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    barlow.id = format!("barlow-{}", uuid_simple());
+    barlow.created_at = Utc::now();
+    barlow.updated_at = Utc::now();
+    
+    equipment.barlow_reducers.push(barlow);
+    save_equipment(app, equipment.clone()).await?;
+    
+    Ok(equipment)
+}
+
+/// Add a filter
+#[tauri::command]
+pub async fn add_filter(
+    app: AppHandle,
+    mut filter: Filter,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    filter.id = format!("filter-{}", uuid_simple());
+    filter.created_at = Utc::now();
+    filter.updated_at = Utc::now();
+    
+    equipment.filters.push(filter);
+    save_equipment(app, equipment.clone()).await?;
+    
+    Ok(equipment)
+}
+
+/// Update a telescope
+#[tauri::command]
+pub async fn update_telescope(
+    app: AppHandle,
+    telescope: Telescope,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    if let Some(existing) = equipment.telescopes.iter_mut().find(|t| t.id == telescope.id) {
+        existing.name = telescope.name;
+        existing.aperture = telescope.aperture;
+        existing.focal_length = telescope.focal_length;
+        existing.focal_ratio = telescope.focal_ratio;
+        existing.telescope_type = telescope.telescope_type;
+        existing.mount_type = telescope.mount_type;
+        existing.notes = telescope.notes;
+        existing.updated_at = Utc::now();
+        
+        if telescope.is_default {
+            for t in &mut equipment.telescopes {
+                t.is_default = t.id == telescope.id;
+            }
+        }
+    }
+    
+    save_equipment(app, equipment.clone()).await?;
+    Ok(equipment)
+}
+
+/// Update a camera
+#[tauri::command]
+pub async fn update_camera(
+    app: AppHandle,
+    camera: Camera,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    if let Some(existing) = equipment.cameras.iter_mut().find(|c| c.id == camera.id) {
+        existing.name = camera.name;
+        existing.sensor_width = camera.sensor_width;
+        existing.sensor_height = camera.sensor_height;
+        existing.pixel_size = camera.pixel_size;
+        existing.resolution_x = camera.resolution_x;
+        existing.resolution_y = camera.resolution_y;
+        existing.camera_type = camera.camera_type;
+        existing.has_cooler = camera.has_cooler;
+        existing.notes = camera.notes;
+        existing.updated_at = Utc::now();
+        
+        if camera.is_default {
+            for c in &mut equipment.cameras {
+                c.is_default = c.id == camera.id;
+            }
+        }
+    }
+    
+    save_equipment(app, equipment.clone()).await?;
+    Ok(equipment)
+}
+
+/// Update an eyepiece
+#[tauri::command]
+pub async fn update_eyepiece(
+    app: AppHandle,
+    eyepiece: Eyepiece,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    if let Some(existing) = equipment.eyepieces.iter_mut().find(|e| e.id == eyepiece.id) {
+        existing.name = eyepiece.name;
+        existing.focal_length = eyepiece.focal_length;
+        existing.apparent_fov = eyepiece.apparent_fov;
+        existing.barrel_size = eyepiece.barrel_size;
+        existing.eye_relief = eyepiece.eye_relief;
+        existing.notes = eyepiece.notes;
+        existing.updated_at = Utc::now();
+    }
+    
+    save_equipment(app, equipment.clone()).await?;
+    Ok(equipment)
+}
+
+/// Update a barlow/reducer
+#[tauri::command]
+pub async fn update_barlow_reducer(
+    app: AppHandle,
+    barlow: BarlowReducer,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    if let Some(existing) = equipment.barlow_reducers.iter_mut().find(|b| b.id == barlow.id) {
+        existing.name = barlow.name;
+        existing.factor = barlow.factor;
+        existing.notes = barlow.notes;
+        existing.updated_at = Utc::now();
+    }
+    
+    save_equipment(app, equipment.clone()).await?;
+    Ok(equipment)
+}
+
+/// Update a filter
+#[tauri::command]
+pub async fn update_filter(
+    app: AppHandle,
+    filter: Filter,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    if let Some(existing) = equipment.filters.iter_mut().find(|f| f.id == filter.id) {
+        existing.name = filter.name;
+        existing.filter_type = filter.filter_type;
+        existing.bandwidth = filter.bandwidth;
+        existing.notes = filter.notes;
+        existing.updated_at = Utc::now();
+    }
+    
+    save_equipment(app, equipment.clone()).await?;
+    Ok(equipment)
+}
+
+/// Set default telescope
+#[tauri::command]
+pub async fn set_default_telescope(
+    app: AppHandle,
+    telescope_id: String,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    for t in &mut equipment.telescopes {
+        t.is_default = t.id == telescope_id;
+    }
+    
+    save_equipment(app, equipment.clone()).await?;
+    Ok(equipment)
+}
+
+/// Set default camera
+#[tauri::command]
+pub async fn set_default_camera(
+    app: AppHandle,
+    camera_id: String,
+) -> Result<EquipmentData, StorageError> {
+    let mut equipment = load_equipment(app.clone()).await?;
+    
+    for c in &mut equipment.cameras {
+        c.is_default = c.id == camera_id;
+    }
+    
+    save_equipment(app, equipment.clone()).await?;
+    Ok(equipment)
+}
+
+/// Get default telescope
+#[tauri::command]
+pub async fn get_default_telescope(
+    app: AppHandle,
+) -> Result<Option<Telescope>, StorageError> {
+    let equipment = load_equipment(app).await?;
+    Ok(equipment.telescopes.into_iter().find(|t| t.is_default))
+}
+
+/// Get default camera
+#[tauri::command]
+pub async fn get_default_camera(
+    app: AppHandle,
+) -> Result<Option<Camera>, StorageError> {
+    let equipment = load_equipment(app).await?;
+    Ok(equipment.cameras.into_iter().find(|c| c.is_default))
 }

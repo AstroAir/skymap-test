@@ -280,3 +280,424 @@ export function useWindowState() {
     isAvailable: isTauri(),
   };
 }
+
+// ============================================================================
+// Target List Hook
+// ============================================================================
+
+import { targetListApi, type TargetListData, type TargetItem, type TargetStats } from './target-list-api';
+
+export function useTargetList() {
+  const [data, setData] = useState<TargetListData | null>(null);
+  const [stats, setStats] = useState<TargetStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!isTauri()) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const [listData, statsData] = await Promise.all([
+        targetListApi.load(),
+        targetListApi.getStats(),
+      ]);
+      setData(listData);
+      setStats(statsData);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const addTarget = useCallback(async (target: Parameters<typeof targetListApi.addTarget>[0]) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await targetListApi.addTarget(target);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const removeTarget = useCallback(async (targetId: string) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await targetListApi.removeTarget(targetId);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const updateTarget = useCallback(async (targetId: string, updates: Partial<TargetItem>) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await targetListApi.updateTarget(targetId, updates);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const setActiveTarget = useCallback(async (targetId: string | null) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await targetListApi.setActiveTarget(targetId);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const toggleFavorite = useCallback(async (targetId: string) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await targetListApi.toggleFavorite(targetId);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  return {
+    targets: data?.targets ?? [],
+    availableTags: data?.available_tags ?? [],
+    activeTargetId: data?.active_target_id ?? null,
+    stats,
+    loading,
+    error,
+    refresh: load,
+    addTarget,
+    removeTarget,
+    updateTarget,
+    setActiveTarget,
+    toggleFavorite,
+    isAvailable: isTauri(),
+  };
+}
+
+// ============================================================================
+// Markers Hook
+// ============================================================================
+
+import { markersApi, type MarkersData, type SkyMarker, type MarkerInput } from './markers-api';
+
+export function useMarkers() {
+  const [data, setData] = useState<MarkersData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!isTauri()) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const markersData = await markersApi.load();
+      setData(markersData);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const addMarker = useCallback(async (marker: MarkerInput) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await markersApi.addMarker(marker);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const removeMarker = useCallback(async (markerId: string) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await markersApi.removeMarker(markerId);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const updateMarker = useCallback(async (markerId: string, updates: Partial<SkyMarker>) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await markersApi.updateMarker(markerId, updates);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const toggleVisibility = useCallback(async (markerId: string) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await markersApi.toggleVisibility(markerId);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  const setShowMarkers = useCallback(async (show: boolean) => {
+    if (!isTauri()) return null;
+    try {
+      const result = await markersApi.setShowMarkers(show);
+      setData(result);
+      return result;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, []);
+
+  return {
+    markers: data?.markers ?? [],
+    groups: data?.groups ?? [],
+    showMarkers: data?.show_markers ?? true,
+    loading,
+    error,
+    refresh: load,
+    addMarker,
+    removeMarker,
+    updateMarker,
+    toggleVisibility,
+    setShowMarkers,
+    isAvailable: isTauri(),
+  };
+}
+
+// ============================================================================
+// Astronomy Hook
+// ============================================================================
+
+import { astronomyApi, type MoonPhase, type MoonPosition, type SunPosition, type VisibilityInfo } from './astronomy-api';
+
+export function useAstronomy(latitude?: number, longitude?: number) {
+  const [moonPhase, setMoonPhase] = useState<MoonPhase | null>(null);
+  const [moonPosition, setMoonPosition] = useState<MoonPosition | null>(null);
+  const [sunPosition, setSunPosition] = useState<SunPosition | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!isTauri()) return;
+    if (latitude === undefined || longitude === undefined) return;
+    
+    try {
+      setLoading(true);
+      const timestamp = Math.floor(Date.now() / 1000);
+      const [phase, moon, sun] = await Promise.all([
+        astronomyApi.celestial.getMoonPhase(timestamp),
+        astronomyApi.celestial.getMoonPosition(latitude, longitude, timestamp),
+        astronomyApi.celestial.getSunPosition(latitude, longitude, timestamp),
+      ]);
+      setMoonPhase(phase);
+      setMoonPosition(moon);
+      setSunPosition(sun);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [latitude, longitude]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const getVisibility = useCallback(async (ra: number, dec: number, minAltitude?: number): Promise<VisibilityInfo | null> => {
+    if (!isTauri()) return null;
+    if (latitude === undefined || longitude === undefined) return null;
+    
+    try {
+      const timestamp = Math.floor(Date.now() / 1000);
+      return await astronomyApi.visibility.calculateVisibility(ra, dec, latitude, longitude, timestamp, minAltitude);
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, [latitude, longitude]);
+
+  return {
+    moonPhase,
+    moonPosition,
+    sunPosition,
+    loading,
+    error,
+    refresh,
+    getVisibility,
+    isAvailable: isTauri(),
+  };
+}
+
+// ============================================================================
+// Cache Hook
+// ============================================================================
+
+import { cacheApi, type CacheStats, type CacheRegion } from './cache-api';
+
+export function useCache() {
+  const [stats, setStats] = useState<CacheStats | null>(null);
+  const [regions, setRegions] = useState<CacheRegion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!isTauri()) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const [statsData, regionsData] = await Promise.all([
+        cacheApi.getStats(),
+        cacheApi.listRegions(),
+      ]);
+      setStats(statsData);
+      setRegions(regionsData);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const clearAll = useCallback(async () => {
+    if (!isTauri()) return 0;
+    try {
+      const count = await cacheApi.clearAllCache();
+      await load();
+      return count;
+    } catch (e) {
+      setError((e as Error).message);
+      return 0;
+    }
+  }, [load]);
+
+  const clearSurvey = useCallback(async (surveyId: string) => {
+    if (!isTauri()) return 0;
+    try {
+      const count = await cacheApi.clearSurveyCache(surveyId);
+      await load();
+      return count;
+    } catch (e) {
+      setError((e as Error).message);
+      return 0;
+    }
+  }, [load]);
+
+  return {
+    stats,
+    regions,
+    loading,
+    error,
+    refresh: load,
+    clearAll,
+    clearSurvey,
+    isAvailable: isTauri(),
+  };
+}
+
+// ============================================================================
+// Astro Events Hook
+// ============================================================================
+
+import { eventsApi, type AstroEvent, type MeteorShowerInfo } from './events-api';
+
+export function useAstroEvents(startDate?: string, endDate?: string) {
+  const [events, setEvents] = useState<AstroEvent[]>([]);
+  const [meteorShowers, setMeteorShowers] = useState<MeteorShowerInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!isTauri()) return;
+    if (!startDate || !endDate) return;
+    
+    try {
+      setLoading(true);
+      const year = new Date().getFullYear();
+      const [eventsData, showersData] = await Promise.all([
+        eventsApi.getAstroEvents(startDate, endDate),
+        eventsApi.getMeteorShowers(year),
+      ]);
+      setEvents(eventsData);
+      setMeteorShowers(showersData);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const getTonightHighlights = useCallback(async (latitude: number, longitude: number): Promise<string[]> => {
+    if (!isTauri()) return [];
+    try {
+      return await eventsApi.getTonightHighlights(latitude, longitude);
+    } catch (e) {
+      setError((e as Error).message);
+      return [];
+    }
+  }, []);
+
+  return {
+    events,
+    meteorShowers,
+    loading,
+    error,
+    refresh: load,
+    getTonightHighlights,
+    isAvailable: isTauri(),
+  };
+}

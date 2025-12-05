@@ -98,6 +98,7 @@
   },
   "actions": {
     "slewToObject": "指向天体",
+    "slew": "指向",
     "addToTargetList": "添加到目标列表",
     "centerViewHere": "以此为中心",
     "goToTarget": "前往目标",

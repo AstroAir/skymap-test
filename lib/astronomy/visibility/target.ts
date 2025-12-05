@@ -1,0 +1,170 @@
+/**
+ * Target visibility calculations
+ */
+
+import { deg2rad, rad2deg } from '../coordinates/conversions';
+import { dateToJulianDate } from '../time/julian';
+import { getLSTForDate } from '../time/sidereal';
+import { calculateTwilightTimes } from '../twilight/calculator';
+import { isCircumpolar, neverRises } from './circumpolar';
+import { getMaxAltitude } from './altitude';
+import type { TargetVisibility } from '@/lib/core/types/astronomy';
+
+// ============================================================================
+// Hour Angle for Altitude
+// ============================================================================
+
+/**
+ * Calculate hour angle for a given altitude threshold
+ */
+function calculateHourAngle(dec: number, lat: number, altThreshold: number): number {
+  const latRad = deg2rad(lat);
+  const decRad = deg2rad(dec);
+  const altRad = deg2rad(altThreshold);
+  
+  const cosH = (Math.sin(altRad) - Math.sin(latRad) * Math.sin(decRad)) /
+               (Math.cos(latRad) * Math.cos(decRad));
+  
+  if (cosH > 1) return NaN;  // Never rises above threshold
+  if (cosH < -1) return 180; // Always above threshold
+  
+  return rad2deg(Math.acos(cosH));
+}
+
+// ============================================================================
+// Target Visibility Calculation
+// ============================================================================
+
+/**
+ * Calculate complete target visibility data
+ * @param ra - Right Ascension in degrees
+ * @param dec - Declination in degrees
+ * @param latitude - Observer latitude
+ * @param longitude - Observer longitude
+ * @param minAltitude - Minimum altitude for imaging (default 30°)
+ * @param date - Date for calculation
+ * @returns Complete visibility information
+ */
+export function calculateTargetVisibility(
+  ra: number,
+  dec: number,
+  latitude: number,
+  longitude: number,
+  minAltitude: number = 30,
+  date: Date = new Date()
+): TargetVisibility {
+  const now = date;
+  
+  // Check if circumpolar or never rises
+  const maxAlt = getMaxAltitude(dec, latitude);
+  const circumpolar = isCircumpolar(dec, latitude);
+  const neverRisesFlag = neverRises(dec, latitude);
+  
+  // Current position
+  const jd = dateToJulianDate(now);
+  const S = jd - 2451545.0;
+  const T = S / 36525.0;
+  const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
+  const LST = ((GST + longitude) % 360 + 360) % 360;
+  const HA = deg2rad(LST - ra);
+  const decRad = deg2rad(dec);
+  const latRad = deg2rad(latitude);
+  const sinAlt = Math.sin(decRad) * Math.sin(latRad) +
+                 Math.cos(decRad) * Math.cos(latRad) * Math.cos(HA);
+  const currentAlt = rad2deg(Math.asin(sinAlt));
+  const isCurrentlyVisible = currentAlt > 0;
+  
+  // Calculate hour angle for horizon crossing
+  const haHorizon = calculateHourAngle(dec, latitude, 0);
+  const haMinAlt = calculateHourAngle(dec, latitude, minAltitude);
+  
+  // Calculate transit time
+  const lstNow = getLSTForDate(longitude, now);
+  let hoursToTransit = (ra - lstNow) / 15;
+  if (hoursToTransit < 0) hoursToTransit += 24;
+  if (hoursToTransit > 24) hoursToTransit -= 24;
+  const transitTime = new Date(now.getTime() + hoursToTransit * 3600000);
+  
+  // Calculate rise and set times
+  let riseTime: Date | null = null;
+  let setTime: Date | null = null;
+  let imagingWindowStart: Date | null = null;
+  let imagingWindowEnd: Date | null = null;
+  
+  if (!neverRisesFlag && !circumpolar && !isNaN(haHorizon)) {
+    riseTime = new Date(transitTime.getTime() - (haHorizon / 15) * 3600000);
+    setTime = new Date(transitTime.getTime() + (haHorizon / 15) * 3600000);
+  }
+  
+  // Imaging window (above minAltitude)
+  if (!isNaN(haMinAlt) && haMinAlt !== 180) {
+    imagingWindowStart = new Date(transitTime.getTime() - (haMinAlt / 15) * 3600000);
+    imagingWindowEnd = new Date(transitTime.getTime() + (haMinAlt / 15) * 3600000);
+  } else if (haMinAlt === 180 || circumpolar) {
+    imagingWindowStart = riseTime;
+    imagingWindowEnd = setTime;
+  }
+  
+  const imagingHours = imagingWindowStart && imagingWindowEnd
+    ? (imagingWindowEnd.getTime() - imagingWindowStart.getTime()) / 3600000
+    : circumpolar ? 24 : 0;
+  
+  // Calculate dark imaging window (intersection with astronomical night)
+  const twilight = calculateTwilightTimes(latitude, longitude, date);
+  let darkImagingStart: Date | null = null;
+  let darkImagingEnd: Date | null = null;
+  let darkImagingHours = 0;
+  
+  if (twilight.astronomicalDusk && twilight.astronomicalDawn && 
+      imagingWindowStart && imagingWindowEnd) {
+    const nightStart = twilight.astronomicalDusk.getTime();
+    const nightEnd = twilight.astronomicalDawn.getTime();
+    const imgStart = imagingWindowStart.getTime();
+    const imgEnd = imagingWindowEnd.getTime();
+    
+    const overlapStart = Math.max(nightStart, imgStart);
+    const overlapEnd = Math.min(nightEnd, imgEnd);
+    
+    if (overlapEnd > overlapStart) {
+      darkImagingStart = new Date(overlapStart);
+      darkImagingEnd = new Date(overlapEnd);
+      darkImagingHours = (overlapEnd - overlapStart) / 3600000;
+    }
+  }
+  
+  return {
+    riseTime,
+    setTime,
+    transitTime,
+    transitAltitude: maxAlt,
+    isCurrentlyVisible,
+    isCircumpolar: circumpolar,
+    neverRises: neverRisesFlag,
+    imagingWindowStart,
+    imagingWindowEnd,
+    imagingHours,
+    darkImagingStart,
+    darkImagingEnd,
+    darkImagingHours,
+  };
+}
+
+/**
+ * Get transit time for a target
+ * @param ra - Right Ascension in degrees
+ * @param longitude - Observer longitude
+ * @returns Transit LST and hours until transit
+ */
+export function getTransitTime(
+  ra: number,
+  longitude: number
+): { transitLST: number; hoursUntilTransit: number } {
+  const LST = getLSTForDate(longitude, new Date());
+  const transitLST = ra;
+  
+  let hoursUntilTransit = (transitLST - LST) / 15;
+  if (hoursUntilTransit < 0) hoursUntilTransit += 24;
+  if (hoursUntilTransit > 24) hoursUntilTransit -= 24;
+  
+  return { transitLST, hoursUntilTransit };
+}

@@ -9,9 +9,9 @@ import React from 'react';
 // Mock Next.js Image component
 jest.mock('next/image', () => ({
   __esModule: true,
-  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
-    // eslint-disable-next-line jsx-a11y/alt-text, @next/next/no-img-element
-    return React.createElement('img', props);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  default: ({ priority, fill, ...htmlProps }: React.ImgHTMLAttributes<HTMLImageElement> & { priority?: boolean; fill?: boolean }) => {
+    return React.createElement('img', htmlProps);
   },
 }));
 
@@ -37,12 +37,19 @@ jest.mock('next/navigation', () => ({
 }));
 
 // Mock next-intl
-jest.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
-  useLocale: () => 'en',
-  useMessages: () => ({}),
-  NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
+jest.mock('next-intl', () => {
+  const mockT = (key: string) => key;
+  mockT.rich = (key: string) => key;
+  mockT.raw = (key: string) => key;
+  mockT.markup = (key: string) => key;
+  
+  return {
+    useTranslations: () => mockT,
+    useLocale: () => 'en',
+    useMessages: () => ({}),
+    NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
@@ -62,32 +69,35 @@ global.IntersectionObserver = class IntersectionObserver {
   takeRecords() { return []; }
 } as unknown as typeof IntersectionObserver;
 
-// Mock matchMedia
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: jest.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
+// Only mock browser APIs when window is available (jsdom environment)
+if (typeof window !== 'undefined') {
+  // Mock matchMedia
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
 
-// Mock scrollTo
-window.scrollTo = jest.fn();
+  // Mock scrollTo
+  window.scrollTo = jest.fn();
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
-};
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+  // Mock localStorage
+  const localStorageMock = {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  };
+  Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+}
 
 // Suppress console errors in tests (optional)
 // global.console = {

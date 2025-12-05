@@ -98,6 +98,7 @@
   },
   "actions": {
     "slewToObject": "Slew to Object",
+    "slew": "Slew",
     "addToTargetList": "Add to Target List",
     "centerViewHere": "Center View Here",
     "goToTarget": "Go to target",

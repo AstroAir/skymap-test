@@ -131,7 +131,8 @@ export const useOfflineStore = create<OfflineState>()(
 
           // Remove from current downloads
           set((s) => {
-            const { [layerId]: _removed, ...rest } = s.currentDownloads;
+            const { [layerId]: removed, ...rest } = s.currentDownloads;
+            void removed;
             return {
               currentDownloads: rest,
               isDownloading: Object.keys(rest).length > 0,
@@ -161,7 +162,8 @@ export const useOfflineStore = create<OfflineState>()(
           });
           
           set((s) => {
-            const { [layerId]: _removed, ...rest } = s.currentDownloads;
+            const { [layerId]: removed, ...rest } = s.currentDownloads;
+            void removed;
             return {
               currentDownloads: rest,
               isDownloading: Object.keys(rest).length > 0,
@@ -226,7 +228,8 @@ export const useOfflineStore = create<OfflineState>()(
         offlineCacheManager.cancelDownload(layerId);
         
         set((s) => {
-          const { [layerId]: _removed, ...rest } = s.currentDownloads;
+          const { [layerId]: removed, ...rest } = s.currentDownloads;
+          void removed;
           return {
             currentDownloads: rest,
             isDownloading: Object.keys(rest).length > 0,

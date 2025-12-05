@@ -239,3 +239,34 @@ export interface SystemInfo {
   app_version: string;
   tauri_version: string;
 }
+
+// ============================================================================
+// Storage Types
+// ============================================================================
+
+export interface StorageStats {
+  total_size: number;
+  store_count: number;
+  stores: StoreInfo[];
+  directory: string;
+}
+
+export interface StoreInfo {
+  name: string;
+  size: number;
+  modified?: string;
+}
+
+export interface ExportMetadata {
+  version: string;
+  exported_at: string;
+  app_version: string;
+  store_count: number;
+}
+
+export interface ImportResult {
+  imported_count: number;
+  skipped_count: number;
+  errors: string[];
+  metadata: ExportMetadata;
+}

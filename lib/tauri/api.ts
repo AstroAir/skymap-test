@@ -65,6 +65,51 @@ export const equipmentApi = {
     const invoke = await getInvoke();
     return invoke('delete_equipment', { equipmentId });
   },
+
+  async addBarlowReducer(barlow: { name: string; factor: number; notes?: string }): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('add_barlow_reducer', { barlow });
+  },
+
+  async addFilter(filter: { name: string; filter_type: string; bandwidth?: number; notes?: string }): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('add_filter', { filter });
+  },
+
+  async updateTelescope(telescope: Telescope): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('update_telescope', { telescope });
+  },
+
+  async updateCamera(camera: Camera): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('update_camera', { camera });
+  },
+
+  async updateEyepiece(eyepiece: Eyepiece): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('update_eyepiece', { eyepiece });
+  },
+
+  async setDefaultTelescope(telescopeId: string): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('set_default_telescope', { telescopeId });
+  },
+
+  async setDefaultCamera(cameraId: string): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('set_default_camera', { cameraId });
+  },
+
+  async getDefaultTelescope(): Promise<Telescope | null> {
+    const invoke = await getInvoke();
+    return invoke('get_default_telescope');
+  },
+
+  async getDefaultCamera(): Promise<Camera | null> {
+    const invoke = await getInvoke();
+    return invoke('get_default_camera');
+  },
 };
 
 // ============================================================================

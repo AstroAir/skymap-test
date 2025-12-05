@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "react-quick-starter",
+  "productName": "SkyMap",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.skymap.app",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
@@ -12,11 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "react-quick-starter",
-        "width": 800,
-        "height": 600,
+        "title": "SkyMap - Astronomy Planning",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "center": true
       }
     ],
     "security": {

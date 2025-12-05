@@ -3,7 +3,7 @@
  * Uses Cache Storage API for offline support
  */
 
-import type { HiPSSurvey } from '@/lib/starmap/hips-service';
+import type { HiPSSurvey } from '@/lib/services/hips-service';
 
 export interface LayerConfig {
   id: string;
@@ -202,7 +202,6 @@ function getTotalTilesUpToOrder(maxOrder: number): number {
 class OfflineCacheManager {
   private downloadAbortControllers: Map<string, AbortController> = new Map();
   private hipsCacheConfigs: Map<string, HiPSCacheConfig> = new Map();
-  private readonly hipsProxyEndpoint = '/api/hips';
 
   /**
    * Get the cache name for a layer
@@ -850,12 +849,9 @@ class OfflineCacheManager {
   ): { cacheKey: string; fetchUrl: string } {
     const dir = Math.floor(pixelIndex / 10000) * 10000;
     const format = survey.tileFormat.split(' ')[0] || 'jpeg';
-    const cacheKey = `${survey.url}Norder${order}/Dir${dir}/Npix${pixelIndex}.${format}`;
-    const needsProxy = cacheKey.startsWith('http://') || cacheKey.startsWith('https://');
-    const fetchUrl = needsProxy
-      ? `${this.hipsProxyEndpoint}?url=${encodeURIComponent(cacheKey)}`
-      : cacheKey;
-    return { cacheKey, fetchUrl };
+    const tileUrl = `${survey.url}Norder${order}/Dir${dir}/Npix${pixelIndex}.${format}`;
+    // CDS Aladin HiPS servers support CORS, so we can fetch directly
+    return { cacheKey: tileUrl, fetchUrl: tileUrl };
   }
 
   /**

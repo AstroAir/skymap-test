@@ -1,0 +1,867 @@
+/**
+ * @jest-environment jsdom
+ */
+import React from 'react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+
+// Mock services
+jest.mock('@/lib/services/object-info-service', () => ({
+  getCachedObjectInfo: jest.fn(),
+  enhanceObjectInfo: jest.fn(),
+}));
+
+import { getCachedObjectInfo, enhanceObjectInfo } from '@/lib/services/object-info-service';
+
+const mockGetCachedObjectInfo = getCachedObjectInfo as jest.Mock;
+const mockEnhanceObjectInfo = enhanceObjectInfo as jest.Mock;
+
+// Mock astronomy utils
+jest.mock('@/lib/astronomy/starmap-utils', () => ({
+  raDecToAltAz: jest.fn(() => ({ altitude: 45, azimuth: 180 })),
+}));
+
+jest.mock('@/lib/astronomy/astro-utils', () => ({
+  getMoonPosition: jest.fn(() => ({ ra: 100, dec: 20 })),
+  angularSeparation: jest.fn(() => 60),
+  calculateTargetVisibility: jest.fn(() => ({
+    isCircumpolar: false,
+    riseTime: new Date(),
+    transitTime: new Date(),
+    setTime: new Date(),
+    transitAltitude: 70,
+    darkImagingHours: 4,
+  })),
+  calculateImagingFeasibility: jest.fn(() => ({
+    score: 85,
+    recommendation: 'good',
+    moonScore: 90,
+    altitudeScore: 80,
+    durationScore: 85,
+  })),
+  formatTimeShort: jest.fn((date) => date ? '22:00' : '--:--'),
+}));
+
+// Mock hooks
+jest.mock('@/lib/hooks', () => ({
+  useCelestialName: jest.fn((name) => name),
+}));
+
+// Mock stores
+jest.mock('@/lib/stores', () => ({
+  useMountStore: jest.fn((selector) => {
+    const state = {
+      profileInfo: {
+        AstrometrySettings: {
+          Latitude: 40.7128,
+          Longitude: -74.006,
+        },
+      },
+      mountInfo: {
+        Connected: false,
+      },
+    };
+    return selector ? selector(state) : state;
+  }),
+  useTargetListStore: jest.fn((selector) => {
+    const state = {
+      addTarget: jest.fn(),
+    };
+    return selector ? selector(state) : state;
+  }),
+}));
+
+import { useMountStore, useTargetListStore } from '@/lib/stores';
+
+const mockUseMountStore = useMountStore as jest.Mock;
+const mockUseTargetListStore = useTargetListStore as jest.Mock;
+
+// Mock UI components
+jest.mock('@/components/ui/button', () => ({
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    variant,
+    className,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    children?: React.ReactNode;
+    variant?: string;
+  }) => (
+    <button onClick={onClick} disabled={disabled} data-variant={variant} className={className} {...props}>
+      {children}
+    </button>
+  ),
+}));
+
+jest.mock('@/components/ui/drawer', () => ({
+  Drawer: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) => (
+    open ? (
+      <div data-testid="drawer" data-open={open}>
+        <button data-testid="drawer-close-btn" onClick={() => onOpenChange?.(false)}>
+          Close
+        </button>
+        {children}
+      </div>
+    ) : null
+  ),
+  DrawerContent: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div data-testid="drawer-content" className={className}>{children}</div>
+  ),
+  DrawerHeader: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div data-testid="drawer-header" className={className}>{children}</div>
+  ),
+  DrawerTitle: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <h2 data-testid="drawer-title" className={className}>{children}</h2>
+  ),
+  DrawerClose: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
+    asChild ? <>{children}</> : <div data-testid="drawer-close">{children}</div>
+  ),
+}));
+
+jest.mock('@/components/ui/separator', () => ({
+  Separator: ({ className }: { className?: string }) => <hr data-testid="separator" className={className} />,
+}));
+
+jest.mock('@/components/ui/scroll-area', () => ({
+  ScrollArea: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div data-testid="scroll-area" className={className}>{children}</div>
+  ),
+}));
+
+jest.mock('@/components/ui/badge', () => ({
+  Badge: ({
+    children,
+    variant,
+    className,
+  }: {
+    children: React.ReactNode;
+    variant?: string;
+    className?: string;
+  }) => (
+    <span data-testid="badge" data-variant={variant} className={className}>
+      {children}
+    </span>
+  ),
+}));
+
+jest.mock('@/components/ui/tabs', () => ({
+  Tabs: ({
+    children,
+    defaultValue,
+  }: {
+    children: React.ReactNode;
+    defaultValue?: string;
+  }) => <div data-testid="tabs" data-default-value={defaultValue}>{children}</div>,
+  TabsContent: ({
+    children,
+    value,
+  }: {
+    children: React.ReactNode;
+    value: string;
+  }) => <div data-testid={`tabs-content-${value}`}>{children}</div>,
+  TabsList: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div data-testid="tabs-list" className={className}>{children}</div>
+  ),
+  TabsTrigger: ({
+    children,
+    value,
+    className,
+  }: {
+    children: React.ReactNode;
+    value: string;
+    className?: string;
+  }) => (
+    <button data-testid={`tab-${value}`} className={className}>
+      {children}
+    </button>
+  ),
+}));
+
+jest.mock('@/components/ui/tooltip', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip">{children}</div>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="tooltip-content">{children}</div>
+  ),
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
+    asChild ? <>{children}</> : <div data-testid="tooltip-trigger">{children}</div>
+  ),
+}));
+
+// Mock ObjectImageGallery
+jest.mock('../object-image-gallery', () => ({
+  ObjectImageGallery: ({ images, objectName }: { images?: unknown[]; objectName: string }) => (
+    <div data-testid="object-image-gallery" data-object-name={objectName}>
+      {images?.length || 0} images
+    </div>
+  ),
+}));
+
+import { ObjectDetailDrawer } from '../object-detail-drawer';
+import type { SelectedObjectData } from '@/lib/core/types';
+
+const mockSelectedObject: SelectedObjectData = {
+  names: ['M31', 'NGC 224', 'Andromeda Galaxy'],
+  ra: '00h 42m 44.3s',
+  dec: '+41° 16\' 09"',
+  raDeg: 10.685,
+  decDeg: 41.269,
+  type: 'galaxy',
+  magnitude: 3.4,
+};
+
+const mockObjectInfo = {
+  names: ['M31', 'NGC 224'],
+  type: 'Spiral Galaxy',
+  typeCategory: 'galaxy',
+  magnitude: 3.4,
+  angularSize: "178' × 63'",
+  description: 'The Andromeda Galaxy is a barred spiral galaxy.',
+  distance: '2.537 million light-years',
+  morphologicalType: 'SA(s)b',
+  spectralType: null,
+  simbadUrl: 'https://simbad.u-strasbg.fr/simbad/sim-id?Ident=M31',
+  wikipediaUrl: 'https://en.wikipedia.org/wiki/Andromeda_Galaxy',
+  images: [{ url: 'https://example.com/m31.jpg', source: 'NASA' }],
+  sources: ['SIMBAD', 'Wikipedia'],
+};
+
+describe('ObjectDetailDrawer', () => {
+  const mockOnOpenChange = jest.fn();
+  const mockOnSetFramingCoordinates = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    mockGetCachedObjectInfo.mockResolvedValue(mockObjectInfo);
+    mockEnhanceObjectInfo.mockResolvedValue(mockObjectInfo);
+    
+    mockUseMountStore.mockImplementation((selector) => {
+      const state = {
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 40.7128,
+            Longitude: -74.006,
+          },
+        },
+        mountInfo: {
+          Connected: false,
+        },
+      };
+      return selector ? selector(state) : state;
+    });
+    
+    const mockAddTarget = jest.fn();
+    mockUseTargetListStore.mockImplementation((selector) => {
+      const state = { addTarget: mockAddTarget };
+      return selector ? selector(state) : state;
+    });
+  });
+
+  describe('Rendering', () => {
+    it('renders nothing when closed', () => {
+      const { container } = render(
+        <ObjectDetailDrawer
+          open={false}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('renders drawer when open', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByTestId('drawer')).toBeInTheDocument();
+    });
+
+    it('renders drawer content', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
+    });
+
+    it('renders drawer header', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByTestId('drawer-header')).toBeInTheDocument();
+    });
+
+    it('renders object name in title', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText('M31')).toBeInTheDocument();
+    });
+
+    it('renders alternate names', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText(/NGC 224/)).toBeInTheDocument();
+    });
+
+    it('renders tabs', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByTestId('tabs')).toBeInTheDocument();
+      expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
+      expect(screen.getByTestId('tab-images')).toBeInTheDocument();
+      expect(screen.getByTestId('tab-observation')).toBeInTheDocument();
+    });
+  });
+
+  describe('Object Info Loading', () => {
+    it('shows loading state initially', async () => {
+      mockGetCachedObjectInfo.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve(mockObjectInfo), 1000))
+      );
+
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      // Loading spinner should be visible
+      expect(screen.getByTestId('drawer')).toBeInTheDocument();
+    });
+
+    it('loads object info when drawer opens', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalledWith(
+          mockSelectedObject.names,
+          mockSelectedObject.raDeg,
+          mockSelectedObject.decDeg,
+          mockSelectedObject.ra,
+          mockSelectedObject.dec
+        );
+      });
+    });
+
+    it('enhances object info after initial load', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(mockEnhanceObjectInfo).toHaveBeenCalledWith(mockObjectInfo);
+      });
+    });
+
+    it('handles load error gracefully', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockGetCachedObjectInfo.mockRejectedValue(new Error('Load failed'));
+
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalled();
+      });
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('Object Info Display', () => {
+    it('displays object type badge', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Spiral Galaxy')).toBeInTheDocument();
+      });
+    });
+
+    it('displays magnitude badge', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/3\.4/)).toBeInTheDocument();
+      });
+    });
+
+    it('displays angular size', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("178' × 63'")).toBeInTheDocument();
+      });
+    });
+
+    it('displays description', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Andromeda Galaxy is a barred spiral galaxy/)).toBeInTheDocument();
+      });
+    });
+
+    it('displays coordinates', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText(mockSelectedObject.ra)).toBeInTheDocument();
+      expect(screen.getByText(mockSelectedObject.dec)).toBeInTheDocument();
+    });
+
+    it('displays external links', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('SIMBAD')).toBeInTheDocument();
+        expect(screen.getByText('Wikipedia')).toBeInTheDocument();
+      });
+    });
+
+    it('displays data sources', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/SIMBAD, Wikipedia/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Astronomical Data', () => {
+    it('displays current altitude', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText(/45\.0°/)).toBeInTheDocument();
+    });
+
+    it('displays azimuth', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText(/180\.0°/)).toBeInTheDocument();
+    });
+
+    it('displays feasibility score', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      // Multiple elements may have the score, just check at least one exists
+      expect(screen.getAllByText(/85\/100/).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Images Tab', () => {
+    it('renders image gallery component', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('object-image-gallery')).toBeInTheDocument();
+      });
+    });
+
+    it('passes correct props to image gallery', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        const gallery = screen.getByTestId('object-image-gallery');
+        expect(gallery).toHaveAttribute('data-object-name', 'M31');
+      });
+    });
+  });
+
+  describe('Action Buttons', () => {
+    it('renders add to target list button', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText(/actions\.addToTargetList/)).toBeInTheDocument();
+    });
+
+    it('does not render slew button when mount not connected', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.queryByText(/actions\.slewToObject/)).not.toBeInTheDocument();
+    });
+
+    it('renders slew button when mount connected', async () => {
+      mockUseMountStore.mockImplementation((selector) => {
+        const state = {
+          profileInfo: {
+            AstrometrySettings: {
+              Latitude: 40.7128,
+              Longitude: -74.006,
+            },
+          },
+          mountInfo: {
+            Connected: true,
+          },
+        };
+        return selector ? selector(state) : state;
+      });
+
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText(/actions\.slewToObject/)).toBeInTheDocument();
+    });
+
+    it('calls addTarget when add button clicked', async () => {
+      const mockAddTarget = jest.fn();
+      mockUseTargetListStore.mockImplementation((selector) => {
+        const state = { addTarget: mockAddTarget };
+        return selector ? selector(state) : state;
+      });
+
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      const addButton = screen.getByText(/actions\.addToTargetList/);
+      await act(async () => {
+        fireEvent.click(addButton);
+      });
+
+      expect(mockAddTarget).toHaveBeenCalledWith({
+        name: 'M31',
+        ra: mockSelectedObject.raDeg,
+        dec: mockSelectedObject.decDeg,
+        raString: mockSelectedObject.ra,
+        decString: mockSelectedObject.dec,
+        priority: 'medium',
+      });
+    });
+
+    it('calls onSetFramingCoordinates when slew button clicked', async () => {
+      mockUseMountStore.mockImplementation((selector) => {
+        const state = {
+          profileInfo: {
+            AstrometrySettings: {
+              Latitude: 40.7128,
+              Longitude: -74.006,
+            },
+          },
+          mountInfo: {
+            Connected: true,
+          },
+        };
+        return selector ? selector(state) : state;
+      });
+
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+          onSetFramingCoordinates={mockOnSetFramingCoordinates}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      const slewButton = screen.getByText(/actions\.slewToObject/);
+      await act(async () => {
+        fireEvent.click(slewButton);
+      });
+
+      expect(mockOnSetFramingCoordinates).toHaveBeenCalledWith({
+        ra: mockSelectedObject.raDeg,
+        dec: mockSelectedObject.decDeg,
+        raString: mockSelectedObject.ra,
+        decString: mockSelectedObject.dec,
+        name: 'M31',
+      });
+      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('Close Functionality', () => {
+    it('calls onOpenChange when close button clicked', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      const closeButton = screen.getByTestId('drawer-close-btn');
+      await act(async () => {
+        fireEvent.click(closeButton);
+      });
+
+      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('Null Object Handling', () => {
+    it('handles null selectedObject gracefully', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={null}
+        />
+      );
+
+      // When selectedObject is null, getCachedObjectInfo should not be called
+      expect(mockGetCachedObjectInfo).not.toHaveBeenCalled();
+
+      expect(screen.getByTestId('drawer')).toBeInTheDocument();
+      expect(screen.getByText('Unknown')).toBeInTheDocument();
+    });
+  });
+});
