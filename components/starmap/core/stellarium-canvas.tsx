@@ -5,7 +5,42 @@ import { useStellariumStore, useSettingsStore, useMountStore } from '@/lib/store
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import { createStellariumTranslator } from '@/lib/translations';
 import { Spinner } from '@/components/ui/spinner';
+import { unifiedCache } from '@/lib/offline';
 import type { StellariumEngine, SelectedObjectData } from '@/lib/core/types';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const SCRIPT_LOAD_TIMEOUT = 15000; // 15s for script
+const WASM_INIT_TIMEOUT = 30000;   // 30s for WASM init
+const MAX_RETRY_COUNT = 2;
+const SCRIPT_PATH = '/stellarium-js/stellarium-web-engine.js';
+const WASM_PATH = '/stellarium-js/stellarium-web-engine.wasm';
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/** Timeout wrapper for promises */
+const withTimeout = <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+};
+
+/** Prefetch WASM into cache for faster subsequent loads */
+const prefetchWasm = async (): Promise<boolean> => {
+  try {
+    // Use unified cache to prefetch WASM file
+    const response = await unifiedCache.fetch(WASM_PATH, {}, 'cache-first');
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
 
 // FOV limits - defined outside component to avoid recreation
 const MIN_FOV = 0.5;
@@ -22,6 +57,10 @@ export interface StellariumCanvasRef {
   setFov: (fov: number) => void;
   getFov: () => number;
   getClickCoordinates: (clientX: number, clientY: number) => { ra: number; dec: number; raStr: string; decStr: string } | null;
+  /** Debug: Force reload the engine */
+  reloadEngine: () => void;
+  /** Debug: Get engine status */
+  getEngineStatus: () => { isLoading: boolean; hasError: boolean; isReady: boolean };
 }
 
 interface StellariumCanvasProps {
@@ -34,12 +73,15 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
   function StellariumCanvas({ onSelectionChange, onFovChange, onContextMenu }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const scriptLoadedRef = useRef(false);
+  const initializingRef = useRef(false);
   const stelRef = useRef<StellariumEngine | null>(null);
   const settingsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const retryCountRef = useRef(0);
   
   const [isLoading, setIsLoading] = useState(true);
   const [loadingStatus, setLoadingStatus] = useState('Initializing...');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const setStel = useStellariumStore((state) => state.setStel);
   const setBaseUrl = useStellariumStore((state) => state.setBaseUrl);
@@ -122,31 +164,6 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     stelRef.current.core.fov = fovRad;
     onFovChange?.(clampedFov);
   }, [onFovChange]);
-
-  // Expose zoom methods via ref
-  useImperativeHandle(ref, () => ({
-    zoomIn: () => {
-      if (stelRef.current) {
-        const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
-        const newFovDeg = Math.max(MIN_FOV, currentFovDeg * 0.8);
-        setEngineFov(newFovDeg);
-      }
-    },
-    zoomOut: () => {
-      if (stelRef.current) {
-        const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
-        const newFovDeg = Math.min(MAX_FOV, currentFovDeg * 1.25);
-        setEngineFov(newFovDeg);
-      }
-    },
-    setFov: (fov: number) => {
-      setEngineFov(fov);
-    },
-    getFov: () => {
-      return stelRef.current ? fovToDeg(stelRef.current.core.fov) : DEFAULT_FOV;
-    },
-    getClickCoordinates,
-  }), [setEngineFov, getClickCoordinates]);
 
   // Initialize Stellarium
   const initStellarium = useCallback((stel: StellariumEngine) => {
@@ -296,70 +313,292 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     onFovChange,
   ]);
 
-  // Load Stellarium script
-  useEffect(() => {
-    if (scriptLoadedRef.current || !canvasRef.current) return;
-    scriptLoadedRef.current = true;
+  // ============================================================================
+  // Script Loading
+  // ============================================================================
 
-    setLoadingStatus('Loading engine...');
-
-    const script = document.createElement('script');
-    script.src = '/stellarium-js/stellarium-web-engine.js';
-    
-    script.onload = async () => {
-      if (!window.StelWebEngine) {
-        console.error('StelWebEngine global object not found!');
-        setLoadingStatus('Error: Engine not found');
+  /** Load the Stellarium engine script with timeout */
+  const loadScript = useCallback((): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      // Check if already loaded
+      if (window.StelWebEngine) {
+        resolve();
         return;
       }
 
-      try {
-        setLoadingStatus('Loading WebAssembly...');
-        const wasmPath = '/stellarium-js/stellarium-web-engine.wasm';
-        const response = await fetch(wasmPath);
-        if (!response.ok) {
-          throw new Error(`Error loading WASM file: ${response.statusText}`);
-        }
-        
-        const wasmArrayBuffer = await response.arrayBuffer();
-        console.log('WASM file loaded successfully. Size (bytes):', wasmArrayBuffer.byteLength);
-
-        setLoadingStatus('Initializing star map...');
-        
-        // Get current sky culture language setting
-        const currentLanguage = useSettingsStore.getState().stellarium.skyCultureLanguage;
-        const translateFn = createStellariumTranslator(currentLanguage);
-        
-        window.StelWebEngine({
-          wasmFile: wasmPath,
-          canvas: canvasRef.current!,
-          translateFn: translateFn,
-          onReady: (stel: StellariumEngine) => {
-            initStellarium(stel);
-            setIsLoading(false);
-          },
-        });
-      } catch (err) {
-        console.error('Error with Fetch or StelWebEngine:', err);
-        setLoadingStatus('Error loading engine');
+      // Check if script tag already exists
+      const existingScript = document.querySelector(`script[src="${SCRIPT_PATH}"]`);
+      if (existingScript) {
+        // Wait for existing script to load
+        existingScript.addEventListener('load', () => resolve());
+        existingScript.addEventListener('error', () => reject(new Error('Script load failed')));
+        return;
       }
-    };
 
-    script.onerror = () => {
-      setLoadingStatus('Error loading script');
-    };
+      const script = document.createElement('script');
+      script.src = SCRIPT_PATH;
+      script.async = true;
 
-    document.head.appendChild(script);
+      const timeoutId = setTimeout(() => {
+        script.remove();
+        reject(new Error('Script load timed out'));
+      }, SCRIPT_LOAD_TIMEOUT);
+
+      script.onload = () => {
+        clearTimeout(timeoutId);
+        resolve();
+      };
+
+      script.onerror = () => {
+        clearTimeout(timeoutId);
+        script.remove();
+        reject(new Error('Script load failed'));
+      };
+
+      document.head.appendChild(script);
+    });
+  }, []);
+
+  // ============================================================================
+  // WASM Initialization
+  // ============================================================================
+
+  /** Initialize the Stellarium engine with WASM */
+  const initializeEngine = useCallback(async (): Promise<void> => {
+    if (!canvasRef.current) {
+      throw new Error('Canvas not available');
+    }
+
+    if (!window.StelWebEngine) {
+      throw new Error('Engine script not loaded');
+    }
+
+    const currentLanguage = useSettingsStore.getState().stellarium.skyCultureLanguage;
+    const translateFn = createStellariumTranslator(currentLanguage);
+
+    // Capture reference after check (TypeScript narrowing)
+    const StelWebEngine = window.StelWebEngine;
+
+    return new Promise<void>((resolve, reject) => {
+      let resolved = false;
+
+      try {
+        // StelWebEngine expects: wasmFile, canvasElement, translateFn, onReady
+        const engineResult = StelWebEngine({
+          wasmFile: WASM_PATH,
+          canvasElement: canvasRef.current!,
+          translateFn,
+          onReady: (stel: StellariumEngine) => {
+            if (resolved) return;
+            resolved = true;
+            initStellarium(stel);
+            resolve();
+          },
+        }) as unknown;
+
+        // Handle if StelWebEngine returns a promise (for error handling)
+        if (engineResult && typeof (engineResult as Promise<unknown>).then === 'function') {
+          (engineResult as Promise<unknown>).catch((err: unknown) => {
+            if (!resolved) {
+              resolved = true;
+              reject(err);
+            }
+          });
+        }
+      } catch (err) {
+        if (!resolved) {
+          resolved = true;
+          reject(err);
+        }
+      }
+    });
+  }, [initStellarium]);
+
+  // ============================================================================
+  // Main Loading Flow
+  // ============================================================================
+
+  /** Main loading function with retry support */
+  const startLoading = useCallback(async () => {
+    // Prevent concurrent initialization
+    if (initializingRef.current) return;
+    initializingRef.current = true;
+
+    // Create abort controller for this load attempt
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+
+    setErrorMessage(null);
+    setIsLoading(true);
+
+    try {
+      // Step 1: Setup canvas
+      if (!canvasRef.current || !containerRef.current) {
+        throw new Error('Canvas container not ready');
+      }
+
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+
+      // Step 2: Prefetch WASM into cache (non-blocking)
+      setLoadingStatus('Preparing resources...');
+      prefetchWasm().catch(() => {
+        // Ignore prefetch errors - will try direct load
+      });
+
+      // Step 3: Load script
+      setLoadingStatus('Loading engine script...');
+      await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, 'Engine script timed out');
+
+      // Check if aborted
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
+      // Step 4: Initialize WASM engine
+      setLoadingStatus('Initializing star map...');
+      await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, 'Star map initialization timed out');
+
+      // Check if aborted
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
+      // Success
+      setIsLoading(false);
+      setErrorMessage(null);
+      retryCountRef.current = 0;
+
+    } catch (err) {
+      console.error('Error loading star map:', err);
+      
+      // Check if aborted (component unmounted)
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load star map';
+      
+      // Auto-retry if under limit
+      if (retryCountRef.current < MAX_RETRY_COUNT) {
+        retryCountRef.current++;
+        setLoadingStatus(`Retrying (${retryCountRef.current}/${MAX_RETRY_COUNT})...`);
+        initializingRef.current = false;
+        
+        // Wait a bit before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        if (!abortControllerRef.current?.signal.aborted) {
+          startLoading();
+        }
+        return;
+      }
+
+      // Max retries reached
+      setErrorMessage(errorMsg);
+      setIsLoading(false);
+    } finally {
+      initializingRef.current = false;
+    }
+  }, [loadScript, initializeEngine]);
+
+  /** Retry loading (user-triggered) */
+  const handleRetry = useCallback(() => {
+    retryCountRef.current = 0;
+    initializingRef.current = false;
+    startLoading();
+  }, [startLoading]);
+
+  /** Debug: Force reload the engine (clears current engine and restarts) */
+  const reloadEngine = useCallback(() => {
+    console.log('[Debug] Reloading Stellarium engine...');
+    
+    // Abort any ongoing loading
+    abortControllerRef.current?.abort();
+    
+    // Clear current engine
+    if (stelRef.current) {
+      stelRef.current = null;
+      setStel(null);
+    }
+    
+    // Remove existing script to force reload
+    const existingScript = document.querySelector(`script[src="${SCRIPT_PATH}"]`);
+    if (existingScript) {
+      existingScript.remove();
+    }
+    
+    // Clear StelWebEngine from window
+    delete (window as { StelWebEngine?: unknown }).StelWebEngine;
+    
+    // Reset state
+    setEngineReady(false);
+    retryCountRef.current = 0;
+    initializingRef.current = false;
+    
+    // Start fresh loading
+    startLoading();
+  }, [startLoading, setStel]);
+
+  /** Debug: Get current engine status */
+  const getEngineStatus = useCallback(() => {
+    return {
+      isLoading,
+      hasError: errorMessage !== null,
+      isReady: engineReady && stelRef.current !== null,
+    };
+  }, [isLoading, errorMessage, engineReady]);
+
+  // ============================================================================
+  // Expose Methods via Ref
+  // ============================================================================
+
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => {
+      if (stelRef.current) {
+        const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
+        const newFovDeg = Math.max(MIN_FOV, currentFovDeg * 0.8);
+        setEngineFov(newFovDeg);
+      }
+    },
+    zoomOut: () => {
+      if (stelRef.current) {
+        const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
+        const newFovDeg = Math.min(MAX_FOV, currentFovDeg * 1.25);
+        setEngineFov(newFovDeg);
+      }
+    },
+    setFov: (fov: number) => {
+      setEngineFov(fov);
+    },
+    getFov: () => {
+      return stelRef.current ? fovToDeg(stelRef.current.core.fov) : DEFAULT_FOV;
+    },
+    getClickCoordinates,
+    reloadEngine,
+    getEngineStatus,
+  }), [setEngineFov, getClickCoordinates, reloadEngine, getEngineStatus]);
+
+  // ============================================================================
+  // Effect: Start Loading on Mount
+  // ============================================================================
+
+  useEffect(() => {
+    startLoading();
 
     return () => {
       // Cleanup on unmount
+      abortControllerRef.current?.abort();
       stelRef.current = null;
       setStel(null);
       if (settingsTimeoutRef.current) {
         clearTimeout(settingsTimeoutRef.current);
       }
     };
-  }, [initStellarium, setStel]);
+  }, [startLoading, setStel]);
 
   // Apply settings changes to Stellarium core with debouncing
   useEffect(() => {
@@ -574,10 +813,23 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       />
       
       {/* Loading Overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10">
-          <Spinner className="h-8 w-8 text-primary mb-4" />
-          <p className="text-muted-foreground text-sm">{loadingStatus}</p>
+      {(isLoading || errorMessage) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10 px-4 text-center">
+          {isLoading && !errorMessage && (
+            <Spinner className="h-8 w-8 text-primary mb-4" />
+          )}
+          <p className="text-muted-foreground text-sm mb-2">{loadingStatus}</p>
+          {errorMessage && (
+            <>
+              <p className="text-destructive text-xs mb-3">{errorMessage}</p>
+              <button
+                className="px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors"
+                onClick={handleRetry}
+              >
+                Retry
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

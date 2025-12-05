@@ -221,7 +221,8 @@
     "timeRewind": "倒退",
     "rise": "升起",
     "transit": "中天",
-    "set": "落下"
+    "set": "落下",
+    "jumpTo": "跳转至"
   },
   "settings": {
     "displaySettings": "显示设置",
@@ -267,7 +268,15 @@
     "fovTab": "视场",
     "fovTabShort": "视场",
     "exposureTab": "曝光",
-    "exposureTabShort": "曝光"
+    "exposureTabShort": "曝光",
+    "nightMode": "夜视模式",
+    "nightModeDescription": "红色滤镜保护暗适应",
+    "sensorControl": "传感器控制",
+    "sensorControlEnable": "启用设备指向",
+    "sensorControlDisable": "禁用设备指向",
+    "sensorControlPermission": "点击启用设备方向",
+    "constellationArt": "星座图案",
+    "constellationArtDescription": "显示星座艺术图"
   },
   "session": {
     "sessionInfo": "观测信息",
@@ -473,7 +482,18 @@
     "repair": "修复缓存",
     "repairing": "修复中...",
     "repairComplete": "缓存已修复",
-    "repairFailed": "修复失败"
+    "repairFailed": "修复失败",
+    "networkResources": "网络资源",
+    "cacheStrategy": "缓存策略",
+    "cacheFirst": "缓存优先",
+    "networkFirst": "网络优先",
+    "offlineMode": "离线模式",
+    "onlineMode": "在线模式",
+    "prefetching": "预加载中...",
+    "prefetchComplete": "预加载完成",
+    "cacheHit": "从缓存加载",
+    "cacheMiss": "从网络获取",
+    "cacheExpired": "缓存已过期，正在刷新..."
   },
   "survey": {
     "builtinSurveys": "内置巡天",

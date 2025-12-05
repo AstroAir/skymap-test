@@ -75,6 +75,8 @@ import { MarkerManager } from '../management/marker-manager';
 import { useMarkerStore } from '@/lib/stores';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { NightModeToggle } from '@/components/ui/night-mode-toggle';
+import { SensorControlToggle } from '@/components/ui/sensor-control-toggle';
 
 // Context menu click coordinates type
 interface ClickCoords {
@@ -935,8 +937,12 @@ export function StellariumView() {
                     {/* Quick Actions */}
                     <div className="grid grid-cols-4 gap-2">
                       <div className="flex flex-col items-center">
-                        <TonightRecommendations />
-                        <span className="text-[10px] text-muted-foreground mt-1">{t('tonight.title')}</span>
+                        <NightModeToggle />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('settings.nightMode')}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <SensorControlToggle />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('settings.sensorControl')}</span>
                       </div>
                       <div className="flex flex-col items-center">
                         <ThemeToggle />
@@ -945,6 +951,21 @@ export function StellariumView() {
                       <div className="flex flex-col items-center">
                         <LanguageSwitcher className="h-10 w-10" />
                         <span className="text-[10px] text-muted-foreground mt-1">{t('common.language')}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="flex flex-col items-center">
+                        <TonightRecommendations />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('tonight.title')}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <AstroEventsCalendar />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('events.calendar')}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <SatelliteTracker />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('satellites.tracker')}</span>
                       </div>
                       <div className="flex flex-col items-center">
                         <AboutDialog />
@@ -1015,6 +1036,8 @@ export function StellariumView() {
               <UnifiedSettings />
               
               <div className="flex gap-1 bg-black/60 backdrop-blur-sm rounded-md">
+                <NightModeToggle className="text-white hover:bg-black/80" />
+                <SensorControlToggle className="text-white hover:bg-black/80" />
                 <ThemeToggle />
                 <LanguageSwitcher className="h-10 w-10 text-white hover:bg-black/80" />
               </div>

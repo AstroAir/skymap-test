@@ -221,7 +221,8 @@
     "timeRewind": "Time rewind",
     "rise": "Rise",
     "transit": "Transit",
-    "set": "Set"
+    "set": "Set",
+    "jumpTo": "Jump To"
   },
   "settings": {
     "displaySettings": "Display Settings",
@@ -267,7 +268,15 @@
     "fovTab": "FOV",
     "fovTabShort": "FOV",
     "exposureTab": "Exposure",
-    "exposureTabShort": "Exp"
+    "exposureTabShort": "Exp",
+    "nightMode": "Night Mode",
+    "nightModeDescription": "Red filter to preserve dark adaptation",
+    "sensorControl": "Sensor Control",
+    "sensorControlEnable": "Enable sensor pointing",
+    "sensorControlDisable": "Disable sensor pointing",
+    "sensorControlPermission": "Tap to enable device orientation",
+    "constellationArt": "Constellation Art",
+    "constellationArtDescription": "Show constellation illustrations"
   },
   "session": {
     "sessionInfo": "Session Info",
@@ -473,7 +482,18 @@
     "repair": "Repair Cache",
     "repairing": "Repairing...",
     "repairComplete": "Cache Repaired",
-    "repairFailed": "Repair Failed"
+    "repairFailed": "Repair Failed",
+    "networkResources": "Network Resources",
+    "cacheStrategy": "Cache Strategy",
+    "cacheFirst": "Cache First",
+    "networkFirst": "Network First",
+    "offlineMode": "Offline Mode",
+    "onlineMode": "Online Mode",
+    "prefetching": "Prefetching...",
+    "prefetchComplete": "Prefetch Complete",
+    "cacheHit": "Loaded from cache",
+    "cacheMiss": "Fetched from network",
+    "cacheExpired": "Cache expired, refreshing..."
   },
   "survey": {
     "builtinSurveys": "Built-in Surveys",

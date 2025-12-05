@@ -67,6 +67,11 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
       if (core.constellations) {
         core.constellations.lines_visible = settings.constellationsLinesVisible;
         core.constellations.labels_visible = settings.constellationsLinesVisible;
+        // Constellation art (illustrations) - if available in the engine
+        const constellationsAny = core.constellations as Record<string, unknown>;
+        if ('images_visible' in constellationsAny) {
+          constellationsAny.images_visible = settings.constellationArtVisible;
+        }
       }
       
       if (core.lines) {

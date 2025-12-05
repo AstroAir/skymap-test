@@ -33,6 +33,7 @@ export const useSettingsStore = create<SettingsState>()(
       
       stellarium: {
         constellationsLinesVisible: true,
+        constellationArtVisible: false,
         azimuthalLinesVisible: false,
         equatorialLinesVisible: false,
         meridianLinesVisible: false,
@@ -44,6 +45,8 @@ export const useSettingsStore = create<SettingsState>()(
         surveyId: 'dss', // Default to DSS
         surveyUrl: undefined, // Direct URL for online surveys
         skyCultureLanguage: 'native', // Default to native (Latin) names
+        nightMode: false, // Red filter for dark adaptation
+        sensorControl: false, // Device orientation sensor control
       },
       
       setConnection: (connection) => set((state) => ({
@@ -72,7 +75,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'starmap-settings',
       storage: getZustandStorage(),
-      version: 3, // Bump version to add skyCultureLanguage
+      version: 4, // Bump version to add nightMode, sensorControl, constellationArt
       migrate: (persistedState, version) => {
         const state = persistedState as SettingsState;
         if (version < 2) {
@@ -83,6 +86,9 @@ export const useSettingsStore = create<SettingsState>()(
               ...state.stellarium,
               surveyUrl: undefined,
               skyCultureLanguage: 'native',
+              nightMode: false,
+              sensorControl: false,
+              constellationArtVisible: false,
             },
           };
         }
@@ -93,6 +99,21 @@ export const useSettingsStore = create<SettingsState>()(
             stellarium: {
               ...state.stellarium,
               skyCultureLanguage: 'native',
+              nightMode: false,
+              sensorControl: false,
+              constellationArtVisible: false,
+            },
+          };
+        }
+        if (version < 4) {
+          // Add nightMode, sensorControl, constellationArt settings
+          return {
+            ...state,
+            stellarium: {
+              ...state.stellarium,
+              nightMode: false,
+              sensorControl: false,
+              constellationArtVisible: false,
             },
           };
         }

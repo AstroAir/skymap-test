@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore } from '@/lib/stores';
 import { mjdToUTC, utcToMJD, formatDateForInput, formatTimeForInput } from '@/lib/astronomy/starmap-utils';
-import { Clock, Play, Pause, RotateCcw, FastForward, Rewind } from 'lucide-react';
+import { Clock, Play, Pause, RotateCcw, FastForward, Rewind, SkipBack, SkipForward, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -216,6 +216,65 @@ export function StellariumClock() {
             <p className="text-xs text-muted-foreground text-center">{timeSpeedDescription}</p>
           </div>
 
+          {/* Time Jump Buttons */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">{t('time.jumpTo')}</Label>
+            <div className="grid grid-cols-4 gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs px-2"
+                onClick={() => {
+                  if (!stel) return;
+                  const mjd = stel.core.observer.utc;
+                  Object.assign(stel.core.observer, { utc: mjd - 1 });
+                }}
+              >
+                <SkipBack className="h-3 w-3 mr-0.5" />
+                -1d
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs px-2"
+                onClick={() => {
+                  if (!stel) return;
+                  const mjd = stel.core.observer.utc;
+                  Object.assign(stel.core.observer, { utc: mjd - 1/24 });
+                }}
+              >
+                <ChevronLeft className="h-3 w-3" />
+                -1h
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs px-2"
+                onClick={() => {
+                  if (!stel) return;
+                  const mjd = stel.core.observer.utc;
+                  Object.assign(stel.core.observer, { utc: mjd + 1/24 });
+                }}
+              >
+                +1h
+                <ChevronRight className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs px-2"
+                onClick={() => {
+                  if (!stel) return;
+                  const mjd = stel.core.observer.utc;
+                  Object.assign(stel.core.observer, { utc: mjd + 1 });
+                }}
+              >
+                +1d
+                <SkipForward className="h-3 w-3 ml-0.5" />
+              </Button>
+            </div>
+          </div>
+
           {/* Quick Actions */}
           <div className="flex gap-2">
             <Button
@@ -228,9 +287,9 @@ export function StellariumClock() {
               {t('time.now')}
             </Button>
             <Button
-              variant="outline"
+              variant={timeSpeed === 0 ? 'default' : 'outline'}
               size="sm"
-              onClick={() => handleTimeSpeedChange(0)}
+              onClick={() => handleTimeSpeedChange(timeSpeed === 0 ? 1 : 0)}
             >
               {timeSpeed === 0 ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
             </Button>

@@ -6,6 +6,7 @@ mod target_io;
 mod app_settings;
 mod astronomy;
 mod offline_cache;
+mod unified_cache;
 mod astro_events;
 mod target_list;
 mod markers;
@@ -53,6 +54,12 @@ use offline_cache::{
     get_cache_stats, list_cache_regions, create_cache_region, update_cache_region,
     delete_cache_region, save_cached_tile, load_cached_tile, is_tile_cached,
     clear_survey_cache, clear_all_cache, get_cache_directory,
+};
+
+use unified_cache::{
+    get_unified_cache_entry, put_unified_cache_entry, delete_unified_cache_entry,
+    clear_unified_cache, get_unified_cache_size, list_unified_cache_keys,
+    get_unified_cache_stats, cleanup_unified_cache, prefetch_url, prefetch_urls,
 };
 
 use astro_events::{
@@ -182,6 +189,17 @@ pub fn run() {
             clear_survey_cache,
             clear_all_cache,
             get_cache_directory,
+            // Unified cache
+            get_unified_cache_entry,
+            put_unified_cache_entry,
+            delete_unified_cache_entry,
+            clear_unified_cache,
+            get_unified_cache_size,
+            list_unified_cache_keys,
+            get_unified_cache_stats,
+            cleanup_unified_cache,
+            prefetch_url,
+            prefetch_urls,
             // Astro events
             get_moon_phases_for_month,
             get_meteor_showers,

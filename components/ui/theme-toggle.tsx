@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +11,24 @@ import {
 import { useTranslations } from 'next-intl';
 
 type Theme = 'light' | 'dark' | 'system';
+
+const THEME_KEY = 'theme';
+const DEFAULT_THEME: Theme = 'dark';
+
+// Subscribe to storage changes
+function subscribeToTheme(callback: () => void) {
+  window.addEventListener('storage', callback);
+  return () => window.removeEventListener('storage', callback);
+}
+
+function getThemeSnapshot(): Theme {
+  if (typeof window === 'undefined') return DEFAULT_THEME;
+  return (localStorage.getItem(THEME_KEY) as Theme) || DEFAULT_THEME;
+}
+
+function getThemeServerSnapshot(): Theme {
+  return DEFAULT_THEME;
+}
 
 function applyThemeToDOM(newTheme: Theme) {
   const root = document.documentElement;
@@ -25,46 +43,29 @@ function applyThemeToDOM(newTheme: Theme) {
 
 export function ThemeToggle() {
   const t = useTranslations();
-  const [theme, setTheme] = useState<Theme>(() => {
-    // Check if we're on the client
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('theme') as Theme) || 'dark';
-    }
-    return 'dark';
-  });
-  const [mounted, setMounted] = useState(false);
+  
+  // Use useSyncExternalStore to read theme from localStorage
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+    getThemeSnapshot,
+    getThemeServerSnapshot
+  );
 
-  // Apply theme on mount and when theme changes
+  // Apply theme when it changes
   useEffect(() => {
     applyThemeToDOM(theme);
   }, [theme]);
 
-  // Track mount state separately
-  useEffect(() => {
-    const timer = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(timer);
-  }, []);
-
-  const applyTheme = useCallback((newTheme: Theme) => {
-    applyThemeToDOM(newTheme);
-  }, []);
-
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    applyTheme(newTheme);
-  };
+    localStorage.setItem(THEME_KEY, newTheme);
+    applyThemeToDOM(newTheme);
+    // Dispatch storage event to trigger re-render
+    window.dispatchEvent(new StorageEvent('storage', { key: THEME_KEY }));
+  }, [theme]);
 
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return (
-      <Button variant="ghost" size="icon" className="h-10 w-10">
-        <Sun className="h-5 w-5" />
-      </Button>
-    );
-  }
-
+  // Always render the same structure to avoid hydration mismatch
+  // Use suppressHydrationWarning for the icon that changes
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -73,6 +74,7 @@ export function ThemeToggle() {
           size="icon"
           className="h-10 w-10"
           onClick={toggleTheme}
+          suppressHydrationWarning
         >
           {theme === 'dark' ? (
             <Moon className="h-5 w-5" />
@@ -82,7 +84,7 @@ export function ThemeToggle() {
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{theme === 'dark' ? t('common.lightMode') : t('common.darkMode')}</p>
+        <p suppressHydrationWarning>{theme === 'dark' ? t('common.lightMode') : t('common.darkMode')}</p>
       </TooltipContent>
     </Tooltip>
   );

@@ -98,6 +98,7 @@ export type SkyCultureLanguage = 'native' | 'en' | 'zh';
 
 export interface StellariumSettings {
   constellationsLinesVisible: boolean;
+  constellationArtVisible: boolean;
   azimuthalLinesVisible: boolean;
   equatorialLinesVisible: boolean;
   meridianLinesVisible: boolean;
@@ -109,6 +110,8 @@ export interface StellariumSettings {
   surveyId: string;
   surveyUrl?: string;
   skyCultureLanguage: SkyCultureLanguage;
+  nightMode: boolean;
+  sensorControl: boolean;
 }
 
 // ============================================================================
@@ -174,9 +177,9 @@ export interface SelectedObjectData {
 
 declare global {
   interface Window {
-    StelWebEngine: (options: {
+    StelWebEngine?: (options: {
       wasmFile: string;
-      canvas: HTMLCanvasElement;
+      canvasElement: HTMLCanvasElement;
       translateFn?: (domain: string, text: string) => string;
       onReady: (stel: StellariumEngine) => void;
     }) => void;

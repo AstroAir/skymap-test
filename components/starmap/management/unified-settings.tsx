@@ -1309,6 +1309,7 @@ export function UnifiedSettings() {
   const handleReset = useCallback(() => {
     setLocalSettings({
       constellationsLinesVisible: true,
+      constellationArtVisible: false,
       azimuthalLinesVisible: false,
       equatorialLinesVisible: false,
       meridianLinesVisible: false,
@@ -1320,6 +1321,8 @@ export function UnifiedSettings() {
       surveyId: 'dss',
       surveyUrl: undefined,
       skyCultureLanguage: 'native',
+      nightMode: false,
+      sensorControl: false,
     });
     resetEquipment();
   }, [resetEquipment]);

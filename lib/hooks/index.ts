@@ -18,6 +18,14 @@ export {
 
 export { useOrientation } from './use-orientation';
 
+export { 
+  useDeviceOrientation,
+  type DeviceOrientation,
+  type SkyDirection,
+} from './use-device-orientation';
+
+export { useCacheInit } from './use-cache-init';
+
 // Search and object hooks
 export { 
   useObjectSearch,

@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSettingsStore } from '@/lib/stores';
 import type { StellariumSettings as StellariumSettingsType } from '@/lib/core/types';
-import { Settings, Save, X, RotateCcw, Globe } from 'lucide-react';
+import { Settings, Save, X, RotateCcw, Globe, Moon, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -34,6 +34,7 @@ import { StellariumSurveySelector } from './stellarium-survey-selector';
 
 const SETTINGS_CONFIG = [
   { key: 'constellationsLinesVisible' as const, labelKey: 'settings.constellationLines' },
+  { key: 'constellationArtVisible' as const, labelKey: 'settings.constellationArt' },
   { key: 'azimuthalLinesVisible' as const, labelKey: 'settings.azimuthalGrid' },
   { key: 'equatorialLinesVisible' as const, labelKey: 'settings.equatorialGrid' },
   { key: 'meridianLinesVisible' as const, labelKey: 'settings.meridianLine' },
@@ -107,6 +108,7 @@ export function StellariumSettings() {
   const handleReset = useCallback(() => {
     setLocalSettings({
       constellationsLinesVisible: true,
+      constellationArtVisible: false,
       azimuthalLinesVisible: false,
       equatorialLinesVisible: false,
       meridianLinesVisible: false,
@@ -118,6 +120,8 @@ export function StellariumSettings() {
       surveyId: 'dss',
       surveyUrl: undefined,
       skyCultureLanguage: 'native',
+      nightMode: false,
+      sensorControl: false,
     });
   }, []);
 
@@ -211,9 +215,37 @@ export function StellariumSettings() {
 
           <Separator />
 
+          {/* Night Mode Setting */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Moon className="h-4 w-4" />
+              {t('settings.nightMode')}
+            </h3>
+            <div className="flex items-center justify-between w-full bg-muted/50 border border-border p-3 rounded-lg hover:bg-muted transition-colors">
+              <div>
+                <Label htmlFor="nightMode" className="text-foreground cursor-pointer text-sm">
+                  {t('settings.nightMode')}
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t('settings.nightModeDescription')}
+                </p>
+              </div>
+              <Switch
+                id="nightMode"
+                checked={localSettings.nightMode}
+                onCheckedChange={() => toggleLocalSetting('nightMode')}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Sky Survey Settings */}
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">{t('settings.skySurveys')}</h3>
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              {t('settings.skySurveys')}
+            </h3>
             <StellariumSurveySelector
               surveyEnabled={localSettings.surveyEnabled}
               surveyId={localSettings.surveyId}

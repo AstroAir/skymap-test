@@ -538,3 +538,72 @@
 .crosshair-pulse {
   animation: pulse-subtle 2s ease-in-out infinite;
 }
+
+/* ============================================================================
+   Night Mode (Red Filter for Dark Adaptation)
+   ============================================================================ */
+
+/* Night mode root variables - deep red theme */
+.night-mode {
+  --background: oklch(0.15 0.05 25);
+  --foreground: oklch(0.65 0.15 25);
+  --card: oklch(0.18 0.06 25);
+  --card-foreground: oklch(0.65 0.15 25);
+  --popover: oklch(0.18 0.06 25);
+  --popover-foreground: oklch(0.65 0.15 25);
+  --primary: oklch(0.55 0.18 25);
+  --primary-foreground: oklch(0.15 0.05 25);
+  --secondary: oklch(0.35 0.12 25);
+  --secondary-foreground: oklch(0.65 0.15 25);
+  --muted: oklch(0.22 0.07 25);
+  --muted-foreground: oklch(0.50 0.12 25);
+  --accent: oklch(0.45 0.15 25);
+  --accent-foreground: oklch(0.15 0.05 25);
+  --destructive: oklch(0.40 0.15 25);
+  --border: oklch(0.30 0.10 25);
+  --input: oklch(0.35 0.12 25);
+  --ring: oklch(0.55 0.18 25);
+}
+
+/* Night mode filter overlay for canvas */
+.night-mode-filter {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: multiply;
+  background: rgba(80, 0, 0, 0.4);
+}
+
+/* Night mode specific element adjustments */
+.night-mode .bg-black\/60,
+.night-mode .bg-black\/80 {
+  background-color: rgba(40, 0, 0, 0.7) !important;
+}
+
+.night-mode .text-white {
+  color: oklch(0.65 0.15 25) !important;
+}
+
+.night-mode .border-border {
+  border-color: oklch(0.30 0.10 25) !important;
+}
+
+/* Night mode button states */
+.night-mode .toolbar-btn:hover {
+  background-color: rgba(80, 20, 20, 0.8) !important;
+}
+
+/* Night mode scrollbar */
+.night-mode ::-webkit-scrollbar-thumb {
+  background-color: oklch(0.35 0.12 25);
+}
+
+.night-mode ::-webkit-scrollbar-track {
+  background-color: oklch(0.18 0.06 25);
+}
+
+/* Night mode transition */
+.night-mode-transition {
+  transition: filter 0.5s ease, background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease;
+}
