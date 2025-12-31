@@ -72,6 +72,15 @@ import {
   useTargetList,
   useMarkers,
 } from '../hooks';
+import type {
+  EquipmentData,
+  LocationsData,
+  ObservationLocation,
+  ObservationLogData,
+  ObservationStats,
+  AppSettings,
+  SystemInfo,
+} from '../types';
 
 const mockIsTauri = isTauri as jest.Mock;
 
@@ -83,6 +92,74 @@ const mockAppSettingsApi = tauriApi.appSettings as jest.Mocked<typeof tauriApi.a
 const mockTargetListApi = targetListApi as jest.Mocked<typeof targetListApi>;
 const mockMarkersApi = markersApi as jest.Mocked<typeof markersApi>;
 
+// ============================================================================
+// Mock Data Factories (properly typed)
+// ============================================================================
+
+const createMockEquipmentData = (overrides?: Partial<EquipmentData>): EquipmentData => ({
+  telescopes: [],
+  cameras: [],
+  eyepieces: [],
+  barlow_reducers: [],
+  filters: [],
+  ...overrides,
+});
+
+const createMockLocation = (overrides?: Partial<ObservationLocation>): ObservationLocation => ({
+  id: '1',
+  name: 'Test Location',
+  latitude: 45,
+  longitude: -75,
+  altitude: 100,
+  is_default: false,
+  is_current: false,
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+  ...overrides,
+});
+
+const createMockLocationsData = (overrides?: Partial<LocationsData>): LocationsData => ({
+  locations: [],
+  current_location_id: undefined,
+  ...overrides,
+});
+
+const createMockObservationLogData = (overrides?: Partial<ObservationLogData>): ObservationLogData => ({
+  sessions: [],
+  ...overrides,
+});
+
+const createMockObservationStats = (overrides?: Partial<ObservationStats>): ObservationStats => ({
+  total_sessions: 0,
+  total_observations: 0,
+  unique_objects: 0,
+  total_hours: 0,
+  objects_by_type: [],
+  monthly_counts: [],
+  ...overrides,
+});
+
+const createMockAppSettings = (overrides?: Partial<AppSettings>): AppSettings => ({
+  window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false },
+  recent_files: [],
+  auto_save_interval: 300,
+  check_updates: true,
+  telemetry_enabled: false,
+  theme: 'dark',
+  sidebar_collapsed: false,
+  show_welcome: true,
+  language: 'en',
+  ...overrides,
+});
+
+const createMockSystemInfo = (overrides?: Partial<SystemInfo>): SystemInfo => ({
+  os: 'windows',
+  arch: 'x64',
+  app_version: '1.0.0',
+  tauri_version: '2.0.0',
+  ...overrides,
+});
+
 describe('useEquipment', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -91,7 +168,7 @@ describe('useEquipment', () => {
 
   it('should load equipment on mount', async () => {
     const mockEquipment = {
-      telescopes: [{ id: '1', name: 'Test Telescope', focal_length: 1000, aperture: 200 }],
+      telescopes: [{ id: '1', name: 'Test Telescope', focal_length: 1000, aperture: 200, focal_ratio: 5, telescope_type: 'refractor' as const, is_default: true, created_at: '2024-01-01', updated_at: '2024-01-01' }],
       cameras: [],
       barlow_reducers: [],
       eyepieces: [],
@@ -163,14 +240,14 @@ describe('useLocations', () => {
   });
 
   it('should load locations and current location on mount', async () => {
+    const mockLocation = { id: '1', name: 'Home', latitude: 45, longitude: -75, altitude: 100, is_default: true, is_current: true, created_at: '2024-01-01', updated_at: '2024-01-01' };
     const mockLocations = {
-      locations: [{ id: '1', name: 'Home', latitude: 45, longitude: -75, altitude: 100 }],
-      default_location_id: '1',
+      locations: [mockLocation],
+      current_location_id: '1',
     };
-    const mockCurrentLocation = { id: '1', name: 'Home', latitude: 45, longitude: -75, altitude: 100 };
     
     mockLocationsApi.load.mockResolvedValue(mockLocations);
-    mockLocationsApi.getCurrent.mockResolvedValue(mockCurrentLocation);
+    mockLocationsApi.getCurrent.mockResolvedValue(mockLocation);
 
     const { result } = renderHook(() => useLocations());
 
@@ -179,7 +256,7 @@ describe('useLocations', () => {
     });
 
     expect(result.current.locations).toEqual(mockLocations);
-    expect(result.current.currentLocation).toEqual(mockCurrentLocation);
+    expect(result.current.currentLocation).toEqual(mockLocation);
   });
 
   it('should set current location', async () => {
