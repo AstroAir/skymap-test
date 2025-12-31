@@ -1,6 +1,18 @@
 /**
  * @jest-environment jsdom
  */
+
+// Mock the security module to bypass URL validation in tests
+jest.mock('../../security/url-validator', () => ({
+  validateUrl: jest.fn(),
+  SecurityError: class SecurityError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'SecurityError';
+    }
+  },
+}));
+
 import { unifiedCache, createCachedFetch, installFetchInterceptor } from '../unified-cache';
 
 // Polyfill Response for jsdom

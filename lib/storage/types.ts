@@ -117,6 +117,8 @@ export const KNOWN_STORES = [
   'starmap-target-list',
   'starmap-markers',
   'starmap-settings',
+  'starmap-equipment',
+  'starmap-onboarding',
   'skymap-offline',
   'skymap-locale',
 ] as const;

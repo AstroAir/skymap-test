@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
+use crate::utils::generate_id;
 
 /// Observation location/site
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,7 +86,7 @@ pub async fn add_location(
 ) -> Result<LocationsData, StorageError> {
     let mut data = load_locations(app.clone()).await?;
     
-    location.id = format!("location-{}", uuid_simple());
+    location.id = generate_id("location");
     location.created_at = Utc::now();
     location.updated_at = Utc::now();
     
@@ -208,21 +209,3 @@ pub async fn get_current_location(
     }
 }
 
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let random: u32 = rand_simple();
-    format!("{:x}{:08x}", timestamp, random)
-}
-
-fn rand_simple() -> u32 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    nanos.wrapping_mul(1103515245).wrapping_add(12345)
-}

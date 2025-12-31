@@ -20,6 +20,8 @@ pub enum StorageError {
     Json(#[from] serde_json::Error),
     #[error("Store not found: {0}")]
     StoreNotFound(String),
+    #[error("{0}")]
+    Other(String),
 }
 
 impl serde::Serialize for StorageError {
@@ -52,6 +54,8 @@ const KNOWN_STORES: &[&str] = &[
     "starmap-target-list",
     "starmap-markers",
     "starmap-settings",
+    "starmap-equipment",
+    "starmap-onboarding",
     "skymap-offline",
     "skymap-locale",
 ];
@@ -87,13 +91,17 @@ pub async fn save_store_data(
     data: String,
 ) -> Result<(), StorageError> {
     let path = get_store_path(&app, &store_name)?;
-    
+
+    // SECURITY: Validate input size to prevent DoS
+    crate::security::validate_size(&data, crate::security::limits::MAX_JSON_SIZE)
+        .map_err(|e| StorageError::Other(e.to_string()))?;
+
     // Validate JSON before saving
     let _: serde_json::Value = serde_json::from_str(&data)?;
-    
+
     fs::write(&path, &data)?;
-    log::info!("Saved store '{}' to {:?}", store_name, path);
-    
+    log::info!("Saved store '{}' to {:?} ({} bytes)", store_name, path, data.len());
+
     Ok(())
 }
 

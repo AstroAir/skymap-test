@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
+use crate::utils::generate_id;
 
 // ============================================================================
 // Types
@@ -185,7 +186,7 @@ pub async fn add_telescope(
 ) -> Result<EquipmentData, StorageError> {
     let mut equipment = load_equipment(app.clone()).await?;
     
-    telescope.id = format!("telescope-{}", uuid_simple());
+    telescope.id = generate_id("telescope");
     telescope.created_at = Utc::now();
     telescope.updated_at = Utc::now();
     
@@ -211,7 +212,7 @@ pub async fn add_camera(
 ) -> Result<EquipmentData, StorageError> {
     let mut equipment = load_equipment(app.clone()).await?;
     
-    camera.id = format!("camera-{}", uuid_simple());
+    camera.id = generate_id("camera");
     camera.created_at = Utc::now();
     camera.updated_at = Utc::now();
     
@@ -236,7 +237,7 @@ pub async fn add_eyepiece(
 ) -> Result<EquipmentData, StorageError> {
     let mut equipment = load_equipment(app.clone()).await?;
     
-    eyepiece.id = format!("eyepiece-{}", uuid_simple());
+    eyepiece.id = generate_id("eyepiece");
     eyepiece.created_at = Utc::now();
     eyepiece.updated_at = Utc::now();
     
@@ -265,26 +266,6 @@ pub async fn delete_equipment(
     Ok(equipment)
 }
 
-/// Generate a simple UUID-like string
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let random: u32 = rand_simple();
-    format!("{:x}{:08x}", timestamp, random)
-}
-
-/// Simple random number generator (no external dependency)
-fn rand_simple() -> u32 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    nanos.wrapping_mul(1103515245).wrapping_add(12345)
-}
 
 // ============================================================================
 // Additional Equipment Commands
@@ -298,7 +279,7 @@ pub async fn add_barlow_reducer(
 ) -> Result<EquipmentData, StorageError> {
     let mut equipment = load_equipment(app.clone()).await?;
     
-    barlow.id = format!("barlow-{}", uuid_simple());
+    barlow.id = generate_id("barlow");
     barlow.created_at = Utc::now();
     barlow.updated_at = Utc::now();
     
@@ -316,7 +297,7 @@ pub async fn add_filter(
 ) -> Result<EquipmentData, StorageError> {
     let mut equipment = load_equipment(app.clone()).await?;
     
-    filter.id = format!("filter-{}", uuid_simple());
+    filter.id = generate_id("filter");
     filter.created_at = Utc::now();
     filter.updated_at = Utc::now();
     

@@ -55,14 +55,20 @@ jest.mock('@/lib/astronomy/astro-utils', () => ({
   angularSeparation: jest.fn(() => 90),
   calculateTargetVisibility: jest.fn(() => ({
     isVisible: true,
+    isCircumpolar: false,
     altitude: 45,
     transitAltitude: 75,
     riseTime: new Date(),
     setTime: new Date(),
     transitTime: new Date(),
+    darkImagingHours: 6,
   })),
   calculateImagingFeasibility: jest.fn(() => ({
     score: 80,
+    recommendation: 'good',
+    moonScore: 90,
+    altitudeScore: 85,
+    durationScore: 75,
     factors: [],
     moonDistance: 90,
     moonIllumination: 50,
@@ -155,19 +161,88 @@ describe('InfoPanel', () => {
     onSetFramingCoordinates: jest.fn(),
   };
 
+  const mockSelectedObject = {
+    names: ['M31', 'Andromeda Galaxy', 'NGC 224'],
+    ra: '00h 42m 44s',
+    dec: '+41° 16\' 09"',
+    raDeg: 10.6847,
+    decDeg: 41.2689,
+    type: 'Galaxy',
+    magnitude: 3.4,
+    size: '3° x 1°',
+    constellation: 'Andromeda',
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('renders without crashing when no object selected', () => {
     render(<InfoPanel {...defaultProps} />);
-    // Component should render without errors
     expect(document.body).toBeInTheDocument();
   });
 
   it('renders card container', () => {
     render(<InfoPanel {...defaultProps} />);
     expect(screen.getByTestId('card')).toBeInTheDocument();
+  });
+
+  describe('with selected object', () => {
+    it('displays object name', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('M31')).toBeInTheDocument();
+    });
+
+    it('displays object type badge', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('Galaxy')).toBeInTheDocument();
+    });
+
+    it('displays magnitude when available', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('3.4')).toBeInTheDocument();
+    });
+
+    it('displays size when available', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('3° x 1°')).toBeInTheDocument();
+    });
+
+    it('displays constellation when available', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('Andromeda')).toBeInTheDocument();
+    });
+
+    it('displays coordinates', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('00h 42m 44s')).toBeInTheDocument();
+      expect(screen.getByText('+41° 16\' 09"')).toBeInTheDocument();
+    });
+
+    it('renders altitude chart', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByTestId('area-chart')).toBeInTheDocument();
+    });
+  });
+
+  describe('object type icons', () => {
+    it('uses correct icon for galaxy type', () => {
+      const galaxyObject = { ...mockSelectedObject, type: 'Galaxy' };
+      render(<InfoPanel {...defaultProps} selectedObject={galaxyObject} />);
+      expect(screen.getByText('Galaxy')).toBeInTheDocument();
+    });
+
+    it('uses correct icon for nebula type', () => {
+      const nebulaObject = { ...mockSelectedObject, type: 'Nebula', names: ['M42'] };
+      render(<InfoPanel {...defaultProps} selectedObject={nebulaObject} />);
+      expect(screen.getByText('Nebula')).toBeInTheDocument();
+    });
+
+    it('uses correct icon for cluster type', () => {
+      const clusterObject = { ...mockSelectedObject, type: 'Open Cluster', names: ['M45'] };
+      render(<InfoPanel {...defaultProps} selectedObject={clusterObject} />);
+      expect(screen.getByText('Open Cluster')).toBeInTheDocument();
+    });
   });
 });
 

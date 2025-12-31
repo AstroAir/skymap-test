@@ -1,0 +1,18 @@
+[build]
+# Reduce parallel jobs to lower memory usage
+jobs = 1
+
+# Use incremental compilation to reduce memory
+incremental = true
+
+# Use rustflags to optimize for memory over speed
+[profile.dev]
+incremental = true
+
+[profile.release]
+# Optimize for size instead of speed to reduce memory during compilation
+opt-level = "s"
+# Use incremental compilation even for release builds
+incremental = true
+# Reduce codegen units to trade compile time for memory
+codegen-units = 16

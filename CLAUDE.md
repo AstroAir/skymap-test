@@ -4,97 +4,115 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a React + Tauri desktop application starter built with:
+A desktop star map and astronomy planning application built with Next.js 16 + Tauri 2.9. The app integrates with Stellarium Web Engine for sky visualization and provides tools for observation planning, equipment management, and astronomical calculations.
 
-- **Frontend**: Next.js 16 with React 19, TypeScript, and Tailwind CSS v4
-- **Desktop Framework**: Tauri 2.9 for cross-platform desktop app capabilities
-- **UI Components**: shadcn/ui with Radix UI primitives and Lucide icons
-- **State Management**: Zustand for client-side state
-- **Styling**: Tailwind CSS with CSS variables and dark mode support
+**Tech Stack:**
+- Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS v4
+- Desktop: Tauri 2.9 (Rust backend)
+- UI: shadcn/ui, Radix UI, Lucide icons
+- State: Zustand stores
+- i18n: next-intl (English/Chinese)
 
 ## Development Commands
 
-### Frontend Development
-
 ```bash
-# Start Next.js development server
-pnpm dev
-# or
-npm run dev
+# Frontend
+pnpm dev                    # Start Next.js dev server (localhost:3000)
+pnpm build                  # Build for production (outputs to out/)
+pnpm lint                   # ESLint
 
-# Build for production
-pnpm build
-# or
-npm run build
+# Desktop App (Tauri)
+pnpm tauri dev              # Run desktop app with hot-reload
+pnpm tauri build            # Build production desktop app
 
-# Start production server
-pnpm start
-# or
-npm run start
+# Testing
+pnpm test                   # Run all tests
+pnpm test:watch             # Watch mode
+pnpm test:coverage          # With coverage (thresholds: 60% branches/functions, 70% lines/statements)
+pnpm test -- path/to/file   # Run specific test file
 
-# Lint code
-pnpm lint
-# or
-npm run lint
-```
-
-### Tauri Desktop App Development
-
-```bash
-# Run Tauri development mode (starts both frontend dev server and Tauri app)
-pnpm tauri dev
-
-# Build Tauri desktop application
-pnpm tauri build
-
-# More Tauri commands
-pnpm tauri --help
+# Add shadcn/ui components
+pnpm dlx shadcn@latest add [component-name]
 ```
 
 ## Architecture
 
-### Frontend Structure
+### Frontend-Backend Communication
 
-- `app/` - Next.js App Router pages and layout
-  - `layout.tsx` - Root layout with Geist fonts and global styles
-  - `page.tsx` - Main landing page
-  - `globals.css` - Global Tailwind styles and CSS variables
-- `components/` - Reusable React components
-  - `ui/` - shadcn/ui components (Button, etc.)
-- `lib/` - Utility functions and configurations
-  - `utils.ts` - Tailwind utility function (`cn`) for class merging
-- `components.json` - shadcn/ui configuration with path aliases
+The app uses Tauri's IPC for frontend-backend communication:
 
-### Tauri Integration
+1. **Rust commands** are defined in `src-tauri/src/*.rs` modules (equipment, locations, astronomy, etc.)
+2. **TypeScript APIs** in `lib/tauri/` wrap Tauri's `invoke()` calls with type safety
+3. **Zustand stores** in `lib/stores/` manage client state and sync with Rust backend
 
-- `src-tauri/` - Rust backend for desktop functionality
-  - `tauri.conf.json` - Tauri configuration (window settings, build commands)
-  - `src/main.rs` - Main Rust application entry point
-  - `src/lib.rs` - Rust library code
-  - `Cargo.toml` - Rust dependencies
-- **Build Configuration**: Tauri builds the Next.js app to `out/` directory and bundles it
-- **Development**: Tauri runs `pnpm dev` for frontend and serves at `http://localhost:3000`
+```
+React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → Rust command
+```
 
-### Key Technologies
+### Key Modules
 
-- **Next.js 16** with App Router for React 19 applications
-- **Tailwind CSS v4** with PostCSS for styling
-- **shadcn/ui** component library built on Radix UI primitives
-- **Zustand** for lightweight state management
-- **Tauri 2.9** for building cross-platform desktop apps
-- **TypeScript** throughout the stack
+**`lib/astronomy/`** - Pure astronomical calculations (no side effects):
+- `coordinates/` - RA/Dec, Alt/Az, Galactic coordinate conversions
+- `time/` - Julian date, sidereal time calculations
+- `celestial/` - Sun, Moon position calculations
+- `visibility/` - Target visibility, circumpolar calculations
+- `twilight/` - Twilight times (civil, nautical, astronomical)
+- `imaging/` - Exposure and imaging feasibility calculations
 
-### Path Aliases (configured in components.json)
+**`lib/stores/`** - Zustand state management:
+- `stellarium-store` - Main sky view state
+- `settings-store` - App preferences
+- `equipment-store` - Telescopes, cameras, eyepieces with built-in presets
+- `target-list-store` - Observation targets
+- `marker-store` - Custom sky markers
 
-- `@/components` → `components/`
-- `@/lib` → `lib/`
-- `@/utils` → `lib/utils.ts`
-- `@/ui` → `components/ui`
-- `@/hooks` → `hooks/`
+**`lib/tauri/`** - Rust backend API wrappers:
+- `astronomy-api` - Astronomical calculations (offloaded to Rust)
+- `cache-api` - Offline tile caching for sky surveys
+- `events-api` - Moon phases, meteor showers, astronomical events
+- `target-list-api` - Target list persistence
+- `markers-api` - Sky marker persistence
 
-## Development Notes
+**`components/starmap/`** - Star map UI components:
+- `core/` - Main view, search, clock, settings
+- `overlays/` - FOV simulator, satellite tracker, ocular simulator
+- `planning/` - Altitude charts, exposure calculator, session planning
+- `objects/` - Object info panels, image galleries
+- `management/` - Equipment, location, data managers
 
-- The app uses pnpm as the preferred package manager (see pnpm-lock.yaml)
-- Tauri configuration is set to build the frontend to `out/` directory (not `.next`)
-- The project supports both web and desktop deployment from the same codebase
-- shadcn/ui is configured with "new-york" style and CSS variables for theming
+**`src-tauri/src/`** - Rust backend modules:
+- `storage.rs` - Generic JSON storage system
+- `equipment.rs`, `locations.rs` - Equipment and location management
+- `astronomy.rs` - Coordinate transforms, visibility calculations
+- `offline_cache.rs`, `unified_cache.rs` - Tile and data caching
+- `astro_events.rs` - Astronomical event calculations
+- `security.rs`, `rate_limiter.rs` - Security utilities
+
+### Data Storage
+
+- User data stored in platform-specific app data directory
+- Rust `storage.rs` provides generic JSON store operations
+- Frontend syncs state via `TauriSyncProvider` component
+
+### Internationalization
+
+- Translations in `i18n/messages/{en,zh}.json`
+- `next-intl` for i18n with `lib/i18n/locale-store.ts` for persistence
+- Use `useTranslations()` hook in components
+
+## Path Aliases
+
+```typescript
+@/components  → components/
+@/lib         → lib/
+@/ui          → components/ui/
+@/hooks       → hooks/
+@/utils       → lib/utils.ts
+```
+
+## Testing Conventions
+
+- Test files: `__tests__/*.test.ts(x)` or `*.test.ts(x)`
+- Uses Jest with React Testing Library
+- Mock Tauri APIs in tests (see `__mocks__/` directory)
+- Coverage reports output to `coverage/`

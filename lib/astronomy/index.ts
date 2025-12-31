@@ -22,3 +22,6 @@ export * from './visibility';
 
 // Imaging feasibility and exposure calculations
 export * from './imaging';
+
+// Custom horizon support
+export * from './horizon';

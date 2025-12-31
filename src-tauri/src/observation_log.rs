@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
+use crate::utils::generate_id;
 
 /// Observation session (a night of observing)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,7 +140,7 @@ pub async fn create_session(
         ))))?;
     
     let session = ObservationSession {
-        id: format!("session-{}", uuid_simple()),
+        id: generate_id("session"),
         date,
         location_id,
         location_name,
@@ -175,7 +176,7 @@ pub async fn add_observation(
         .ok_or_else(|| StorageError::StoreNotFound(session_id.clone()))?;
     
     let mut obs = observation;
-    obs.id = format!("obs-{}", uuid_simple());
+    obs.id = generate_id("obs");
     obs.observed_at = Utc::now();
     
     session.observations.push(obs);
@@ -331,21 +332,3 @@ pub async fn search_observations(
     Ok(results)
 }
 
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let random: u32 = rand_simple();
-    format!("{:x}{:08x}", timestamp, random)
-}
-
-fn rand_simple() -> u32 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    nanos.wrapping_mul(1103515245).wrapping_add(12345)
-}

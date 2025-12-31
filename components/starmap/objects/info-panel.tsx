@@ -2,9 +2,11 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { 
+import {
   X, ChevronDown, ChevronUp, Star, Crosshair, Plus,
-  Compass, TrendingUp, ArrowUp, Info
+  Compass, TrendingUp, ArrowUp, Info, Sun, Ruler,
+  CircleDot, Sparkles, Cloud, Globe2, Orbit, Binary,
+  Zap, Circle, Target, Rocket, Moon, Asterisk, Atom
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -68,6 +70,76 @@ interface InfoPanelProps {
   clickPosition?: { x: number; y: number };
   /** Container bounds for adaptive positioning */
   containerBounds?: { width: number; height: number };
+}
+
+/** Get icon component for object type category */
+function getObjectTypeIcon(type?: string) {
+  if (!type) return Star;
+  const t = type.toLowerCase();
+  
+  // Galaxies
+  if (t.includes('galaxy') || t.includes('gx') || t === 'g') return Globe2;
+  
+  // Nebulae subtypes
+  if (t.includes('planetary') || t.includes('pn')) return Circle; // Planetary nebula
+  if (t.includes('supernova') || t.includes('snr')) return Zap; // Supernova remnant
+  if (t.includes('nebula') || t.includes('neb') || t.includes('hii') || t.includes('en') || t.includes('rn')) return Cloud;
+  
+  // Clusters
+  if (t.includes('globular') || t === 'gc') return Atom; // Globular cluster
+  if (t.includes('cluster') || t.includes('oc') || t.includes('as')) return Sparkles; // Open cluster / asterism
+  
+  // Stars subtypes
+  if (t.includes('double') || t.includes('binary') || t === '**' || t.includes('ds')) return Binary; // Double/binary star
+  if (t.includes('variable') || t.includes('var') || t === 'v*') return Asterisk; // Variable star
+  if (t.includes('carbon') || t.includes('c*')) return CircleDot; // Carbon star
+  if (t.includes('star') || t === '*') return CircleDot;
+  
+  // Solar system
+  if (t.includes('planet')) return Orbit;
+  if (t.includes('moon') || t.includes('satellite')) return Moon;
+  if (t.includes('asteroid') || t.includes('minor')) return Target;
+  if (t.includes('comet')) return Rocket;
+  
+  // Quasars and exotic objects
+  if (t.includes('quasar') || t.includes('qso') || t.includes('agn')) return Zap;
+  
+  return Star;
+}
+
+/** Get color class for object type */
+function getObjectTypeColor(type?: string): string {
+  if (!type) return 'text-primary';
+  const t = type.toLowerCase();
+  
+  // Galaxies - purple shades
+  if (t.includes('galaxy') || t.includes('gx') || t === 'g') return 'text-purple-400';
+  
+  // Nebulae - pink/magenta shades
+  if (t.includes('planetary') || t.includes('pn')) return 'text-cyan-400';
+  if (t.includes('supernova') || t.includes('snr')) return 'text-red-400';
+  if (t.includes('nebula') || t.includes('neb') || t.includes('hii') || t.includes('en') || t.includes('rn')) return 'text-pink-400';
+  
+  // Clusters - blue shades
+  if (t.includes('globular') || t === 'gc') return 'text-indigo-400';
+  if (t.includes('cluster') || t.includes('oc') || t.includes('as')) return 'text-blue-400';
+  
+  // Stars - yellow/orange shades
+  if (t.includes('double') || t.includes('binary') || t === '**' || t.includes('ds')) return 'text-amber-400';
+  if (t.includes('variable') || t.includes('var') || t === 'v*') return 'text-rose-400';
+  if (t.includes('carbon') || t.includes('c*')) return 'text-red-500';
+  if (t.includes('star') || t === '*') return 'text-yellow-400';
+  
+  // Solar system - orange/teal
+  if (t.includes('planet')) return 'text-orange-400';
+  if (t.includes('moon') || t.includes('satellite')) return 'text-slate-300';
+  if (t.includes('asteroid') || t.includes('minor')) return 'text-stone-400';
+  if (t.includes('comet')) return 'text-teal-400';
+  
+  // Quasars - bright colors
+  if (t.includes('quasar') || t.includes('qso') || t.includes('agn')) return 'text-violet-400';
+  
+  return 'text-primary';
 }
 
 export function InfoPanel({
@@ -257,15 +329,19 @@ export function InfoPanel({
             {selectedObject && (
               <Collapsible open={objectExpanded} onOpenChange={setObjectExpanded}>
                 <div className="flex items-center justify-between">
-                  <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors flex-1">
-                    <Star className="h-4 w-4 text-primary shrink-0" />
+                  <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors flex-1 min-w-0">
+                    {(() => {
+                      const TypeIcon = getObjectTypeIcon(selectedObject.type);
+                      const typeColor = getObjectTypeColor(selectedObject.type);
+                      return <TypeIcon className={cn('h-4 w-4 shrink-0', typeColor)} />;
+                    })()}
                     <span className="text-sm font-medium truncate">{primaryName || selectedObject.names[0]}</span>
                     {objectExpanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
                   </CollapsibleTrigger>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                    className="h-7 w-7 sm:h-6 sm:w-6 text-muted-foreground hover:text-foreground shrink-0 touch-target"
                     onClick={onClose}
                   >
                     <X className="h-4 w-4" />
@@ -273,11 +349,49 @@ export function InfoPanel({
                 </div>
                 
                 <CollapsibleContent className="mt-2 space-y-2">
-                  {/* Names - show translated secondary names or original if no translation */}
-                  {selectedObject.names.length > 1 && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {secondaryNames.length > 0 ? secondaryNames.join(' · ') : selectedObject.names.slice(1, 3).join(' · ')}
-                    </p>
+                  {/* Names and Type Badge */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedObject.type && (
+                      <span className={cn(
+                        'text-[10px] px-1.5 py-0.5 rounded-full border',
+                        getObjectTypeColor(selectedObject.type),
+                        'border-current/30 bg-current/10'
+                      )}>
+                        {selectedObject.type}
+                      </span>
+                    )}
+                    {selectedObject.names.length > 1 && (
+                      <span className="text-xs text-muted-foreground truncate">
+                        {secondaryNames.length > 0 ? secondaryNames.join(' · ') : selectedObject.names.slice(1, 3).join(' · ')}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Magnitude and Size */}
+                  {(selectedObject.magnitude !== undefined || selectedObject.size) && (
+                    <div className="flex items-center gap-3 text-xs">
+                      {selectedObject.magnitude !== undefined && (
+                        <div className="flex items-center gap-1">
+                          <Sun className="h-3 w-3 text-yellow-400" />
+                          <span className="text-muted-foreground">{t('objectDetail.mag')}:</span>
+                          <span className="font-mono text-foreground">{selectedObject.magnitude.toFixed(1)}</span>
+                        </div>
+                      )}
+                      {selectedObject.size && (
+                        <div className="flex items-center gap-1">
+                          <Ruler className="h-3 w-3 text-muted-foreground" />
+                          <span className="font-mono text-foreground">{selectedObject.size}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Constellation */}
+                  {selectedObject.constellation && (
+                    <div className="text-xs">
+                      <span className="text-muted-foreground">{t('coordinates.constellation')}: </span>
+                      <span className="text-foreground">{selectedObject.constellation}</span>
+                    </div>
                   )}
                   
                   {/* Coordinates */}
@@ -479,6 +593,11 @@ function AltitudeChartCompact({
   const [hoursAhead, setHoursAhead] = useState(12);
   const minHours = 2;
   const maxHours = 24;
+  
+  // Touch gesture state for mobile
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const initialPinchDistanceRef = useRef<number | null>(null);
+  const initialHoursRef = useRef<number>(hoursAhead);
 
   // Handle wheel zoom - stop propagation to prevent star map zoom
   useEffect(() => {
@@ -496,9 +615,65 @@ function AltitudeChartCompact({
       });
     };
     
+    // Touch handlers for mobile pinch zoom and swipe
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartRef.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+          time: Date.now(),
+        };
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        initialPinchDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+        initialHoursRef.current = hoursAhead;
+      }
+    };
+    
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && initialPinchDistanceRef.current !== null) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+        const scale = initialPinchDistanceRef.current / currentDistance;
+        const newHours = Math.round(initialHoursRef.current * scale);
+        setHoursAhead(Math.max(minHours, Math.min(maxHours, newHours)));
+      }
+    };
+    
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0 && touchStartRef.current) {
+        const endX = e.changedTouches[0].clientX;
+        const deltaX = endX - touchStartRef.current.x;
+        const deltaTime = Date.now() - touchStartRef.current.time;
+        
+        // Horizontal swipe to adjust time range
+        if (Math.abs(deltaX) > 50 && deltaTime < 300) {
+          if (deltaX > 0) {
+            setHoursAhead(prev => Math.max(minHours, prev - 2));
+          } else {
+            setHoursAhead(prev => Math.min(maxHours, prev + 2));
+          }
+        }
+        touchStartRef.current = null;
+      }
+      initialPinchDistanceRef.current = null;
+    };
+    
     chartEl.addEventListener('wheel', handleWheel, { passive: false });
-    return () => chartEl.removeEventListener('wheel', handleWheel);
-  }, []);
+    chartEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+    chartEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+    chartEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+    
+    return () => {
+      chartEl.removeEventListener('wheel', handleWheel);
+      chartEl.removeEventListener('touchstart', handleTouchStart);
+      chartEl.removeEventListener('touchmove', handleTouchMove);
+      chartEl.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [hoursAhead]);
 
   const chartData = useMemo(() => {
     const data = getAltitudeOverTime(ra, dec, latitude, longitude, hoursAhead, 30);
@@ -549,40 +724,44 @@ function AltitudeChartCompact({
   }, [ra, dec, latitude, longitude, hoursAhead]);
 
   return (
-    <div ref={chartRef} className="p-2 cursor-ns-resize" title="Scroll to zoom time range">
-      {/* Zoom indicator */}
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] text-muted-foreground">Time range: {hoursAhead}h</span>
-        <div className="flex items-center gap-0.5">
+    <div ref={chartRef} className="p-2 cursor-ns-resize touch-pan-y select-none" title="Scroll to zoom, swipe to adjust range">
+      {/* Zoom indicator with larger touch targets */}
+      <div className="flex items-center justify-between mb-2 transition-opacity duration-200">
+        <span className="text-[10px] sm:text-[9px] text-muted-foreground transition-all duration-300">
+          Time: <span className="font-mono font-medium text-foreground">{hoursAhead}h</span>
+        </span>
+        <div className="flex items-center gap-1">
           <Button 
             variant="ghost"
             size="icon"
-            className="h-5 w-5 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground touch-target"
             onClick={() => setHoursAhead(prev => Math.max(minHours, prev - 2))}
           >
-            <span className="text-xs">−</span>
+            <span className="text-sm sm:text-xs">−</span>
           </Button>
           <Button 
             variant="ghost"
             size="icon"
-            className="h-5 w-5 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground touch-target"
             onClick={() => setHoursAhead(prev => Math.min(maxHours, prev + 2))}
           >
-            <span className="text-xs">+</span>
+            <span className="text-sm sm:text-xs">+</span>
           </Button>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={100}>
-        <AreaChart
-          data={chartData.points}
-          margin={{ top: 5, right: 5, left: -15, bottom: 5 }}
-        >
-          <defs>
-            <linearGradient id="altGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-              <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05} />
-            </linearGradient>
-          </defs>
+      {/* Chart - taller on mobile for better touch interaction */}
+      <div className="transition-all duration-300 ease-out" style={{ height: typeof window !== 'undefined' && window.innerWidth < 640 ? 120 : 100 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={chartData.points}
+            margin={{ top: 5, right: 5, left: -15, bottom: 5 }}
+          >
+            <defs>
+              <linearGradient id="altGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
           
           <XAxis 
             dataKey="hour" 
@@ -634,36 +813,44 @@ function AltitudeChartCompact({
             stroke="#06b6d4"
             strokeWidth={2}
             fill="url(#altGradient)"
+            animationDuration={500}
+            animationEasing="ease-out"
           />
         </AreaChart>
       </ResponsiveContainer>
+      </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[9px] text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-0.5 bg-amber-400" />
+      {/* Legend - larger on mobile */}
+      <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-2 gap-y-1 mt-2 sm:mt-1 text-[11px] sm:text-[9px] text-muted-foreground">
+        <div className="flex items-center gap-1.5 sm:gap-1">
+          <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-amber-400 rounded-full" />
           <span>Now</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-0.5 bg-purple-400" />
+        <div className="flex items-center gap-1.5 sm:gap-1">
+          <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-purple-400 rounded-full" />
           <span>Transit</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-0.5 bg-green-500" />
+        <div className="flex items-center gap-1.5 sm:gap-1">
+          <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-green-500 rounded-full" />
           <span>Rise</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-0.5 bg-red-500" />
+        <div className="flex items-center gap-1.5 sm:gap-1">
+          <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-red-500 rounded-full" />
           <span>Set</span>
         </div>
       </div>
       
       {/* Dark imaging info */}
       {chartData.darkImagingHours > 0 && (
-        <div className="mt-1 text-[9px] text-green-400">
+        <div className="mt-2 sm:mt-1 text-[11px] sm:text-[9px] text-green-400 font-medium">
           ✓ {chartData.darkImagingHours.toFixed(1)}h dark imaging window
         </div>
       )}
+      
+      {/* Mobile hint */}
+      <div className="sm:hidden text-[10px] text-muted-foreground/60 mt-1 text-center">
+        Swipe or pinch to adjust time range
+      </div>
     </div>
   );
 }

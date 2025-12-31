@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
+use crate::security::{self, limits};
 
 // ============================================================================
 // Types
@@ -336,10 +337,17 @@ pub async fn prefetch_url(
     url: String,
     ttl: i64,
 ) -> Result<bool, StorageError> {
+    // SECURITY: Validate URL to prevent SSRF attacks
+    // Only HTTPS allowed, no private IPs, no localhost
+    let validated_url = security::validate_url(&url, false, None)
+        .map_err(|e| StorageError::Other(e.to_string()))?;
+
+    log::info!("Prefetching validated URL: {}", validated_url);
+
     // Use reqwest to fetch the URL
     let client = reqwest::Client::new();
-    
-    match client.get(&url).send().await {
+
+    match client.get(validated_url.as_str()).send().await {
         Ok(response) => {
             if response.status().is_success() {
                 let content_type = response
@@ -348,9 +356,13 @@ pub async fn prefetch_url(
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("application/octet-stream")
                     .to_string();
-                
+
                 match response.bytes().await {
                     Ok(bytes) => {
+                        // SECURITY: Validate response size
+                        security::validate_size(&bytes, limits::MAX_TILE_SIZE)
+                            .map_err(|e| StorageError::Other(e.to_string()))?;
+
                         let key = url_to_cache_key(&url);
                         put_unified_cache_entry(app, key, bytes.to_vec(), content_type, ttl).await?;
                         Ok(true)

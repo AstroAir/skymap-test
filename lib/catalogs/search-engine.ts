@@ -19,6 +19,14 @@ import {
   enrichDeepSkyObject,
 } from './deep-sky-object';
 import { calculateNighttimeData, getReferenceDate } from './nighttime-calculator';
+import {
+  fuzzySearch,
+  weightedSearch,
+  buildSearchIndex,
+  type SearchIndexEntry,
+  type FuzzySearchOptions,
+  type WeightedSearchOptions,
+} from './fuzzy-search';
 
 // ============================================================================
 // Default Filter Values
@@ -349,6 +357,209 @@ export function quickSearchByName(
   }
   
   return [...exactMatches, ...prefixMatches, ...containsMatches].slice(0, limit);
+}
+
+// ============================================================================
+// Enhanced Fuzzy Search
+// ============================================================================
+
+// Cached search index for performance
+let cachedSearchIndex: Map<string, SearchIndexEntry> | null = null;
+let cachedCatalogLength = 0;
+
+/**
+ * Get or build the search index
+ */
+function getSearchIndex(catalog: DeepSkyObject[]): Map<string, SearchIndexEntry> {
+  if (cachedSearchIndex && cachedCatalogLength === catalog.length) {
+    return cachedSearchIndex;
+  }
+  cachedSearchIndex = buildSearchIndex(catalog);
+  cachedCatalogLength = catalog.length;
+  return cachedSearchIndex;
+}
+
+/**
+ * Clear the search index cache (call when catalog changes)
+ */
+export function clearSearchIndexCache(): void {
+  cachedSearchIndex = null;
+  cachedCatalogLength = 0;
+}
+
+export interface EnhancedSearchOptions {
+  /** Use fuzzy matching (tolerates typos) */
+  fuzzy?: boolean;
+  /** Minimum similarity score (0-1) for fuzzy matches */
+  minScore?: number;
+  /** Maximum number of results */
+  limit?: number;
+  /** Include match details in results */
+  includeMatchDetails?: boolean;
+  /** Weight configuration for multi-field search */
+  weights?: {
+    name?: number;
+    catalogId?: number;
+    commonName?: number;
+    constellation?: number;
+    type?: number;
+  };
+}
+
+export interface EnhancedSearchResult {
+  object: DeepSkyObject;
+  score: number;
+  matchType: 'exact' | 'prefix' | 'contains' | 'fuzzy' | 'catalog' | 'common_name';
+  matchedField: string;
+  matchedValue?: string;
+}
+
+/**
+ * Enhanced search with fuzzy matching, common name recognition,
+ * and multi-field weighted scoring
+ * 
+ * Features:
+ * - Levenshtein distance for typo tolerance
+ * - Jaro-Winkler similarity for better prefix matching
+ * - Catalog ID parsing (M31, NGC 7000, etc.)
+ * - Common name to catalog mapping (Orion Nebula → M42)
+ * - Phonetic variations (Andromeda → Andromida)
+ * - Multi-field weighted scoring
+ */
+export function enhancedSearch(
+  catalog: DeepSkyObject[],
+  query: string,
+  options: EnhancedSearchOptions = {}
+): EnhancedSearchResult[] {
+  const {
+    fuzzy = true,
+    minScore = 0.3,
+    limit = 20,
+    weights = {},
+  } = options;
+
+  if (!query || query.trim().length === 0) {
+    return [];
+  }
+
+  const searchIndex = getSearchIndex(catalog);
+  
+  // Create a map for quick object lookup
+  const catalogMap = new Map(catalog.map(obj => [obj.id, obj]));
+  
+  if (fuzzy) {
+    // Use weighted multi-field fuzzy search
+    const weightedOptions: WeightedSearchOptions = {
+      nameWeight: weights.name ?? 1.0,
+      catalogWeight: weights.catalogId ?? 1.2,
+      constellationWeight: weights.constellation ?? 0.5,
+      typeWeight: weights.type ?? 0.3,
+    };
+    
+    const matches = weightedSearch(query, searchIndex, weightedOptions);
+    const results: EnhancedSearchResult[] = [];
+    
+    for (const match of matches.slice(0, limit)) {
+      const obj = catalogMap.get(match.id);
+      if (obj && match.score >= minScore) {
+        results.push({
+          object: obj,
+          score: match.score,
+          matchType: match.matchType,
+          matchedField: match.matchedField,
+          matchedValue: match.matchedValue,
+        });
+      }
+    }
+    
+    return results;
+  } else {
+    // Use basic fuzzy search
+    const fuzzyOptions: FuzzySearchOptions = {
+      minScore,
+      maxResults: limit,
+    };
+    
+    const matches = fuzzySearch(query, searchIndex, fuzzyOptions);
+    const results: EnhancedSearchResult[] = [];
+    
+    for (const match of matches) {
+      const obj = catalogMap.get(match.id);
+      if (obj) {
+        results.push({
+          object: obj,
+          score: match.score,
+          matchType: match.matchType,
+          matchedField: match.matchedField,
+          matchedValue: match.matchedValue,
+        });
+      }
+    }
+    
+    return results;
+  }
+}
+
+/**
+ * Quick fuzzy search for autocomplete with intelligent ranking
+ */
+export function enhancedQuickSearch(
+  catalog: DeepSkyObject[],
+  query: string,
+  limit: number = 10
+): DeepSkyObject[] {
+  const results = enhancedSearch(catalog, query, {
+    fuzzy: true,
+    minScore: 0.4,
+    limit,
+  });
+  
+  return results.map(r => r.object);
+}
+
+/**
+ * Search with filters and fuzzy name matching combined
+ */
+export async function searchWithFuzzyName(
+  catalog: DeepSkyObject[],
+  filters: SkyAtlasFilters,
+  options: SearchOptions & { fuzzySearch?: boolean }
+): Promise<SkyAtlasSearchResult> {
+  const { fuzzySearch: useFuzzy = true, ...searchOptions } = options;
+  
+  // If there's a name filter and fuzzy search is enabled, use enhanced search first
+  if (useFuzzy && filters.objectName && filters.objectName.trim().length > 0) {
+    const fuzzyResults = enhancedSearch(catalog, filters.objectName, {
+      fuzzy: true,
+      minScore: 0.3,
+      limit: catalog.length, // Get all matches, will filter further
+    });
+    
+    // Create a filtered catalog based on fuzzy matches
+    const matchedIds = new Set(fuzzyResults.map(r => r.object.id));
+    const filteredCatalog = catalog.filter(obj => matchedIds.has(obj.id));
+    
+    // Create modified filters without name (already applied)
+    const modifiedFilters = { ...filters, objectName: '' };
+    
+    // Apply remaining filters
+    const result = await searchDeepSkyObjects(filteredCatalog, modifiedFilters, searchOptions);
+    
+    // Re-sort by fuzzy score if sorting by name
+    if (filters.orderByField === 'name') {
+      const scoreMap = new Map(fuzzyResults.map(r => [r.object.id, r.score]));
+      result.objects.sort((a, b) => {
+        const scoreA = scoreMap.get(a.id) || 0;
+        const scoreB = scoreMap.get(b.id) || 0;
+        return filters.orderByDirection === 'desc' ? scoreB - scoreA : scoreA - scoreB;
+      });
+    }
+    
+    return result;
+  }
+  
+  // Fall back to standard search
+  return searchDeepSkyObjects(catalog, filters, searchOptions);
 }
 
 // ============================================================================

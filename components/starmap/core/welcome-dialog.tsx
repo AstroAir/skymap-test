@@ -1,0 +1,212 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
+import { Sparkles, Telescope, Star, Map, Rocket } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { useOnboardingStore } from '@/lib/stores/onboarding-store';
+import { cn } from '@/lib/utils';
+
+interface WelcomeDialogProps {
+  onStartTour?: () => void;
+  onSkip?: () => void;
+}
+
+const FEATURES = [
+  { icon: Telescope, key: 'explore' },
+  { icon: Star, key: 'objects' },
+  { icon: Map, key: 'plan' },
+  { icon: Rocket, key: 'track' },
+] as const;
+
+export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
+  const t = useTranslations();
+  const hasSeenWelcome = useOnboardingStore((state) => state.hasSeenWelcome);
+  const hasCompletedOnboarding = useOnboardingStore((state) => state.hasCompletedOnboarding);
+  const showOnNextVisit = useOnboardingStore((state) => state.showOnNextVisit);
+  const setHasSeenWelcome = useOnboardingStore((state) => state.setHasSeenWelcome);
+  const setShowOnNextVisit = useOnboardingStore((state) => state.setShowOnNextVisit);
+  const startTour = useOnboardingStore((state) => state.startTour);
+  const skipTour = useOnboardingStore((state) => state.skipTour);
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  // Show dialog only for first-time users or if they haven't completed onboarding
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!hasSeenWelcome && showOnNextVisit) {
+        setIsOpen(true);
+      }
+    }, 500); // Delay after splash screen
+    return () => clearTimeout(timer);
+  }, [hasSeenWelcome, showOnNextVisit]);
+
+  const handleStartTour = () => {
+    setHasSeenWelcome(true);
+    if (dontShowAgain) {
+      setShowOnNextVisit(false);
+    }
+    setIsOpen(false);
+    startTour();
+    onStartTour?.();
+  };
+
+  const handleSkip = () => {
+    setHasSeenWelcome(true);
+    if (dontShowAgain) {
+      setShowOnNextVisit(false);
+      skipTour();
+    }
+    setIsOpen(false);
+    onSkip?.();
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      handleSkip();
+    }
+    setIsOpen(open);
+  };
+
+  // Don't render if already completed and chose not to show again
+  if (hasCompletedOnboarding && !showOnNextVisit) {
+    return null;
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-lg bg-card/95 backdrop-blur-md border-border text-card-foreground overflow-hidden">
+        {/* Animated background stars */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {Array.from({ length: 30 }, (_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-white rounded-full tour-welcome-star"
+              style={{
+                left: `${(i * 13.7) % 100}%`,
+                top: `${(i * 17.3) % 100}%`,
+                animationDelay: `${(i * 0.2) % 3}s`,
+                opacity: 0.3 + (i % 4) * 0.2,
+              }}
+            />
+          ))}
+        </div>
+
+        <DialogHeader className="relative z-10">
+          <div className="flex justify-center mb-4">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center">
+                <Sparkles className="w-10 h-10 text-primary animate-pulse" />
+              </div>
+              <div className="absolute -inset-2 rounded-full border border-primary/30 animate-ping" style={{ animationDuration: '3s' }} />
+            </div>
+          </div>
+          <DialogTitle className="text-2xl text-center text-foreground">
+            {t('onboarding.welcome.title')}
+          </DialogTitle>
+          <DialogDescription className="text-center text-muted-foreground text-base">
+            {t('onboarding.welcome.subtitle')}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Features grid */}
+        <div className="relative z-10 grid grid-cols-2 gap-3 py-4">
+          {FEATURES.map(({ icon: Icon, key }, index) => (
+            <div
+              key={key}
+              className={cn(
+                'flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50 tour-feature-card',
+                'hover:bg-muted hover:border-primary/30'
+              )}
+              style={{
+                animationDelay: `${index * 100}ms`,
+              }}
+            >
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {t(`onboarding.welcome.features.${key}.title`)}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {t(`onboarding.welcome.features.${key}.description`)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Don't show again checkbox */}
+        <div className="relative z-10 flex items-center space-x-2 py-2">
+          <Checkbox
+            id="dont-show"
+            checked={dontShowAgain}
+            onCheckedChange={(checked) => setDontShowAgain(checked === true)}
+            className="border-border data-[state=checked]:bg-primary"
+          />
+          <Label
+            htmlFor="dont-show"
+            className="text-sm text-muted-foreground cursor-pointer"
+          >
+            {t('onboarding.welcome.dontShowAgain')}
+          </Label>
+        </div>
+
+        <DialogFooter className="relative z-10 flex-col sm:flex-row gap-2">
+          <Button
+            variant="ghost"
+            onClick={handleSkip}
+            className="text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            {t('onboarding.welcome.skipTour')}
+          </Button>
+          <Button
+            onClick={handleStartTour}
+            className="bg-primary hover:bg-primary/90 text-white gap-2"
+          >
+            <Rocket className="w-4 h-4" />
+            {t('onboarding.welcome.startTour')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function TourRestartButton() {
+  const t = useTranslations();
+  const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
+  const startTour = useOnboardingStore((state) => state.startTour);
+
+  const handleRestart = () => {
+    resetOnboarding();
+    // Delay to allow state to reset
+    setTimeout(() => {
+      startTour();
+    }, 100);
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleRestart}
+      className="gap-2"
+    >
+      <Sparkles className="w-4 h-4" />
+      {t('onboarding.restartTour')}
+    </Button>
+  );
+}

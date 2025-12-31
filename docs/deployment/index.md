@@ -1,0 +1,351 @@
+# 部署指南
+
+本指南介绍如何构建和部署 SkyMap Test 应用程序。
+
+## 部署选项
+
+SkyMap Test 支持多种部署方式：
+
+### 桌面应用部署
+
+- **Windows**: MSI安装包
+- **macOS**: DMG安装包
+- **Linux**: AppImage、deb、rpm包
+
+### Web应用部署
+
+- **静态托管**: Vercel、Netlify
+- **自托管**: Nginx、Apache
+
+## 桌面应用部署
+
+### 前置要求
+
+- Rust 工具链（1.70+）
+- Node.js (20+)
+- pnpm 或 npm
+- 操作系统特定工具
+
+### Windows
+
+#### 构建环境
+
+1. 安装 [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+2. 安装 Rust
+3. 安装 Node.js 和 pnpm
+
+#### 构建步骤
+
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/skymap-test.git
+cd skymap-test
+
+# 安装依赖
+pnpm install
+
+# 构建
+pnpm tauri build
+```
+
+#### 输出位置
+
+- MSI安装包: `src-tauri/target/release/bundle/msi/`
+- 可执行文件: `src-tauri/target/release/`
+
+### macOS
+
+#### 构建环境
+
+1. 安装 Xcode Command Line Tools
+2. 安装 Rust
+3. 安装 Node.js 和 pnpm
+
+#### 构建步骤
+
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/skymap-test.git
+cd skymap-test
+
+# 安装依赖
+pnpm install
+
+# 构建
+pnpm tauri build
+```
+
+#### 输出位置
+
+- DMG安装包: `src-tauri/target/release/bundle/dmg/`
+- 应用程序: `src-tauri/target/release/bundle/macos/`
+
+### Linux
+
+#### 构建环境
+
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install libwebkit2gtk-4.0-dev \
+    build-essential \
+    curl \
+    wget \
+    libssl-dev \
+    libgtk-3-dev \
+    libayatana-appindicator3-dev \
+    librsvg2-dev
+
+# Fedora
+sudo dnf install webkit2gtk3-devel \
+    openssl-devel \
+    curl \
+    wget \
+    file \
+    libappindicator-gtk3-devel \
+    librsvg2-devel
+```
+
+#### 构建步骤
+
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/skymap-test.git
+cd skymap-test
+
+# 安装依赖
+pnpm install
+
+# 构建
+pnpm tauri build
+```
+
+#### 输出位置
+
+- AppImage: `src-tauri/target/release/bundle/appimage/`
+- deb包: `src-tauri/target/release/bundle/deb/`
+- rpm包: `src-tauri/target/release/bundle/rpm/`
+
+## Web应用部署
+
+### 构建静态站点
+
+```bash
+# 构建Next.js应用
+pnpm build
+
+# 输出在 out/ 目录
+```
+
+### Vercel部署（推荐）
+
+1. 推送代码到GitHub
+2. 在 [Vercel](https://vercel.com) 导入项目
+3. Vercel自动检测Next.js并配置
+4. 点击部署
+
+### Netlify部署
+
+1. 推送代码到GitHub
+2. 在 [Netlify](https://netlify.com) 导入项目
+3. 配置构建设置：
+   - 构建命令: `pnpm build`
+   - 发布目录: `out`
+4. 点击部署
+
+### 静态托管部署
+
+#### Nginx配置
+
+```nginx
+server {
+    listen 80;
+    server_name skymap.example.com;
+    root /var/www/skymap-test/out;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+#### Apache配置
+
+```apache
+<VirtualHost *:80>
+    ServerName skymap.example.com
+    DocumentRoot /var/www/skymap-test/out
+
+    <Directory /var/www/skymap-test/out>
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+    </Directory>
+</VirtualHost>
+```
+
+## 代码签名
+
+### Windows代码签名
+
+使用 [SignTool](https://docs.microsoft.com/en-us/windows/win32/seccrypto/signtool) 对应用进行签名：
+
+```bash
+signtool sign /f certificate.pfx /p password /t timestamp_url skymap-test.msi
+```
+
+### macOS代码签名
+
+```bash
+# 安装证书
+# 导入开发者证书到钥匙串
+
+# 签名应用
+codesign --sign "Developer ID Application: Your Name" \
+    --force --deep \
+    src-tauri/target/release/bundle/macos/SkyMapTest.app
+
+# 公证应用（需要Apple Developer账号）
+xcrun notarytool submit SkyMapTest.dmg \
+    --apple-id "your@email.com" \
+    --password "app-specific-password" \
+    --team-id "team-id" \
+    --wait
+```
+
+## 分发策略
+
+### 版本管理
+
+使用语义化版本：
+
+- **MAJOR.MINOR.PATCH**
+- 例如: 1.0.0, 1.1.0, 1.1.1
+
+### 发布流程
+
+1. 更新版本号
+2. 更新CHANGELOG
+3. 创建Git标签
+4. 构建所有平台的安装包
+5. 上传到GitHub Releases
+6. 发布公告
+
+### 自动化构建
+
+使用GitHub Actions自动构建：
+
+```yaml
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install
+      - run: pnpm tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-bundle
+          path: |
+            src-tauri/target/release/bundle/
+```
+
+## 性能优化
+
+### 减小安装包大小
+
+1. 启用压缩
+2. 移除不必要的依赖
+3. 使用LTO（Link Time Optimization）
+4. 精简资源文件
+
+### 启动优化
+
+1. 延迟加载非关键模块
+2. 优化初始化顺序
+3. 预加载常用数据
+
+## 更新机制
+
+### 内置更新
+
+SkyMap Test 内置更新机制：
+
+- 自动检查更新
+- 下载更新包
+- 自动安装
+
+### 配置更新服务器
+
+在 `tauri.conf.json` 配置更新地址：
+
+```json
+{
+  "updater": {
+    "active": true,
+    "endpoints": [
+      "https://github.com/yourusername/skymap-test/releases/latest/download"
+    ],
+    "dialog": true,
+    "pubkey": "PUBLIC_KEY_HERE"
+  }
+}
+```
+
+## 故障排除
+
+### 常见构建问题
+
+#### Rust编译失败
+
+```bash
+# 清理缓存
+cd src-tauri
+cargo clean
+
+# 更新Rust
+rustup update
+```
+
+#### 前端构建失败
+
+```bash
+# 清理Next.js缓存
+rm -rf .next out
+
+# 重新安装依赖
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+```
+
+#### Tauri CLI错误
+
+```bash
+# 重新安装Tauri CLI
+pnpm remove -D @tauri-apps/cli
+pnpm add -D @tauri-apps/cli
+```
+
+## 相关文档
+
+- [构建指南](desktop/building.md)
+- [开发环境](../developer-guide/development-environment/setup.md)
+- [项目结构](../developer-guide/project-structure/index.md)

@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
+use crate::utils::generate_id;
 
 // ============================================================================
 // Types
@@ -137,7 +138,7 @@ pub async fn add_marker(
     
     let now = Utc::now().timestamp_millis();
     let new_marker = SkyMarker {
-        id: format!("marker-{}", uuid_simple()),
+        id: generate_id("marker"),
         name: marker.name,
         description: marker.description,
         ra: marker.ra,
@@ -377,25 +378,3 @@ pub async fn get_visible_markers(
     Ok(visible)
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let random: u32 = rand_simple();
-    format!("{:x}{:08x}", timestamp, random)
-}
-
-fn rand_simple() -> u32 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    nanos.wrapping_mul(1103515245).wrapping_add(12345)
-}

@@ -11,6 +11,8 @@ export * from './cache-api';
 export * from './events-api';
 export * from './target-list-api';
 export * from './markers-api';
+export { storageApi } from './storage-api';
+export { unifiedCacheApi } from './unified-cache-api';
 export { tauriApi as default } from './api';
 
 // Re-export individual APIs for convenience

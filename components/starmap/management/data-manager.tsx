@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { storage, isTauri, readFileAsText } from '@/lib/storage';
+import { storageApi } from '@/lib/tauri';
 import type { StorageStats, ImportResult } from '@/lib/storage';
 
 interface DataManagerProps {
@@ -58,7 +59,10 @@ export function DataManager({ trigger }: DataManagerProps) {
     if (isOpen) {
       setLoading(true);
       try {
-        const storageStats = await storage.getStorageStats();
+        // Use Tauri storage API if available, otherwise fallback to web storage
+        const storageStats = isDesktop && storageApi.isAvailable()
+          ? await storageApi.getStorageStats()
+          : await storage.getStorageStats();
         setStats(storageStats);
       } catch (error) {
         console.error('Failed to load storage stats:', error);
@@ -72,7 +76,23 @@ export function DataManager({ trigger }: DataManagerProps) {
   const handleExport = async () => {
     setExporting(true);
     try {
-      await storage.exportAllData();
+      if (isDesktop && storageApi.isAvailable()) {
+        // Use Tauri storage API for desktop
+        if (typeof window !== 'undefined') {
+          const { save } = await import('@tauri-apps/plugin-dialog');
+          const filePath = await save({
+            defaultPath: `skymap-export-${new Date().toISOString().split('T')[0]}.json`,
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+          });
+          if (!filePath) {
+            return; // User cancelled
+          }
+          await storageApi.exportAllData(filePath);
+        }
+      } else {
+        // Use web storage for browser
+        await storage.exportAllData();
+      }
       toast.success(t('dataManager.exportSuccess') || 'Data exported successfully');
     } catch (error) {
       if ((error as Error).message === 'Export cancelled') {
@@ -127,7 +147,27 @@ export function DataManager({ trigger }: DataManagerProps) {
   const handleImportTauri = async () => {
     setImporting(true);
     try {
-      const result: ImportResult = await storage.importAllData();
+      let result: ImportResult;
+      
+      if (isDesktop && storageApi.isAvailable()) {
+        // Use Tauri storage API for desktop
+        if (typeof window !== 'undefined') {
+          const { open } = await import('@tauri-apps/plugin-dialog');
+          const selected = await open({
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+          });
+          if (selected && typeof selected === 'string') {
+            result = await storageApi.importAllData(selected);
+          } else {
+            return; // User cancelled
+          }
+        } else {
+          return;
+        }
+      } else {
+        // Fallback to web storage
+        result = await storage.importAllData();
+      }
 
       if (result.errors.length > 0) {
         toast.warning(
@@ -160,7 +200,10 @@ export function DataManager({ trigger }: DataManagerProps) {
   // Clear all data
   const handleClearAll = async () => {
     try {
-      const count = await storage.clearAllData();
+      const count = isDesktop && storageApi.isAvailable()
+        ? await storageApi.clearAllData()
+        : await storage.clearAllData();
+      
       toast.success(t('dataManager.clearSuccess') || 'All data cleared', {
         description: `${count} stores deleted`,
       });

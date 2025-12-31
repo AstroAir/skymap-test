@@ -19,7 +19,21 @@ import {
   Info,
   Database,
   Compass,
-  ArrowUp
+  ArrowUp,
+  Globe2,
+  Cloud,
+  Sparkles,
+  Orbit,
+  CircleDot,
+  Copy,
+  Check,
+  Binary,
+  Zap,
+  Circle,
+  Target,
+  Rocket,
+  Asterisk,
+  Atom
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -72,6 +86,46 @@ interface ObjectDetailDrawerProps {
   }) => void;
 }
 
+/** Get icon and color for object type category */
+function getObjectTypeDisplay(category?: string): { icon: React.ElementType; color: string } {
+  if (!category) return { icon: Star, color: 'text-primary' };
+  const t = category.toLowerCase();
+  
+  // Galaxies
+  if (t === 'galaxy' || t.includes('gx')) return { icon: Globe2, color: 'text-purple-400' };
+  
+  // Nebulae subtypes
+  if (t === 'planetary_nebula' || t.includes('pn')) return { icon: Circle, color: 'text-cyan-400' };
+  if (t === 'supernova_remnant' || t.includes('snr')) return { icon: Zap, color: 'text-red-400' };
+  if (t === 'nebula' || t.includes('neb')) return { icon: Cloud, color: 'text-pink-400' };
+  
+  // Clusters
+  if (t === 'globular_cluster' || t.includes('gc')) return { icon: Atom, color: 'text-indigo-400' };
+  if (t === 'cluster' || t.includes('oc')) return { icon: Sparkles, color: 'text-blue-400' };
+  
+  // Stars
+  if (t === 'double_star' || t === 'binary') return { icon: Binary, color: 'text-amber-400' };
+  if (t === 'variable_star' || t.includes('var')) return { icon: Asterisk, color: 'text-rose-400' };
+  if (t === 'star') return { icon: CircleDot, color: 'text-yellow-400' };
+  
+  // Solar system
+  if (t === 'planet') return { icon: Orbit, color: 'text-orange-400' };
+  if (t === 'moon') return { icon: Moon, color: 'text-slate-300' };
+  if (t === 'asteroid') return { icon: Target, color: 'text-stone-400' };
+  if (t === 'comet') return { icon: Rocket, color: 'text-teal-400' };
+  
+  // Exotic objects
+  if (t === 'quasar' || t.includes('agn')) return { icon: Zap, color: 'text-violet-400' };
+  
+  return { icon: Star, color: 'text-primary' };
+}
+
+/** Object type icon display component */
+function ObjectTypeIconDisplay({ category }: { category?: string }) {
+  const { icon: Icon, color } = getObjectTypeDisplay(category);
+  return <Icon className={`h-5 w-5 shrink-0 ${color}`} />;
+}
+
 export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   open,
   onOpenChange,
@@ -83,6 +137,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [, setCurrentTime] = useState(new Date()); // Trigger re-render for astro data
+  const [copied, setCopied] = useState(false);
   
   const profileInfo = useMountStore((state) => state.profileInfo);
   const mountConnected = useMountStore((state) => state.mountInfo.Connected);
@@ -202,6 +257,19 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
     });
   }, [selectedObject, addTarget]);
 
+  const handleCopyCoordinates = useCallback(async () => {
+    if (!selectedObject) return;
+    const coords = `RA: ${selectedObject.ra}\nDec: ${selectedObject.dec}`;
+    try {
+      await navigator.clipboard.writeText(coords);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.warn('Failed to copy coordinates:', error);
+    }
+  }, [selectedObject]);
+
+
   const getFeasibilityColor = (rec: string) => {
     switch (rec) {
       case 'excellent': return 'bg-green-500/20 text-green-400 border-green-500/30';
@@ -237,7 +305,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0 pr-4">
               <DrawerTitle className="text-xl font-bold truncate flex items-center gap-2">
-                <Star className="h-5 w-5 text-primary shrink-0" />
+                <ObjectTypeIconDisplay category={objectInfo?.typeCategory} />
                 {displayName}
               </DrawerTitle>
               {selectedObject && selectedObject.names.length > 1 && (
@@ -396,6 +464,27 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                     </div>
                   </>
                 )}
+
+                {/* Coordinates with Copy Button */}
+                <Separator className="my-3" />
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    {t('coordinates.title')}
+                  </h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs touch-target"
+                    onClick={handleCopyCoordinates}
+                  >
+                    {copied ? (
+                      <><Check className="h-3 w-3 mr-1 text-green-400" />{t('common.copied')}</>
+                    ) : (
+                      <><Copy className="h-3 w-3 mr-1" />{t('common.copy')}</>
+                    )}
+                  </Button>
+                </div>
 
                 {/* External Links */}
                 <Separator className="my-3" />
@@ -563,13 +652,13 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
           )}
         </ScrollArea>
 
-        {/* Action Buttons */}
-        <div className="p-4 pt-2 border-t bg-background/80 backdrop-blur-sm">
+        {/* Action Buttons - with safe area for mobile */}
+        <div className="p-4 pt-2 border-t bg-background/80 backdrop-blur-sm safe-area-bottom">
           <div className="flex gap-2">
             {mountConnected && (
               <Button
                 variant="outline"
-                className="flex-1 border-primary text-primary hover:bg-primary/20"
+                className="flex-1 h-11 sm:h-10 border-primary text-primary hover:bg-primary/20 touch-target"
                 onClick={handleSlew}
               >
                 <Crosshair className="h-4 w-4 mr-2" />
@@ -578,7 +667,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
             )}
             <Button
               variant="outline"
-              className="flex-1"
+              className="flex-1 h-11 sm:h-10 touch-target"
               onClick={handleAddToList}
             >
               <Plus className="h-4 w-4 mr-2" />

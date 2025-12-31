@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
+use crate::utils::generate_id;
 
 // ============================================================================
 // Types
@@ -218,7 +219,7 @@ pub async fn create_cache_region(
     let tile_count = estimate_tile_count(radius_deg, min_zoom, max_zoom);
     
     let region = CacheRegion {
-        id: format!("region-{}", uuid_simple()),
+        id: generate_id("region"),
         name,
         center_ra,
         center_dec,
@@ -316,6 +317,10 @@ pub async fn save_cached_tile(
     y: u64,
     data: Vec<u8>,
 ) -> Result<(), StorageError> {
+    // SECURITY: Validate tile size to prevent DoS attacks
+    crate::security::validate_size(&data, crate::security::limits::MAX_TILE_SIZE)
+        .map_err(|e| StorageError::Other(e.to_string()))?;
+
     let tile_path = get_tile_path(&app, &survey_id, zoom, x, y)?;
     fs::write(&tile_path, &data)?;
     
@@ -457,21 +462,3 @@ fn count_files_recursive(dir: &PathBuf) -> Result<u64, StorageError> {
     Ok(count)
 }
 
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let random: u32 = rand_simple();
-    format!("{:x}{:08x}", timestamp, random)
-}
-
-fn rand_simple() -> u32 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    nanos.wrapping_mul(1103515245).wrapping_add(12345)
-}

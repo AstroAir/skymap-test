@@ -46,6 +46,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { AlertTriangle, CheckCircle2, Wrench } from 'lucide-react';
 import { useCache } from '@/lib/tauri/hooks';
+import { unifiedCacheApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
 
 // Convert SKY_SURVEYS to HiPSSurvey format for cache operations
@@ -65,7 +66,7 @@ function convertToHiPSSurvey(survey: typeof SKY_SURVEYS[0]) {
 export function OfflineCacheManager() {
   const t = useTranslations();
   const [selectedLayers, setSelectedLayers] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'layers' | 'surveys'>('layers');
+  const [activeTab, setActiveTab] = useState<'layers' | 'surveys' | 'unified'>('layers');
   
   // HiPS survey cache state
   const [surveyStatuses, setSurveyStatuses] = useState<Record<string, HiPSCacheStatus>>({});
@@ -74,6 +75,11 @@ export function OfflineCacheManager() {
   // Storage info state
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [repairingLayers, setRepairingLayers] = useState<string[]>([]);
+  
+  // Unified cache state (desktop only)
+  const [unifiedCacheStats, setUnifiedCacheStats] = useState<{ total_entries: number; total_size: number; hit_rate: number } | null>(null);
+  const [unifiedCacheKeys, setUnifiedCacheKeys] = useState<string[]>([]);
+  const [loadingUnified, setLoadingUnified] = useState(false);
   
   // Tauri cache hook for desktop-specific cache management
   const tauriCache = useCache();
@@ -224,6 +230,62 @@ export function OfflineCacheManager() {
       await refreshSurveyStatuses();
     }
   }, [t, refreshSurveyStatuses]);
+
+  // Unified cache functions (desktop only)
+  const refreshUnifiedCache = useCallback(async () => {
+    if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
+    
+    setLoadingUnified(true);
+    try {
+      const [stats, keys] = await Promise.all([
+        unifiedCacheApi.getStats(),
+        unifiedCacheApi.listKeys()
+      ]);
+      setUnifiedCacheStats(stats);
+      setUnifiedCacheKeys(keys);
+    } catch (error) {
+      console.error('Failed to load unified cache:', error);
+    } finally {
+      setLoadingUnified(false);
+    }
+  }, []);
+
+  const handleClearUnifiedCache = useCallback(async () => {
+    if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
+    
+    try {
+      const deletedCount = await unifiedCacheApi.clearCache();
+      toast.success(t('cache.cleared') || 'Cache cleared', {
+        description: `${deletedCount} entries removed`
+      });
+      await refreshUnifiedCache();
+    } catch (error) {
+      toast.error(t('cache.clearFailed') || 'Failed to clear cache');
+      console.error('Failed to clear unified cache:', error);
+    }
+  }, [t, refreshUnifiedCache]);
+
+  const handleCleanupUnifiedCache = useCallback(async () => {
+    if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
+    
+    try {
+      const deletedCount = await unifiedCacheApi.cleanup();
+      toast.success(t('cache.cleanupComplete') || 'Cleanup complete', {
+        description: `${deletedCount} expired entries removed`
+      });
+      await refreshUnifiedCache();
+    } catch (error) {
+      toast.error(t('cache.cleanupFailed') || 'Failed to cleanup cache');
+      console.error('Failed to cleanup unified cache:', error);
+    }
+  }, [t, refreshUnifiedCache]);
+
+  // Load unified cache data when tab becomes active
+  useEffect(() => {
+    if (activeTab === 'unified' && isTauri() && unifiedCacheApi.isAvailable()) {
+      refreshUnifiedCache();
+    }
+  }, [activeTab, refreshUnifiedCache]);
 
   // Toggle layer selection
   const toggleLayerSelection = (layerId: string) => {
@@ -404,9 +466,9 @@ export function OfflineCacheManager() {
             />
           </div>
 
-          {/* Tabbed content for layers and surveys */}
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'layers' | 'surveys')}>
-            <TabsList className="grid w-full grid-cols-2">
+          {/* Tabbed content for layers, surveys, and unified cache */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'layers' | 'surveys' | 'unified')}>
+            <TabsList className={`grid w-full ${isTauri() ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <TabsTrigger value="layers" className="text-xs">
                 <Package className="h-3.5 w-3.5 mr-1" />
                 {t('cache.manageIndividualLayers')}
@@ -415,6 +477,12 @@ export function OfflineCacheManager() {
                 <Telescope className="h-3.5 w-3.5 mr-1" />
                 {t('settings.skySurveys')}
               </TabsTrigger>
+              {isTauri() && (
+                <TabsTrigger value="unified" className="text-xs">
+                  <HardDrive className="h-3.5 w-3.5 mr-1" />
+                  {t('cache.unifiedCache') || 'Unified'}
+                </TabsTrigger>
+              )}
             </TabsList>
             
             {/* Data Layers Tab */}
@@ -715,6 +783,112 @@ export function OfflineCacheManager() {
                 </div>
               </ScrollArea>
             </TabsContent>
+            
+            {/* Unified Cache Tab (Desktop only) */}
+            {isTauri() && (
+              <TabsContent value="unified" className="mt-2">
+                <div className="space-y-3">
+                  {loadingUnified ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2 text-sm text-muted-foreground">Loading unified cache...</span>
+                    </div>
+                  ) : unifiedCacheStats ? (
+                    <>
+                      {/* Cache Stats */}
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="font-medium">{unifiedCacheStats.total_entries}</div>
+                          <div className="text-xs text-muted-foreground">Entries</div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="font-medium">{formatBytes(unifiedCacheStats.total_size)}</div>
+                          <div className="text-xs text-muted-foreground">Size</div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/30 rounded">
+                          <div className="font-medium">{(unifiedCacheStats.hit_rate * 100).toFixed(1)}%</div>
+                          <div className="text-xs text-muted-foreground">Hit Rate</div>
+                        </div>
+                      </div>
+
+                      {/* Cache Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCleanupUnifiedCache}
+                          className="flex-1"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          {t('cache.cleanup') || 'Cleanup'}
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 text-destructive hover:text-destructive"
+                              disabled={unifiedCacheStats.total_entries === 0}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              {t('cache.clearAll') || 'Clear All'}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{t('cache.clearUnifiedCache') || 'Clear Unified Cache'}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will remove all {unifiedCacheStats.total_entries} cached entries ({formatBytes(unifiedCacheStats.total_size)}).
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleClearUnifiedCache}>
+                                {t('cache.clearAll')}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+
+                      {/* Cache Keys List */}
+                      {unifiedCacheKeys.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium mb-2">
+                            {t('cache.cachedItems') || 'Cached Items'} ({unifiedCacheKeys.length})
+                          </h4>
+                          <ScrollArea className="h-[160px]">
+                            <div className="space-y-1 pr-2">
+                              {unifiedCacheKeys.slice(0, 20).map((key) => (
+                                <div
+                                  key={key}
+                                  className="text-xs p-2 bg-muted/30 rounded truncate"
+                                  title={key}
+                                >
+                                  {key}
+                                </div>
+                              ))}
+                              {unifiedCacheKeys.length > 20 && (
+                                <div className="text-xs text-muted-foreground text-center py-2">
+                                  ... and {unifiedCacheKeys.length - 20} more items
+                                </div>
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-8">
+                      <HardDrive className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-sm text-muted-foreground">
+                        {t('cache.unifiedCacheEmpty') || 'Unified cache is empty'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            )}
           </Tabs>
 
           {/* Cancel button when downloading */}

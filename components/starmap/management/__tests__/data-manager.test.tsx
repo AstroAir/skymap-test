@@ -17,6 +17,11 @@ jest.mock('@/lib/storage', () => {
     storage: mockStorage,
     isTauri: jest.fn(() => false),
     readFileAsText: jest.fn(),
+    getZustandStorage: jest.fn(() => ({
+      getItem: jest.fn(() => null),
+      setItem: jest.fn(),
+      removeItem: jest.fn(),
+    })),
   };
 });
 

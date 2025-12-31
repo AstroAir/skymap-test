@@ -5,6 +5,7 @@
  */
 
 import { isTauri } from '@/lib/storage/platform';
+import { validateUrl, SecurityError } from '../security/url-validator';
 
 // ============================================================================
 // Types
@@ -374,6 +375,17 @@ class UnifiedCacheManager {
     options: FetchOptions = {},
     strategy: CacheStrategy = 'cache-first'
   ): Promise<Response> {
+    // SECURITY: Validate URL to prevent SSRF attacks
+    try {
+      validateUrl(url, { allowHttp: false });
+    } catch (error) {
+      if (error instanceof SecurityError) {
+        console.error('[Security] URL validation failed:', error.message);
+        throw new Error(`URL validation failed: ${error.message}`);
+      }
+      throw error;
+    }
+
     const cacheKey = options.cacheKey || url;
     const provider = await this.getProvider();
 

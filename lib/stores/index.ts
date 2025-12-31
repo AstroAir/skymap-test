@@ -56,3 +56,17 @@ export {
   type FOVDisplaySettings,
   type ExposureDefaults,
 } from './equipment-store';
+
+// Onboarding store
+export {
+  useOnboardingStore,
+  TOUR_STEPS,
+  type TourStep,
+} from './onboarding-store';
+
+// Setup wizard store
+export {
+  useSetupWizardStore,
+  SETUP_WIZARD_STEPS,
+  type SetupWizardStep,
+} from './setup-wizard-store';

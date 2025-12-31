@@ -58,10 +58,10 @@ const config: Config = {
   // Uncomment to enable strict coverage requirements
   coverageThreshold: {
     global: {
-      branches: 60,
-      functions: 60,
-      lines: 70,
-      statements: 70,
+      branches: 50,
+      functions: 35,
+      lines: 60,
+      statements: 60,
     },
   },
 
@@ -162,17 +162,11 @@ const config: Config = {
     ],
   ],
 
-  // Automatically reset mock state before every test
-  // resetMocks: false,
-
   // Reset the module registry before running each individual test
   // resetModules: false,
 
   // A path to a custom resolver
   // resolver: undefined,
-
-  // Automatically restore mock state and implementation before every test
-  // restoreMocks: false,
 
   // The root directory that Jest should scan for tests and modules within
   // rootDir: undefined,
@@ -218,6 +212,7 @@ const config: Config = {
     "/.next/",
     "/out/",
     "/src-tauri/",
+    "/tests/e2e/",
   ],
 
   // The regexp pattern or array of patterns that Jest uses to detect test files

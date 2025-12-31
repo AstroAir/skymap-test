@@ -1,0 +1,47 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Map Component Test Page" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - heading "Location Search" [level=2] [ref=e5]
+      - generic [ref=e7]:
+        - img [ref=e8]
+        - textbox "Search for a location..." [ref=e11]
+    - generic [ref=e12]:
+      - heading "Map Location Picker" [level=2] [ref=e13]
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - text: Latitude
+          - spinbutton [ref=e16]: "39.9042"
+        - generic [ref=e17]:
+          - text: Longitude
+          - spinbutton [ref=e18]: "116.4074"
+      - generic [ref=e19]:
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - img [ref=e23]
+            - text: Location Picker
+          - button [ref=e26]:
+            - img [ref=e27]
+        - generic [ref=e31]:
+          - generic [ref=e33]:
+            - textbox "Search for a location..." [ref=e34]
+            - button [disabled] [ref=e35]:
+              - img [ref=e36]
+            - button [ref=e39]:
+              - img [ref=e40]
+          - generic [ref=e43]:
+            - generic [ref=e44]:
+              - text: Latitude
+              - spinbutton [ref=e45]: "39.9042"
+            - generic [ref=e46]:
+              - text: Longitude
+              - spinbutton [ref=e47]: "116.4074"
+    - generic [ref=e48]:
+      - heading "Current Coordinates" [level=3] [ref=e49]
+      - paragraph [ref=e50]: "Latitude: 39.904200"
+      - paragraph [ref=e51]: "Longitude: 116.407400"
+  - region "Notifications alt+T"
+```

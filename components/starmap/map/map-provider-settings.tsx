@@ -1,0 +1,483 @@
+'use client';
+
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
+import {
+  Settings,
+  GripVertical,
+  AlertTriangle,
+  Info,
+  Save,
+  RotateCcw,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import { Slider } from '@/components/ui/slider';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { mapConfig, type MapConfiguration } from '@/lib/services/map-config';
+import { connectivityChecker } from '@/lib/services/connectivity-checker';
+
+interface MapProviderSettingsProps {
+  trigger?: React.ReactNode;
+  onSettingsChange?: (config: MapConfiguration) => void;
+}
+
+type ProviderType = 'openstreetmap' | 'google' | 'mapbox';
+
+const PROVIDER_INFO: Record<ProviderType, { name: string; description: string; requiresKey: boolean }> = {
+  openstreetmap: {
+    name: 'OpenStreetMap',
+    description: 'Free, open-source map data. No API key required.',
+    requiresKey: false,
+  },
+  google: {
+    name: 'Google Maps',
+    description: 'High-quality maps with extensive coverage. Requires API key.',
+    requiresKey: true,
+  },
+  mapbox: {
+    name: 'Mapbox',
+    description: 'Customizable maps with satellite imagery. Requires API key.',
+    requiresKey: true,
+  },
+};
+
+const FALLBACK_STRATEGIES = [
+  { value: 'priority', label: 'Priority Order', description: 'Use providers in priority order' },
+  { value: 'fastest', label: 'Fastest Response', description: 'Use the provider with lowest latency' },
+  { value: 'random', label: 'Random', description: 'Randomly select from healthy providers' },
+  { value: 'round-robin', label: 'Round Robin', description: 'Rotate between providers' },
+];
+
+export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSettingsProps) {
+  const t = useTranslations();
+  const [open, setOpen] = useState(false);
+  const [config, setConfig] = useState<MapConfiguration>(mapConfig.getConfiguration());
+  const [hasChanges, setHasChanges] = useState(false);
+  const [providerHealth, setProviderHealth] = useState<Record<string, { healthy: boolean; responseTime: number }>>({});
+
+  // Compute provider health status using useMemo instead of useEffect
+  const computedProviderHealth = useMemo(() => {
+    const healthStatus: Record<string, { healthy: boolean; responseTime: number }> = {};
+    config.providers.forEach(p => {
+      const health = connectivityChecker.getProviderHealth(p.provider);
+      healthStatus[p.provider] = {
+        healthy: health?.isHealthy ?? true,
+        responseTime: health?.responseTime ?? 0,
+      };
+    });
+    return healthStatus;
+  }, [config.providers]);
+
+  // Sync computed health to state only when it changes
+  useEffect(() => {
+    setProviderHealth(computedProviderHealth);
+  }, [computedProviderHealth]);
+
+  // Listen for config changes
+  useEffect(() => {
+    const unsubscribe = mapConfig.addConfigurationListener((newConfig) => {
+      setConfig(newConfig);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleProviderToggle = useCallback((provider: ProviderType, enabled: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      providers: prev.providers.map(p =>
+        p.provider === provider ? { ...p, enabled } : p
+      ),
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleProviderPriorityChange = useCallback((provider: ProviderType, newPriority: number) => {
+    setConfig(prev => ({
+      ...prev,
+      providers: prev.providers.map(p =>
+        p.provider === provider ? { ...p, priority: newPriority } : p
+      ).sort((a, b) => a.priority - b.priority),
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleDefaultProviderChange = useCallback((provider: ProviderType) => {
+    setConfig(prev => ({
+      ...prev,
+      defaultProvider: provider,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleFallbackStrategyChange = useCallback((strategy: MapConfiguration['fallbackStrategy']) => {
+    setConfig(prev => ({
+      ...prev,
+      fallbackStrategy: strategy,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleAutoFallbackToggle = useCallback((enabled: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      enableAutoFallback: enabled,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleCacheToggle = useCallback((enabled: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      cacheResponses: enabled,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleCacheDurationChange = useCallback((hours: number[]) => {
+    setConfig(prev => ({
+      ...prev,
+      cacheDuration: hours[0] * 60 * 60 * 1000,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleOfflineModeToggle = useCallback((enabled: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      enableOfflineMode: enabled,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleHealthCheckIntervalChange = useCallback((minutes: number[]) => {
+    setConfig(prev => ({
+      ...prev,
+      healthCheckInterval: minutes[0] * 60 * 1000,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleSave = useCallback(() => {
+    try {
+      // Apply all settings
+      config.providers.forEach(p => {
+        mapConfig.enableProvider(p.provider, p.enabled);
+        mapConfig.setProviderPriority(p.provider, p.priority);
+      });
+      mapConfig.setDefaultProvider(config.defaultProvider);
+      mapConfig.setFallbackStrategy(config.fallbackStrategy);
+      mapConfig.setAutoFallback(config.enableAutoFallback);
+      mapConfig.setCacheSettings(config.cacheResponses, config.cacheDuration);
+      mapConfig.setOfflineMode(config.enableOfflineMode);
+      mapConfig.setHealthCheckInterval(config.healthCheckInterval);
+
+      toast.success(t('map.settingsSaved') || 'Settings saved');
+      setHasChanges(false);
+      onSettingsChange?.(config);
+    } catch (error) {
+      toast.error(t('map.settingsSaveFailed') || 'Failed to save settings');
+      console.error('Failed to save map settings:', error);
+    }
+  }, [config, t, onSettingsChange]);
+
+  const handleReset = useCallback(() => {
+    setConfig(mapConfig.getConfiguration());
+    setHasChanges(false);
+  }, []);
+
+  const getProviderStatusBadge = (provider: ProviderType) => {
+    const health = providerHealth[provider];
+    const providerConfig = config.providers.find(p => p.provider === provider);
+
+    if (!providerConfig?.enabled) {
+      return <Badge variant="outline">{t('map.disabled') || 'Disabled'}</Badge>;
+    }
+
+    if (!health) {
+      return <Badge variant="secondary">{t('map.unknown') || 'Unknown'}</Badge>;
+    }
+
+    if (health.healthy) {
+      return (
+        <Badge variant="default" className="bg-green-500">
+          {t('map.healthy') || 'Healthy'} ({health.responseTime}ms)
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="destructive">
+        {t('map.unhealthy') || 'Unhealthy'}
+      </Badge>
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {trigger || (
+          <Button variant="outline" size="sm">
+            <Settings className="h-4 w-4 mr-2" />
+            {t('map.providerSettings') || 'Map Settings'}
+          </Button>
+        )}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            {t('map.providerSettings') || 'Map Provider Settings'}
+          </DialogTitle>
+          <DialogDescription>
+            {t('map.providerSettingsDescription') || 'Configure map providers, fallback strategies, and caching options.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Providers Section */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm">{t('map.providers') || 'Providers'}</h4>
+            
+            {config.providers.map((provider) => {
+              const info = PROVIDER_INFO[provider.provider];
+              return (
+                <Card key={provider.provider} className={cn(!provider.enabled && 'opacity-60')}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 cursor-grab" />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{info.name}</span>
+                            {getProviderStatusBadge(provider.provider)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{info.description}</p>
+                          {info.requiresKey && !mapConfig.getActiveApiKey(provider.provider) && (
+                            <div className="flex items-center gap-1 text-xs text-amber-500">
+                              <AlertTriangle className="h-3 w-3" />
+                              {t('map.apiKeyRequired') || 'API key required'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <Switch
+                        checked={provider.enabled}
+                        onCheckedChange={(checked) => handleProviderToggle(provider.provider, checked)}
+                      />
+                    </div>
+                    
+                    {provider.enabled && (
+                      <div className="mt-3 pt-3 border-t">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">{t('map.priority') || 'Priority'}</Label>
+                          <Select
+                            value={String(provider.priority)}
+                            onValueChange={(v) => handleProviderPriorityChange(provider.provider, parseInt(v))}
+                          >
+                            <SelectTrigger className="w-20 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3].map((p) => (
+                                <SelectItem key={p} value={String(p)}>{p}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          <Separator />
+
+          {/* Default Provider */}
+          <div className="space-y-3">
+            <Label>{t('map.defaultProvider') || 'Default Provider'}</Label>
+            <Select
+              value={config.defaultProvider}
+              onValueChange={(v) => handleDefaultProviderChange(v as ProviderType)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {config.providers
+                  .filter(p => p.enabled)
+                  .map((p) => (
+                    <SelectItem key={p.provider} value={p.provider}>
+                      {PROVIDER_INFO[p.provider].name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Separator />
+
+          {/* Fallback Settings */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>{t('map.autoFallback') || 'Auto Fallback'}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('map.autoFallbackDescription') || 'Automatically switch to backup provider on failure'}
+                </p>
+              </div>
+              <Switch
+                checked={config.enableAutoFallback}
+                onCheckedChange={handleAutoFallbackToggle}
+              />
+            </div>
+
+            {config.enableAutoFallback && (
+              <div className="space-y-3">
+                <Label>{t('map.fallbackStrategy') || 'Fallback Strategy'}</Label>
+                <Select
+                  value={config.fallbackStrategy}
+                  onValueChange={(v) => handleFallbackStrategyChange(v as MapConfiguration['fallbackStrategy'])}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FALLBACK_STRATEGIES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        <div>
+                          <div>{s.label}</div>
+                          <div className="text-xs text-muted-foreground">{s.description}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Cache Settings */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>{t('map.cacheResponses') || 'Cache Responses'}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('map.cacheDescription') || 'Cache geocoding results to reduce API calls'}
+                </p>
+              </div>
+              <Switch
+                checked={config.cacheResponses}
+                onCheckedChange={handleCacheToggle}
+              />
+            </div>
+
+            {config.cacheResponses && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">{t('map.cacheDuration') || 'Cache Duration'}</Label>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round(config.cacheDuration / (60 * 60 * 1000))} {t('map.hours') || 'hours'}
+                  </span>
+                </div>
+                <Slider
+                  value={[Math.round(config.cacheDuration / (60 * 60 * 1000))]}
+                  onValueChange={handleCacheDurationChange}
+                  min={1}
+                  max={72}
+                  step={1}
+                />
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Offline Mode */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{t('map.offlineMode') || 'Offline Mode'}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('map.offlineModeDescription') || 'Use cached data when offline'}
+              </p>
+            </div>
+            <Switch
+              checked={config.enableOfflineMode}
+              onCheckedChange={handleOfflineModeToggle}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Health Check Interval */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">{t('map.healthCheckInterval') || 'Health Check Interval'}</Label>
+              <span className="text-sm text-muted-foreground">
+                {Math.round(config.healthCheckInterval / (60 * 1000))} {t('map.minutes') || 'minutes'}
+              </span>
+            </div>
+            <Slider
+              value={[Math.round(config.healthCheckInterval / (60 * 1000))]}
+              onValueChange={handleHealthCheckIntervalChange}
+              min={1}
+              max={30}
+              step={1}
+            />
+          </div>
+
+          {hasChanges && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>{t('map.unsavedChanges') || 'Unsaved Changes'}</AlertTitle>
+              <AlertDescription>
+                {t('map.unsavedChangesDescription') || 'You have unsaved changes. Click Save to apply them.'}
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={handleReset} disabled={!hasChanges}>
+            <RotateCcw className="h-4 w-4 mr-2" />
+            {t('common.reset') || 'Reset'}
+          </Button>
+          <Button onClick={handleSave} disabled={!hasChanges}>
+            <Save className="h-4 w-4 mr-2" />
+            {t('common.save') || 'Save'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

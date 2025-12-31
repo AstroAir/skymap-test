@@ -1,0 +1,545 @@
+# Tauri 命令 API
+
+本文档介绍 Tauri 后端提供的所有命令 API。
+
+## API 概览
+
+SkyMap Test 后端使用 Rust + Tauri 提供100+命令，分为以下模块：
+
+```mermaid
+graph TD
+    A[Tauri Commands] --> B[存储模块]
+    A --> C[设备模块]
+    A --> D[天文计算模块]
+    A --> E[缓存模块]
+    A --> F[事件模块]
+    A --> G[目标列表模块]
+    A --> H[标记模块]
+```
+
+## 存储模块 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `save_store_data` | 保存数据 | storeName, data | void |
+| `load_store_data` | 加载数据 | storeName | string \| null |
+| `delete_store_data` | 删除数据 | storeName | boolean |
+| `list_stores` | 列出所有存储 | - | string[] |
+| `export_all_data` | 导出所有数据 | exportPath | void |
+| `import_all_data` | 导入数据 | importPath | ImportResult |
+| `get_data_directory` | 获取数据目录 | - | string |
+| `get_storage_stats` | 获取存储统计 | - | StorageStats |
+| `clear_all_data` | 清除所有数据 | - | number |
+
+### Rust 实现
+
+**文件**: `src-tauri/src/storage.rs`
+
+```rust
+#[tauri::command]
+async fn save_store_data(store_name: String, data: String) -> Result<(), String> {
+    // 实现数据保存逻辑
+    let db = open_database()?;
+    db.save(&store_name, &data)?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn load_store_data(store_name: String) -> Result<Option<String>, String> {
+    let db = open_database()?;
+    let data = db.load(&store_name)?;
+    Ok(data)
+}
+```
+
+### TypeScript 类型定义
+
+```typescript
+// lib/tauri/storage-api.ts
+
+export interface StorageStats {
+  total_size: number;
+  store_count: number;
+  stores: StoreInfo[];
+  directory: string;
+}
+
+export interface ImportResult {
+  imported_count: number;
+  skipped_count: number;
+  errors: string[];
+  metadata: ExportMetadata;
+}
+```
+
+### 前端调用示例
+
+```typescript
+import { storageApi } from '@/lib/tauri/storage-api';
+
+// 保存数据
+await storageApi.saveStoreData('targets', JSON.stringify(targets));
+
+// 加载数据
+const data = await storageApi.loadStoreData('targets');
+if (data) {
+  const targets = JSON.parse(data);
+}
+
+// 获取存储统计
+const stats = await storageApi.getStorageStats();
+console.log('总大小:', formatBytes(stats.total_size));
+```
+
+## 设备管理 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `load_equipment` | 加载设备配置 | - | Equipment |
+| `save_equipment` | 保存设备配置 | equipment | void |
+| `add_telescope` | 添加望远镜 | telescope | Telescope |
+| `update_telescope` | 更新望远镜 | id, data | Telescope |
+| `delete_equipment` | 删除设备 | id, type | boolean |
+| `set_default_telescope` | 设置默认望远镜 | id | void |
+| `get_default_telescope` | 获取默认望远镜 | - | Telescope \| null |
+
+### 数据结构
+
+```typescript
+interface Telescope {
+  id: string;
+  name: string;
+  type: 'refractor' | 'reflector' | 'catadioptric';
+  aperture: number;      // mm
+  focalLength: number;   // mm
+  isDefault?: boolean;
+}
+
+interface Camera {
+  id: string;
+  name: string;
+  sensorWidth: number;   // mm
+  sensorHeight: number;  // mm
+  pixelWidth: number;    // μm
+  pixelHeight: number;   // μm
+  maxGain?: number;
+  isDefault?: boolean;
+}
+```
+
+### 使用示例
+
+```typescript
+import { equipmentApi } from '@/lib/tauri/equipment-api';
+
+// 添加望远镜
+await equipmentApi.addTelescope({
+  id: 'tele-001',
+  name: 'Celestron 8SE',
+  type: 'catadioptric',
+  aperture: 203,
+  focalLength: 2032,
+  isDefault: true
+});
+
+// 获取默认望远镜
+const defaultTelescope = await equipmentApi.getDefaultTelescope();
+console.log('默认望远镜:', defaultTelescope?.name);
+```
+
+## 天文计算 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `equatorial_to_horizontal` | 赤道转地平坐标 | ra, dec, lat, lon | AltAz |
+| `horizontal_to_equatorial` | 地平转赤道坐标 | alt, az, lat, lon | RaDec |
+| `calculate_visibility` | 计算可见性 | objectId, location, time | Visibility |
+| `calculate_twilight` | 计算曙暮光 | date, location | TwilightInfo |
+| `calculate_moon_phase` | 计算月相 | date | MoonPhase |
+| `calculate_fov` | 计算视野 | telescope, camera | FOVInfo |
+| `angular_separation` | 计算角距离 | ra1, dec1, ra2, dec2 | number (degrees) |
+
+### 数据结构
+
+```typescript
+interface AltAz {
+  alt: number;  // 高度角 (degrees)
+  az: number;   // 方位角 (degrees)
+}
+
+interface RaDec {
+  ra: number;   // 赤经 (degrees)
+  dec: number;  // 赤纬 (degrees)
+}
+
+interface Visibility {
+  visible: boolean;
+  riseTime?: Date;
+  setTime?: Date;
+  maxAlt?: number;
+  bestTime?: Date;
+}
+
+interface MoonPhase {
+  phase: number;        // 0-1 (0=new, 0.5=full, 1=old)
+  illumination: number;  // 0-1
+  age: number;          // days since new moon
+}
+```
+
+### 使用示例
+
+```typescript
+import { astronomyApi } from '@/lib/tauri/astronomy-api';
+
+// 坐标转换
+const altAz = await astronomyApi.equatorialToHorizontal(
+  83.633,  // RA (degrees)
+  22.014,  // Dec (degrees)
+  39.904,  // Latitude
+  116.407  // Longitude
+);
+
+console.log(`高度角: ${altAz.alt}°, 方位角: ${altAz.az}°`);
+
+// 计算可见性
+const visibility = await astronomyApi.calculateVisibility(
+  'M31',
+  { lat: 39.904, lon: 116.407 },
+  new Date()
+);
+
+if (visibility.visible) {
+  console.log('升起时间:', visibility.riseTime);
+  console.log('最高点:', visibility.maxAlt, '°');
+}
+```
+
+## 缓存管理 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `get_cache_stats` | 获取缓存统计 | - | CacheStats |
+| `save_cached_tile` | 保存瓦片 | tile, data | void |
+| `load_cached_tile` | 加载瓦片 | tile | bytes \| null |
+| `is_tile_cached` | 检查瓦片是否存在 | tile | boolean |
+| `clear_survey_cache` | 清除星图缓存 | surveyId | void |
+| `clear_all_cache` | 清除所有缓存 | - | void |
+
+### 数据结构
+
+```typescript
+interface CacheStats {
+  totalSize: number;
+  tileCount: number;
+  surveyCount: number;
+  lastUpdate: string;
+}
+
+interface Tile {
+  survey: string;
+  level: number;
+  x: number;
+  y: number;
+}
+```
+
+## 统一缓存 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `get_unified_cache_entry` | 获取缓存条目 | key | string \| null |
+| `put_unified_cache_entry` | 保存缓存条目 | key, value, ttl? | void |
+| `delete_unified_cache_entry` | 删除缓存条目 | key | boolean |
+| `get_unified_cache_stats` | 获取缓存统计 | - | CacheStats |
+| `cleanup_unified_cache` | 清理过期缓存 | - | number (removed count) |
+| `prefetch_url` | 预取URL | url | void |
+| `prefetch_urls` | 批量预取 | urls[] | void |
+
+### 使用示例
+
+```typescript
+import { unifiedCacheApi } from '@/lib/tauri/unified-cache-api';
+
+// 保存到缓存
+await unifiedCacheApi.putEntry(
+  'object-info:M31',
+  JSON.stringify(objectData),
+  3600  // TTL: 1小时
+);
+
+// 从缓存读取
+const cached = await unifiedCacheApi.getEntry('object-info:M31');
+if (cached) {
+  const data = JSON.parse(cached);
+}
+
+// 清理过期缓存
+const removed = await unifiedCacheApi.cleanupCache();
+console.log(`清理了 ${removed} 个过期条目`);
+```
+
+## 天文事件 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `get_moon_phases_for_month` | 获取月相 | year, month | MoonPhase[] |
+| `get_meteor_showers` | 获取流星雨 | year, month | MeteorShower[] |
+| `get_seasonal_events` | 获取季节性事件 | year | SeasonalEvent[] |
+| `get_tonight_highlights` | 今晚亮点 | date, location | Highlight[] |
+
+### 数据结构
+
+```typescript
+interface MoonPhase {
+  date: Date;
+  phase: 'new' | 'waxing-crescent' | 'first-quarter' | 'waxing-gibbous' |
+         'full' | 'waning-gibbous' | 'last-quarter' | 'waning-crescent';
+  illumination: number;  // 0-1
+}
+
+interface MeteorShower {
+  name: string;
+  peakDate: Date;
+  rate: number;  // meteors per hour
+  parent: string;  // parent comet
+}
+
+interface Highlight {
+  objectId: string;
+  name: string;
+  type: string;
+  reason: string;  // 为什么要推荐
+  bestTime: Date;
+  maxAlt: number;
+}
+```
+
+## 目标列表 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `load_target_list` | 加载目标列表 | - | Target[] |
+| `save_target_list` | 保存目标列表 | targets | void |
+| `add_target` | 添加目标 | target | Target |
+| `add_targets_batch` | 批量添加 | targets[] | Target[] |
+| `update_target` | 更新目标 | id, data | Target |
+| `remove_target` | 删除目标 | id | boolean |
+| `toggle_target_favorite` | 切换收藏 | id | boolean |
+| `set_targets_status_batch` | 批量设置状态 | ids[], status | number |
+| `search_targets` | 搜索目标 | query | Target[] |
+| `get_target_stats` | 获取统计 | - | TargetStats |
+
+## 标记管理 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `load_markers` | 加载标记 | - | Marker[] |
+| `save_markers` | 保存标记 | markers | void |
+| `add_marker` | 添加标记 | marker | Marker |
+| `update_marker` | 更新标记 | id, data | Marker |
+| `remove_marker` | 删除标记 | id | boolean |
+| `toggle_marker_visibility` | 切换可见性 | id | boolean |
+| `get_visible_markers` | 获取可见标记 | - | Marker[] |
+
+## 错误处理
+
+### Result 类型
+
+所有命令返回 `Result<T, String>`：
+
+```typescript
+// 成功
+Ok(data)
+
+// 失败
+Err(error_message)
+```
+
+### 前端错误处理
+
+```typescript
+try {
+  const result = await invoke('command_name', { param1: value1 });
+  // 处理成功结果
+} catch (error) {
+  // 处理错误
+  console.error('命令执行失败:', error);
+  toast.error('操作失败', {
+    description: error as string
+  });
+}
+```
+
+## 性能考虑
+
+### 异步执行
+
+所有 Tauri 命令都是异步的：
+
+```typescript
+// ✅ 使用 await
+const result = await invoke('command_name');
+
+// ❌ 不要这样
+const result = invoke('command_name');  // 返回 Promise
+```
+
+### 批量操作
+
+对于大量操作，使用批量命令：
+
+```typescript
+// ✅ 批量添加
+await invoke('add_targets_batch', {
+  targets: largeArray
+});
+
+// ❌ 逐个添加（慢）
+for (const target of largeArray) {
+  await invoke('add_target', { target });
+}
+```
+
+## 调试
+
+### 启用日志
+
+在 `src-tauri/src/lib.rs` 中：
+
+```rust
+#[cfg(debug_assertions)]
+app.handle().plugin(
+    tauri_plugin_log::Builder::default()
+        .level(log::LevelFilter::Debug)
+        .build(),
+)?;
+```
+
+### 查看日志
+
+**Windows**: `%APPDATA%\SkyMapTest\logs\`
+**macOS**: `~/Library/Logs/SkyMapTest/`
+**Linux**: `~/.local/state/SkyMapTest/logs/`
+
+## 安全考虑
+
+### 输入验证
+
+后端验证所有输入：
+
+```rust
+#[tauri::command]
+async fn add_telescope(telescope: Telescope) -> Result<Telescope, String> {
+    // 验证数据
+    if telescope.aperture <= 0 {
+        return Err("口径必须大于0".to_string());
+    }
+    if telescope.focalLength <= 0 {
+        return Err("焦距必须大于0".to_string());
+    }
+
+    // 处理逻辑
+    Ok(telescope)
+}
+```
+
+### SQL注入防护
+
+使用参数化查询：
+
+```rust
+// ✅ 安全
+db.execute(
+    "SELECT * FROM telescopes WHERE id = ?",
+    params![telescope_id]
+)?;
+
+// ❌ 危险
+db.execute(&format!(
+    "SELECT * FROM telescopes WHERE id = '{}'",
+    telescope_id
+))?;
+```
+
+## 最佳实践
+
+### 1. 使用 TypeScript 类型
+
+定义完整的类型：
+
+```typescript
+interface MyCommandParams {
+  param1: string;
+  param2: number;
+}
+
+interface MyCommandResult {
+  result1: boolean;
+  result2: string;
+}
+
+const result = await invoke<MyCommandResult>('my_command', {
+  param1: 'value',
+  param2: 42
+} as MyCommandParams);
+```
+
+### 2. 封装 API 调用
+
+创建 API 封装层：
+
+```typescript
+// lib/tauri/my-api.ts
+export const myApi = {
+  async doSomething(param: string): Promise<Result> {
+    return invoke('my_command', { param });
+  }
+};
+```
+
+### 3. 错误处理
+
+统一错误处理：
+
+```typescript
+export async function handleTauriCommand<T>(
+  command: string,
+  params?: any
+): Promise<T> {
+  try {
+    return await invoke<T>(command, params);
+  } catch (error) {
+    const message = error as string;
+    toast.error('操作失败', { description: message });
+    throw new Error(message);
+  }
+}
+```
+
+## 相关文档
+
+- [前端API: Stores](../frontend-apis/stores.md)
+- [前端API: Hooks](../frontend-apis/hooks.md)
+- [后端开发](../../backend-development/index.md)
+- [数据存储](../../data-management/storage.md)
+
+---
+
+返回：[API参考](../index.md)

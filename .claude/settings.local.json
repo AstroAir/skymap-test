@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm build:*)",
+      "Bash(dir:*)",
+      "Bash(pnpm update:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm tauri build:*)",
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(cargo clean:*)",
+      "Bash(set:*)",
+      "Bash(wmic:*)",
+      "Bash(powershell:*)",
+      "Bash(fsutil:*)",
+      "Bash(python:*)",
+      "Bash(where:*)",
+      "Bash(\"D:\\\\msys64\\\\mingw64\\\\bin\\\\python.exe\":*)"
+    ]
+  }
+}

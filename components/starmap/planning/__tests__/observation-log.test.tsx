@@ -1,0 +1,268 @@
+/**
+ * @jest-environment jsdom
+ */
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+
+// Mock stores and hooks
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
+// Mock Tauri API - define inside jest.mock to avoid hoisting issues
+jest.mock('@/lib/tauri', () => ({
+  tauriApi: {
+    observationLog: {
+      load: jest.fn().mockResolvedValue({ sessions: [] }),
+      save: jest.fn().mockResolvedValue(undefined),
+      createSession: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        date: '2024-01-15',
+        observations: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        equipment_ids: [],
+      }),
+      addObservation: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        date: '2024-01-15',
+        observations: [{ id: 'obs-1', object_name: 'M31' }],
+      }),
+      updateSession: jest.fn().mockResolvedValue({}),
+      endSession: jest.fn().mockResolvedValue({}),
+      deleteSession: jest.fn().mockResolvedValue(undefined),
+      getStats: jest.fn().mockResolvedValue({
+        total_sessions: 5,
+        total_observations: 25,
+        unique_objects: 20,
+        total_hours: 15.5,
+        objects_by_type: [['galaxy', 10], ['nebula', 8]],
+        monthly_counts: [],
+      }),
+      search: jest.fn().mockResolvedValue([]),
+    },
+  },
+}));
+
+// Mock platform check
+jest.mock('@/lib/storage/platform', () => ({
+  isTauri: jest.fn(() => true),
+}));
+
+// Mock sonner toast
+jest.mock('sonner', () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+  },
+}));
+
+// Mock UI components
+jest.mock('@/components/ui/button', () => ({
+  Button: ({ children, onClick, disabled, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => (
+    <button onClick={onClick} disabled={disabled} data-testid="button" {...props}>{children}</button>
+  ),
+}));
+
+jest.mock('@/components/ui/badge', () => ({
+  Badge: ({ children }: { children: React.ReactNode }) => <span data-testid="badge">{children}</span>,
+}));
+
+jest.mock('@/components/ui/input', () => ({
+  Input: ({ onChange, value, placeholder, type, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input 
+      data-testid="input" 
+      type={type}
+      value={value} 
+      placeholder={placeholder}
+      onChange={onChange}
+      {...props}
+    />
+  ),
+}));
+
+jest.mock('@/components/ui/label', () => ({
+  Label: ({ children }: { children: React.ReactNode }) => <label data-testid="label">{children}</label>,
+}));
+
+jest.mock('@/components/ui/textarea', () => ({
+  Textarea: ({ onChange, value, placeholder, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+    <textarea 
+      data-testid="textarea" 
+      value={value} 
+      placeholder={placeholder}
+      onChange={onChange}
+      {...props}
+    />
+  ),
+}));
+
+jest.mock('@/components/ui/scroll-area', () => ({
+  ScrollArea: ({ children }: { children: React.ReactNode }) => <div data-testid="scroll-area">{children}</div>,
+}));
+
+jest.mock('@/components/ui/separator', () => ({
+  Separator: () => <hr data-testid="separator" />,
+}));
+
+jest.mock('@/components/ui/drawer', () => ({
+  Drawer: ({ children, open }: { children: React.ReactNode; open?: boolean }) => (
+    <div data-testid="drawer" data-open={open}>{children}</div>
+  ),
+  DrawerContent: ({ children }: { children: React.ReactNode }) => <div data-testid="drawer-content">{children}</div>,
+  DrawerHeader: ({ children }: { children: React.ReactNode }) => <div data-testid="drawer-header">{children}</div>,
+  DrawerTitle: ({ children }: { children: React.ReactNode }) => <h2 data-testid="drawer-title">{children}</h2>,
+  DrawerTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
+    asChild ? <>{children}</> : <div data-testid="drawer-trigger">{children}</div>
+  ),
+}));
+
+jest.mock('@/components/ui/dialog', () => ({
+  Dialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) => (
+    open ? <div data-testid="dialog">{children}</div> : null
+  ),
+  DialogContent: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-content">{children}</div>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p data-testid="dialog-description">{children}</p>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-footer">{children}</div>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-header">{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2 data-testid="dialog-title">{children}</h2>,
+}));
+
+jest.mock('@/components/ui/tooltip', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip">{children}</div>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip-content">{children}</div>,
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="tooltip-provider">{children}</div>,
+  TooltipTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
+    asChild ? <>{children}</> : <div data-testid="tooltip-trigger">{children}</div>
+  ),
+}));
+
+jest.mock('@/components/ui/tabs', () => ({
+  Tabs: ({ children, defaultValue }: { children: React.ReactNode; defaultValue?: string }) => (
+    <div data-testid="tabs" data-default={defaultValue}>{children}</div>
+  ),
+  TabsContent: ({ children, value }: { children: React.ReactNode; value: string }) => (
+    <div data-testid={`tabs-content-${value}`}>{children}</div>
+  ),
+  TabsList: ({ children }: { children: React.ReactNode }) => <div data-testid="tabs-list">{children}</div>,
+  TabsTrigger: ({ children, value }: { children: React.ReactNode; value: string }) => (
+    <button data-testid={`tabs-trigger-${value}`}>{children}</button>
+  ),
+}));
+
+jest.mock('@/components/ui/select', () => ({
+  Select: ({ children, value }: { children: React.ReactNode; value?: string }) => (
+    <div data-testid="select" data-value={value}>{children}</div>
+  ),
+  SelectContent: ({ children }: { children: React.ReactNode }) => <div data-testid="select-content">{children}</div>,
+  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
+    <option data-testid="select-item" value={value}>{children}</option>
+  ),
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="select-trigger">{children}</div>,
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <span data-testid="select-value">{placeholder}</span>,
+}));
+
+import { ObservationLog } from '../observation-log';
+
+describe('ObservationLog', () => {
+  const defaultProps = {
+    currentSelection: null,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders without crashing', () => {
+    render(<ObservationLog {...defaultProps} />);
+    expect(screen.getByTestId('tooltip-provider')).toBeInTheDocument();
+  });
+
+  it('renders drawer component', () => {
+    render(<ObservationLog {...defaultProps} />);
+    expect(screen.getByTestId('drawer')).toBeInTheDocument();
+  });
+
+  it('renders trigger button with BookOpen icon', () => {
+    render(<ObservationLog {...defaultProps} />);
+    const buttons = screen.getAllByTestId('button');
+    expect(buttons.length).toBeGreaterThan(0);
+  });
+
+  it('renders tabs for sessions, search, and stats', () => {
+    render(<ObservationLog {...defaultProps} />);
+    expect(screen.getByTestId('tabs')).toBeInTheDocument();
+    expect(screen.getByTestId('tabs-trigger-sessions')).toBeInTheDocument();
+    expect(screen.getByTestId('tabs-trigger-search')).toBeInTheDocument();
+    expect(screen.getByTestId('tabs-trigger-stats')).toBeInTheDocument();
+  });
+
+  it('renders new session button', () => {
+    render(<ObservationLog {...defaultProps} />);
+    expect(screen.getByTestId('tabs-content-sessions')).toBeInTheDocument();
+  });
+
+  it('passes current selection to observation form', () => {
+    const propsWithSelection = {
+      currentSelection: {
+        name: 'M31',
+        ra: 10.68,
+        dec: 41.27,
+        raString: '00h 42m 44s',
+        decString: '+41° 16′ 09″',
+        type: 'galaxy',
+        constellation: 'Andromeda',
+      },
+    };
+    render(<ObservationLog {...propsWithSelection} />);
+    expect(screen.getByTestId('drawer')).toBeInTheDocument();
+  });
+
+  it('handles non-Tauri environment gracefully', () => {
+    // Component should still render even when isTauri returns false
+    render(<ObservationLog {...defaultProps} />);
+    expect(screen.getByTestId('drawer')).toBeInTheDocument();
+  });
+});
+
+describe('ObservationLog API Integration', () => {
+  // Import the mocked module to access the mock functions
+  const { tauriApi } = jest.requireMock('@/lib/tauri');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('has observationLog API methods defined', () => {
+    expect(tauriApi.observationLog.load).toBeDefined();
+    expect(tauriApi.observationLog.getStats).toBeDefined();
+    expect(tauriApi.observationLog.createSession).toBeDefined();
+    expect(tauriApi.observationLog.addObservation).toBeDefined();
+    expect(tauriApi.observationLog.search).toBeDefined();
+  });
+
+  it('createSession returns expected structure', async () => {
+    const result = await tauriApi.observationLog.createSession();
+    expect(result).toHaveProperty('id');
+    expect(result).toHaveProperty('date');
+  });
+
+  it('addObservation returns session with observations', async () => {
+    const result = await tauriApi.observationLog.addObservation();
+    expect(result).toHaveProperty('observations');
+  });
+
+  it('search returns array', async () => {
+    const results = await tauriApi.observationLog.search();
+    expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('getStats returns expected structure', async () => {
+    const stats = await tauriApi.observationLog.getStats();
+    expect(stats).toHaveProperty('total_sessions');
+    expect(stats).toHaveProperty('total_observations');
+    expect(stats).toHaveProperty('unique_objects');
+    expect(stats).toHaveProperty('total_hours');
+  });
+});

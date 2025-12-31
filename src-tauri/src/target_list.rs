@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
+use crate::utils::generate_id;
 
 // ============================================================================
 // Types
@@ -201,7 +202,7 @@ pub async fn add_target(
     let mut data = load_target_list(app.clone()).await?;
     
     let new_target = TargetItem {
-        id: format!("target-{}", uuid_simple()),
+        id: generate_id("target"),
         name: target.name,
         ra: target.ra,
         dec: target.dec,
@@ -241,7 +242,7 @@ pub async fn add_targets_batch(
     
     for target in targets {
         let new_target = TargetItem {
-            id: format!("target-{}", uuid_simple()),
+            id: generate_id("target"),
             name: target.name,
             ra: target.ra,
             dec: target.dec,
@@ -633,25 +634,3 @@ pub struct TargetStats {
     pub by_tag: Vec<(String, usize)>,
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    let random: u32 = rand_simple();
-    format!("{:x}{:08x}", timestamp, random)
-}
-
-fn rand_simple() -> u32 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    nanos.wrapping_mul(1103515245).wrapping_add(12345)
-}

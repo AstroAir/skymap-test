@@ -191,7 +191,7 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
         {/* Main Image Container */}
         <div 
           ref={containerRef}
-          className="relative h-48 sm:h-56 md:h-64 bg-black/50 rounded-lg overflow-hidden cursor-grab active:cursor-grabbing select-none"
+          className="relative h-48 sm:h-56 md:h-64 bg-black/50 rounded-lg overflow-hidden cursor-grab active:cursor-grabbing select-none touch-pan-x"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -234,46 +234,46 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
             )}
           </div>
 
-          {/* Navigation Arrows */}
+          {/* Navigation Arrows - Always visible on mobile, hover on desktop */}
           {images.length > 1 && (
             <>
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute left-1 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-8 sm:w-8 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target"
                 onClick={(e) => { e.stopPropagation(); goToPrev(); }}
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-6 w-6 sm:h-5 sm:w-5" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-8 sm:w-8 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target"
                 onClick={(e) => { e.stopPropagation(); goToNext(); }}
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-6 w-6 sm:h-5 sm:w-5" />
               </Button>
             </>
           )}
 
-          {/* Fullscreen Button */}
+          {/* Fullscreen Button - Always visible on mobile */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-2 right-2 h-7 w-7 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target"
             onClick={() => setFullscreenOpen(true)}
           >
-            <Maximize2 className="h-4 w-4" />
+            <Maximize2 className="h-5 w-5 sm:h-4 sm:w-4" />
           </Button>
 
-          {/* Dots Indicator */}
+          {/* Dots Indicator - Larger on mobile */}
           {images.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2 sm:gap-1.5">
               {images.map((_, index) => (
                 <button
                   key={index}
                   className={cn(
-                    'w-2 h-2 rounded-full transition-all',
+                    'w-3 h-3 sm:w-2 sm:h-2 rounded-full transition-all touch-target',
                     index === currentIndex 
                       ? 'bg-white scale-110' 
                       : 'bg-white/50 hover:bg-white/70'

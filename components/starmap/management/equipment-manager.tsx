@@ -46,6 +46,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   const [activeTab, setActiveTab] = useState('telescopes');
   const [addingTelescope, setAddingTelescope] = useState(false);
   const [addingCamera, setAddingCamera] = useState(false);
+  const [addingBarlow, setAddingBarlow] = useState(false);
+  const [addingFilter, setAddingFilter] = useState(false);
 
   // Telescope form state
   const [telescopeForm, setTelescopeForm] = useState({
@@ -64,6 +66,19 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
     resolution_x: '',
     resolution_y: '',
     camera_type: 'cmos' as TCamType,
+  });
+
+  // Barlow form state
+  const [barlowForm, setBarlowForm] = useState({
+    name: '',
+    factor: '',
+  });
+
+  // Filter form state  
+  const [filterForm, setFilterForm] = useState({
+    name: '',
+    filter_type: 'luminance' as string,
+    bandwidth: '',
   });
 
   if (!isAvailable) {
@@ -126,6 +141,49 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
     }
   };
 
+  const handleAddBarlow = async () => {
+    if (!barlowForm.name || !barlowForm.factor) {
+      toast.error(t('equipment.fillRequired') || 'Please fill required fields');
+      return;
+    }
+
+    try {
+      await tauriApi.equipment.addBarlowReducer({
+        name: barlowForm.name,
+        factor: parseFloat(barlowForm.factor),
+      });
+      
+      toast.success(t('equipment.barlowAdded') || 'Barlow/Reducer added');
+      setBarlowForm({ name: '', factor: '' });
+      setAddingBarlow(false);
+      refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const handleAddFilter = async () => {
+    if (!filterForm.name || !filterForm.filter_type) {
+      toast.error(t('equipment.fillRequired') || 'Please fill required fields');
+      return;
+    }
+
+    try {
+      await tauriApi.equipment.addFilter({
+        name: filterForm.name,
+        filter_type: filterForm.filter_type,
+        bandwidth: filterForm.bandwidth ? parseFloat(filterForm.bandwidth) : undefined,
+      });
+      
+      toast.success(t('equipment.filterAdded') || 'Filter added');
+      setFilterForm({ name: '', filter_type: 'luminance', bandwidth: '' });
+      setAddingFilter(false);
+      refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await tauriApi.equipment.delete(id);
@@ -163,14 +221,22 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="telescopes" className="flex items-center gap-2">
-                <Telescope className="h-4 w-4" />
-                {t('equipment.telescopes') || 'Telescopes'}
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="telescopes" className="flex items-center gap-1 text-xs">
+                <Telescope className="h-3 w-3" />
+                {t('equipment.telescopes') || 'Scopes'}
               </TabsTrigger>
-              <TabsTrigger value="cameras" className="flex items-center gap-2">
-                <Camera className="h-4 w-4" />
+              <TabsTrigger value="cameras" className="flex items-center gap-1 text-xs">
+                <Camera className="h-3 w-3" />
                 {t('equipment.cameras') || 'Cameras'}
+              </TabsTrigger>
+              <TabsTrigger value="barlows" className="flex items-center gap-1 text-xs">
+                <Plus className="h-3 w-3" />
+                {t('equipment.barlows') || 'Barlows'}
+              </TabsTrigger>
+              <TabsTrigger value="filters" className="flex items-center gap-1 text-xs">
+                <Settings2 className="h-3 w-3" />
+                {t('equipment.filters') || 'Filters'}
               </TabsTrigger>
             </TabsList>
 
@@ -363,6 +429,164 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                 <Button variant="outline" className="w-full" onClick={() => setAddingCamera(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   {t('equipment.addCamera') || 'Add Camera'}
+                </Button>
+              )}
+            </TabsContent>
+
+            {/* Barlows Tab */}
+            <TabsContent value="barlows" className="space-y-4">
+              <ScrollArea className="h-[200px]">
+                {equipment?.barlow_reducers.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4">
+                    {t('equipment.noBarlows') || 'No barlows/reducers added'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {equipment?.barlow_reducers.map((barlow) => (
+                      <div key={barlow.id} className="flex items-center justify-between p-2 border rounded">
+                        <div className="flex items-center gap-2">
+                          <Plus className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium text-sm">{barlow.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {barlow.factor}x {barlow.factor > 1 ? 'Barlow' : 'Reducer'}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(barlow.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+
+              {addingBarlow ? (
+                <div className="space-y-3 border rounded p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label>{t('equipment.name') || 'Name'}</Label>
+                      <Input
+                        value={barlowForm.name}
+                        onChange={(e) => setBarlowForm({ ...barlowForm, name: e.target.value })}
+                        placeholder="e.g. 2x Barlow"
+                      />
+                    </div>
+                    <div>
+                      <Label>{t('equipment.factor') || 'Factor'}</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={barlowForm.factor}
+                        onChange={(e) => setBarlowForm({ ...barlowForm, factor: e.target.value })}
+                        placeholder="2.0"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddBarlow}>
+                      {t('common.save') || 'Save'}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setAddingBarlow(false)}>
+                      {t('common.cancel') || 'Cancel'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full" onClick={() => setAddingBarlow(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t('equipment.addBarlow') || 'Add Barlow/Reducer'}
+                </Button>
+              )}
+            </TabsContent>
+
+            {/* Filters Tab */}
+            <TabsContent value="filters" className="space-y-4">
+              <ScrollArea className="h-[200px]">
+                {equipment?.filters.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4">
+                    {t('equipment.noFilters') || 'No filters added'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {equipment?.filters.map((filter) => (
+                      <div key={filter.id} className="flex items-center justify-between p-2 border rounded">
+                        <div className="flex items-center gap-2">
+                          <Settings2 className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium text-sm">{filter.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {filter.filter_type} {filter.bandwidth && `(${filter.bandwidth}nm)`}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(filter.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+
+              {addingFilter ? (
+                <div className="space-y-3 border rounded p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label>{t('equipment.name') || 'Name'}</Label>
+                      <Input
+                        value={filterForm.name}
+                        onChange={(e) => setFilterForm({ ...filterForm, name: e.target.value })}
+                        placeholder="e.g. Ha Filter"
+                      />
+                    </div>
+                    <div>
+                      <Label>{t('equipment.type') || 'Type'}</Label>
+                      <Select
+                        value={filterForm.filter_type}
+                        onValueChange={(v) => setFilterForm({ ...filterForm, filter_type: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="luminance">Luminance</SelectItem>
+                          <SelectItem value="red">Red</SelectItem>
+                          <SelectItem value="green">Green</SelectItem>
+                          <SelectItem value="blue">Blue</SelectItem>
+                          <SelectItem value="ha">H-Alpha</SelectItem>
+                          <SelectItem value="oiii">OIII</SelectItem>
+                          <SelectItem value="sii">SII</SelectItem>
+                          <SelectItem value="uhc_lps">UHC/LPS</SelectItem>
+                          <SelectItem value="cls">CLS</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>{t('equipment.bandwidth') || 'Bandwidth (nm)'}</Label>
+                    <Input
+                      type="number"
+                      value={filterForm.bandwidth}
+                      onChange={(e) => setFilterForm({ ...filterForm, bandwidth: e.target.value })}
+                      placeholder="7"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddFilter}>
+                      {t('common.save') || 'Save'}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setAddingFilter(false)}>
+                      {t('common.cancel') || 'Cancel'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full" onClick={() => setAddingFilter(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t('equipment.addFilter') || 'Add Filter'}
                 </Button>
               )}
             </TabsContent>

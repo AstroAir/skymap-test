@@ -4,6 +4,15 @@ import { useState, useCallback, useRef, useMemo, useEffect, useTransition } from
 import { useStellariumStore } from '@/lib/stores';
 import type { SearchResultItem } from '@/lib/core/types';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
+import { 
+  calculateSearchMatch, 
+  type SearchMatchResult,
+  // Fuzzy search imports
+  COMMON_NAME_TO_CATALOG,
+  PHONETIC_VARIATIONS,
+  parseCatalogId,
+  jaroWinklerSimilarity,
+} from '@/lib/catalogs';
 
 // ============================================================================
 // Data Sources
@@ -153,60 +162,103 @@ const MESSIER_CATALOG: SearchResultItem[] = [
 ];
 
 // ============================================================================
-// Fuzzy Search Utility
+// Advanced Search Matching - Using Industry Standard Algorithms
 // ============================================================================
 
 /**
- * Simple fuzzy match scoring function
- * Returns a score from 0 to 1, where 1 is an exact match
- * Returns 0 if no match found
+ * Get match score using advanced search algorithm
+ * Supports catalog prefixes (M, NGC, IC), Levenshtein distance,
+ * common name mappings, phonetic variations, and multi-field matching
  */
-function fuzzyMatch(text: string, query: string): number {
-  const textLower = text.toLowerCase();
-  const queryLower = query.toLowerCase();
+function getMatchScore(item: SearchResultItem, query: string): number {
+  const queryLower = query.toLowerCase().trim();
   
-  // Exact match gets highest score
-  if (textLower === queryLower) return 1;
-  
-  // Starts with query gets high score
-  if (textLower.startsWith(queryLower)) return 0.9;
-  
-  // Contains query as substring
-  if (textLower.includes(queryLower)) return 0.7;
-  
-  // Fuzzy character matching
-  let queryIndex = 0;
-  let consecutiveMatches = 0;
-  let maxConsecutive = 0;
-  
-  for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
-    if (textLower[i] === queryLower[queryIndex]) {
-      queryIndex++;
-      consecutiveMatches++;
-      maxConsecutive = Math.max(maxConsecutive, consecutiveMatches);
-    } else {
-      consecutiveMatches = 0;
+  // 1. Check common name mappings first (e.g., "orion nebula" → M42)
+  const commonNameMatches = COMMON_NAME_TO_CATALOG[queryLower];
+  if (commonNameMatches) {
+    const itemNameUpper = item.Name.toUpperCase();
+    if (commonNameMatches.some(cat => itemNameUpper === cat.toUpperCase())) {
+      return 1.8; // High score for common name match
     }
   }
   
-  // All query characters must be found in order
-  if (queryIndex < queryLower.length) return 0;
+  // 2. Check phonetic variations (e.g., "andromida" → "andromeda")
+  for (const [correctName, variations] of Object.entries(PHONETIC_VARIATIONS)) {
+    if (variations.some(v => queryLower.includes(v) || v.includes(queryLower))) {
+      // Query matches a phonetic variation, check if this item matches the correct name
+      const catalogMatches = COMMON_NAME_TO_CATALOG[correctName];
+      if (catalogMatches) {
+        const itemNameUpper = item.Name.toUpperCase();
+        if (catalogMatches.some(cat => itemNameUpper === cat.toUpperCase())) {
+          return 1.7; // High score for phonetic match
+        }
+      }
+      // Also check if item's common name contains the correct spelling
+      if (item['Common names']?.toLowerCase().includes(correctName)) {
+        return 1.6;
+      }
+    }
+  }
   
-  // Score based on match quality
-  const lengthRatio = queryLower.length / textLower.length;
-  const consecutiveBonus = maxConsecutive / queryLower.length;
+  // 3. Check if query is a catalog ID (e.g., "m31", "ngc 7000")
+  const parsedCatalog = parseCatalogId(query);
+  if (parsedCatalog) {
+    const itemParsed = parseCatalogId(item.Name);
+    if (itemParsed && 
+        itemParsed.catalog === parsedCatalog.catalog && 
+        itemParsed.number === parsedCatalog.number) {
+      return 2.0; // Exact catalog match
+    }
+  }
   
-  return 0.3 + (lengthRatio * 0.2) + (consecutiveBonus * 0.2);
+  // 4. Use Jaro-Winkler for common name matching (better for typos)
+  if (item['Common names']) {
+    const commonNameLower = item['Common names'].toLowerCase();
+    const jwScore = jaroWinklerSimilarity(queryLower, commonNameLower);
+    if (jwScore > 0.85) {
+      return jwScore * 1.5;
+    }
+    // Also check individual words in common names
+    const commonWords = commonNameLower.split(/[\s,]+/);
+    for (const word of commonWords) {
+      if (word.length > 2) {
+        const wordScore = jaroWinklerSimilarity(queryLower, word);
+        if (wordScore > 0.85) {
+          return wordScore * 1.3;
+        }
+      }
+    }
+  }
+  
+  // 5. Fall back to standard search matching
+  const result = calculateSearchMatch(
+    query,
+    item.Name,
+    undefined,
+    item['Common names']
+  );
+  return result.score;
 }
 
 /**
- * Check if item matches query with fuzzy matching
- * Returns match score or 0 if no match
+ * Get detailed match result for an item
+ * Exported for use in components that need match type information
  */
-function getMatchScore(item: SearchResultItem, query: string): number {
-  const nameScore = fuzzyMatch(item.Name, query);
-  const commonNameScore = item['Common names'] ? fuzzyMatch(item['Common names'], query) : 0;
-  return Math.max(nameScore, commonNameScore);
+export function getDetailedMatch(item: SearchResultItem, query: string): SearchMatchResult {
+  return calculateSearchMatch(
+    query,
+    item.Name,
+    undefined,
+    item['Common names']
+  );
+}
+
+/**
+ * Legacy fuzzy match for backward compatibility
+ */
+function fuzzyMatch(text: string, query: string): number {
+  const result = calculateSearchMatch(query, text);
+  return result.score;
 }
 
 // ============================================================================

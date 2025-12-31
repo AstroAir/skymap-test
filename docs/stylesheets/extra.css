@@ -1,0 +1,41 @@
+/* 自定义样式 */
+
+/* 中文字体优化 */
+.md-typeset {
+  font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.8;
+}
+
+/* 代码块字体 */
+.md-typeset code {
+  font-size: 0.9em;
+}
+
+/* 表格样式优化 */
+.md-typeset table {
+  font-size: 0.9em;
+}
+
+/* 提示框图标大小 */
+.md-typeset .admonition {
+  font-size: 0.95em;
+}
+
+/* 图片响应式 */
+.md-typeset img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mermaid图表样式 */
+.mermaid {
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+/* 打印样式 */
+@media print {
+  .md-sidebar {
+    display: none;
+  }
+}

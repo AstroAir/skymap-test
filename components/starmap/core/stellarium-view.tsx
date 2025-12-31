@@ -61,8 +61,10 @@ import { FOVSimulator } from '../overlays/fov-simulator';
 import { FOVOverlay } from '../overlays/fov-overlay';
 import { InfoPanel } from '../objects/info-panel';
 import { ObjectDetailDrawer } from '../objects/object-detail-drawer';
+import { ObjectTypeLegend } from '../objects/object-type-legend';
 import { ExposureCalculator } from '../planning/exposure-calculator';
 import { ShotList } from '../planning/shot-list';
+import { ObservationLog } from '../planning/observation-log';
 import { OfflineCacheManager } from '../management/offline-cache-manager';
 import { TonightRecommendations } from '../planning/tonight-recommendations';
 import { AboutDialog } from './about-dialog';
@@ -72,11 +74,15 @@ import { SatelliteTracker } from '../overlays/satellite-tracker';
 import { SatelliteOverlay } from '../overlays/satellite-overlay';
 import { SkyMarkers } from '../overlays/sky-markers';
 import { MarkerManager } from '../management/marker-manager';
+import { LocationManager } from '../management/location-manager';
 import { useMarkerStore } from '@/lib/stores';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { NightModeToggle } from '@/components/ui/night-mode-toggle';
 import { SensorControlToggle } from '@/components/ui/sensor-control-toggle';
+import { OnboardingTour } from './onboarding-tour';
+import { WelcomeDialog } from './welcome-dialog';
+import { PlateSolver } from './plate-solver';
 
 // Context menu click coordinates type
 interface ClickCoords {
@@ -489,7 +495,11 @@ export function StellariumView() {
 
   return (
     <TooltipProvider>
-      <div ref={containerRef} className="relative w-full h-full bg-black overflow-hidden">
+      <div ref={containerRef} className="relative w-full h-full bg-black overflow-hidden" data-tour-id="canvas">
+        {/* Onboarding Components */}
+        <WelcomeDialog />
+        <OnboardingTour />
+
         {/* Canvas with context menu handling */}
         <div className="absolute inset-0">
           <StellariumCanvas
@@ -1004,6 +1014,7 @@ export function StellariumView() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  data-tour-id="search-button"
                   variant="ghost"
                   size="icon"
                   className={`h-11 w-11 backdrop-blur-sm touch-target toolbar-btn ${isSearchOpen ? 'bg-primary/30 text-primary' : 'bg-black/60 text-white hover:bg-black/80'}`}
@@ -1033,7 +1044,9 @@ export function StellariumView() {
           <div className="flex items-center gap-2 pointer-events-auto">
             <div className="hidden md:flex items-center gap-2">
               {/* Unified Settings Panel */}
-              <UnifiedSettings />
+              <div data-tour-id="settings-button">
+                <UnifiedSettings />
+              </div>
               
               <div className="flex gap-1 bg-black/60 backdrop-blur-sm rounded-md">
                 <NightModeToggle className="text-white hover:bg-black/80" />
@@ -1043,7 +1056,7 @@ export function StellariumView() {
               </div>
               
               {/* Tonight's Recommendations - Now powered by Sky Atlas */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+              <div className="bg-black/60 backdrop-blur-sm rounded-md" data-tour-id="tonight-button">
                 <TonightRecommendations />
               </div>
               
@@ -1060,6 +1073,17 @@ export function StellariumView() {
               {/* Ocular Simulator */}
               <div className="bg-black/60 backdrop-blur-sm rounded-md">
                 <OcularSimulator />
+              </div>
+              
+              {/* Plate Solver */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <PlateSolver 
+                  onGoToCoordinates={(ra, dec) => {
+                    if (setViewDirection) {
+                      setViewDirection(ra, dec);
+                    }
+                  }}
+                />
               </div>
               
               <StellariumCredits />
@@ -1103,6 +1127,11 @@ export function StellariumView() {
                 <p>{showSessionPanel ? t('starmap.hideSessionInfo') : t('starmap.showSessionInfo')}</p>
               </TooltipContent>
             </Tooltip>
+
+            {/* Object Type Legend */}
+            <div className="bg-black/60 backdrop-blur-sm rounded-lg">
+              <ObjectTypeLegend variant="popover" />
+            </div>
           </div>
         </div>
 
@@ -1134,7 +1163,7 @@ export function StellariumView() {
         {/* Right Side Controls - Desktop Only */}
         <div className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto animate-slide-in-right">
           {/* Zoom Controls */}
-          <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border">
+          <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border" data-tour-id="zoom-controls">
             <ZoomControls
               fov={currentFov}
               onZoomIn={handleZoomIn}
@@ -1146,28 +1175,63 @@ export function StellariumView() {
           {/* Tool Buttons - Vertical */}
           <div className="flex flex-col gap-1 bg-black/80 backdrop-blur-sm rounded-lg border border-border p-1">
             <MarkerManager initialCoords={contextMenuCoords} />
-            <FOVSimulator
-              enabled={fovSimEnabled}
-              onEnabledChange={setFovSimEnabled}
-              sensorWidth={sensorWidth}
-              sensorHeight={sensorHeight}
-              focalLength={focalLength}
-              onSensorWidthChange={setSensorWidth}
-              onSensorHeightChange={setSensorHeight}
-              onFocalLengthChange={setFocalLength}
-              mosaic={mosaic}
-              onMosaicChange={setMosaic}
-              gridType={gridType}
-              onGridTypeChange={setGridType}
-            />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <LocationManager
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-white hover:bg-white/20 h-10 w-10"
+                      >
+                        <MapPin className="h-4 w-4" />
+                      </Button>
+                    }
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>{t('locations.title') || 'Observation Locations'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <div data-tour-id="fov-button">
+              <FOVSimulator
+                enabled={fovSimEnabled}
+                onEnabledChange={setFovSimEnabled}
+                sensorWidth={sensorWidth}
+                sensorHeight={sensorHeight}
+                focalLength={focalLength}
+                onSensorWidthChange={setSensorWidth}
+                onSensorHeightChange={setSensorHeight}
+                onFocalLengthChange={setFocalLength}
+                mosaic={mosaic}
+                onMosaicChange={setMosaic}
+                gridType={gridType}
+                onGridTypeChange={setGridType}
+              />
+            </div>
             <ExposureCalculator focalLength={focalLength} />
-            <ShotList
+            <div data-tour-id="shotlist-button">
+              <ShotList
+                currentSelection={selectedObject ? {
+                  name: selectedObject.names[0] || 'Unknown',
+                  ra: selectedObject.raDeg,
+                  dec: selectedObject.decDeg,
+                  raString: selectedObject.ra,
+                  decString: selectedObject.dec,
+                } : null}
+              />
+            </div>
+            <ObservationLog
               currentSelection={selectedObject ? {
                 name: selectedObject.names[0] || 'Unknown',
                 ra: selectedObject.raDeg,
                 dec: selectedObject.decDeg,
                 raString: selectedObject.ra,
                 decString: selectedObject.dec,
+                type: selectedObject.type,
+                constellation: selectedObject.constellation,
               } : null}
             />
           </div>
@@ -1196,6 +1260,26 @@ export function StellariumView() {
         {/* Mobile Bottom Tools Bar - Horizontal */}
         <div className="sm:hidden absolute bottom-16 left-2 right-16 flex items-center gap-1 bg-black/80 backdrop-blur-sm rounded-lg border border-border p-1 pointer-events-auto overflow-x-auto scrollbar-hide animate-slide-in-left">
           <MarkerManager initialCoords={contextMenuCoords} />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <LocationManager
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-white hover:bg-white/20 h-10 w-10 shrink-0"
+                    >
+                      <MapPin className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>{t('locations.title') || 'Observation Locations'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <FOVSimulator
             enabled={fovSimEnabled}
             onEnabledChange={setFovSimEnabled}
@@ -1220,7 +1304,25 @@ export function StellariumView() {
               decString: selectedObject.dec,
             } : null}
           />
+          <ObservationLog
+            currentSelection={selectedObject ? {
+              name: selectedObject.names[0] || 'Unknown',
+              ra: selectedObject.raDeg,
+              dec: selectedObject.decDeg,
+              raString: selectedObject.ra,
+              decString: selectedObject.dec,
+              type: selectedObject.type,
+              constellation: selectedObject.constellation,
+            } : null}
+          />
           {stel && <StellariumMount />}
+          <PlateSolver 
+            onGoToCoordinates={(ra, dec) => {
+              if (setViewDirection) {
+                setViewDirection(ra, dec);
+              }
+            }}
+          />
         </div>
 
         {/* Info Panel - only show when object is selected */}

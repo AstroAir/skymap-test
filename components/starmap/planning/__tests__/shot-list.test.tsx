@@ -94,6 +94,37 @@ jest.mock('@/lib/astronomy/astro-utils', () => ({
   formatDuration: jest.fn(() => '0h'),
 }));
 
+// Mock Tauri API for import/export
+jest.mock('@/lib/tauri', () => ({
+  tauriApi: {
+    targetIo: {
+      exportTargets: jest.fn().mockResolvedValue('/path/to/exported.csv'),
+      importTargets: jest.fn().mockResolvedValue({
+        imported: 5,
+        skipped: 0,
+        errors: [],
+        targets: [
+          { name: 'M31', ra: 10.68, dec: 41.27, ra_string: '00h 42m', dec_string: '+41°' },
+        ],
+      }),
+    },
+  },
+}));
+
+// Mock platform check
+jest.mock('@/lib/storage/platform', () => ({
+  isTauri: jest.fn(() => true),
+}));
+
+// Mock sonner toast
+jest.mock('sonner', () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+  },
+}));
+
 // Mock TranslatedName component
 jest.mock('../../objects/translated-name', () => ({
   TranslatedName: ({ name }: { name: string }) => <span data-testid="translated-name">{name}</span>,
@@ -216,6 +247,32 @@ describe('ShotList', () => {
     render(<ShotList {...defaultProps} />);
     // With empty targets, the component should still render
     expect(screen.getByTestId('drawer')).toBeInTheDocument();
+  });
+});
+
+describe('ShotList Import/Export', () => {
+  const { tauriApi } = jest.requireMock('@/lib/tauri');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('has targetIo API methods defined', () => {
+    expect(tauriApi.targetIo.exportTargets).toBeDefined();
+    expect(tauriApi.targetIo.importTargets).toBeDefined();
+  });
+
+  it('exportTargets returns file path', async () => {
+    const result = await tauriApi.targetIo.exportTargets();
+    expect(typeof result).toBe('string');
+  });
+
+  it('importTargets returns import result', async () => {
+    const result = await tauriApi.targetIo.importTargets();
+    expect(result).toHaveProperty('imported');
+    expect(result).toHaveProperty('skipped');
+    expect(result).toHaveProperty('targets');
+    expect(Array.isArray(result.targets)).toBe(true);
   });
 });
 

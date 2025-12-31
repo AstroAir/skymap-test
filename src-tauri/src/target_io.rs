@@ -123,13 +123,18 @@ pub async fn import_targets(
             ))),
         }
     };
-    
+
     let content = fs::read_to_string(&import_path)?;
+
+    // SECURITY: Validate file size to prevent DoS attacks
+    crate::security::validate_size(&content, crate::security::limits::MAX_CSV_SIZE)
+        .map_err(|e| StorageError::Other(e.to_string()))?;
+
     let extension = import_path.extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
-    
+
     let result = match extension.as_str() {
         "csv" => import_csv(&content),
         "json" => import_json(&content)?,
@@ -176,9 +181,25 @@ fn import_csv(content: &str) -> ImportTargetsResult {
     let mut targets = Vec::new();
     let mut errors = Vec::new();
     let mut skipped = 0;
-    
+
     let lines: Vec<&str> = content.lines().collect();
-    
+
+    // SECURITY: Validate row count to prevent DoS attacks
+    if lines.len() > crate::security::limits::MAX_CSV_ROWS {
+        return ImportTargetsResult {
+            imported: 0,
+            skipped: 0,
+            errors: vec![
+                format!(
+                    "CSV file exceeds maximum allowed rows: {} (max: {})",
+                    lines.len(),
+                    crate::security::limits::MAX_CSV_ROWS
+                )
+            ],
+            targets: Vec::new(),
+        };
+    }
+
     // Skip header
     for (i, line) in lines.iter().enumerate().skip(1) {
         if line.trim().is_empty() {

@@ -1,0 +1,611 @@
+{
+  "title": "Skymap Application Security Attack Trees",
+  "generated": "2025-12-26",
+  "trees": [
+    {
+      "name": "Complete System Compromise",
+      "description": "Attack paths for gaining full system control",
+      "severity": "CRITICAL",
+      "version": "1.0",
+      "root": {
+        "id": "G1",
+        "name": "Complete System Compromise",
+        "description": "Gain full control over the application and underlying system",
+        "type": "or",
+        "attributes": {
+          "difficulty": "MEDIUM",
+          "cost": "MEDIUM",
+          "detection_risk": "MEDIUM",
+          "time_hours": 8.0
+        },
+        "mitigations": [],
+        "file_refs": [],
+        "children": [
+          {
+            "id": "S1",
+            "name": "Compromise Frontend",
+            "description": "Execute arbitrary code in the frontend context",
+            "type": "or",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A1",
+                "name": "XSS via innerHTML",
+                "description": "Inject malicious script through map location marker data",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "LOW",
+                  "detection_risk": "MEDIUM",
+                  "time_hours": 2.0
+                },
+                "mitigations": [
+                  "Sanitize HTML input",
+                  "Use React JSX instead of innerHTML",
+                  "Implement Content Security Policy"
+                ],
+                "file_refs": [
+                  "components/ui/map-location-picker.tsx:172-178"
+                ],
+                "children": []
+              },
+              {
+                "id": "A2",
+                "name": "Supply Chain Compromise",
+                "description": "Compromise a dependency to run malicious code in frontend",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "HIGH",
+                  "cost": "HIGH",
+                  "detection_risk": "LOW",
+                  "time_hours": 40.0
+                },
+                "mitigations": [
+                  "Dependency scanning",
+                  "Software Bill of Materials (SBOM)",
+                  "Pinned dependencies"
+                ],
+                "file_refs": [
+                  "package.json"
+                ],
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "S2",
+            "name": "Direct Backend Access",
+            "description": "Invoke Tauri commands without authentication",
+            "type": "and",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A3",
+                "name": "Exploit No Authentication",
+                "description": "Tauri commands have no permission checks (all 120+ exposed)",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "NONE",
+                  "time_hours": 0.5
+                },
+                "mitigations": [
+                  "Implement authentication/authorization layer",
+                  "Add permission checks in Tauri commands",
+                  "Role-based access control"
+                ],
+                "file_refs": [
+                  "src-tauri/src/lib.rs:101-244"
+                ],
+                "children": []
+              },
+              {
+                "id": "A4",
+                "name": "Invoke Sensitive Commands",
+                "description": "Call file system, process, or system commands",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "LOW",
+                  "time_hours": 1.0
+                },
+                "mitigations": [
+                  "Restrict command surface",
+                  "Sandboxed command execution",
+                  "Command whitelisting"
+                ],
+                "file_refs": [
+                  "src-tauri/src/lib.rs"
+                ],
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "S3",
+            "name": "Path Traversal Attack",
+            "description": "Access arbitrary files on the system",
+            "type": "or",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A5",
+                "name": "Path Traversal via open_path",
+                "description": "Pass arbitrary file paths to open_path command",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "LOW",
+                  "time_hours": 1.0
+                },
+                "mitigations": [
+                  "Path validation and sanitization",
+                  "Allowlist of permitted directories",
+                  "Chroot/jail filesystem access"
+                ],
+                "file_refs": [
+                  "src-tauri/src/app_settings.rs:246-289"
+                ],
+                "children": []
+              },
+              {
+                "id": "A6",
+                "name": "Path Traversal via import/export",
+                "description": "User-controlled paths in import_all_data/export_all_data",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "FREE",
+                  "detection_risk": "LOW",
+                  "time_hours": 2.0
+                },
+                "mitigations": [
+                  "Validate file paths",
+                  "Restrict to app data directory",
+                  "Use secure file dialogs"
+                ],
+                "file_refs": [
+                  "src-tauri/src/storage.rs:164-267"
+                ],
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Data Exfiltration",
+      "description": "Attack paths for stealing sensitive data",
+      "severity": "CRITICAL",
+      "version": "1.0",
+      "root": {
+        "id": "G2",
+        "name": "Data Exfiltration",
+        "description": "Steal sensitive user data from the application",
+        "type": "or",
+        "attributes": {
+          "difficulty": "MEDIUM",
+          "cost": "MEDIUM",
+          "detection_risk": "MEDIUM",
+          "time_hours": 8.0
+        },
+        "mitigations": [],
+        "file_refs": [],
+        "children": [
+          {
+            "id": "M1",
+            "name": "Read Files Directly",
+            "description": "Access stored data files through path traversal",
+            "type": "and",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A7",
+                "name": "Find App Data Directory",
+                "description": "Locate application data storage",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "NONE",
+                  "time_hours": 0.5
+                },
+                "mitigations": [],
+                "file_refs": [
+                  "src-tauri/src/storage.rs"
+                ],
+                "children": []
+              },
+              {
+                "id": "A8",
+                "name": "Read JSON Files",
+                "description": "Read plaintext JSON storage files",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "LOW",
+                  "time_hours": 0.5
+                },
+                "mitigations": [
+                  "Encrypt sensitive data at rest",
+                  "Use system credential storage",
+                  "File permissions"
+                ],
+                "file_refs": [
+                  "src-tauri/src/storage.rs:83-98"
+                ],
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "M2",
+            "name": "Extract from localStorage",
+            "description": "Access browser localStorage with sensitive data",
+            "type": "and",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A9",
+                "name": "Execute XSS or DevTools",
+                "description": "Gain JavaScript execution context",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "LOW",
+                  "detection_risk": "MEDIUM",
+                  "time_hours": 2.0
+                },
+                "mitigations": [
+                  "Content Security Policy",
+                  "XSS prevention",
+                  "DevTools protection in production"
+                ],
+                "file_refs": [],
+                "children": []
+              },
+              {
+                "id": "A10",
+                "name": "Read localStorage",
+                "description": "Access unencrypted data in localStorage",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "NONE",
+                  "time_hours": 0.1
+                },
+                "mitigations": [
+                  "Encrypt data before storage",
+                  "Use secure credential manager",
+                  "Minimal data in localStorage"
+                ],
+                "file_refs": [
+                  "lib/storage/web-storage.ts"
+                ],
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "M3",
+            "name": "SSRF to Internal Services",
+            "description": "Use application to probe internal network",
+            "type": "and",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A11",
+                "name": "Inject Internal URLs",
+                "description": "Pass internal URLs to prefetch_url or cache fetch",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "FREE",
+                  "detection_risk": "MEDIUM",
+                  "time_hours": 2.0
+                },
+                "mitigations": [
+                  "URL whitelist validation",
+                  "Block internal/private IPs",
+                  "Network segmentation"
+                ],
+                "file_refs": [
+                  "src-tauri/src/unified_cache.rs:332-366",
+                  "lib/offline/unified-cache.ts:372-425"
+                ],
+                "children": []
+              },
+              {
+                "id": "A12",
+                "name": "Exfiltrate Responses",
+                "description": "Capture responses from internal services",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "FREE",
+                  "detection_risk": "LOW",
+                  "time_hours": 1.0
+                },
+                "mitigations": [
+                  "Response validation",
+                  "Data loss prevention",
+                  "Network monitoring"
+                ],
+                "file_refs": [],
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Denial of Service",
+      "description": "Attack paths for making the application unavailable",
+      "severity": "HIGH",
+      "version": "1.0",
+      "root": {
+        "id": "G3",
+        "name": "Denial of Service",
+        "description": "Make the application unavailable or unresponsive",
+        "type": "or",
+        "attributes": {
+          "difficulty": "MEDIUM",
+          "cost": "MEDIUM",
+          "detection_risk": "MEDIUM",
+          "time_hours": 8.0
+        },
+        "mitigations": [],
+        "file_refs": [],
+        "children": [
+          {
+            "id": "M4",
+            "name": "Resource Exhaustion",
+            "description": "Exhaust memory or disk space with oversized inputs",
+            "type": "or",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A13",
+                "name": "Oversized JSON Deserialization",
+                "description": "Send massive JSON payload to deserialize",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "HIGH",
+                  "time_hours": 0.5
+                },
+                "mitigations": [
+                  "JSON size limits",
+                  "Streaming parsers",
+                  "Memory quotas"
+                ],
+                "file_refs": [
+                  "src-tauri/src/storage.rs:92"
+                ],
+                "children": []
+              },
+              {
+                "id": "A14",
+                "name": "Cache Flooding",
+                "description": "Fill disk with unlimited cache entries",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "MEDIUM",
+                  "time_hours": 1.0
+                },
+                "mitigations": [
+                  "Cache size limits",
+                  "LRU eviction",
+                  "Disk space monitoring"
+                ],
+                "file_refs": [
+                  "src-tauri/src/unified_cache.rs:159-200"
+                ],
+                "children": []
+              },
+              {
+                "id": "A15",
+                "name": "Massive CSV Import",
+                "description": "Import enormous CSV file to exhaust resources",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "TRIVIAL",
+                  "cost": "FREE",
+                  "detection_risk": "MEDIUM",
+                  "time_hours": 1.0
+                },
+                "mitigations": [
+                  "Row count limits",
+                  "Field size limits",
+                  "Streaming CSV parser"
+                ],
+                "file_refs": [
+                  "src-tauri/src/target_io.rs:175-242"
+                ],
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "M5",
+            "name": "API Abuse",
+            "description": "Flood APIs with requests without rate limiting",
+            "type": "leaf",
+            "attributes": {
+              "difficulty": "TRIVIAL",
+              "cost": "LOW",
+              "detection_risk": "HIGH",
+              "time_hours": 0.5
+            },
+            "mitigations": [
+              "Rate limiting on all Tauri commands",
+              "Request throttling",
+              "Circuit breakers"
+            ],
+            "file_refs": [
+              "src-tauri/src/lib.rs"
+            ],
+            "children": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "Internal Network Reconnaissance",
+      "description": "Attack paths for scanning internal network via SSRF",
+      "severity": "HIGH",
+      "version": "1.0",
+      "root": {
+        "id": "G4",
+        "name": "Internal Network Reconnaissance",
+        "description": "Use application to probe internal network and services",
+        "type": "or",
+        "attributes": {
+          "difficulty": "MEDIUM",
+          "cost": "MEDIUM",
+          "detection_risk": "MEDIUM",
+          "time_hours": 8.0
+        },
+        "mitigations": [],
+        "file_refs": [],
+        "children": [
+          {
+            "id": "M6",
+            "name": "SSRF via URL Injection",
+            "description": "Inject internal URLs into prefetch_url or cache",
+            "type": "and",
+            "attributes": {
+              "difficulty": "MEDIUM",
+              "cost": "MEDIUM",
+              "detection_risk": "MEDIUM",
+              "time_hours": 8.0
+            },
+            "mitigations": [],
+            "file_refs": [],
+            "children": [
+              {
+                "id": "A16",
+                "name": "Enumerate Internal IPs",
+                "description": "Scan internal IP ranges (192.168.x.x, 10.x.x.x)",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "FREE",
+                  "detection_risk": "MEDIUM",
+                  "time_hours": 4.0
+                },
+                "mitigations": [
+                  "Block private IP ranges",
+                  "URL allowlist only",
+                  "Network egress filtering"
+                ],
+                "file_refs": [
+                  "src-tauri/src/unified_cache.rs:332-366",
+                  "lib/offline/unified-cache.ts:372-425"
+                ],
+                "children": []
+              },
+              {
+                "id": "A17",
+                "name": "Port Scan via URLs",
+                "description": "Try different ports to find open services",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "FREE",
+                  "detection_risk": "MEDIUM",
+                  "time_hours": 4.0
+                },
+                "mitigations": [
+                  "Port restrictions",
+                  "Protocol whitelisting (HTTPS only)",
+                  "URL validation"
+                ],
+                "file_refs": [],
+                "children": []
+              },
+              {
+                "id": "A18",
+                "name": "Access Cloud Metadata",
+                "description": "Try cloud metadata endpoints (169.254.169.254)",
+                "type": "leaf",
+                "attributes": {
+                  "difficulty": "LOW",
+                  "cost": "FREE",
+                  "detection_risk": "HIGH",
+                  "time_hours": 1.0
+                },
+                "mitigations": [
+                  "Block link-local addresses",
+                  "Cloud metadata endpoint blocking",
+                  "Network isolation"
+                ],
+                "file_refs": [],
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

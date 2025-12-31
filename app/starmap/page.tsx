@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { StellariumView, SplashScreen } from '@/components/starmap';
+import { StellariumView, SplashScreen, SetupWizard } from '@/components/starmap';
 import { useCacheInit } from '@/lib/hooks';
 
 export default function StarmapPage() {
@@ -16,6 +16,7 @@ export default function StarmapPage() {
         <SplashScreen onComplete={() => setShowSplash(false)} />
       )}
       <StellariumView />
+      <SetupWizard />
     </main>
   );
 }

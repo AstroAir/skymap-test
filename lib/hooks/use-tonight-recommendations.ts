@@ -10,8 +10,18 @@ import {
   enrichDeepSkyObject,
   DSO_CATALOG,
   MOON_PHASE_NAMES,
+  // Advanced scoring algorithms
+  calculateAirmass,
+  getAirmassQuality,
+  calculateMeridianProximity,
+  transitDuringDarkHours,
+  calculateMoonImpact,
+  calculateSeasonalScore,
+  calculateComprehensiveImagingScore,
+  EXTENDED_SEASONAL_DATA,
   type DeepSkyObject,
   type NighttimeData,
+  type ImagingScoreResult,
 } from '@/lib/catalogs';
 
 // ============================================================================
@@ -29,6 +39,13 @@ export interface RecommendedTarget extends SearchResultItem {
   reasons: string[];
   warnings: string[];
   dsoData?: DeepSkyObject;
+  // Enhanced scoring data
+  airmass?: number;
+  airmassQuality?: 'excellent' | 'good' | 'fair' | 'poor' | 'bad';
+  scoreBreakdown?: ImagingScoreResult['breakdown'];
+  qualityRating?: ImagingScoreResult['quality'];
+  seasonalOptimal?: boolean;
+  transitDuringDark?: boolean;
 }
 
 export interface TwilightInfo {
@@ -57,32 +74,14 @@ export interface TonightConditions {
 }
 
 // ============================================================================
-// Seasonal Best Months (for enhanced scoring)
+// Using Extended Seasonal Data from scoring-algorithms.ts
+// The EXTENDED_SEASONAL_DATA provides comprehensive information including:
+// - bestMonths: optimal imaging months
+// - optimalAltitude: recommended minimum altitude
+// - requiresDarkSky: whether dark skies are needed
+// - difficulty: beginner/intermediate/advanced/expert
+// - recommendedExposure: suggested exposure times
 // ============================================================================
-
-interface SeasonalInfo {
-  bestMonths: number[];
-  difficulty: 'easy' | 'medium' | 'hard';
-}
-
-const SEASONAL_DATA: Record<string, SeasonalInfo> = {
-  'M31': { bestMonths: [9, 10, 11, 12, 1], difficulty: 'easy' },
-  'M33': { bestMonths: [10, 11, 12, 1], difficulty: 'medium' },
-  'M42': { bestMonths: [11, 12, 1, 2, 3], difficulty: 'easy' },
-  'M45': { bestMonths: [10, 11, 12, 1, 2], difficulty: 'easy' },
-  'M1': { bestMonths: [11, 12, 1, 2], difficulty: 'easy' },
-  'M51': { bestMonths: [3, 4, 5, 6], difficulty: 'medium' },
-  'M81': { bestMonths: [2, 3, 4, 5], difficulty: 'easy' },
-  'M82': { bestMonths: [2, 3, 4, 5], difficulty: 'easy' },
-  'M101': { bestMonths: [3, 4, 5, 6], difficulty: 'medium' },
-  'NGC7000': { bestMonths: [7, 8, 9, 10], difficulty: 'medium' },
-  'NGC6992': { bestMonths: [7, 8, 9, 10], difficulty: 'medium' },
-  'NGC6960': { bestMonths: [7, 8, 9, 10], difficulty: 'medium' },
-  'M8': { bestMonths: [6, 7, 8], difficulty: 'easy' },
-  'M13': { bestMonths: [5, 6, 7, 8], difficulty: 'easy' },
-  'M57': { bestMonths: [6, 7, 8, 9], difficulty: 'easy' },
-  'M27': { bestMonths: [7, 8, 9, 10], difficulty: 'easy' },
-};
 
 // ============================================================================
 // Utility Functions
@@ -201,7 +200,7 @@ export function useTonightRecommendations() {
     };
   }, [getObserverLocation]);
 
-  // Calculate recommendations using Sky Atlas catalog
+  // Calculate recommendations using Sky Atlas catalog with advanced scoring algorithms
   const calculateRecommendations = useCallback(() => {
     setIsLoading(true);
 
@@ -224,7 +223,6 @@ export function useTonightRecommendations() {
 
       const reasons: string[] = [];
       const warnings: string[] = [];
-      let score = 50;
 
       // Enrich DSO with calculated data
       const enrichedDso = enrichDeepSkyObject(dso, latitude, longitude, referenceDate);
@@ -237,148 +235,166 @@ export function useTonightRecommendations() {
       // Calculate imaging hours during dark time
       const imagingHours = calculateImagingHours(altitudeData, 25, darkHoursStart, darkHoursEnd);
 
-      // Skip if not enough imaging time
+      // Skip if not enough imaging time (unless circumpolar)
       if (imagingHours < 1 && !isCircumpolarTarget) {
         continue;
       }
 
-      // Get seasonal info if available
-      const seasonal = SEASONAL_DATA[dso.id];
-
-      // 1. Seasonal bonus
-      if (seasonal?.bestMonths.includes(currentMonth)) {
-        score += 20;
+      // ========================================================================
+      // Use Industry-Standard Comprehensive Scoring Algorithm
+      // ========================================================================
+      
+      // Calculate airmass at maximum altitude (industry standard metric)
+      const airmass = calculateAirmass(maxAlt);
+      const airmassQuality = getAirmassQuality(airmass);
+      
+      // Calculate meridian transit proximity
+      const transitProximity = calculateMeridianProximity(
+        altitudeData.transitTime,
+        referenceDate,
+        6 // 6-hour window
+      );
+      
+      // Check if transit occurs during dark hours
+      const transitsDuringDark = transitDuringDarkHours(
+        altitudeData.transitTime,
+        darkHoursStart,
+        darkHoursEnd
+      );
+      
+      // Calculate moon impact score
+      const moonImpact = calculateMoonImpact(moonDistance, moonIllumination);
+      
+      // Calculate seasonal score using extended data
+      const seasonalScore = calculateSeasonalScore(dso.id, currentMonth);
+      const seasonal = EXTENDED_SEASONAL_DATA[dso.id];
+      const isSeasonalOptimal = seasonalScore >= 0.8;
+      
+      // Use comprehensive imaging score calculator
+      const comprehensiveScore = calculateComprehensiveImagingScore({
+        altitude: maxAlt,
+        airmass,
+        moonDistance,
+        moonIllumination,
+        magnitude: dso.magnitude,
+        surfaceBrightness: dso.surfaceBrightness,
+        sizeArcmin: dso.sizeMax,
+        transitProximity,
+        seasonalScore,
+        darkSkyRequired: seasonal?.requiresDarkSky,
+        bortleClass: 5, // Default suburban sky, could be made configurable
+      });
+      
+      // ========================================================================
+      // Generate Human-Readable Reasons and Warnings
+      // ========================================================================
+      
+      // Add recommendations from comprehensive score
+      warnings.push(...comprehensiveScore.recommendations.filter(r => 
+        r.includes('too low') || r.includes('too high') || r.includes('faint') || 
+        r.includes('close') || r.includes('not') || r.includes('needs')
+      ));
+      
+      // Airmass quality
+      if (airmassQuality === 'excellent') {
+        reasons.push(`Excellent airmass (${airmass.toFixed(2)})`);
+      } else if (airmassQuality === 'good') {
+        reasons.push(`Good airmass (${airmass.toFixed(2)})`);
+      } else if (airmassQuality === 'poor' || airmassQuality === 'bad') {
+        warnings.push(`High airmass (${airmass.toFixed(2)}) - atmospheric distortion`);
+      }
+      
+      // Seasonal information
+      if (isSeasonalOptimal) {
         reasons.push('Best season for this target');
-      } else if (seasonal) {
-        const nearBest = seasonal.bestMonths.some((m: number) =>
-          Math.abs(m - currentMonth) <= 1 || Math.abs(m - currentMonth) >= 11
-        );
-        if (nearBest) score += 10;
+      } else if (seasonalScore < 0.3) {
+        warnings.push('Not the optimal season');
       }
-
-      // 2. Altitude score
-      if (maxAlt > 70) {
-        score += 15;
-        reasons.push('Excellent altitude');
-      } else if (maxAlt > 50) {
-        score += 10;
-        reasons.push('Good altitude');
-      } else if (maxAlt > 30) {
-        score += 5;
-      } else {
-        score -= 10;
-        warnings.push('Low maximum altitude');
+      
+      // Transit timing
+      if (transitsDuringDark) {
+        reasons.push('Transits during dark hours');
       }
-
-      // 3. Moon distance score
-      if (moonIllumination > 50) {
-        if (moonDistance > 90) {
-          score += 15;
-          reasons.push('Far from moon');
-        } else if (moonDistance > 60) {
-          score += 5;
-        } else if (moonDistance < 30) {
-          score -= 15;
-          warnings.push('Close to bright moon');
-        }
-      } else {
-        score += 5;
+      
+      // Moon impact
+      if (moonImpact >= 0.9) {
         if (moonIllumination < 25) {
           reasons.push('Dark moon phase');
+        } else {
+          reasons.push('Far from moon');
         }
+      } else if (moonImpact < 0.5) {
+        warnings.push('Significant moon interference');
       }
-
-      // 4. Imaging duration score
-      if (imagingHours > 6) {
-        score += 15;
-        reasons.push(`${imagingHours.toFixed(1)}h imaging window`);
-      } else if (imagingHours > 4) {
-        score += 10;
-        reasons.push(`${imagingHours.toFixed(1)}h imaging window`);
-      } else if (imagingHours > 2) {
-        score += 5;
-      } else if (!isCircumpolarTarget) {
-        score -= 5;
+      
+      // Imaging window
+      const effectiveHours = isCircumpolarTarget ? cond.totalDarkHours : imagingHours;
+      if (effectiveHours > 5) {
+        reasons.push(`${effectiveHours.toFixed(1)}h imaging window`);
+      } else if (effectiveHours < 2) {
         warnings.push('Limited imaging time');
       }
-
-      // 5. Circumpolar bonus
+      
+      // Circumpolar
       if (isCircumpolarTarget) {
-        score += 5;
         reasons.push('Circumpolar - always visible');
       }
-
-      // 6. Difficulty adjustment
-      if (seasonal?.difficulty === 'easy') {
-        score += 5;
-      } else if (seasonal?.difficulty === 'hard') {
-        score -= 5;
+      
+      // Difficulty and equipment recommendations
+      if (seasonal?.difficulty === 'beginner') {
+        reasons.push('Great for beginners');
+      } else if (seasonal?.difficulty === 'advanced' || seasonal?.difficulty === 'expert') {
+        warnings.push('Challenging target');
       }
-
-      // 7. Apparent size bonus (larger objects are easier to image)
+      
+      // Size recommendations
       const size = dso.sizeMax ?? dso.sizeMin;
-      if (size) {
-        if (size > 60) {
-          score += 10;
-          reasons.push('Large target - easy framing');
-        } else if (size > 20) {
-          score += 5;
-        } else if (size < 3) {
-          score -= 5;
-          warnings.push('Very small - requires long focal length');
-        }
+      if (size && size > 60) {
+        reasons.push('Large target - easy framing');
+      } else if (size && size < 3) {
+        warnings.push('Small target - needs long focal length');
       }
-
-      // 8. Surface brightness bonus (brighter is better for short exposures)
+      
+      // Surface brightness
       if (dso.surfaceBrightness) {
         if (dso.surfaceBrightness < 20) {
-          score += 10;
           reasons.push('High surface brightness');
-        } else if (dso.surfaceBrightness < 22) {
-          score += 5;
         } else if (dso.surfaceBrightness > 24) {
-          score -= 5;
           warnings.push('Low surface brightness - needs dark skies');
         }
       }
-
-      // 9. Object type preference (popular categories)
-      const objType = (dso.type || '').toLowerCase();
-      if (objType.includes('nebula') || objType.includes('emission')) {
-        score += 5; // Nebulae are photogenic
-      } else if (objType.includes('galaxy') && (dso.magnitude ?? 99) < 10) {
-        score += 5; // Bright galaxies
-      } else if (objType.includes('cluster')) {
-        score += 3; // Clusters are easy targets
-      }
-
-      // 10. Magnitude bonus (brighter objects score higher)
-      const mag = dso.magnitude ?? 99;
-      if (mag < 6) {
-        score += 10;
-        reasons.push('Very bright target');
-      } else if (mag < 8) {
-        score += 5;
-      } else if (mag > 12) {
-        score -= 5;
-        warnings.push('Faint target - needs longer exposure');
-      }
-
-      // 11. Transit timing bonus
-      if (darkHoursStart && darkHoursEnd && altitudeData.transitTime) {
-        const transitMs = altitudeData.transitTime.getTime();
-        const darkStartMs = darkHoursStart.getTime();
-        const darkEndMs = darkHoursEnd.getTime();
-
-        if (transitMs >= darkStartMs && transitMs <= darkEndMs) {
-          score += 10;
-          reasons.push('Transits during dark hours');
+      
+      // Magnitude
+      if (dso.magnitude !== undefined) {
+        if (dso.magnitude < 6) {
+          reasons.push('Very bright target');
+        } else if (dso.magnitude > 12) {
+          warnings.push('Faint target - needs longer exposure');
         }
       }
-
-      // 8. Imaging score from Sky Atlas
-      if (enrichedDso.imagingScore) {
-        score += Math.floor(enrichedDso.imagingScore * 0.2);
+      
+      // ========================================================================
+      // Calculate Final Score
+      // ========================================================================
+      
+      // Base score from comprehensive algorithm (0-100)
+      let finalScore = comprehensiveScore.totalScore;
+      
+      // Bonus adjustments
+      if (isCircumpolarTarget) finalScore += 3;
+      if (transitsDuringDark) finalScore += 5;
+      if (effectiveHours > 4) finalScore += 5;
+      
+      // Difficulty bonus for easier targets (beginner-friendly)
+      if (seasonal?.difficulty === 'beginner') finalScore += 5;
+      else if (seasonal?.difficulty === 'intermediate') finalScore += 2;
+      
+      // Object type bonus (popular categories)
+      const objType = (dso.type || '').toLowerCase();
+      if (objType.includes('nebula') || objType.includes('emission')) {
+        finalScore += 3; // Nebulae are photogenic
+      } else if (objType.includes('galaxy') && (dso.magnitude ?? 99) < 10) {
+        finalScore += 3; // Bright galaxies
       }
 
       // Get common name from alternate names
@@ -390,24 +406,31 @@ export function useTonightRecommendations() {
         RA: dso.ra,
         Dec: dso.dec,
         'Common names': commonName,
-        score: Math.max(0, Math.min(100, score)),
+        score: Math.max(0, Math.min(100, Math.round(finalScore))),
         maxAltitude: maxAlt,
         transitTime: altitudeData.transitTime,
         riseTime: altitudeData.riseTime,
         setTime: altitudeData.setTime,
         moonDistance,
-        imagingHours: isCircumpolarTarget ? cond.totalDarkHours : imagingHours,
-        reasons,
-        warnings,
+        imagingHours: effectiveHours,
+        reasons: reasons.slice(0, 4), // Limit to top 4 reasons
+        warnings: warnings.slice(0, 3), // Limit to top 3 warnings
         dsoData: enrichedDso,
+        // Enhanced scoring data
+        airmass,
+        airmassQuality,
+        scoreBreakdown: comprehensiveScore.breakdown,
+        qualityRating: comprehensiveScore.quality,
+        seasonalOptimal: isSeasonalOptimal,
+        transitDuringDark: transitsDuringDark,
       });
     }
 
-    // Sort by score
+    // Sort by score (descending)
     scored.sort((a, b) => b.score - a.score);
 
-    // Take top 20
-    setRecommendations(scored.slice(0, 20));
+    // Take top 25 for better selection
+    setRecommendations(scored.slice(0, 25));
     setIsLoading(false);
   }, [calculateConditions]);
 

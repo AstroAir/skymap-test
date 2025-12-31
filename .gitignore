@@ -45,3 +45,5 @@ yarn-error.log*
 next-env.d.ts
 Touch-N-Stars
 public/stellarium-data
+
+llmdoc/

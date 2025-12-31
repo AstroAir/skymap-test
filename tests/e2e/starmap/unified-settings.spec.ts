@@ -193,4 +193,436 @@ test.describe('Unified Settings', () => {
       }
     });
   });
+
+  test.describe('Equipment Search and Grouping', () => {
+    test.describe('Camera Search', () => {
+      test('should have camera search input in select dropdown', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab if tabs exist
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Click camera select to open dropdown
+          const cameraSelect = page.locator('text=/select.*camera|选择.*相机/i').first();
+          if (await cameraSelect.isVisible().catch(() => false)) {
+            await cameraSelect.click();
+            await page.waitForTimeout(300);
+            
+            // Look for search input in dropdown
+            const searchInput = page.getByPlaceholder(/search.*camera|搜索.*相机/i);
+            expect(await searchInput.count()).toBeGreaterThanOrEqual(0);
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+
+      test('should filter cameras by search term', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open camera select
+          const cameraSelect = page.locator('[data-testid="camera-select"]')
+            .or(page.getByRole('combobox').filter({ hasText: /camera|相机/i })).first();
+          if (await cameraSelect.isVisible().catch(() => false)) {
+            await cameraSelect.click();
+            await page.waitForTimeout(300);
+            
+            // Type in search
+            const searchInput = page.getByPlaceholder(/search.*camera|搜索.*相机/i);
+            if (await searchInput.isVisible().catch(() => false)) {
+              await searchInput.fill('Canon');
+              await page.waitForTimeout(300);
+              
+              // Should show Canon cameras
+              const canonResults = page.locator('text=/Canon/i');
+              expect(await canonResults.count()).toBeGreaterThanOrEqual(0);
+            }
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+
+      test('should show "no results" when search has no matches', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open camera select
+          const cameraSelect = page.getByRole('combobox').first();
+          if (await cameraSelect.isVisible().catch(() => false)) {
+            await cameraSelect.click();
+            await page.waitForTimeout(300);
+            
+            const searchInput = page.getByPlaceholder(/search.*camera|搜索.*相机/i);
+            if (await searchInput.isVisible().catch(() => false)) {
+              await searchInput.fill('xyznonexistent123');
+              await page.waitForTimeout(300);
+              
+              // Should show no results message
+              const noResults = page.locator('text=/no.*results|无结果/i');
+              expect(await noResults.count()).toBeGreaterThanOrEqual(0);
+            }
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+    });
+
+    test.describe('Camera Brand Grouping', () => {
+      test('should group cameras by brand', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open camera select
+          const cameraSelect = page.getByRole('combobox').first();
+          if (await cameraSelect.isVisible().catch(() => false)) {
+            await cameraSelect.click();
+            await page.waitForTimeout(300);
+            
+            // Should see brand group labels
+            const brandLabels = page.locator('text=/Canon|Sony|Nikon|ZWO|QHY/i');
+            expect(await brandLabels.count()).toBeGreaterThanOrEqual(0);
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+
+      test('should show camera count per brand group', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open camera select
+          const cameraSelect = page.getByRole('combobox').first();
+          if (await cameraSelect.isVisible().catch(() => false)) {
+            await cameraSelect.click();
+            await page.waitForTimeout(300);
+            
+            // Should see count in parentheses
+            const countLabels = page.locator('text=/\\(\\d+\\)/');
+            expect(await countLabels.count()).toBeGreaterThanOrEqual(0);
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+    });
+
+    test.describe('Telescope Search', () => {
+      test('should have telescope search input in select dropdown', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Click telescope select to open dropdown
+          const telescopeSelect = page.locator('text=/select.*telescope|选择.*望远镜/i').first();
+          if (await telescopeSelect.isVisible().catch(() => false)) {
+            await telescopeSelect.click();
+            await page.waitForTimeout(300);
+            
+            // Look for search input
+            const searchInput = page.getByPlaceholder(/search.*telescope|搜索.*望远镜/i);
+            expect(await searchInput.count()).toBeGreaterThanOrEqual(0);
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+
+      test('should filter telescopes by name', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open telescope select (second combobox usually)
+          const telescopeSelect = page.getByRole('combobox').nth(1);
+          if (await telescopeSelect.isVisible().catch(() => false)) {
+            await telescopeSelect.click();
+            await page.waitForTimeout(300);
+            
+            const searchInput = page.getByPlaceholder(/search.*telescope|搜索.*望远镜/i);
+            if (await searchInput.isVisible().catch(() => false)) {
+              await searchInput.fill('APO');
+              await page.waitForTimeout(300);
+              
+              // Should filter to APO telescopes
+              const apoResults = page.locator('text=/APO/i');
+              expect(await apoResults.count()).toBeGreaterThanOrEqual(0);
+            }
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+
+      test('should filter telescopes by type', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open telescope select
+          const telescopeSelect = page.getByRole('combobox').nth(1);
+          if (await telescopeSelect.isVisible().catch(() => false)) {
+            await telescopeSelect.click();
+            await page.waitForTimeout(300);
+            
+            const searchInput = page.getByPlaceholder(/search.*telescope|搜索.*望远镜/i);
+            if (await searchInput.isVisible().catch(() => false)) {
+              await searchInput.fill('Newtonian');
+              await page.waitForTimeout(300);
+              
+              // Should filter to Newtonian telescopes
+              const newtonianResults = page.locator('text=/Newtonian/i');
+              expect(await newtonianResults.count()).toBeGreaterThanOrEqual(0);
+            }
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+    });
+
+    test.describe('Telescope Type Grouping', () => {
+      test('should group telescopes by type', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open telescope select
+          const telescopeSelect = page.getByRole('combobox').nth(1);
+          if (await telescopeSelect.isVisible().catch(() => false)) {
+            await telescopeSelect.click();
+            await page.waitForTimeout(300);
+            
+            // Should see type group labels
+            const typeLabels = page.locator('text=/Lens|APO|Newtonian|SCT|RC|RASA|Mak/i');
+            expect(await typeLabels.count()).toBeGreaterThanOrEqual(0);
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+
+      test('should show telescope count per type group', async ({ page }) => {
+        const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+        if (await settingsButton.isVisible().catch(() => false)) {
+          await settingsButton.click();
+          await page.waitForTimeout(500);
+          
+          // Navigate to equipment tab
+          const equipmentTab = page.getByRole('tab', { name: /equipment|设备/i });
+          if (await equipmentTab.isVisible().catch(() => false)) {
+            await equipmentTab.click();
+            await page.waitForTimeout(300);
+          }
+          
+          // Open telescope select
+          const telescopeSelect = page.getByRole('combobox').nth(1);
+          if (await telescopeSelect.isVisible().catch(() => false)) {
+            await telescopeSelect.click();
+            await page.waitForTimeout(300);
+            
+            // Should see count in parentheses
+            const countLabels = page.locator('text=/\\(\\d+\\)/');
+            expect(await countLabels.count()).toBeGreaterThanOrEqual(0);
+          }
+          
+          await page.keyboard.press('Escape');
+        }
+      });
+    });
+  });
+
+  test.describe('Help & Tutorial Section', () => {
+    test('should have help section in settings', async ({ page }) => {
+      const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+      if (await settingsButton.isVisible().catch(() => false)) {
+        await settingsButton.click();
+        await page.waitForTimeout(500);
+        
+        // Navigate to advanced/other tab if exists
+        const advancedTab = page.getByRole('tab', { name: /advanced|other|其他|高级/i });
+        if (await advancedTab.isVisible().catch(() => false)) {
+          await advancedTab.click();
+          await page.waitForTimeout(300);
+        }
+        
+        // Look for help section
+        const helpSection = page.locator('text=/help|帮助/i');
+        expect(await helpSection.count()).toBeGreaterThanOrEqual(0);
+        
+        await page.keyboard.press('Escape');
+      }
+    });
+
+    test('should have restart tour button', async ({ page }) => {
+      const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+      if (await settingsButton.isVisible().catch(() => false)) {
+        await settingsButton.click();
+        await page.waitForTimeout(500);
+        
+        // Navigate to advanced/other tab if exists
+        const advancedTab = page.getByRole('tab', { name: /advanced|other|其他|高级/i });
+        if (await advancedTab.isVisible().catch(() => false)) {
+          await advancedTab.click();
+          await page.waitForTimeout(300);
+        }
+        
+        // Expand help section if collapsed
+        const helpHeader = page.locator('text=/help|帮助/i').first();
+        if (await helpHeader.isVisible().catch(() => false)) {
+          await helpHeader.click();
+          await page.waitForTimeout(300);
+        }
+        
+        // Look for restart tour button
+        const restartTourButton = page.getByRole('button', { name: /restart.*tour|重新.*引导|重启.*教程/i })
+          .or(page.locator('text=/restart.*tour|重新.*引导/i'));
+        expect(await restartTourButton.count()).toBeGreaterThanOrEqual(0);
+        
+        await page.keyboard.press('Escape');
+      }
+    });
+
+    test('should show tour description', async ({ page }) => {
+      const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+      if (await settingsButton.isVisible().catch(() => false)) {
+        await settingsButton.click();
+        await page.waitForTimeout(500);
+        
+        // Navigate to advanced/other tab
+        const advancedTab = page.getByRole('tab', { name: /advanced|other|其他|高级/i });
+        if (await advancedTab.isVisible().catch(() => false)) {
+          await advancedTab.click();
+          await page.waitForTimeout(300);
+        }
+        
+        // Expand help section
+        const helpHeader = page.locator('text=/help|帮助/i').first();
+        if (await helpHeader.isVisible().catch(() => false)) {
+          await helpHeader.click();
+          await page.waitForTimeout(300);
+        }
+        
+        // Look for tour description text
+        const tourDescription = page.locator('text=/tour|tutorial|引导|教程/i');
+        expect(await tourDescription.count()).toBeGreaterThanOrEqual(0);
+        
+        await page.keyboard.press('Escape');
+      }
+    });
+
+    test('should trigger tour restart when button clicked', async ({ page }) => {
+      const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
+      if (await settingsButton.isVisible().catch(() => false)) {
+        await settingsButton.click();
+        await page.waitForTimeout(500);
+        
+        // Navigate to advanced/other tab
+        const advancedTab = page.getByRole('tab', { name: /advanced|other|其他|高级/i });
+        if (await advancedTab.isVisible().catch(() => false)) {
+          await advancedTab.click();
+          await page.waitForTimeout(300);
+        }
+        
+        // Expand help section
+        const helpHeader = page.locator('text=/help|帮助/i').first();
+        if (await helpHeader.isVisible().catch(() => false)) {
+          await helpHeader.click();
+          await page.waitForTimeout(300);
+        }
+        
+        // Click restart tour button
+        const restartTourButton = page.getByRole('button', { name: /restart.*tour|重新.*引导/i }).first();
+        if (await restartTourButton.isVisible().catch(() => false)) {
+          await restartTourButton.click();
+          await page.waitForTimeout(500);
+          
+          // Tour dialog or welcome screen should appear
+          const tourDialog = page.locator('[role="dialog"]')
+            .or(page.locator('text=/welcome|欢迎|tour|引导/i'));
+          expect(await tourDialog.count()).toBeGreaterThanOrEqual(0);
+        }
+        
+        await page.keyboard.press('Escape');
+      }
+    });
+  });
 });

@@ -24,6 +24,10 @@ import {
   Square,
   Heart,
   Layers,
+  Download,
+  Upload,
+  FileText,
+  MoreVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,6 +70,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { useTargetListStore, useMountStore, useEquipmentStore, useStellariumStore, type TargetItem } from '@/lib/stores';
+import { tauriApi } from '@/lib/tauri';
+import { isTauri } from '@/lib/storage/platform';
+import { toast } from 'sonner';
+import type { ExportFormat, TargetExportItem } from '@/lib/tauri/types';
 import { TranslatedName } from '../objects/translated-name';
 import {
   planMultipleTargets,
@@ -117,6 +125,7 @@ export function ShotList({
   const removeTargetsBatch = useTargetListStore((state) => state.removeTargetsBatch);
   const setStatusBatch = useTargetListStore((state) => state.setStatusBatch);
   const setPriorityBatch = useTargetListStore((state) => state.setPriorityBatch);
+  const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
   const getFilteredTargets = useTargetListStore((state) => state.getFilteredTargets);
   
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
@@ -228,6 +237,81 @@ export function ShotList({
     setPriorityBatch(ids, priority);
     clearSelection();
   }, [selectedIds, setPriorityBatch, clearSelection]);
+
+  // Import/Export handlers
+  const handleExport = useCallback(async (format: ExportFormat) => {
+    if (!isTauri()) {
+      toast.error(t('shotList.desktopOnly') || 'Export is only available in desktop app');
+      return;
+    }
+    
+    if (targets.length === 0) {
+      toast.error(t('shotList.noTargetsToExport') || 'No targets to export');
+      return;
+    }
+
+    try {
+      const exportTargets: TargetExportItem[] = targets.map(target => ({
+        name: target.name,
+        ra: target.ra,
+        dec: target.dec,
+        ra_string: target.raString,
+        dec_string: target.decString,
+        priority: target.priority,
+        tags: target.tags.join(', '),
+        notes: target.notes,
+      }));
+
+      const result = await tauriApi.targetIo.exportTargets(exportTargets, format);
+      toast.success(t('shotList.exportSuccess') || 'Export successful', {
+        description: result,
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error(t('shotList.exportFailed') || 'Export failed', {
+        description: String(error),
+      });
+    }
+  }, [targets, t]);
+
+  const handleImport = useCallback(async () => {
+    if (!isTauri()) {
+      toast.error(t('shotList.desktopOnly') || 'Import is only available in desktop app');
+      return;
+    }
+
+    try {
+      const result = await tauriApi.targetIo.importTargets();
+      
+      if (result.targets.length > 0) {
+        // Convert imported targets to our format and add them
+        const batchTargets = result.targets.map(t => ({
+          name: t.name,
+          ra: t.ra,
+          dec: t.dec,
+          raString: t.ra_string,
+          decString: t.dec_string,
+        }));
+        
+        addTargetsBatch(batchTargets, { priority: 'medium' });
+        
+        toast.success(t('shotList.importSuccess') || 'Import successful', {
+          description: `${result.imported} targets imported${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`,
+        });
+      } else {
+        toast.info(t('shotList.noTargetsImported') || 'No targets were imported');
+      }
+      
+      if (result.errors.length > 0) {
+        console.warn('Import warnings:', result.errors);
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      toast.error(t('shotList.importFailed') || 'Import failed', {
+        description: String(error),
+      });
+    }
+  }, [t, addTargetsBatch]);
 
   // Style helpers
   const getStatusColor = (status: TargetItem['status']) => {
@@ -374,6 +458,55 @@ export function ShotList({
                         <Archive className="h-3 w-3 mr-2" />
                         {t('shotList.showArchived')}
                       </DropdownMenuCheckboxItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  
+                  {/* Import/Export Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <MoreVertical className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>{t('shotList.importExport') || 'Import / Export'}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleImport} disabled={!isTauri()}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        {t('shotList.import') || 'Import Targets...'}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">
+                        {t('shotList.exportAs') || 'Export As'}
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem 
+                        onClick={() => handleExport('csv')} 
+                        disabled={targets.length === 0 || !isTauri()}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleExport('json')} 
+                        disabled={targets.length === 0 || !isTauri()}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        JSON
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleExport('stellarium')} 
+                        disabled={targets.length === 0 || !isTauri()}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Stellarium
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleExport('mosaic')} 
+                        disabled={targets.length === 0 || !isTauri()}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Mosaic Planner
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

@@ -720,6 +720,36 @@ export function FOVSimulator({
 
             <Separator />
 
+            {/* Framing Assistant Options (NINA-style) */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">{t('fov.framingOptions')}</Label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <span className="text-sm">{t('fov.rotateSky')}</span>
+                    <p className="text-xs text-muted-foreground">{t('fov.rotateSkyDesc')}</p>
+                  </div>
+                  <Switch defaultChecked={false} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <span className="text-sm">{t('fov.preserveAlignment')}</span>
+                    <p className="text-xs text-muted-foreground">{t('fov.preserveAlignmentDesc')}</p>
+                  </div>
+                  <Switch defaultChecked={false} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <span className="text-sm">{t('fov.dragToPosition')}</span>
+                    <p className="text-xs text-muted-foreground">{t('fov.dragToPositionDesc')}</p>
+                  </div>
+                  <Switch defaultChecked={true} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Advanced Options */}
             <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
               <CollapsibleTrigger asChild>

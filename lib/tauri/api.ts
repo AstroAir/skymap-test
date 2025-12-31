@@ -9,6 +9,8 @@ import type {
   Telescope,
   Camera,
   Eyepiece,
+  BarlowReducer,
+  Filter,
   LocationsData,
   ObservationLocation,
   ObservationLogData,
@@ -89,6 +91,16 @@ export const equipmentApi = {
   async updateEyepiece(eyepiece: Eyepiece): Promise<EquipmentData> {
     const invoke = await getInvoke();
     return invoke('update_eyepiece', { eyepiece });
+  },
+
+  async updateBarlowReducer(barlow: BarlowReducer): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('update_barlow_reducer', { barlow });
+  },
+
+  async updateFilter(filter: Filter): Promise<EquipmentData> {
+    const invoke = await getInvoke();
+    return invoke('update_filter', { filter });
   },
 
   async setDefaultTelescope(telescopeId: string): Promise<EquipmentData> {

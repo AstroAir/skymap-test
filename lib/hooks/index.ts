@@ -29,6 +29,7 @@ export { useCacheInit } from './use-cache-init';
 // Search and object hooks
 export { 
   useObjectSearch,
+  getDetailedMatch,
   type ObjectType,
   type SortOption,
   type SearchMode,

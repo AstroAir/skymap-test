@@ -242,6 +242,35 @@ jest.mock('../../core/stellarium-survey-selector', () => ({
   StellariumSurveySelector: () => <div data-testid="stellarium-survey-selector">StellariumSurveySelector</div>,
 }));
 
+jest.mock('../settings/display-settings', () => ({
+  DisplaySettings: () => <div data-testid="display-settings">DisplaySettings</div>,
+}));
+
+jest.mock('../settings/equipment-settings', () => ({
+  EquipmentSettings: () => <div data-testid="equipment-settings">EquipmentSettings</div>,
+}));
+
+jest.mock('../settings/fov-settings', () => ({
+  FOVSettings: () => <div data-testid="fov-settings">FOVSettings</div>,
+}));
+
+jest.mock('../settings/exposure-settings', () => ({
+  ExposureSettings: () => <div data-testid="exposure-settings">ExposureSettings</div>,
+}));
+
+jest.mock('../settings/location-settings', () => ({
+  LocationSettings: () => <div data-testid="location-settings">LocationSettings</div>,
+}));
+
+jest.mock('../settings/connection-settings', () => ({
+  ConnectionSettings: () => <div data-testid="connection-settings">ConnectionSettings</div>,
+}));
+
+jest.mock('../../map', () => ({
+  MapProviderSettings: () => <div data-testid="map-provider-settings">MapProviderSettings</div>,
+  MapHealthMonitor: () => <div data-testid="map-health-monitor">MapHealthMonitor</div>,
+}));
+
 import { UnifiedSettings } from '../unified-settings';
 
 describe('UnifiedSettings', () => {

@@ -337,6 +337,81 @@ function FilterPanel({ isOpen, onToggle }: FilterPanelProps) {
             className="w-full"
           />
         </div>
+
+        {/* Altitude Duration Filter (NINA-style) */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <Label className="text-xs">{t('skyAtlas.altitudeDuration')}</Label>
+            <span className="text-xs text-muted-foreground">{filters.altitudeDuration || 1}h</span>
+          </div>
+          <Slider
+            value={[filters.altitudeDuration || 1]}
+            onValueChange={([v]) => setFilters({ altitudeDuration: v })}
+            min={1}
+            max={8}
+            step={1}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">{t('skyAtlas.altitudeDurationDesc')}</p>
+        </div>
+
+        {/* Transit Time Filter (NINA-style) */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('skyAtlas.transitTimeFrom')}</Label>
+            <Select
+              value={filters.transitTimeFrom ? filters.transitTimeFrom.getHours().toString() : 'any'}
+              onValueChange={(v) => {
+                if (v === 'any') {
+                  setFilters({ transitTimeFrom: null });
+                } else {
+                  const date = new Date(filters.filterDate);
+                  date.setHours(Number(v), 0, 0, 0);
+                  setFilters({ transitTimeFrom: date });
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t('skyAtlas.any')}</SelectItem>
+                {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                  <SelectItem key={h} value={h.toString()}>
+                    {h.toString().padStart(2, '0')}:00
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('skyAtlas.transitTimeTo')}</Label>
+            <Select
+              value={filters.transitTimeThrough ? filters.transitTimeThrough.getHours().toString() : 'any'}
+              onValueChange={(v) => {
+                if (v === 'any') {
+                  setFilters({ transitTimeThrough: null });
+                } else {
+                  const date = new Date(filters.filterDate);
+                  date.setHours(Number(v), 0, 0, 0);
+                  setFilters({ transitTimeThrough: date });
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t('skyAtlas.any')}</SelectItem>
+                {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                  <SelectItem key={h} value={h.toString()}>
+                    {h.toString().padStart(2, '0')}:00
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         
         {/* Magnitude Range */}
         <div className="grid grid-cols-2 gap-2">

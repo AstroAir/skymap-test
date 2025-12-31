@@ -10,6 +10,13 @@ mod unified_cache;
 mod astro_events;
 mod target_list;
 mod markers;
+mod security;
+#[allow(dead_code)]
+mod rate_limiter;
+mod utils;
+
+#[cfg(test)]
+mod security_tests;
 
 use storage::{
     clear_all_data, delete_store_data, export_all_data, get_data_directory,

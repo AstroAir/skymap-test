@@ -1,0 +1,252 @@
+# MkDocs配置文件
+site_name: SkyMap Test 文档
+site_description: SkyMap Test 天文观测桌面应用完整文档
+site_author: SkyMap Test Team
+copyright: Copyright &copy; 2024 SkyMap Test Team
+
+# 仓库信息
+repo_name: skymap-test
+repo_url: https://github.com/yourusername/skymap-test
+edit_uri: edit/main/docs/
+
+# 主题配置
+theme:
+  name: material
+  language: zh
+  palette:
+    # 自动切换亮/暗模式
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: 切换到暗色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: 切换到亮色模式
+
+  features:
+    # 导航功能
+    - navigation.instant           # 即时加载
+    - navigation.tracking          # URL跟踪
+    - navigation.tabs              # 顶部标签
+    - navigation.indexes           # 索引页
+    - navigation.top               # 返回顶部按钮
+    - navigation.sections          # 章节折叠
+
+    # 搜索功能
+    - search.suggest               # 搜索建议
+    - search.highlight             # 搜索高亮
+    - search.share                 # 搜索分享
+
+    # 其他功能
+    - toc.integrate               # 目录集成
+    - toc.follow                   # 目录跟随
+    - content.code.copy            # 代码复制
+    - content.tabs.link            # 标签链接
+    - announce.dismiss             # 公告关闭
+
+  # 图标配置
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+    previous: material/arrow-left
+    next: material/arrow-right
+
+  # 字体配置
+  font:
+    text: 'Noto Sans SC'
+    code: 'Roboto Mono'
+
+# 插件配置
+plugins:
+  # 搜索插件（支持中文）
+  - search:
+      lang:
+        - zh
+        - en
+      separator: '[\s\-\.]+'
+
+  # Git 修订信息
+  - git-revision-date-localized:
+      type: datetime
+      timezone: Asia/Shanghai
+      locale: zh_CN
+
+  # 社交功能
+  - social:
+      cards_layout_options:
+        font_family: Noto Sans SC
+
+# Markdown 扩展
+markdown_extensions:
+  # Python Markdown 标准扩展
+  - abbr                      # 缩写
+  - admonition                # 提示块
+  - attr_list                 # 属性列表
+  - def_list                  # 定义列表
+  - footnotes                 # 脚注
+  - md_in_html                # HTML中的Markdown
+  - toc:
+      permalink: true         # 永久链接
+      slugify: !!python/name:pymdownx.slugs.uslugify
+      toc_depth: 4            # 目录深度
+
+  # Python Markdown 扩展
+  - pymdownx.arithmatex:      # 数学公式
+      generic: true
+  - pymdownx.betterem:        # 改进的强调
+      smart_enable: all
+  - pymdownx.caret            # 插入符
+  - pymdownx.details          # 详情折叠
+  - pymdownx.emoji:           # 表情
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:       # 代码高亮
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite     # 行内代码高亮
+  - pymdownx.keys             # 键盘按键
+  - pymdownx.mark             # 标记
+  - pymdownx.smartsymbols     # 智能符号
+  - pymdownx.superfences:     # 超级围栏
+      custom_fences:
+        - name: mermaid       # Mermaid 图表
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:          # 标签页
+      alternate_style: true
+  - pymdownx.tasklist:        # 任务列表
+      custom_checkbox: true
+  - pymdownx.tilde            # 删除线
+
+# 额外的 CSS 和 JS
+extra_css:
+  - stylesheets/extra.css     # 自定义样式
+
+extra_javascript:
+  - javascripts/extra.js      # 自定义脚本
+
+# 额外配置
+extra:
+  # 社交链接
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yourusername/skymap-test
+      name: GitHub
+
+# 导航结构
+nav:
+  # 首页
+  - 首页: index.md
+
+  # 快速开始
+  - 快速开始:
+      - 概览: getting-started/index.md
+      - 安装指南: getting-started/installation.md
+      - 首次运行: getting-started/first-run.md
+      - 基本概念: getting-started/basic-concepts.md
+      - 功能导览: getting-started/quick-tour.md
+
+  # 用户指南
+  - 用户指南:
+      - 概览: user-guide/index.md
+
+      # 星图功能
+      - 星图使用:
+          - 星图概览: user-guide/starmap/index.md
+          - 导航控制: user-guide/starmap/navigation.md
+          - 显示设置: user-guide/starmap/display-settings.md
+          - 夜视模式: user-guide/starmap/night-mode.md
+          - 缩放控制: user-guide/starmap/zoom-controls.md
+
+      # 天体对象
+      - 天体对象:
+          - 天体概览: user-guide/celestial-objects/index.md
+          - 搜索天体: user-guide/celestial-objects/search.md
+          - 查看详情: user-guide/celestial-objects/object-details.md
+
+      # 设备管理
+      - 设备管理:
+          - 设备概览: user-guide/equipment/index.md
+          - 望远镜: user-guide/equipment/telescopes.md
+          - 相机: user-guide/equipment/cameras.md
+
+      # 观测规划
+      - 观测规划:
+          - 规划概览: user-guide/observation-planning/index.md
+          - 目标列表: user-guide/observation-planning/target-lists.md
+          - 可见性预测: user-guide/observation-planning/visibility.md
+
+      # 其他功能
+      - 位置管理: user-guide/locations/index.md
+      - 离线功能: user-guide/offline/index.md
+
+  # 开发指南
+  - 开发指南:
+      - 概览: developer-guide/index.md
+
+      # 架构设计
+      - 架构设计:
+          - 架构概览: developer-guide/architecture/index.md
+          - 系统架构: developer-guide/architecture/overview.md
+          - 前端架构: developer-guide/architecture/frontend-architecture.md
+          - 后端架构: developer-guide/architecture/backend-architecture.md
+          - 数据流: developer-guide/architecture/data-flow.md
+
+      # 开发环境
+      - 开发环境:
+          - 环境概览: developer-guide/development-environment/index.md
+          - 前置要求: developer-guide/development-environment/prerequisites.md
+          - 环境搭建: developer-guide/development-environment/setup.md
+
+      # 项目结构
+      - 项目结构:
+          - 结构概览: developer-guide/project-structure/index.md
+          - 目录布局: developer-guide/project-structure/directory-layout.md
+
+      # 核心模块
+      - 核心模块:
+          - 模块概览: developer-guide/core-modules/index.md
+          - 星图核心: developer-guide/core-modules/starmap-core.md
+          - 天文计算: developer-guide/core-modules/astronomy-engine.md
+
+      # API参考
+      - API参考:
+          - API概览: developer-guide/apis/index.md
+          - 前端API:
+              - Stores API: developer-guide/apis/frontend-apis/stores.md
+              - Hooks API: developer-guide/apis/frontend-apis/hooks.md
+          - 后端API:
+              - Tauri命令: developer-guide/apis/backend-apis/tauri-commands.md
+              - 存储API: developer-guide/apis/backend-apis/storage.md
+
+  # 部署指南
+  - 部署指南:
+      - 概览: deployment/index.md
+      - 桌面应用:
+          - 构建指南: deployment/desktop/building.md
+          - Windows打包: deployment/desktop/windows.md
+          - macOS打包: deployment/desktop/macos.md
+
+  # 参考资料
+  - 参考资料:
+      - 概览: reference/index.md
+      - 天文学基础:
+          - 基础概览: reference/astronomy-basics/index.md
+          - 天球坐标: reference/astronomy-basics/coordinates.md
+      - 术语表: reference/glossary.md
+      - 常见问题: reference/faq.md
+
+  # 附录
+  - 附录:
+      - 概览: appendix/index.md
+      - 键盘快捷键: appendix/keyboard-shortcuts.md
+      - 配置文件: appendix/configuration-files.md
