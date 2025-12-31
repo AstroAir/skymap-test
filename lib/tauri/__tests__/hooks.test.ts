@@ -74,7 +74,12 @@ import {
 } from '../hooks';
 
 const mockIsTauri = isTauri as jest.Mock;
-const mockTauriApi = tauriApi as jest.Mocked<typeof tauriApi>;
+
+// Type-safe mock accessors for nested API objects
+const mockEquipmentApi = tauriApi.equipment as jest.Mocked<typeof tauriApi.equipment>;
+const mockLocationsApi = tauriApi.locations as jest.Mocked<typeof tauriApi.locations>;
+const mockObservationLogApi = tauriApi.observationLog as jest.Mocked<typeof tauriApi.observationLog>;
+const mockAppSettingsApi = tauriApi.appSettings as jest.Mocked<typeof tauriApi.appSettings>;
 const mockTargetListApi = targetListApi as jest.Mocked<typeof targetListApi>;
 const mockMarkersApi = markersApi as jest.Mocked<typeof markersApi>;
 
@@ -92,7 +97,7 @@ describe('useEquipment', () => {
       eyepieces: [],
       filters: [],
     };
-    mockTauriApi.equipment.load.mockResolvedValue(mockEquipment);
+    mockEquipmentApi.load.mockResolvedValue(mockEquipment);
 
     const { result } = renderHook(() => useEquipment());
 
@@ -108,7 +113,7 @@ describe('useEquipment', () => {
   });
 
   it('should handle load error', async () => {
-    mockTauriApi.equipment.load.mockRejectedValue(new Error('Load failed'));
+    mockEquipmentApi.load.mockRejectedValue(new Error('Load failed'));
 
     const { result } = renderHook(() => useEquipment());
 
@@ -129,13 +134,13 @@ describe('useEquipment', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(mockTauriApi.equipment.load).not.toHaveBeenCalled();
+    expect(mockEquipmentApi.load).not.toHaveBeenCalled();
     expect(result.current.isAvailable).toBe(false);
   });
 
   it('should refresh equipment', async () => {
     const mockEquipment = { telescopes: [], cameras: [], barlow_reducers: [], eyepieces: [], filters: [] };
-    mockTauriApi.equipment.load.mockResolvedValue(mockEquipment);
+    mockEquipmentApi.load.mockResolvedValue(mockEquipment);
 
     const { result } = renderHook(() => useEquipment());
 
@@ -147,7 +152,7 @@ describe('useEquipment', () => {
       await result.current.refresh();
     });
 
-    expect(mockTauriApi.equipment.load).toHaveBeenCalledTimes(2);
+    expect(mockEquipmentApi.load).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -164,8 +169,8 @@ describe('useLocations', () => {
     };
     const mockCurrentLocation = { id: '1', name: 'Home', latitude: 45, longitude: -75, altitude: 100 };
     
-    mockTauriApi.locations.load.mockResolvedValue(mockLocations);
-    mockTauriApi.locations.getCurrent.mockResolvedValue(mockCurrentLocation);
+    mockLocationsApi.load.mockResolvedValue(mockLocations);
+    mockLocationsApi.getCurrent.mockResolvedValue(mockCurrentLocation);
 
     const { result } = renderHook(() => useLocations());
 
@@ -186,9 +191,9 @@ describe('useLocations', () => {
       default_location_id: '1',
     };
     
-    mockTauriApi.locations.load.mockResolvedValue(mockLocations);
-    mockTauriApi.locations.getCurrent.mockResolvedValue(mockLocations.locations[0]);
-    mockTauriApi.locations.setCurrent.mockResolvedValue(mockLocations);
+    mockLocationsApi.load.mockResolvedValue(mockLocations);
+    mockLocationsApi.getCurrent.mockResolvedValue(mockLocations.locations[0]);
+    mockLocationsApi.setCurrent.mockResolvedValue(mockLocations);
 
     const { result } = renderHook(() => useLocations());
 
@@ -200,13 +205,13 @@ describe('useLocations', () => {
       await result.current.setCurrent('2');
     });
 
-    expect(mockTauriApi.locations.setCurrent).toHaveBeenCalledWith('2');
+    expect(mockLocationsApi.setCurrent).toHaveBeenCalledWith('2');
   });
 
   it('should handle error when setting current location', async () => {
-    mockTauriApi.locations.load.mockResolvedValue({ locations: [], default_location_id: null });
-    mockTauriApi.locations.getCurrent.mockResolvedValue(null);
-    mockTauriApi.locations.setCurrent.mockRejectedValue(new Error('Set current failed'));
+    mockLocationsApi.load.mockResolvedValue({ locations: [], default_location_id: null });
+    mockLocationsApi.getCurrent.mockResolvedValue(null);
+    mockLocationsApi.setCurrent.mockRejectedValue(new Error('Set current failed'));
 
     const { result } = renderHook(() => useLocations());
 
@@ -232,8 +237,8 @@ describe('useObservationLog', () => {
     const mockLog = { entries: [], version: 1 };
     const mockStats = { totalObservations: 10, uniqueObjects: 5 };
     
-    mockTauriApi.observationLog.load.mockResolvedValue(mockLog);
-    mockTauriApi.observationLog.getStats.mockResolvedValue(mockStats);
+    mockObservationLogApi.load.mockResolvedValue(mockLog);
+    mockObservationLogApi.getStats.mockResolvedValue(mockStats);
 
     const { result } = renderHook(() => useObservationLog());
 
@@ -246,7 +251,7 @@ describe('useObservationLog', () => {
   });
 
   it('should handle load error', async () => {
-    mockTauriApi.observationLog.load.mockRejectedValue(new Error('Log load failed'));
+    mockObservationLogApi.load.mockRejectedValue(new Error('Log load failed'));
 
     const { result } = renderHook(() => useObservationLog());
 
@@ -268,8 +273,8 @@ describe('useAppSettings', () => {
     const mockSettings = { theme: 'dark', language: 'en' };
     const mockSystemInfo = { os: 'windows', version: '1.0.0' };
     
-    mockTauriApi.appSettings.load.mockResolvedValue(mockSettings);
-    mockTauriApi.appSettings.getSystemInfo.mockResolvedValue(mockSystemInfo);
+    mockAppSettingsApi.load.mockResolvedValue(mockSettings);
+    mockAppSettingsApi.getSystemInfo.mockResolvedValue(mockSystemInfo);
 
     const { result } = renderHook(() => useAppSettings());
 
@@ -283,9 +288,9 @@ describe('useAppSettings', () => {
 
   it('should update settings', async () => {
     const mockSettings = { theme: 'dark', language: 'en' };
-    mockTauriApi.appSettings.load.mockResolvedValue(mockSettings);
-    mockTauriApi.appSettings.getSystemInfo.mockResolvedValue({});
-    mockTauriApi.appSettings.save.mockResolvedValue(undefined);
+    mockAppSettingsApi.load.mockResolvedValue(mockSettings);
+    mockAppSettingsApi.getSystemInfo.mockResolvedValue({});
+    mockAppSettingsApi.save.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAppSettings());
 
@@ -297,15 +302,15 @@ describe('useAppSettings', () => {
       await result.current.updateSettings({ theme: 'light' });
     });
 
-    expect(mockTauriApi.appSettings.save).toHaveBeenCalledWith({ theme: 'light', language: 'en' });
+    expect(mockAppSettingsApi.save).toHaveBeenCalledWith({ theme: 'light', language: 'en' });
     expect(result.current.settings).toEqual({ theme: 'light', language: 'en' });
   });
 
   it('should handle update error', async () => {
     const mockSettings = { theme: 'dark', language: 'en' };
-    mockTauriApi.appSettings.load.mockResolvedValue(mockSettings);
-    mockTauriApi.appSettings.getSystemInfo.mockResolvedValue({});
-    mockTauriApi.appSettings.save.mockRejectedValue(new Error('Save failed'));
+    mockAppSettingsApi.load.mockResolvedValue(mockSettings);
+    mockAppSettingsApi.getSystemInfo.mockResolvedValue({});
+    mockAppSettingsApi.save.mockRejectedValue(new Error('Save failed'));
 
     const { result } = renderHook(() => useAppSettings());
 
@@ -328,8 +333,8 @@ describe('useWindowState', () => {
   });
 
   it('should save window state', async () => {
-    mockTauriApi.appSettings.saveWindowState.mockResolvedValue(undefined);
-    mockTauriApi.appSettings.restoreWindowState.mockResolvedValue(undefined);
+    mockAppSettingsApi.saveWindowState.mockResolvedValue(undefined);
+    mockAppSettingsApi.restoreWindowState.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useWindowState());
 
@@ -337,16 +342,16 @@ describe('useWindowState', () => {
       await result.current.saveWindowState();
     });
 
-    expect(mockTauriApi.appSettings.saveWindowState).toHaveBeenCalled();
+    expect(mockAppSettingsApi.saveWindowState).toHaveBeenCalled();
   });
 
   it('should restore window state on mount', async () => {
-    mockTauriApi.appSettings.restoreWindowState.mockResolvedValue(undefined);
+    mockAppSettingsApi.restoreWindowState.mockResolvedValue(undefined);
 
     renderHook(() => useWindowState());
 
     await waitFor(() => {
-      expect(mockTauriApi.appSettings.restoreWindowState).toHaveBeenCalled();
+      expect(mockAppSettingsApi.restoreWindowState).toHaveBeenCalled();
     });
   });
 
@@ -359,7 +364,7 @@ describe('useWindowState', () => {
       await result.current.saveWindowState();
     });
 
-    expect(mockTauriApi.appSettings.saveWindowState).not.toHaveBeenCalled();
+    expect(mockAppSettingsApi.saveWindowState).not.toHaveBeenCalled();
   });
 });
 
