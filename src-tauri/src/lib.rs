@@ -10,7 +10,7 @@ mod unified_cache;
 mod astro_events;
 mod target_list;
 mod markers;
-mod security;
+pub mod security;
 #[allow(dead_code)]
 mod rate_limiter;
 mod utils;

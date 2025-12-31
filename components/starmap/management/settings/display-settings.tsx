@@ -24,9 +24,9 @@ import {
 } from '@/components/ui/select';
 import { useSatelliteStore } from '@/lib/stores';
 import type { StellariumSettings as StellariumSettingsType, SkyCultureLanguage } from '@/lib/core/types';
-import { StellariumSurveySelector } from '../../core/stellarium-survey-selector';
+import { StellariumSurveySelector } from '../../settings/stellarium-survey-selector';
 import { ObjectInfoSourcesConfig } from '../../objects/object-info-sources-config';
-import { TourRestartButton } from '../../core/welcome-dialog';
+import { TourRestartButton } from '../../onboarding/welcome-dialog';
 import { SettingsSection, ToggleItem } from './settings-shared';
 import { DISPLAY_SETTINGS, GRID_SETTINGS } from './settings-constants';
 

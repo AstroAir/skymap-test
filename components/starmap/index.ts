@@ -1,23 +1,46 @@
-// Core components
-export { StellariumView } from './core/stellarium-view';
-export { StellariumCanvas, type StellariumCanvasRef } from './core/stellarium-canvas';
-export { StellariumSearch } from './core/stellarium-search';
-export { AdvancedSearchDialog } from './core/advanced-search-dialog';
-export { StellariumMount } from './core/stellarium-mount';
-export { StellariumSettings } from './core/stellarium-settings';
-export { StellariumSurveySelector } from './core/stellarium-survey-selector';
-export { StellariumCredits } from './core/stellarium-credits';
-export { StellariumClock } from './core/stellarium-clock';
-export { ZoomControls } from './core/zoom-controls';
-export { SplashScreen } from './core/splash-screen';
-export { AboutDialog } from './core/about-dialog';
-export { OnboardingTour } from './core/onboarding-tour';
-export { WelcomeDialog, TourRestartButton } from './core/welcome-dialog';
+// Canvas - Core Stellarium engine
+export { StellariumCanvas, type StellariumCanvasRef } from './canvas/stellarium-canvas';
+
+// View - Main view component
+export { StellariumView } from './view/stellarium-view';
+
+// Search - Search functionality
+export { StellariumSearch } from './search/stellarium-search';
+export { AdvancedSearchDialog } from './search/advanced-search-dialog';
+
+// Settings - Configuration components
+export { StellariumSettings } from './settings/stellarium-settings';
+export { StellariumSurveySelector } from './settings/stellarium-survey-selector';
+
+// Controls - View controls
+export { ZoomControls } from './controls/zoom-controls';
+export { StellariumViewDirection } from './controls/stellarium-view-direction';
+
+// Time - Time control
+export { StellariumClock } from './time/stellarium-clock';
+
+// Mount - Telescope mount control
+export { StellariumMount } from './mount/stellarium-mount';
+
+// Dialogs - Information dialogs
+export { AboutDialog } from './dialogs/about-dialog';
+export { StellariumCredits } from './dialogs/stellarium-credits';
+
+// Onboarding - Tour and welcome components
+export { OnboardingTour } from './onboarding/onboarding-tour';
+export { WelcomeDialog, TourRestartButton } from './onboarding/welcome-dialog';
+export { TourSpotlight } from './onboarding/tour-spotlight';
+export { TourTooltip } from './onboarding/tour-tooltip';
+
+// Plate Solving - Image capture and plate solving
+export { ImageCapture } from './plate-solving/image-capture';
+export { PlateSolver } from './plate-solving/plate-solver';
+
+// Feedback - UI feedback components
+export { SplashScreen } from './feedback/splash-screen';
+
+// Setup Wizard
 export { SetupWizard, SetupWizardButton } from './setup-wizard';
-export { TourSpotlight } from './core/tour-spotlight';
-export { TourTooltip } from './core/tour-tooltip';
-export { ImageCapture } from './core/image-capture';
-export { PlateSolver } from './core/plate-solver';
 
 // Objects components
 export { InfoPanel } from './objects/info-panel';

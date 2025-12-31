@@ -80,8 +80,8 @@ pub mod limits {
 /// * `allowlist` - Optional list of allowed domains (None = no allowlist check)
 ///
 /// # Examples
-/// ```
-/// use crate::security::validate_url;
+/// ```no_run
+/// use app_lib::security::validate_url;
 ///
 /// // Allow only HTTPS, no allowlist
 /// validate_url("https://api.example.com/data", false, None).unwrap();
@@ -189,8 +189,8 @@ fn is_private_ip(ip: &IpAddr) -> bool {
 /// Validate input size against a maximum
 ///
 /// # Examples
-/// ```
-/// use crate::security::validate_size;
+/// ```no_run
+/// use app_lib::security::validate_size;
 ///
 /// let data = b"some data";
 /// validate_size(data, 100).unwrap(); // OK

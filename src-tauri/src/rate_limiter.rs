@@ -305,7 +305,7 @@ mod tests {
     fn test_ban_on_exceed() {
         let config = RateLimitConfig {
             max_requests: 2,
-            window_seconds: 10,
+            window_seconds: 1, // Short window so requests expire quickly
             ban_on_exceed: true,
             ban_duration_seconds: Some(1),
         };

@@ -238,7 +238,7 @@ jest.mock('../../objects/object-info-sources-config', () => ({
   ObjectInfoSourcesConfig: () => <div data-testid="object-info-sources-config">ObjectInfoSourcesConfig</div>,
 }));
 
-jest.mock('../../core/stellarium-survey-selector', () => ({
+jest.mock('../../settings/stellarium-survey-selector', () => ({
   StellariumSurveySelector: () => <div data-testid="stellarium-survey-selector">StellariumSurveySelector</div>,
 }));
 

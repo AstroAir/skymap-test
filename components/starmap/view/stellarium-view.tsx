@@ -49,14 +49,14 @@ import { Compass } from 'lucide-react';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 
-import { StellariumCanvas, type StellariumCanvasRef } from './stellarium-canvas';
-import { StellariumSearch, type StellariumSearchRef } from './stellarium-search';
-import { StellariumSettings } from './stellarium-settings';
+import { StellariumCanvas, type StellariumCanvasRef } from '../canvas/stellarium-canvas';
+import { StellariumSearch, type StellariumSearchRef } from '../search/stellarium-search';
+import { StellariumSettings } from '../settings/stellarium-settings';
 import { UnifiedSettings } from '../management/unified-settings';
-import { StellariumCredits } from './stellarium-credits';
-import { StellariumClock } from './stellarium-clock';
-import { StellariumMount } from './stellarium-mount';
-import { ZoomControls } from './zoom-controls';
+import { StellariumCredits } from '../dialogs/stellarium-credits';
+import { StellariumClock } from '../time/stellarium-clock';
+import { StellariumMount } from '../mount/stellarium-mount';
+import { ZoomControls } from '../controls/zoom-controls';
 import { FOVSimulator } from '../overlays/fov-simulator';
 import { FOVOverlay } from '../overlays/fov-overlay';
 import { InfoPanel } from '../objects/info-panel';
@@ -67,7 +67,7 @@ import { ShotList } from '../planning/shot-list';
 import { ObservationLog } from '../planning/observation-log';
 import { OfflineCacheManager } from '../management/offline-cache-manager';
 import { TonightRecommendations } from '../planning/tonight-recommendations';
-import { AboutDialog } from './about-dialog';
+import { AboutDialog } from '../dialogs/about-dialog';
 import { AstroEventsCalendar } from '../planning/astro-events-calendar';
 import { OcularSimulator } from '../overlays/ocular-simulator';
 import { SatelliteTracker } from '../overlays/satellite-tracker';
@@ -80,9 +80,9 @@ import { LanguageSwitcher } from '@/components/ui/language-switcher';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { NightModeToggle } from '@/components/ui/night-mode-toggle';
 import { SensorControlToggle } from '@/components/ui/sensor-control-toggle';
-import { OnboardingTour } from './onboarding-tour';
-import { WelcomeDialog } from './welcome-dialog';
-import { PlateSolver } from './plate-solver';
+import { OnboardingTour } from '../onboarding/onboarding-tour';
+import { WelcomeDialog } from '../onboarding/welcome-dialog';
+import { PlateSolver } from '../plate-solving/plate-solver';
 
 // Context menu click coordinates type
 interface ClickCoords {

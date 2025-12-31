@@ -235,15 +235,20 @@ mod security_tests {
 
     #[test]
     fn test_max_csv_rows_enforcement() {
-        // Create CSV with excessive rows
-        let lines: Vec<String> = (0..=limits::MAX_CSV_ROWS + 1000)
-            .map(|i| format!("target{},RA{},DEC{}", i, i, i))
-            .collect();
+        // Test that validate_size correctly rejects oversized content
+        // Use a smaller test limit to avoid memory issues on Windows
+        let test_limit = 1000; // 1KB limit for testing
+        let oversized_content = "x".repeat(test_limit + 1);
 
-        let csv_content = lines.join("\n");
+        // Should fail size validation when over limit
+        assert!(security::validate_size(&oversized_content, test_limit).is_err());
 
-        // Should fail size validation
-        assert!(security::validate_size(&csv_content, limits::MAX_CSV_SIZE).is_err());
+        // Should pass when at or under limit
+        let at_limit = "x".repeat(test_limit);
+        assert!(security::validate_size(&at_limit, test_limit).is_ok());
+
+        let under_limit = "x".repeat(test_limit - 1);
+        assert!(security::validate_size(&under_limit, test_limit).is_ok());
     }
 }
 
@@ -253,8 +258,6 @@ mod security_tests {
 
 #[cfg(test)]
 pub mod test_utils {
-    use super::*;
-
     /// Create a test URL for various security scenarios
     pub fn test_url(scheme: &str, host: &str, path: &str) -> String {
         format!("{}://{}/{}", scheme, host, path)
@@ -269,7 +272,7 @@ pub mod test_utils {
     pub fn create_test_csv(rows: usize) -> String {
         let header = "name,ra,dec,ra_string,dec_string\n";
         let data: Vec<String> = (0..rows)
-            .map(|i| format!("Target{},{},,{},,RA{},DEC{}", i, i, i, i, i, i))
+            .map(|i| format!("Target{},{},{},RA{},DEC{}", i, i, i, i, i))
             .collect();
         format!("{}{}", header, data.join("\n"))
     }

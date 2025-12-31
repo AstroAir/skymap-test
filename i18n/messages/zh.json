@@ -32,7 +32,9 @@
   },
   "splash": {
     "tagline": "探索宇宙",
-    "loading": "正在加载星图..."
+    "loading": "正在加载星图...",
+    "loadingStars": "正在加载星表数据...",
+    "loadingEngine": "正在初始化引擎..."
   },
   "about": {
     "title": "关于",

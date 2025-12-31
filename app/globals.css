@@ -734,3 +734,158 @@
 .night-mode-transition {
   transition: filter 0.5s ease, background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease;
 }
+
+/* ============================================================================
+   Splash Screen Animations
+   ============================================================================ */
+
+@keyframes splash-twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes splash-shooting-star {
+  0% { 
+    opacity: 0;
+    transform: translateX(0) translateY(0);
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(300px) translateY(300px);
+  }
+}
+
+@keyframes splash-orbit {
+  from {
+    transform: rotate(0deg) translateX(44px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(44px) rotate(-360deg);
+  }
+}
+
+@keyframes splash-glow-pulse {
+  0%, 100% { 
+    opacity: 0.4; 
+    transform: scale(1);
+    filter: blur(60px);
+  }
+  50% { 
+    opacity: 0.6; 
+    transform: scale(1.1);
+    filter: blur(80px);
+  }
+}
+
+@keyframes splash-ring-expand {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes splash-logo-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes splash-star-icon {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+    filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.5));
+  }
+  50% {
+    transform: rotate(180deg) scale(1.1);
+    filter: drop-shadow(0 0 16px hsl(var(--primary) / 0.8));
+  }
+}
+
+@keyframes splash-text-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    letter-spacing: 0.3em;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: 0.1em;
+  }
+}
+
+@keyframes splash-progress-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+  }
+}
+
+@keyframes splash-fade-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
+
+/* Splash screen utility classes */
+.splash-star {
+  animation: splash-twinkle var(--twinkle-duration, 3s) ease-in-out infinite;
+  animation-delay: var(--twinkle-delay, 0s);
+}
+
+.splash-shooting-star {
+  animation: splash-shooting-star 4s ease-out infinite;
+}
+
+.splash-orbit-dot {
+  animation: splash-orbit 6s linear infinite;
+}
+
+.splash-nebula-glow {
+  animation: splash-glow-pulse 4s ease-in-out infinite;
+}
+
+.splash-ring-pulse {
+  animation: splash-ring-expand 2s ease-out infinite;
+}
+
+.splash-logo-enter {
+  animation: splash-logo-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.splash-star-spin {
+  animation: splash-star-icon 8s ease-in-out infinite;
+}
+
+.splash-text-enter {
+  animation: splash-text-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.splash-progress-bar {
+  animation: splash-progress-glow 2s ease-in-out infinite;
+}
+
+.splash-fade-out {
+  animation: splash-fade-out 0.4s ease-out forwards;
+}

@@ -32,7 +32,9 @@
   },
   "splash": {
     "tagline": "Explore the Universe",
-    "loading": "Loading star map..."
+    "loading": "Loading star map...",
+    "loadingStars": "Loading star catalogs...",
+    "loadingEngine": "Initializing engine..."
   },
   "about": {
     "title": "About",
