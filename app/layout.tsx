@@ -4,7 +4,7 @@ import { Toaster } from "sonner";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TauriSyncProvider } from "@/lib/tauri/TauriSyncProvider";
-import { TitleBar } from "@/components/ui/titlebar";
+import { TitleBar } from "@/components/common/titlebar";
 import "./globals.css";
 
 const geistSans = Geist({

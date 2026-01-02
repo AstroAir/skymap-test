@@ -1,0 +1,83 @@
+/**
+ * @jest-environment jsdom
+ */
+
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+
+const mockUseUpdater = jest.fn();
+
+jest.mock('@/lib/tauri/updater-hooks', () => ({
+  useUpdater: () => mockUseUpdater(),
+}));
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
+import { UpdateSettings } from '../update-settings';
+
+const renderComponent = () => render(<UpdateSettings />);
+
+describe('UpdateSettings', () => {
+  const defaultMockReturn = {
+    currentVersion: '1.0.0',
+    isChecking: false,
+    hasUpdate: false,
+    updateInfo: null,
+    checkForUpdate: jest.fn(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseUpdater.mockReturnValue(defaultMockReturn);
+  });
+
+  it('should render settings', () => {
+    renderComponent();
+    expect(screen.getByRole('switch')).toBeInTheDocument();
+  });
+
+  it('should call checkForUpdate when button is clicked', () => {
+    const checkForUpdate = jest.fn();
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      checkForUpdate,
+    });
+
+    renderComponent();
+
+    const buttons = screen.getAllByRole('button');
+    if (buttons[0]) fireEvent.click(buttons[0]);
+
+    expect(checkForUpdate).toHaveBeenCalled();
+  });
+
+  it('should disable button when checking', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      isChecking: true,
+    });
+
+    renderComponent();
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[0]).toBeDisabled();
+  });
+
+  it('should render auto update switch', () => {
+    renderComponent();
+    expect(screen.getByRole('switch')).toBeInTheDocument();
+  });
+
+  it('should toggle auto update switch', () => {
+    renderComponent();
+
+    const switchElement = screen.getByRole('switch');
+    expect(switchElement).toBeChecked();
+
+    fireEvent.click(switchElement);
+
+    expect(switchElement).not.toBeChecked();
+  });
+});

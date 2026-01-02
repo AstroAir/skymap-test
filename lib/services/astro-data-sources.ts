@@ -3,6 +3,8 @@
  * Supports multiple data sources for astronomical events and satellite tracking
  */
 
+import { smartFetch } from './http-fetch';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -166,18 +168,18 @@ export const SATELLITE_SOURCES: DataSourceConfig[] = [
 export async function fetchLunarPhases(year: number, month: number): Promise<AstroEvent[]> {
   try {
     // USNO Moon Phases API
-    const response = await fetch(
+    const response = await smartFetch(
       `https://aa.usno.navy.mil/api/moon/phases/year?year=${year}`,
-      { next: { revalidate: 86400 } } // Cache for 24 hours
+      { timeout: 30000 }
     );
     
     if (!response.ok) throw new Error('USNO API error');
     
-    const data = await response.json();
+    const data = await response.json<{ phasedata?: Array<{ phase: string; date: string; time: string }> }>();
     const events: AstroEvent[] = [];
     
     if (data.phasedata) {
-      data.phasedata.forEach((phase: { phase: string; date: string; time: string }) => {
+      data.phasedata.forEach((phase) => {
         const phaseDate = new Date(`${phase.date}T${phase.time}Z`);
         if (phaseDate.getMonth() === month) {
           events.push({
@@ -260,19 +262,19 @@ export async function fetchMeteorShowers(year: number, month: number): Promise<A
 export async function fetchEclipses(year: number, month: number): Promise<AstroEvent[]> {
   try {
     // Try to fetch from NASA Eclipse API
-    const response = await fetch(
+    const response = await smartFetch(
       `https://eclipse.gsfc.nasa.gov/eclipse/api/eclipse?year=${year}&type=all`,
-      { next: { revalidate: 86400 * 30 } } // Cache for 30 days
+      { timeout: 30000 }
     );
     
     if (!response.ok) throw new Error('NASA Eclipse API error');
     
-    const responseData = await response.json();
+    const responseData = await response.json<{ eclipses?: Array<{ date: string; type: string }> }>();
     const events: AstroEvent[] = [];
     
     // Process eclipse data from NASA API
-    if (responseData && Array.isArray(responseData.eclipses)) {
-      responseData.eclipses.forEach((eclipse: { date: string; type: string }) => {
+    if (responseData && responseData.eclipses && Array.isArray(responseData.eclipses)) {
+      responseData.eclipses.forEach((eclipse) => {
         const eclipseDate = new Date(eclipse.date);
         if (eclipseDate.getMonth() === month) {
           events.push({
@@ -337,9 +339,9 @@ function getKnownEclipses(year: number, month: number): AstroEvent[] {
 export async function fetchComets(): Promise<AstroEvent[]> {
   try {
     // MPC Observable Comets
-    const response = await fetch(
+    const response = await smartFetch(
       'https://www.minorplanetcenter.net/iau/Ephemerides/Comets/Soft03Cmt.txt',
-      { next: { revalidate: 86400 } }
+      { timeout: 30000 }
     );
     
     if (!response.ok) throw new Error('MPC API error');
@@ -382,17 +384,14 @@ export async function fetchComets(): Promise<AstroEvent[]> {
  */
 export async function fetchSatelliteTLE(category: string = 'stations'): Promise<SatelliteData[]> {
   try {
-    const response = await fetch(
+    const response = await smartFetch(
       `https://celestrak.org/NORAD/elements/gp.php?GROUP=${category}&FORMAT=json`,
-      { next: { revalidate: 3600 } } // Cache for 1 hour
+      { timeout: 30000 }
     );
     
     if (!response.ok) throw new Error('CelesTrak API error');
     
-    const data = await response.json();
-    const satellites: SatelliteData[] = [];
-    
-    data.forEach((sat: {
+    const data = await response.json<Array<{
       OBJECT_NAME: string;
       NORAD_CAT_ID: number;
       OBJECT_ID: string;
@@ -400,7 +399,10 @@ export async function fetchSatelliteTLE(category: string = 'stations'): Promise<
       TLE_LINE2: string;
       MEAN_MOTION: number;
       INCLINATION: number;
-    }) => {
+    }>>();
+    const satellites: SatelliteData[] = [];
+    
+    data.forEach((sat) => {
       // Calculate orbital parameters from TLE
       const meanMotion = sat.MEAN_MOTION;
       const period = 1440 / meanMotion; // minutes
@@ -451,18 +453,16 @@ export async function fetchSatellitePasses(
   }
   
   try {
-    const response = await fetch(
+    const response = await smartFetch(
       `https://api.n2yo.com/rest/v1/satellite/visualpasses/${noradId}/${lat}/${lng}/${alt}/${days}/${minVisibility}/&apiKey=${apiKey}`,
-      { next: { revalidate: 1800 } } // Cache for 30 minutes
+      { timeout: 30000 }
     );
     
     if (!response.ok) throw new Error('N2YO API error');
     
-    const data = await response.json();
-    const passes: SatellitePass[] = [];
-    
-    if (data.passes) {
-      data.passes.forEach((pass: {
+    const data = await response.json<{
+      info?: { satname?: string };
+      passes?: Array<{
         startUTC: number;
         startAz: number;
         startEl: number;
@@ -474,7 +474,12 @@ export async function fetchSatellitePasses(
         endEl: number;
         mag: number;
         duration: number;
-      }) => {
+      }>;
+    }>();
+    const passes: SatellitePass[] = [];
+    
+    if (data.passes) {
+      data.passes.forEach((pass) => {
         passes.push({
           satellite: {
             id: `n2yo-${noradId}`,
@@ -516,14 +521,14 @@ export async function fetchSatellitePasses(
  */
 export async function fetchISSPosition(): Promise<{ lat: number; lng: number; alt: number; velocity: number } | null> {
   try {
-    const response = await fetch(
+    const response = await smartFetch(
       'http://api.open-notify.org/iss-now.json',
-      { cache: 'no-store' }
+      { timeout: 10000, allowHttp: true }
     );
     
     if (!response.ok) throw new Error('Open Notify API error');
     
-    const data = await response.json();
+    const data = await response.json<{ iss_position: { latitude: string; longitude: string } }>();
     
     return {
       lat: parseFloat(data.iss_position.latitude),

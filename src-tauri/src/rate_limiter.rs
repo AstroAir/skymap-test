@@ -154,6 +154,7 @@ pub enum RateLimitResult {
 }
 
 impl RateLimitResult {
+    #[allow(dead_code)]
     pub fn is_allowed(&self) -> bool {
         matches!(self, Self::Allowed)
     }
@@ -187,12 +188,14 @@ impl GlobalRateLimiter {
     }
 
     /// Reset rate limit state for a command (for testing/admin)
+    #[allow(dead_code)]
     pub fn reset(&self, command: &str) {
         let mut limiters = self.limiters.lock().unwrap();
         limiters.remove(command);
     }
 
     /// Get current state for a command
+    #[allow(dead_code)]
     pub fn get_state(&self, command: &str) -> Option<(usize, Option<Instant>)> {
         let limiters = self.limiters.lock().unwrap();
         limiters.get(command).map(|(_, state)| {

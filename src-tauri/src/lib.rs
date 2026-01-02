@@ -11,9 +11,12 @@ mod astro_events;
 mod target_list;
 mod markers;
 pub mod security;
-#[allow(dead_code)]
 mod rate_limiter;
 mod utils;
+mod http_client;
+
+#[cfg(desktop)]
+mod updater;
 
 #[cfg(test)]
 mod security_tests;
@@ -90,6 +93,18 @@ use markers::{
     remove_marker_group, rename_marker_group, get_visible_markers,
 };
 
+use http_client::{
+    get_http_config, set_http_config, http_request, http_get, http_post,
+    http_download, http_cancel_request, http_cancel_all_requests,
+    http_batch_download, http_check_url, http_head,
+};
+
+#[cfg(desktop)]
+use updater::{
+    check_for_update, download_update, install_update, download_and_install_update,
+    get_current_version, clear_pending_update, has_pending_update,
+};
+
 #[cfg(desktop)]
 use tauri::Manager;
 
@@ -115,6 +130,13 @@ pub fn run() {
             // Geolocation plugin (mobile only)
             #[cfg(mobile)]
             app.handle().plugin(tauri_plugin_geolocation::init())?;
+
+            // Updater and process plugins (desktop only)
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+            }
 
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -268,6 +290,33 @@ pub fn run() {
             remove_marker_group,
             rename_marker_group,
             get_visible_markers,
+            // HTTP Client
+            get_http_config,
+            set_http_config,
+            http_request,
+            http_get,
+            http_post,
+            http_download,
+            http_cancel_request,
+            http_cancel_all_requests,
+            http_batch_download,
+            http_check_url,
+            http_head,
+            // Updater (desktop only)
+            #[cfg(desktop)]
+            check_for_update,
+            #[cfg(desktop)]
+            download_update,
+            #[cfg(desktop)]
+            install_update,
+            #[cfg(desktop)]
+            download_and_install_update,
+            #[cfg(desktop)]
+            get_current_version,
+            #[cfg(desktop)]
+            clear_pending_update,
+            #[cfg(desktop)]
+            has_pending_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,6 +5,21 @@
  * external astronomical data sources.
  */
 
+// HTTP fetch utility (smart Tauri/browser switching)
+export {
+  smartFetch,
+  cancelRequest,
+  cancelAllRequests,
+  checkUrl,
+  batchDownload,
+  httpFetch,
+} from './http-fetch';
+export type {
+  FetchOptions,
+  FetchResponse,
+  DownloadProgress,
+} from './http-fetch';
+
 // Astronomical events
 export * from './astro-events';
 

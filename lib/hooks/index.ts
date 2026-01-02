@@ -58,3 +58,12 @@ export {
   type SessionConflict,
   type TargetScheduleSlot,
 } from './use-target-planner';
+
+// HTTP client hook (Tauri integration)
+export {
+  useHttpClient,
+  useFetch,
+  type UseHttpClientOptions,
+  type UseHttpClientReturn,
+  type HttpRequestState,
+} from './use-http-client';

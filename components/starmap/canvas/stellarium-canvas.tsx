@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useSta
 import { useStellariumStore, useSettingsStore, useMountStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import { createStellariumTranslator } from '@/lib/translations';
-import { Spinner } from '@/components/ui/spinner';
+import { Spinner } from '@/components/common/spinner';
 import { unifiedCache } from '@/lib/offline';
 import type { StellariumEngine, SelectedObjectData } from '@/lib/core/types';
 

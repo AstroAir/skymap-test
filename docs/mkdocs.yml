@@ -185,9 +185,17 @@ nav:
           - 目标列表: user-guide/observation-planning/target-lists.md
           - 可见性预测: user-guide/observation-planning/visibility.md
 
+      # 天文摄影
+      - 天文摄影:
+          - 摄影概览: user-guide/imaging/index.md
+
       # 其他功能
-      - 位置管理: user-guide/locations/index.md
-      - 离线功能: user-guide/offline/index.md
+      - 其他功能:
+          - 位置管理: user-guide/locations/index.md
+          - 天空标记: user-guide/markers/index.md
+          - 观测日志: user-guide/observation-log/index.md
+          - 离线功能: user-guide/offline/index.md
+          - 应用设置: user-guide/settings/index.md
 
   # 开发指南
   - 开发指南:
@@ -227,6 +235,10 @@ nav:
           - 后端API:
               - Tauri命令: developer-guide/apis/backend-apis/tauri-commands.md
               - 存储API: developer-guide/apis/backend-apis/storage.md
+
+      # 贡献指南
+      - 贡献指南:
+          - 贡献概览: developer-guide/contributing/index.md
 
   # 部署指南
   - 部署指南:

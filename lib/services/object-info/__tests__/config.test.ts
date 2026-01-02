@@ -14,7 +14,7 @@ import {
   getActiveSources,
   findSource,
 } from '../config';
-import type { DataSource } from '../types';
+import type { DataSource, DataSourceId } from '../types';
 
 // Mock fetch for health check tests
 const mockFetch = jest.fn();
@@ -157,7 +157,7 @@ describe('object-info config', () => {
       mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
       
       const source: DataSource = {
-        id: 'test',
+        id: 'simbad' as DataSourceId,
         name: 'Test',
         url: 'https://example.com',
         enabled: true,
@@ -188,7 +188,7 @@ describe('object-info config', () => {
       mockFetch.mockResolvedValueOnce({ ok: false, status: 405 });
       
       const source: DataSource = {
-        id: 'test',
+        id: 'simbad' as DataSourceId,
         name: 'Test',
         url: 'https://example.com',
         enabled: true,
@@ -205,7 +205,7 @@ describe('object-info config', () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
       
       const source: DataSource = {
-        id: 'test',
+        id: 'simbad' as DataSourceId,
         name: 'Test',
         url: 'https://example.com',
         enabled: true,
@@ -224,15 +224,15 @@ describe('object-info config', () => {
       mockFetch.mockResolvedValue({ ok: true, status: 200 });
       
       const sources: DataSource[] = [
-        { id: 'a', name: 'A', url: 'https://a.com', enabled: true, priority: 1, timeout: 1000, healthy: true },
-        { id: 'b', name: 'B', url: 'https://b.com', enabled: true, priority: 2, timeout: 1000, healthy: true },
+        { id: 'simbad' as DataSourceId, name: 'A', url: 'https://a.com', enabled: true, priority: 1, timeout: 1000, healthy: true },
+        { id: 'wikipedia' as DataSourceId, name: 'B', url: 'https://b.com', enabled: true, priority: 2, timeout: 1000, healthy: true },
       ];
       
       const results = await checkAllSourcesHealth(sources);
       
       expect(results.size).toBe(2);
-      expect(results.get('a')).toBe(true);
-      expect(results.get('b')).toBe(true);
+      expect(results.get('simbad' as DataSourceId)).toBe(true);
+      expect(results.get('wikipedia' as DataSourceId)).toBe(true);
     });
 
     it('should handle mixed health results', async () => {
@@ -241,54 +241,54 @@ describe('object-info config', () => {
         .mockRejectedValueOnce(new Error('Failed'));
       
       const sources: DataSource[] = [
-        { id: 'healthy', name: 'Healthy', url: 'https://ok.com', enabled: true, priority: 1, timeout: 1000, healthy: true },
-        { id: 'unhealthy', name: 'Unhealthy', url: 'https://fail.com', enabled: true, priority: 2, timeout: 1000, healthy: true },
+        { id: 'simbad' as DataSourceId, name: 'Healthy', url: 'https://ok.com', enabled: true, priority: 1, timeout: 1000, healthy: true },
+        { id: 'wikipedia' as DataSourceId, name: 'Unhealthy', url: 'https://fail.com', enabled: true, priority: 2, timeout: 1000, healthy: true },
       ];
       
       const results = await checkAllSourcesHealth(sources);
       
-      expect(results.get('healthy')).toBe(true);
-      expect(results.get('unhealthy')).toBe(false);
+      expect(results.get('simbad' as DataSourceId)).toBe(true);
+      expect(results.get('wikipedia' as DataSourceId)).toBe(false);
     });
   });
 
   describe('getActiveSources', () => {
     it('should return only enabled and healthy sources', () => {
       const sources: DataSource[] = [
-        { id: 'a', name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
-        { id: 'b', name: 'B', enabled: false, priority: 2, timeout: 1000, healthy: true },
-        { id: 'c', name: 'C', enabled: true, priority: 3, timeout: 1000, healthy: false },
+        { id: 'simbad' as DataSourceId, name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
+        { id: 'wikipedia' as DataSourceId, name: 'B', enabled: false, priority: 2, timeout: 1000, healthy: true },
+        { id: 'dss' as DataSourceId, name: 'C', enabled: true, priority: 3, timeout: 1000, healthy: false },
       ];
       
       const active = getActiveSources(sources);
       
       expect(active.length).toBe(1);
-      expect(active[0].id).toBe('a');
+      expect(active[0].id).toBe('simbad');
     });
 
     it('should sort by priority', () => {
       const sources: DataSource[] = [
-        { id: 'c', name: 'C', enabled: true, priority: 3, timeout: 1000, healthy: true },
-        { id: 'a', name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
-        { id: 'b', name: 'B', enabled: true, priority: 2, timeout: 1000, healthy: true },
+        { id: 'dss' as DataSourceId, name: 'C', enabled: true, priority: 3, timeout: 1000, healthy: true },
+        { id: 'simbad' as DataSourceId, name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
+        { id: 'wikipedia' as DataSourceId, name: 'B', enabled: true, priority: 2, timeout: 1000, healthy: true },
       ];
       
       const active = getActiveSources(sources);
       
-      expect(active[0].id).toBe('a');
-      expect(active[1].id).toBe('b');
-      expect(active[2].id).toBe('c');
+      expect(active[0].id).toBe('simbad');
+      expect(active[1].id).toBe('wikipedia');
+      expect(active[2].id).toBe('dss');
     });
   });
 
   describe('findSource', () => {
     it('should find source by ID', () => {
       const sources: DataSource[] = [
-        { id: 'a', name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
-        { id: 'b', name: 'B', enabled: true, priority: 2, timeout: 1000, healthy: true },
+        { id: 'simbad' as DataSourceId, name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
+        { id: 'wikipedia' as DataSourceId, name: 'B', enabled: true, priority: 2, timeout: 1000, healthy: true },
       ];
       
-      const found = findSource(sources, 'b');
+      const found = findSource(sources, 'wikipedia');
       
       expect(found).toBeDefined();
       expect(found?.name).toBe('B');
@@ -296,10 +296,10 @@ describe('object-info config', () => {
 
     it('should return undefined for non-existent ID', () => {
       const sources: DataSource[] = [
-        { id: 'a', name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
+        { id: 'simbad' as DataSourceId, name: 'A', enabled: true, priority: 1, timeout: 1000, healthy: true },
       ];
       
-      const found = findSource(sources, 'nonexistent');
+      const found = findSource(sources, 'dss');
       
       expect(found).toBeUndefined();
     });

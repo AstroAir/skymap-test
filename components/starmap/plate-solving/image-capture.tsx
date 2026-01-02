@@ -18,6 +18,9 @@ import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -467,26 +470,18 @@ export function ImageCapture({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="flex gap-2">
-            <Button
-              variant={mode === 'upload' ? 'default' : 'outline'}
-              onClick={switchToUpload}
-              className="flex-1"
-              disabled={isLoading}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              {t('plateSolving.uploadFile') || 'Upload File'}
-            </Button>
-            <Button
-              variant={mode === 'camera' ? 'default' : 'outline'}
-              onClick={switchToCamera}
-              className="flex-1"
-              disabled={isLoading}
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              {t('plateSolving.useCamera') || 'Use Camera'}
-            </Button>
-          </div>
+          <Tabs value={mode} onValueChange={(v) => v === 'camera' ? switchToCamera() : switchToUpload()} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="upload" disabled={isLoading}>
+                <Upload className="h-4 w-4 mr-2" />
+                {t('plateSolving.uploadFile') || 'Upload File'}
+              </TabsTrigger>
+              <TabsTrigger value="camera" disabled={isLoading}>
+                <Camera className="h-4 w-4 mr-2" />
+                {t('plateSolving.useCamera') || 'Use Camera'}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <div 
             ref={dropZoneRef}
@@ -588,9 +583,11 @@ export function ImageCapture({
             )}
 
             {fileError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 gap-2">
-                <AlertCircle className="h-8 w-8 text-destructive" />
-                <p className="text-destructive text-center px-4 text-sm">{fileError}</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 gap-2 p-4">
+                <Alert variant="destructive" className="max-w-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{fileError}</AlertDescription>
+                </Alert>
                 <Button variant="outline" size="sm" onClick={resetState}>
                   {t('common.retry') || 'Try Again'}
                 </Button>
@@ -633,9 +630,9 @@ export function ImageCapture({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-medium">
+                        <Badge variant="secondary">
                           FITS
-                        </span>
+                        </Badge>
                       </TooltipTrigger>
                       <TooltipContent>
                         {t('plateSolving.fitsInfo') || 'FITS format detected - will be sent directly to solver'}

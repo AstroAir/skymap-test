@@ -153,15 +153,9 @@ export function ThemeCustomizer({ trigger, open, onOpenChange }: ThemeCustomizer
               
               <Separator />
               
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  {resolvedTheme === 'dark' ? (
-                    <Moon className="h-4 w-4" />
-                  ) : (
-                    <Sun className="h-4 w-4" />
-                  )}
-                  {t('theme.currentMode')}: {resolvedTheme === 'dark' ? t('common.darkMode') : t('common.lightMode')}
-                </div>
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                {resolvedTheme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                {resolvedTheme === 'dark' ? t('common.darkMode') : t('common.lightMode')}
               </div>
             </TabsContent>
 

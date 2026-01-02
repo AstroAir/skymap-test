@@ -3,6 +3,8 @@
  * Fetches available sky surveys from online registries like CDS Aladin
  */
 
+import { smartFetch } from './http-fetch';
+
 export interface HiPSSurvey {
   id: string;
   name: string;
@@ -162,10 +164,11 @@ class HiPSService {
         }
       }
 
-      const response = await fetch(`${HIPS_REGISTRY_URL}?${params.toString()}`, {
+      const response = await smartFetch(`${HIPS_REGISTRY_URL}?${params.toString()}`, {
         headers: {
           'Accept': 'application/json',
         },
+        timeout: 30000, // 30 second timeout
       });
 
       if (!response.ok) {

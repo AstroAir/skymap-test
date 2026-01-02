@@ -1,23 +1,23 @@
 'use client';
 
-import { useState, useRef, useCallback, forwardRef, useImperativeHandle, useEffect, memo, useMemo } from 'react';
+import { useState, useRef, useCallback, forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useObjectSearch, type ObjectType, useSkyCultureLanguage } from '@/lib/hooks';
-import { translateCelestialName } from '@/lib/translations';
 import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
-import type { SearchResultItem, SkyCultureLanguage } from '@/lib/core/types';
+import type { SearchResultItem } from '@/lib/core/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { SearchResultItemRow, getResultId } from './search-result-item';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +35,6 @@ import {
   CircleDot,
   Loader2,
   Filter,
-  Plus,
   CheckSquare,
   Square,
   X,
@@ -67,122 +66,6 @@ interface StellariumSearchProps {
   onBatchAdd?: (items: SearchResultItem[]) => void;
   onFocusChange?: (focused: boolean) => void;
 }
-
-// Helper to get unique ID for a search result
-function getResultId(item: SearchResultItem): string {
-  return `${item.Type || 'unknown'}-${item.Name}`;
-}
-
-// ============================================================================
-// Memoized Search Result Item Component
-// ============================================================================
-
-interface SearchResultItemProps {
-  item: SearchResultItem;
-  itemId: string;
-  checked: boolean;
-  isHighlighted: boolean;
-  globalIndex: number;
-  enableMultiSelect: boolean;
-  skyCultureLanguage: SkyCultureLanguage | string;
-  onSelect: (item: SearchResultItem) => void;
-  onToggleSelection: (id: string) => void;
-  onMouseEnter: (index: number) => void;
-  onAddToTargetList: (item: SearchResultItem) => void;
-  t: ReturnType<typeof useTranslations>;
-}
-
-const SearchResultItemRow = memo(function SearchResultItemRow({
-  item,
-  itemId,
-  checked,
-  isHighlighted,
-  globalIndex,
-  enableMultiSelect,
-  skyCultureLanguage,
-  onSelect,
-  onToggleSelection,
-  onMouseEnter,
-  onAddToTargetList,
-  t,
-}: SearchResultItemProps) {
-  return (
-    <div
-      className={`flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors ${
-        checked ? 'bg-accent/30' : ''
-      } ${isHighlighted ? 'ring-2 ring-primary bg-accent/40' : ''}`}
-      onMouseEnter={() => onMouseEnter(globalIndex)}
-    >
-      {/* Checkbox for multi-select */}
-      {enableMultiSelect && (
-        <Checkbox
-          checked={checked}
-          onCheckedChange={() => onToggleSelection(itemId)}
-          className="h-4 w-4"
-        />
-      )}
-      
-      {/* Clickable content */}
-      <button
-        className="flex-1 flex items-center gap-2 min-w-0 text-left"
-        onClick={() => onSelect(item)}
-      >
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-foreground font-medium truncate">
-            {translateCelestialName(item.Name, skyCultureLanguage as SkyCultureLanguage)}
-          </p>
-          {item['Common names'] && (
-            <p className="text-xs text-muted-foreground truncate">
-              {translateCelestialName(item['Common names'], skyCultureLanguage as SkyCultureLanguage)}
-            </p>
-          )}
-        </div>
-        
-        {/* Object details */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Magnitude */}
-          {item.Magnitude !== undefined && (
-            <span className="text-[10px] text-muted-foreground bg-muted/50 px-1 rounded">
-              {item.Magnitude.toFixed(1)}m
-            </span>
-          )}
-          {/* Size */}
-          {item.Size && (
-            <span className="text-[10px] text-muted-foreground">
-              {item.Size}
-            </span>
-          )}
-          {/* Coordinates */}
-          {item.RA !== undefined && item.Dec !== undefined && (
-            <span className="text-[10px] text-muted-foreground font-mono">
-              {item.RA.toFixed(1)}°/{item.Dec.toFixed(1)}°
-            </span>
-          )}
-        </div>
-      </button>
-      
-      {/* Quick add button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddToTargetList(item);
-            }}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="left">
-          {t('actions.addToTargetList')}
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
-});
 
 // ============================================================================
 // Main Component
@@ -653,12 +536,13 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           <ScrollArea className="max-h-72">
             <div className="space-y-2">
               {Array.from(groupedResults.entries()).map(([groupName, items]) => (
-                <div key={groupName} className="space-y-1">
-                  {/* Group Header */}
-                  <button
-                    className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted-foreground hover:text-foreground py-1"
-                    onClick={() => toggleGroup(groupName)}
-                  >
+                <Collapsible
+                  key={groupName}
+                  open={expandedGroups.has(groupName)}
+                  onOpenChange={() => toggleGroup(groupName)}
+                  className="space-y-1"
+                >
+                  <CollapsibleTrigger className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted-foreground hover:text-foreground py-1">
                     {expandedGroups.has(groupName) ? (
                       <ChevronDown className="h-3 w-3" />
                     ) : (
@@ -669,36 +553,32 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                     <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
                       {items.length}
                     </Badge>
-                  </button>
+                  </CollapsibleTrigger>
                   
-                  {/* Group Items - Using memoized component for performance */}
-                  {expandedGroups.has(groupName) && (
-                    <div className="space-y-0.5 pl-4">
-                      {items.map((item) => {
-                        const itemId = getResultId(item);
-                        const globalIndex = flatResults.findIndex(r => getResultId(r) === itemId);
-                        
-                        return (
-                          <SearchResultItemRow
-                            key={itemId}
-                            item={item}
-                            itemId={itemId}
-                            checked={isSelected(itemId)}
-                            isHighlighted={globalIndex === highlightedIndex}
-                            globalIndex={globalIndex}
-                            enableMultiSelect={enableMultiSelect}
-                            skyCultureLanguage={skyCultureLanguage}
-                            onSelect={selectTarget}
-                            onToggleSelection={toggleSelection}
-                            onMouseEnter={setHighlightedIndex}
-                            onAddToTargetList={handleAddToTargetList}
-                            t={t}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                  <CollapsibleContent className="space-y-0.5 pl-4">
+                    {items.map((item) => {
+                      const itemId = getResultId(item);
+                      const globalIndex = flatResults.findIndex(r => getResultId(r) === itemId);
+                      
+                      return (
+                        <SearchResultItemRow
+                          key={itemId}
+                          item={item}
+                          itemId={itemId}
+                          checked={isSelected(itemId)}
+                          isHighlighted={globalIndex === highlightedIndex}
+                          showCheckbox={enableMultiSelect}
+                          skyCultureLanguage={skyCultureLanguage}
+                          onSelect={selectTarget}
+                          onToggleSelection={toggleSelection}
+                          onMouseEnter={setHighlightedIndex}
+                          onAddToTargetList={handleAddToTargetList}
+                          globalIndex={globalIndex}
+                        />
+                      );
+                    })}
+                  </CollapsibleContent>
+                </Collapsible>
               ))}
             </div>
           </ScrollArea>

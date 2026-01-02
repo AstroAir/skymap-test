@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
 use crate::security::{self, limits};
+use crate::http_client::{self, RequestConfig};
 
 // ============================================================================
 // Types
@@ -330,50 +331,49 @@ pub async fn cleanup_unified_cache(app: AppHandle) -> Result<u64, StorageError> 
     Ok(deleted_count)
 }
 
-/// Prefetch a URL and cache it
+/// Prefetch a URL and cache it using the enhanced HTTP client
 #[tauri::command]
 pub async fn prefetch_url(
     app: AppHandle,
     url: String,
     ttl: i64,
 ) -> Result<bool, StorageError> {
-    // SECURITY: Validate URL to prevent SSRF attacks
-    // Only HTTPS allowed, no private IPs, no localhost
-    let validated_url = security::validate_url(&url, false, None)
-        .map_err(|e| StorageError::Other(e.to_string()))?;
+    log::info!("Prefetching URL: {}", url);
 
-    log::info!("Prefetching validated URL: {}", validated_url);
-
-    // Use reqwest to fetch the URL
-    let client = reqwest::Client::new();
-
-    match client.get(validated_url.as_str()).send().await {
+    // Use the enhanced HTTP client with retries and progress
+    let request_id = format!("prefetch-{}", chrono::Utc::now().timestamp_millis());
+    
+    match http_client::http_request(
+        app.clone(),
+        RequestConfig {
+            method: "GET".to_string(),
+            url: url.clone(),
+            request_id: Some(request_id),
+            allow_http: false, // HTTPS only for security
+            ..Default::default()
+        },
+    ).await {
         Ok(response) => {
-            if response.status().is_success() {
-                let content_type = response
-                    .headers()
-                    .get("content-type")
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or("application/octet-stream")
-                    .to_string();
+            if response.status >= 200 && response.status < 300 {
+                let content_type = response.content_type
+                    .unwrap_or_else(|| "application/octet-stream".to_string());
 
-                match response.bytes().await {
-                    Ok(bytes) => {
-                        // SECURITY: Validate response size
-                        security::validate_size(&bytes, limits::MAX_TILE_SIZE)
-                            .map_err(|e| StorageError::Other(e.to_string()))?;
+                // SECURITY: Validate response size
+                security::validate_size(&response.body, limits::MAX_TILE_SIZE)
+                    .map_err(|e| StorageError::Other(e.to_string()))?;
 
-                        let key = url_to_cache_key(&url);
-                        put_unified_cache_entry(app, key, bytes.to_vec(), content_type, ttl).await?;
-                        Ok(true)
-                    }
-                    Err(_) => Ok(false),
-                }
+                let key = url_to_cache_key(&url);
+                put_unified_cache_entry(app, key, response.body, content_type, ttl).await?;
+                Ok(true)
             } else {
+                log::warn!("Prefetch failed with status: {}", response.status);
                 Ok(false)
             }
         }
-        Err(_) => Ok(false),
+        Err(e) => {
+            log::warn!("Prefetch error: {}", e);
+            Ok(false)
+        }
     }
 }
 

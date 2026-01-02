@@ -16,7 +16,26 @@ graph TD
     A --> G[mount-store<br/>赤道仪状态]
     A --> H[framing-store<br/>取景器状态]
     A --> I[satellite-store<br/>卫星数据]
+    A --> J[onboarding-store<br/>新手引导]
+    A --> K[setup-wizard-store<br/>设置向导]
+    A --> L[theme-store<br/>主题定制]
 ```
+
+### Store 列表
+
+| Store | 文件 | 说明 |
+|-------|------|------|
+| `useStellariumStore` | `stellarium-store.ts` | 星图引擎状态 |
+| `useSettingsStore` | `settings-store.ts` | 应用设置 |
+| `useEquipmentStore` | `equipment-store.ts` | 设备配置（望远镜、相机等） |
+| `useTargetListStore` | `target-list-store.ts` | 观测目标列表 |
+| `useMarkerStore` | `marker-store.ts` | 天空标记 |
+| `useSatelliteStore` | `satellite-store.ts` | 卫星追踪 |
+| `useFramingStore` | `framing-store.ts` | 取景框状态 |
+| `useMountStore` | `mount-store.ts` | 赤道仪状态 |
+| `useOnboardingStore` | `onboarding-store.ts` | 新手引导教程 |
+| `useSetupWizardStore` | `setup-wizard-store.ts` | 首次设置向导 |
+| `useThemeStore` | `theme-store.ts` | 主题颜色定制 |
 
 ## Stellarium Store
 
@@ -316,6 +335,231 @@ interface SettingsState {
   exportSettings: () => string;
   importSettings: (json: string) => void;
 }
+```
+
+## Onboarding Store
+
+管理新手引导教程状态。
+
+**文件**: `lib/stores/onboarding-store.ts`
+
+### 主要功能
+
+```typescript
+interface OnboardingState {
+  // 教程状态
+  hasCompletedTour: boolean;
+  currentStep: number;
+  isActive: boolean;
+
+  // 教程步骤
+  tourSteps: TourStep[];
+
+  // Actions
+  startTour: () => void;
+  nextStep: () => void;
+  prevStep: () => void;
+  skipTour: () => void;
+  completeTour: () => void;
+  resetTour: () => void;
+}
+
+interface TourStep {
+  id: string;
+  target: string;        // CSS 选择器
+  title: string;
+  content: string;
+  placement?: 'top' | 'bottom' | 'left' | 'right';
+}
+```
+
+### 使用示例
+
+```typescript
+import { useOnboardingStore, TOUR_STEPS } from '@/lib/stores';
+
+// 启动教程
+const startTour = useOnboardingStore(state => state.startTour);
+startTour();
+
+// 检查是否完成
+const hasCompleted = useOnboardingStore(state => state.hasCompletedTour);
+if (!hasCompleted) {
+  // 显示欢迎对话框
+}
+```
+
+## Setup Wizard Store
+
+管理首次设置向导状态。
+
+**文件**: `lib/stores/setup-wizard-store.ts`
+
+### 主要功能
+
+```typescript
+interface SetupWizardState {
+  // 向导状态
+  isOpen: boolean;
+  currentStep: number;
+  isCompleted: boolean;
+
+  // 收集的数据
+  location: LocationData | null;
+  equipment: EquipmentData | null;
+  preferences: PreferencesData | null;
+
+  // Actions
+  openWizard: () => void;
+  closeWizard: () => void;
+  nextStep: () => void;
+  prevStep: () => void;
+  setLocation: (location: LocationData) => void;
+  setEquipment: (equipment: EquipmentData) => void;
+  setPreferences: (preferences: PreferencesData) => void;
+  completeSetup: () => void;
+  resetWizard: () => void;
+}
+```
+
+### 使用示例
+
+```typescript
+import { useSetupWizardStore, SETUP_WIZARD_STEPS } from '@/lib/stores';
+
+// 打开向导
+const openWizard = useSetupWizardStore(state => state.openWizard);
+openWizard();
+
+// 保存位置设置
+const setLocation = useSetupWizardStore(state => state.setLocation);
+setLocation({
+  latitude: 39.904,
+  longitude: 116.407,
+  name: '北京'
+});
+```
+
+## Theme Store
+
+管理主题颜色定制。
+
+**文件**: `lib/stores/theme-store.ts`
+
+### 主要功能
+
+```typescript
+interface ThemeState {
+  // 当前主题
+  currentPreset: string;
+  customColors: ThemeColors;
+  isDarkMode: boolean;
+
+  // 预设主题
+  presets: ThemePreset[];
+
+  // Actions
+  setPreset: (presetId: string) => void;
+  setCustomColors: (colors: Partial<ThemeColors>) => void;
+  toggleDarkMode: () => void;
+  resetToDefault: () => void;
+  exportTheme: () => ThemeCustomization;
+  importTheme: (theme: ThemeCustomization) => void;
+}
+
+interface ThemeColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+  foreground: string;
+  muted: string;
+  border: string;
+}
+
+interface ThemePreset {
+  id: string;
+  name: string;
+  colors: ThemeColors;
+}
+```
+
+### 使用示例
+
+```typescript
+import { useThemeStore, themePresets } from '@/lib/stores';
+
+// 应用预设主题
+const setPreset = useThemeStore(state => state.setPreset);
+setPreset('astronomy-dark');
+
+// 自定义颜色
+const setCustomColors = useThemeStore(state => state.setCustomColors);
+setCustomColors({
+  primary: '#ff6b6b',
+  accent: '#4ecdc4'
+});
+
+// 导出主题配置
+const exportTheme = useThemeStore(state => state.exportTheme);
+const themeConfig = exportTheme();
+localStorage.setItem('custom-theme', JSON.stringify(themeConfig));
+```
+
+## Satellite Store
+
+管理卫星追踪数据。
+
+**文件**: `lib/stores/satellite-store.ts`
+
+### 主要功能
+
+```typescript
+interface SatelliteState {
+  // 追踪的卫星
+  trackedSatellites: TrackedSatellite[];
+  selectedSatellite: TrackedSatellite | null;
+
+  // 显示设置
+  showOrbits: boolean;
+  showLabels: boolean;
+
+  // Actions
+  addSatellite: (satellite: TrackedSatellite) => void;
+  removeSatellite: (noradId: number) => void;
+  selectSatellite: (satellite: TrackedSatellite | null) => void;
+  updatePosition: (noradId: number, position: Position) => void;
+  toggleOrbits: () => void;
+  toggleLabels: () => void;
+}
+
+interface TrackedSatellite {
+  noradId: number;
+  name: string;
+  tle: string[];
+  position?: Position;
+  nextPass?: PassInfo;
+}
+```
+
+### 使用示例
+
+```typescript
+import { useSatelliteStore } from '@/lib/stores';
+
+// 添加 ISS 追踪
+const addSatellite = useSatelliteStore(state => state.addSatellite);
+addSatellite({
+  noradId: 25544,
+  name: 'ISS (ZARYA)',
+  tle: [
+    '1 25544U 98067A   ...',
+    '2 25544  51.6400 ...'
+  ]
+});
+
+// 获取追踪列表
+const satellites = useSatelliteStore(state => state.trackedSatellites);
 ```
 
 ## Store 使用最佳实践

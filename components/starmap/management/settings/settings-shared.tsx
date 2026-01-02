@@ -58,17 +58,23 @@ export interface ToggleItemProps {
   id: string;
   label: string;
   checked: boolean;
-  onCheckedChange: () => void;
+  onCheckedChange: ((checked: boolean) => void) | (() => void);
   icon?: string;
+  description?: string;
 }
 
-export function ToggleItem({ id, label, checked, onCheckedChange, icon }: ToggleItemProps) {
+export function ToggleItem({ id, label, checked, onCheckedChange, icon, description }: ToggleItemProps) {
   return (
     <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-      <Label htmlFor={id} className="text-sm cursor-pointer flex items-center gap-2">
-        {icon && <span className="text-base">{icon}</span>}
-        {label}
-      </Label>
+      <div className="flex-1 min-w-0 mr-2">
+        <Label htmlFor={id} className="text-sm cursor-pointer flex items-center gap-2">
+          {icon && <span className="text-base">{icon}</span>}
+          {label}
+        </Label>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        )}
+      </div>
       <Switch
         id={id}
         checked={checked}

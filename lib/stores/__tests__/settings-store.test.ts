@@ -17,29 +17,79 @@ jest.mock('@/lib/storage', () => ({
   }),
 }));
 
+const DEFAULT_STELLARIUM = {
+  constellationsLinesVisible: true,
+  constellationArtVisible: false,
+  azimuthalLinesVisible: false,
+  equatorialLinesVisible: false,
+  meridianLinesVisible: false,
+  eclipticLinesVisible: false,
+  atmosphereVisible: false,
+  landscapesVisible: false,
+  dsosVisible: true,
+  surveyEnabled: true,
+  surveyId: 'dss',
+  surveyUrl: undefined,
+  skyCultureLanguage: 'native' as const,
+  nightMode: false,
+  sensorControl: false,
+};
+
+const DEFAULT_PREFERENCES = {
+  locale: 'en' as const,
+  timeFormat: '24h' as const,
+  dateFormat: 'iso' as const,
+  coordinateFormat: 'dms' as const,
+  distanceUnit: 'metric' as const,
+  temperatureUnit: 'celsius' as const,
+};
+
+const DEFAULT_PERFORMANCE = {
+  renderQuality: 'high' as const,
+  enableAnimations: true,
+  reducedMotion: false,
+  maxStarsRendered: 50000,
+  enableAntialiasing: true,
+  showFPS: false,
+};
+
+const DEFAULT_ACCESSIBILITY = {
+  highContrast: false,
+  largeText: false,
+  screenReaderOptimized: false,
+  reduceTransparency: false,
+  focusIndicators: true,
+};
+
+const DEFAULT_NOTIFICATIONS = {
+  enableSounds: false,
+  enableToasts: true,
+  toastDuration: 4000,
+  showObjectAlerts: true,
+  showSatelliteAlerts: true,
+};
+
+const DEFAULT_SEARCH = {
+  autoSearchDelay: 300,
+  enableFuzzySearch: true,
+  maxSearchResults: 50,
+  includeMinorObjects: false,
+  rememberSearchHistory: true,
+  maxHistoryItems: 20,
+};
+
 describe('Settings Store', () => {
   beforeEach(() => {
     // Reset store state before each test
     useSettingsStore.setState({
       connection: { ip: 'localhost', port: '1888' },
       backendProtocol: 'http',
-      stellarium: {
-        constellationsLinesVisible: true,
-        constellationArtVisible: false,
-        azimuthalLinesVisible: false,
-        equatorialLinesVisible: false,
-        meridianLinesVisible: false,
-        eclipticLinesVisible: false,
-        atmosphereVisible: false,
-        landscapesVisible: false,
-        dsosVisible: true,
-        surveyEnabled: true,
-        surveyId: 'dss',
-        surveyUrl: undefined,
-        skyCultureLanguage: 'native',
-        nightMode: false,
-        sensorControl: false,
-      },
+      stellarium: DEFAULT_STELLARIUM,
+      preferences: DEFAULT_PREFERENCES,
+      performance: DEFAULT_PERFORMANCE,
+      accessibility: DEFAULT_ACCESSIBILITY,
+      notifications: DEFAULT_NOTIFICATIONS,
+      search: DEFAULT_SEARCH,
     });
   });
 
@@ -198,6 +248,205 @@ describe('Settings Store', () => {
       const originalSurveyId = useSettingsStore.getState().stellarium.surveyId;
       useSettingsStore.getState().toggleStellariumSetting('surveyId');
       expect(useSettingsStore.getState().stellarium.surveyId).toBe(originalSurveyId);
+    });
+  });
+
+  // ============================================================================
+  // Preferences
+  // ============================================================================
+  describe('preferences', () => {
+    it('has default preferences', () => {
+      const state = useSettingsStore.getState();
+      expect(state.preferences.locale).toBe('en');
+      expect(state.preferences.timeFormat).toBe('24h');
+      expect(state.preferences.dateFormat).toBe('iso');
+      expect(state.preferences.coordinateFormat).toBe('dms');
+      expect(state.preferences.distanceUnit).toBe('metric');
+      expect(state.preferences.temperatureUnit).toBe('celsius');
+    });
+
+    it('setPreference updates single preference', () => {
+      useSettingsStore.getState().setPreference('locale', 'zh');
+      expect(useSettingsStore.getState().preferences.locale).toBe('zh');
+      expect(useSettingsStore.getState().preferences.timeFormat).toBe('24h');
+    });
+
+    it('setPreferences updates multiple preferences', () => {
+      useSettingsStore.getState().setPreferences({
+        locale: 'zh',
+        timeFormat: '12h',
+        distanceUnit: 'imperial',
+      });
+      const state = useSettingsStore.getState();
+      expect(state.preferences.locale).toBe('zh');
+      expect(state.preferences.timeFormat).toBe('12h');
+      expect(state.preferences.distanceUnit).toBe('imperial');
+      expect(state.preferences.dateFormat).toBe('iso');
+    });
+  });
+
+  // ============================================================================
+  // Performance
+  // ============================================================================
+  describe('performance', () => {
+    it('has default performance settings', () => {
+      const state = useSettingsStore.getState();
+      expect(state.performance.renderQuality).toBe('high');
+      expect(state.performance.enableAnimations).toBe(true);
+      expect(state.performance.maxStarsRendered).toBe(50000);
+    });
+
+    it('setPerformanceSetting updates single setting', () => {
+      useSettingsStore.getState().setPerformanceSetting('renderQuality', 'ultra');
+      expect(useSettingsStore.getState().performance.renderQuality).toBe('ultra');
+    });
+
+    it('setPerformanceSetting updates boolean setting', () => {
+      useSettingsStore.getState().setPerformanceSetting('showFPS', true);
+      expect(useSettingsStore.getState().performance.showFPS).toBe(true);
+    });
+
+    it('setPerformanceSettings updates multiple settings', () => {
+      useSettingsStore.getState().setPerformanceSettings({
+        renderQuality: 'low',
+        maxStarsRendered: 10000,
+        enableAntialiasing: false,
+      });
+      const state = useSettingsStore.getState();
+      expect(state.performance.renderQuality).toBe('low');
+      expect(state.performance.maxStarsRendered).toBe(10000);
+      expect(state.performance.enableAntialiasing).toBe(false);
+      expect(state.performance.enableAnimations).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // Accessibility
+  // ============================================================================
+  describe('accessibility', () => {
+    it('has default accessibility settings', () => {
+      const state = useSettingsStore.getState();
+      expect(state.accessibility.highContrast).toBe(false);
+      expect(state.accessibility.largeText).toBe(false);
+      expect(state.accessibility.focusIndicators).toBe(true);
+    });
+
+    it('setAccessibilitySetting updates single setting', () => {
+      useSettingsStore.getState().setAccessibilitySetting('highContrast', true);
+      expect(useSettingsStore.getState().accessibility.highContrast).toBe(true);
+    });
+
+    it('setAccessibilitySettings updates multiple settings', () => {
+      useSettingsStore.getState().setAccessibilitySettings({
+        highContrast: true,
+        largeText: true,
+        reduceTransparency: true,
+      });
+      const state = useSettingsStore.getState();
+      expect(state.accessibility.highContrast).toBe(true);
+      expect(state.accessibility.largeText).toBe(true);
+      expect(state.accessibility.reduceTransparency).toBe(true);
+      expect(state.accessibility.focusIndicators).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // Notifications
+  // ============================================================================
+  describe('notifications', () => {
+    it('has default notification settings', () => {
+      const state = useSettingsStore.getState();
+      expect(state.notifications.enableSounds).toBe(false);
+      expect(state.notifications.enableToasts).toBe(true);
+      expect(state.notifications.toastDuration).toBe(4000);
+    });
+
+    it('setNotificationSetting updates single setting', () => {
+      useSettingsStore.getState().setNotificationSetting('enableSounds', true);
+      expect(useSettingsStore.getState().notifications.enableSounds).toBe(true);
+    });
+
+    it('setNotificationSetting updates numeric setting', () => {
+      useSettingsStore.getState().setNotificationSetting('toastDuration', 5000);
+      expect(useSettingsStore.getState().notifications.toastDuration).toBe(5000);
+    });
+
+    it('setNotificationSettings updates multiple settings', () => {
+      useSettingsStore.getState().setNotificationSettings({
+        enableSounds: true,
+        toastDuration: 3000,
+        showObjectAlerts: false,
+      });
+      const state = useSettingsStore.getState();
+      expect(state.notifications.enableSounds).toBe(true);
+      expect(state.notifications.toastDuration).toBe(3000);
+      expect(state.notifications.showObjectAlerts).toBe(false);
+      expect(state.notifications.enableToasts).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // Search
+  // ============================================================================
+  describe('search', () => {
+    it('has default search settings', () => {
+      const state = useSettingsStore.getState();
+      expect(state.search.autoSearchDelay).toBe(300);
+      expect(state.search.enableFuzzySearch).toBe(true);
+      expect(state.search.maxSearchResults).toBe(50);
+    });
+
+    it('setSearchSetting updates single setting', () => {
+      useSettingsStore.getState().setSearchSetting('maxSearchResults', 100);
+      expect(useSettingsStore.getState().search.maxSearchResults).toBe(100);
+    });
+
+    it('setSearchSettings updates multiple settings', () => {
+      useSettingsStore.getState().setSearchSettings({
+        autoSearchDelay: 500,
+        enableFuzzySearch: false,
+        maxHistoryItems: 50,
+      });
+      const state = useSettingsStore.getState();
+      expect(state.search.autoSearchDelay).toBe(500);
+      expect(state.search.enableFuzzySearch).toBe(false);
+      expect(state.search.maxHistoryItems).toBe(50);
+      expect(state.search.maxSearchResults).toBe(50);
+    });
+  });
+
+  // ============================================================================
+  // resetToDefaults
+  // ============================================================================
+  describe('resetToDefaults', () => {
+    it('resets all settings to defaults', () => {
+      // Modify all settings
+      useSettingsStore.getState().setPreference('locale', 'zh');
+      useSettingsStore.getState().setPerformanceSetting('renderQuality', 'low');
+      useSettingsStore.getState().setAccessibilitySetting('highContrast', true);
+      useSettingsStore.getState().setNotificationSetting('enableSounds', true);
+      useSettingsStore.getState().setSearchSetting('maxSearchResults', 200);
+      useSettingsStore.getState().setStellariumSetting('atmosphereVisible', true);
+
+      // Reset
+      useSettingsStore.getState().resetToDefaults();
+
+      // Verify defaults are restored
+      const state = useSettingsStore.getState();
+      expect(state.preferences.locale).toBe('en');
+      expect(state.performance.renderQuality).toBe('high');
+      expect(state.accessibility.highContrast).toBe(false);
+      expect(state.notifications.enableSounds).toBe(false);
+      expect(state.search.maxSearchResults).toBe(50);
+      expect(state.stellarium.atmosphereVisible).toBe(false);
+    });
+
+    it('does not reset connection settings', () => {
+      useSettingsStore.getState().setConnection({ ip: '192.168.1.1' });
+      useSettingsStore.getState().resetToDefaults();
+      
+      // Connection should remain changed
+      expect(useSettingsStore.getState().connection.ip).toBe('192.168.1.1');
     });
   });
 });

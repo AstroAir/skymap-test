@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Card, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
   DialogContent,
@@ -249,61 +251,66 @@ export function PlateSolver({
           )}
 
           {result && (
-            <div className={`rounded-lg p-4 ${result.success ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
-              <div className="flex items-center gap-2 mb-3">
-                {result.success ? (
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                ) : (
-                  <XCircle className="h-5 w-5 text-red-500" />
-                )}
-                <span className="font-medium">
-                  {result.success 
-                    ? (t('plateSolving.solveSuccess') || 'Plate Solve Successful!')
-                    : (t('plateSolving.solveFailed') || 'Plate Solve Failed')
-                  }
-                </span>
-              </div>
-
-              {result.success && result.coordinates && (
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>RA: {result.coordinates.raHMS}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>Dec: {result.coordinates.decDMS}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RotateCw className="h-4 w-4 text-muted-foreground" />
-                    <span>{t('plateSolving.rotation') || 'Rotation'}: {result.positionAngle.toFixed(2)}°</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Ruler className="h-4 w-4 text-muted-foreground" />
-                    <span>{t('plateSolving.pixelScale') || 'Scale'}: {result.pixelScale.toFixed(2)}&quot;/px</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Eye className="h-4 w-4 text-muted-foreground" />
-                    <span>{t('plateSolving.fov') || 'FOV'}: {result.fov.width.toFixed(2)}° × {result.fov.height.toFixed(2)}°</span>
-                  </div>
-
-                  {onGoToCoordinates && (
-                    <Button onClick={handleGoTo} className="w-full mt-3">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      {t('plateSolving.goToPosition') || 'Go to Position'}
-                    </Button>
+            <Card className={result.success ? 'border-green-500/20 bg-green-500/5' : 'border-red-500/20 bg-red-500/5'}>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  {result.success ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-500" />
                   )}
+                  <span className="font-medium">
+                    {result.success 
+                      ? (t('plateSolving.solveSuccess') || 'Plate Solve Successful!')
+                      : (t('plateSolving.solveFailed') || 'Plate Solve Failed')
+                    }
+                  </span>
                 </div>
-              )}
 
-              {!result.success && result.errorMessage && (
-                <p className="text-sm text-red-500">{result.errorMessage}</p>
-              )}
+                {result.success && result.coordinates && (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span>RA: {result.coordinates.raHMS}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span>Dec: {result.coordinates.decDMS}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RotateCw className="h-4 w-4 text-muted-foreground" />
+                      <span>{t('plateSolving.rotation') || 'Rotation'}: {result.positionAngle.toFixed(2)}°</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Ruler className="h-4 w-4 text-muted-foreground" />
+                      <span>{t('plateSolving.pixelScale') || 'Scale'}: {result.pixelScale.toFixed(2)}&quot;/px</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                      <span>{t('plateSolving.fov') || 'FOV'}: {result.fov.width.toFixed(2)}° × {result.fov.height.toFixed(2)}°</span>
+                    </div>
 
-              <p className="text-xs text-muted-foreground mt-2">
-                {t('plateSolving.solveTime') || 'Solve time'}: {(result.solveTime / 1000).toFixed(1)}s
-              </p>
-            </div>
+                    {onGoToCoordinates && (
+                      <Button onClick={handleGoTo} className="w-full mt-3">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        {t('plateSolving.goToPosition') || 'Go to Position'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {!result.success && result.errorMessage && (
+                  <Alert variant="destructive" className="mt-2">
+                    <XCircle className="h-4 w-4" />
+                    <AlertDescription>{result.errorMessage}</AlertDescription>
+                  </Alert>
+                )}
+
+                <p className="text-xs text-muted-foreground mt-2">
+                  {t('plateSolving.solveTime') || 'Solve time'}: {(result.solveTime / 1000).toFixed(1)}s
+                </p>
+              </CardContent>
+            </Card>
           )}
         </div>
       </DialogContent>

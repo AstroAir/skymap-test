@@ -11,6 +11,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useEquipmentStore, BUILTIN_CAMERA_PRESETS, BUILTIN_TELESCOPE_PRESETS } from '@/lib/stores/equipment-store';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
@@ -121,26 +122,28 @@ export function EquipmentStep() {
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-3">
           {/* Preset grid */}
-          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-            {allTelescopes.slice(0, 8).map((telescope) => (
-              <button
-                key={telescope.id}
-                type="button"
-                onClick={() => handleSelectTelescope(telescope)}
-                className={cn(
-                  'p-2 rounded-lg border text-left transition-all text-sm',
-                  activeTelescopeId === telescope.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:border-primary/50'
-                )}
-              >
-                <p className="font-medium truncate">{telescope.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {telescope.focalLength}mm f/{(telescope.focalLength / telescope.aperture).toFixed(1)}
-                </p>
-              </button>
-            ))}
-          </div>
+          <ScrollArea className="max-h-40">
+            <div className="grid grid-cols-2 gap-2 pr-3">
+              {allTelescopes.slice(0, 8).map((telescope) => (
+                <button
+                  key={telescope.id}
+                  type="button"
+                  onClick={() => handleSelectTelescope(telescope)}
+                  className={cn(
+                    'p-2 rounded-lg border text-left transition-all text-sm',
+                    activeTelescopeId === telescope.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  <p className="font-medium truncate">{telescope.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {telescope.focalLength}mm f/{(telescope.focalLength / telescope.aperture).toFixed(1)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
 
           {/* Manual input toggle */}
           <Button
@@ -206,26 +209,28 @@ export function EquipmentStep() {
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-3">
           {/* Preset grid */}
-          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-            {allCameras.slice(0, 8).map((camera) => (
-              <button
-                key={camera.id}
-                type="button"
-                onClick={() => handleSelectCamera(camera)}
-                className={cn(
-                  'p-2 rounded-lg border text-left transition-all text-sm',
-                  activeCameraId === camera.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:border-primary/50'
-                )}
-              >
-                <p className="font-medium truncate">{camera.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {camera.sensorWidth}×{camera.sensorHeight}mm
-                </p>
-              </button>
-            ))}
-          </div>
+          <ScrollArea className="max-h-40">
+            <div className="grid grid-cols-2 gap-2 pr-3">
+              {allCameras.slice(0, 8).map((camera) => (
+                <button
+                  key={camera.id}
+                  type="button"
+                  onClick={() => handleSelectCamera(camera)}
+                  className={cn(
+                    'p-2 rounded-lg border text-left transition-all text-sm',
+                    activeCameraId === camera.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  <p className="font-medium truncate">{camera.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {camera.sensorWidth}×{camera.sensorHeight}mm
+                  </p>
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
 
           {/* Manual input toggle */}
           <Button

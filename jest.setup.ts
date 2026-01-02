@@ -51,6 +51,11 @@ jest.mock('next-intl', () => {
   };
 });
 
+// Mock TextEncoder/TextDecoder for Node.js test environment
+import { TextEncoder, TextDecoder } from 'util';
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
   observe() {}

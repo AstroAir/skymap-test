@@ -11,8 +11,12 @@ import {
   Camera,
   LayoutGrid,
   Calculator,
-  Globe,
   HardDrive,
+  Palette,
+  Gauge,
+  Accessibility,
+  Info,
+  Sliders,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -45,6 +49,11 @@ import { FOVSettings } from './fov-settings';
 import { ExposureSettings } from './exposure-settings';
 import { LocationSettings } from './location-settings';
 import { ConnectionSettings } from './connection-settings';
+import { AppearanceSettings } from './appearance-settings';
+import { GeneralSettings } from './general-settings';
+import { PerformanceSettings } from './performance-settings';
+import { AccessibilitySettings } from './accessibility-settings';
+import { AboutSettings } from './about-settings';
 import { DataManager } from '../data-manager';
 import { SetupWizardButton } from '../../setup-wizard';
 
@@ -178,36 +187,61 @@ export function UnifiedSettings() {
         </DrawerHeader>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-6 shrink-0 mx-4 mt-2" style={{ width: 'calc(100% - 2rem)' }}>
-            <TabsTrigger value="display" className="text-xs px-1">
-              <Eye className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">{t('settings.displayTab')}</span>
-              <span className="sm:hidden">{t('settings.displayTabShort')}</span>
+          {/* Primary Tabs Row */}
+          <TabsList className="grid w-full grid-cols-5 shrink-0 mx-2 sm:mx-4 mt-2 h-auto" style={{ width: 'calc(100% - 1rem)' }}>
+            <TabsTrigger value="display" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settings.displayTab')}</span>
+              <span className="sm:hidden truncate">{t('settings.displayTabShort')}</span>
             </TabsTrigger>
-            <TabsTrigger value="equipment" className="text-xs px-1">
-              <Camera className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">{t('settings.equipmentTab')}</span>
-              <span className="sm:hidden">{t('settings.equipmentTabShort')}</span>
+            <TabsTrigger value="equipment" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Camera className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settings.equipmentTab')}</span>
+              <span className="sm:hidden truncate">{t('settings.equipmentTabShort')}</span>
             </TabsTrigger>
-            <TabsTrigger value="fov" className="text-xs px-1">
-              <LayoutGrid className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">{t('settings.fovTab')}</span>
-              <span className="sm:hidden">{t('settings.fovTabShort')}</span>
+            <TabsTrigger value="fov" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <LayoutGrid className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settings.fovTab')}</span>
+              <span className="sm:hidden truncate">{t('settings.fovTabShort')}</span>
             </TabsTrigger>
-            <TabsTrigger value="exposure" className="text-xs px-1">
-              <Calculator className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">{t('settings.exposureTab')}</span>
-              <span className="sm:hidden">{t('settings.exposureTabShort')}</span>
+            <TabsTrigger value="exposure" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Calculator className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settings.exposureTab')}</span>
+              <span className="sm:hidden truncate">{t('settings.exposureTabShort')}</span>
             </TabsTrigger>
-            <TabsTrigger value="map" className="text-xs px-1">
-              <Globe className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">{t('settings.mapTab') || 'Map'}</span>
-              <span className="sm:hidden">{t('settings.mapTabShort') || 'Map'}</span>
+            <TabsTrigger value="general" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Sliders className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.general')}</span>
+              <span className="sm:hidden truncate">{t('settingsNew.tabs.generalShort')}</span>
             </TabsTrigger>
-            <TabsTrigger value="data" className="text-xs px-1">
-              <HardDrive className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">{t('settings.dataTab') || 'Data'}</span>
-              <span className="sm:hidden">{t('settings.dataTabShort') || 'Data'}</span>
+          </TabsList>
+
+          {/* Secondary Tabs Row */}
+          <TabsList className="grid w-full grid-cols-5 shrink-0 mx-2 sm:mx-4 mt-1 h-auto" style={{ width: 'calc(100% - 1rem)' }}>
+            <TabsTrigger value="appearance" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Palette className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.appearance')}</span>
+              <span className="sm:hidden truncate">{t('settingsNew.tabs.appearanceShort')}</span>
+            </TabsTrigger>
+            <TabsTrigger value="performance" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Gauge className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.performance')}</span>
+              <span className="sm:hidden truncate">{t('settingsNew.tabs.performanceShort')}</span>
+            </TabsTrigger>
+            <TabsTrigger value="accessibility" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Accessibility className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.accessibility')}</span>
+              <span className="sm:hidden truncate">{t('settingsNew.tabs.accessibilityShort')}</span>
+            </TabsTrigger>
+            <TabsTrigger value="data" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <HardDrive className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settings.dataTab')}</span>
+              <span className="sm:hidden truncate">{t('settings.dataTabShort')}</span>
+            </TabsTrigger>
+            <TabsTrigger value="about" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+              <Info className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.about')}</span>
+              <span className="sm:hidden truncate">{t('settingsNew.tabs.aboutShort')}</span>
             </TabsTrigger>
           </TabsList>
 
@@ -262,12 +296,38 @@ export function UnifiedSettings() {
             </ScrollArea>
           </TabsContent>
 
-          {/* Map Settings Tab */}
-          <TabsContent value="map" className="flex-1 mt-0 overflow-hidden">
+          {/* General Settings Tab */}
+          <TabsContent value="general" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
-              <div className="p-4 space-y-4">
-                <MapHealthMonitor className="mb-4" />
-                <MapProviderSettings />
+              <div className="p-4">
+                <GeneralSettings />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* Appearance Settings Tab */}
+          <TabsContent value="appearance" className="flex-1 mt-0 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <AppearanceSettings />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* Performance Settings Tab */}
+          <TabsContent value="performance" className="flex-1 mt-0 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <PerformanceSettings />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* Accessibility Settings Tab */}
+          <TabsContent value="accessibility" className="flex-1 mt-0 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <AccessibilitySettings />
               </div>
             </ScrollArea>
           </TabsContent>
@@ -276,6 +336,9 @@ export function UnifiedSettings() {
           <TabsContent value="data" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4 space-y-4">
+                <MapHealthMonitor className="mb-4" />
+                <MapProviderSettings />
+                <Separator className="my-4" />
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">{t('dataManager.title') || 'Data Management'}</h3>
                   <p className="text-xs text-muted-foreground">
@@ -298,6 +361,15 @@ export function UnifiedSettings() {
                   </p>
                 </div>
                 <SetupWizardButton variant="outline" className="w-full" />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* About Tab */}
+          <TabsContent value="about" className="flex-1 mt-0 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <AboutSettings />
               </div>
             </ScrollArea>
           </TabsContent>

@@ -23,6 +23,29 @@ export { targetListApi } from './target-list-api';
 export { markersApi } from './markers-api';
 export { TauriSyncProvider } from './TauriSyncProvider';
 
+// HTTP Client API
+export { httpApi } from './http-api';
+export type {
+  HttpClientConfig,
+  RequestConfig,
+  HttpResponse,
+  DownloadProgress,
+  BatchDownloadResult,
+  BatchItemResult,
+} from './http-api';
+export {
+  responseToString,
+  responseToJson,
+  responseToBytes,
+  responseToBlob,
+  generateRequestId,
+  fetchJson,
+  fetchText,
+  fetchBytes,
+  downloadWithProgress,
+  postJson,
+} from './http-api';
+
 // Geolocation API (mobile only)
 export { geolocationApi } from './geolocation-api';
 export type { 
@@ -32,3 +55,16 @@ export type {
   PermissionStatus, 
   WatchId 
 } from './geolocation-api';
+
+// Updater API (desktop only)
+export * from './updater-api';
+export type {
+  UpdateInfo,
+  UpdateProgress,
+  UpdateStatus,
+  UpdateCheckOptions,
+} from './updater-api';
+
+// Updater Hooks
+export { useUpdater, useAutoUpdater } from './updater-hooks';
+export type { UseUpdaterOptions, UseUpdaterReturn } from './updater-hooks';

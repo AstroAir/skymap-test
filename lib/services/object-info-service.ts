@@ -3,6 +3,7 @@
  * Fetches detailed information about celestial objects from multiple sources
  */
 
+import { smartFetch } from './http-fetch';
 import {
   useObjectInfoConfigStore,
   getActiveImageSources,
@@ -291,36 +292,36 @@ export async function fetchSimbadInfo(objectName: string): Promise<Partial<Objec
          OR ident.id = '${objectName.replace(/'/g, "''")}'
     `;
     
-    const response = await fetch(
+    const response = await smartFetch(
       `${simbadSource.baseUrl}${simbadSource.apiEndpoint}?request=doQuery&lang=adql&format=json&query=${encodeURIComponent(query)}`,
       { 
-        signal: AbortSignal.timeout(simbadSource.timeout),
+        timeout: simbadSource.timeout,
         headers: { 'Accept': 'application/json' }
       }
     );
     
     if (!response.ok) return null;
     
-    const data = await response.json();
+    const data = await response.json<{ data?: (string | number | null)[][] }>();
     if (!data.data || data.data.length === 0) return null;
     
     const row = data.data[0];
-    const typeInfo = parseObjectType(row[3]);
+    const typeInfo = parseObjectType(row[3] as string | undefined);
     
     return {
-      names: [row[0]],
+      names: [row[0] as string],
       type: typeInfo.type,
       typeCategory: typeInfo.category,
-      ra: row[1],
-      dec: row[2],
-      spectralType: row[4],
-      magnitude: row[5],
+      ra: row[1] as number,
+      dec: row[2] as number,
+      spectralType: row[4] as string | undefined,
+      magnitude: row[5] as number | undefined,
       angularSizeArcmin: row[6] && row[7] 
-        ? { width: row[6], height: row[7] }
+        ? { width: row[6] as number, height: row[7] as number }
         : row[6] 
-          ? { width: row[6], height: row[6] }
+          ? { width: row[6] as number, height: row[6] as number }
           : undefined,
-      morphologicalType: row[8],
+      morphologicalType: row[8] as string | undefined,
       sources: ['SIMBAD'],
     };
   } catch (error) {

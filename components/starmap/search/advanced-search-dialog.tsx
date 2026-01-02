@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect, memo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useObjectSearch, type ObjectType, useSkyCultureLanguage } from '@/lib/hooks';
-import { translateCelestialName } from '@/lib/translations';
 import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
-import type { SearchResultItem, SkyCultureLanguage } from '@/lib/core/types';
+import type { SearchResultItem } from '@/lib/core/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -15,7 +14,10 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -31,11 +33,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
   Search,
   Star,
   Globe,
@@ -43,7 +40,6 @@ import {
   Sparkles,
   CircleDot,
   Loader2,
-  Plus,
   CheckSquare,
   Square,
   SlidersHorizontal,
@@ -52,10 +48,9 @@ import {
   ChevronDown,
   ChevronRight,
   Bookmark,
-  Eye,
-  EyeOff,
   RotateCcw,
 } from 'lucide-react';
+import { SearchResultItemRow, getResultId } from './search-result-item';
 
 // ============================================================================
 // Types
@@ -67,111 +62,8 @@ interface AdvancedSearchDialogProps {
   onSelect?: (item?: SearchResultItem) => void;
 }
 
-// Helper to get unique ID for a search result
-function getResultId(item: SearchResultItem): string {
-  return `${item.Type || 'unknown'}-${item.Name}`;
-}
-
 // All available object types
 const ALL_OBJECT_TYPES: ObjectType[] = ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'];
-
-// ============================================================================
-// Memoized Search Result Item for Dialog
-// ============================================================================
-
-interface DialogResultItemProps {
-  item: SearchResultItem;
-  itemId: string;
-  checked: boolean;
-  skyCultureLanguage: SkyCultureLanguage | string;
-  onSelect: (item: SearchResultItem) => void;
-  onToggleSelection: (id: string) => void;
-  onAddToTargetList: (item: SearchResultItem) => void;
-  onCloseDialog: () => void;
-  t: ReturnType<typeof useTranslations>;
-}
-
-const DialogResultItem = memo(function DialogResultItem({
-  item,
-  itemId,
-  checked,
-  skyCultureLanguage,
-  onSelect,
-  onToggleSelection,
-  onAddToTargetList,
-  onCloseDialog,
-  t,
-}: DialogResultItemProps) {
-  return (
-    <div
-      className={`flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 cursor-pointer transition-colors ${
-        checked ? 'bg-accent/30' : ''
-      }`}
-    >
-      <Checkbox
-        checked={checked}
-        onCheckedChange={() => onToggleSelection(itemId)}
-        className="h-4 w-4"
-      />
-      
-      <button
-        className="flex-1 flex items-center gap-2 min-w-0 text-left"
-        onClick={() => {
-          onSelect(item);
-          onCloseDialog();
-        }}
-      >
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-foreground font-medium truncate">
-            {translateCelestialName(item.Name, skyCultureLanguage as SkyCultureLanguage)}
-          </p>
-          {item['Common names'] && (
-            <p className="text-xs text-muted-foreground truncate">
-              {translateCelestialName(item['Common names'], skyCultureLanguage as SkyCultureLanguage)}
-            </p>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2 shrink-0">
-          {item.Magnitude !== undefined && (
-            <span className="text-[10px] text-muted-foreground bg-muted/50 px-1 rounded">
-              {item.Magnitude.toFixed(1)}m
-            </span>
-          )}
-          {item.Size && (
-            <span className="text-[10px] text-muted-foreground">
-              {item.Size}
-            </span>
-          )}
-          {item.RA !== undefined && item.Dec !== undefined && (
-            <span className="text-[10px] text-muted-foreground font-mono">
-              {item.RA.toFixed(1)}°/{item.Dec.toFixed(1)}°
-            </span>
-          )}
-        </div>
-      </button>
-      
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddToTargetList(item);
-            }}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="left">
-          {t('actions.addToTargetList')}
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
-});
 
 // ============================================================================
 // Validation Helpers
@@ -639,26 +531,16 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
             </div>
 
             {/* Auto-search toggle */}
-            <div className="flex items-center justify-between py-2 border-t">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="autoSearch"
-                  checked={autoSearch}
-                  onCheckedChange={(checked) => setAutoSearch(!!checked)}
-                />
-                <Label htmlFor="autoSearch" className="cursor-pointer text-sm">
-                  {t('search.autoSearch')}
-                </Label>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setAutoSearch(!autoSearch)}
-              >
-                {autoSearch ? <Eye className="h-3 w-3 mr-1" /> : <EyeOff className="h-3 w-3 mr-1" />}
-                {autoSearch ? t('common.on') : t('common.off')}
-              </Button>
+            <Separator className="my-2" />
+            <div className="flex items-center justify-between py-2">
+              <Label htmlFor="autoSearch" className="cursor-pointer text-sm">
+                {t('search.autoSearch')}
+              </Label>
+              <Switch
+                id="autoSearch"
+                checked={autoSearch}
+                onCheckedChange={setAutoSearch}
+              />
             </div>
 
             {/* Action Buttons */}
@@ -746,12 +628,13 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
               <ScrollArea className="flex-1">
                 <div className="space-y-2 py-2">
                   {Array.from(groupedResults.entries()).map(([groupName, items]) => (
-                    <div key={groupName} className="space-y-1">
-                      {/* Group Header */}
-                      <button
-                        className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted-foreground hover:text-foreground py-1"
-                        onClick={() => toggleGroup(groupName)}
-                      >
+                    <Collapsible
+                      key={groupName}
+                      open={expandedGroups.has(groupName)}
+                      onOpenChange={() => toggleGroup(groupName)}
+                      className="space-y-1"
+                    >
+                      <CollapsibleTrigger className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted-foreground hover:text-foreground py-1">
                         {expandedGroups.has(groupName) ? (
                           <ChevronDown className="h-3 w-3" />
                         ) : (
@@ -762,32 +645,30 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
                         <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
                           {items.length}
                         </Badge>
-                      </button>
+                      </CollapsibleTrigger>
                       
-                      {/* Group Items - Using memoized component for performance */}
-                      {expandedGroups.has(groupName) && (
-                        <div className="space-y-0.5 pl-4">
-                          {items.map((item) => {
-                            const itemId = getResultId(item);
-                            
-                            return (
-                              <DialogResultItem
-                                key={itemId}
-                                item={item}
-                                itemId={itemId}
-                                checked={isSelected(itemId)}
-                                skyCultureLanguage={skyCultureLanguage}
-                                onSelect={selectTarget}
-                                onToggleSelection={toggleSelection}
-                                onAddToTargetList={handleAddToTargetList}
-                                onCloseDialog={handleCloseDialog}
-                                t={t}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                      <CollapsibleContent className="space-y-0.5 pl-4">
+                        {items.map((item) => {
+                          const itemId = getResultId(item);
+                          
+                          return (
+                            <SearchResultItemRow
+                              key={itemId}
+                              item={item}
+                              itemId={itemId}
+                              checked={isSelected(itemId)}
+                              skyCultureLanguage={skyCultureLanguage}
+                              onSelect={(item) => {
+                                selectTarget(item);
+                                handleCloseDialog();
+                              }}
+                              onToggleSelection={toggleSelection}
+                              onAddToTargetList={handleAddToTargetList}
+                            />
+                          );
+                        })}
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))}
                 </div>
               </ScrollArea>
