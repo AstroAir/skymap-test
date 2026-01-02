@@ -58,3 +58,6 @@ next-env.d.ts
 
 # project specific
 /llmdoc/
+
+# Windows reserved device names
+nul
