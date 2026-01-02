@@ -25,6 +25,7 @@ describe('Settings Store', () => {
       backendProtocol: 'http',
       stellarium: {
         constellationsLinesVisible: true,
+        constellationArtVisible: false,
         azimuthalLinesVisible: false,
         equatorialLinesVisible: false,
         meridianLinesVisible: false,
@@ -36,6 +37,8 @@ describe('Settings Store', () => {
         surveyId: 'dss',
         surveyUrl: undefined,
         skyCultureLanguage: 'native',
+        nightMode: false,
+        sensorControl: false,
       },
     });
   });
@@ -152,6 +155,7 @@ describe('Settings Store', () => {
     it('replaces all settings', () => {
       const newSettings = {
         constellationsLinesVisible: false,
+        constellationArtVisible: true,
         azimuthalLinesVisible: true,
         equatorialLinesVisible: true,
         meridianLinesVisible: true,
@@ -163,6 +167,8 @@ describe('Settings Store', () => {
         surveyId: 'mellinger',
         surveyUrl: 'https://example.com',
         skyCultureLanguage: 'en' as const,
+        nightMode: true,
+        sensorControl: true,
       };
 
       useSettingsStore.getState().setStellariumSettings(newSettings);

@@ -236,10 +236,10 @@ export function checkAltitudeDuration(
 export function applyDSOFilters(
   objects: DSOFilterResult[],
   filters: DSOSearchFilters,
-  latitude: number,
-  longitude: number,
-  referenceDate: Date,
-  customHorizon?: CustomHorizon
+  _latitude: number,
+  _longitude: number,
+  _referenceDate: Date,
+  _customHorizon?: CustomHorizon
 ): DSOFilterResult[] {
   let result = [...objects];
   

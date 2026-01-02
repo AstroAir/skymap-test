@@ -83,6 +83,9 @@ import { SensorControlToggle } from '@/components/ui/sensor-control-toggle';
 import { OnboardingTour } from '../onboarding/onboarding-tour';
 import { WelcomeDialog } from '../onboarding/welcome-dialog';
 import { PlateSolver } from '../plate-solving/plate-solver';
+import { SkyAtlasPanel } from '../planning/sky-atlas-panel';
+import { AstroSessionPanel } from '../planning/astro-session-panel';
+import { EquipmentManager } from '../management/equipment-manager';
 
 // Context menu click coordinates type
 interface ClickCoords {
@@ -970,12 +973,23 @@ export function StellariumView() {
                         <span className="text-[10px] text-muted-foreground mt-1">{t('tonight.title')}</span>
                       </div>
                       <div className="flex flex-col items-center">
+                        <SkyAtlasPanel />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('skyAtlas.title')}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
                         <AstroEventsCalendar />
                         <span className="text-[10px] text-muted-foreground mt-1">{t('events.calendar')}</span>
                       </div>
                       <div className="flex flex-col items-center">
                         <SatelliteTracker />
                         <span className="text-[10px] text-muted-foreground mt-1">{t('satellites.tracker')}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="flex flex-col items-center">
+                        <EquipmentManager />
+                        <span className="text-[10px] text-muted-foreground mt-1">{t('equipment.title')}</span>
                       </div>
                       <div className="flex flex-col items-center">
                         <AboutDialog />
@@ -1060,6 +1074,11 @@ export function StellariumView() {
                 <TonightRecommendations />
               </div>
               
+              {/* Sky Atlas Panel - Deep Sky Object Catalog */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <SkyAtlasPanel />
+              </div>
+              
               {/* Astronomical Events Calendar */}
               <div className="bg-black/60 backdrop-blur-sm rounded-md">
                 <AstroEventsCalendar />
@@ -1084,6 +1103,11 @@ export function StellariumView() {
                     }
                   }}
                 />
+              </div>
+              
+              {/* Equipment Manager */}
+              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <EquipmentManager />
               </div>
               
               <StellariumCredits />
@@ -1242,6 +1266,17 @@ export function StellariumView() {
               <StellariumMount />
             </div>
           )}
+          
+          {/* Astro Session Panel - Show conditions for selected object */}
+          {selectedObject && (
+            <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border p-2 max-w-[280px]">
+              <AstroSessionPanel
+                selectedRa={selectedObject.raDeg}
+                selectedDec={selectedObject.decDeg}
+                selectedName={selectedObject.names[0]}
+              />
+            </div>
+          )}
         </div>
         
         {/* Mobile Controls - Bottom Right Corner */}
@@ -1323,6 +1358,8 @@ export function StellariumView() {
               }
             }}
           />
+          <SkyAtlasPanel />
+          <EquipmentManager />
         </div>
 
         {/* Info Panel - only show when object is selected */}

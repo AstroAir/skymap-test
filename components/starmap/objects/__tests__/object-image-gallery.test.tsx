@@ -82,6 +82,7 @@ const mockImages: ObjectImage[] = [
     url: 'https://example.com/image3.jpg',
     source: 'Hubble',
     title: 'M31 Image 3',
+    credit: 'Hubble Space Telescope',
   },
 ];
 
@@ -418,6 +419,7 @@ describe('ObjectImageGallery', () => {
       const imageWithoutTitle: ObjectImage = {
         url: 'https://example.com/image.jpg',
         source: 'Test',
+        credit: 'Test Credit',
       };
       
       render(<ObjectImageGallery images={[imageWithoutTitle]} objectName="M31" />);
@@ -454,8 +456,8 @@ describe('ObjectImageGallery', () => {
 
       // Change images array
       const newImages: ObjectImage[] = [
-        { url: 'https://example.com/new1.jpg', source: 'New Source 1' },
-        { url: 'https://example.com/new2.jpg', source: 'New Source 2' },
+        { url: 'https://example.com/new1.jpg', source: 'New Source 1', credit: 'Credit 1' },
+        { url: 'https://example.com/new2.jpg', source: 'New Source 2', credit: 'Credit 2' },
       ];
 
       await act(async () => {

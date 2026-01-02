@@ -433,7 +433,7 @@ class ConnectivityChecker {
         const timeout = setTimeout(() => controller.abort(), 5000);
         
         try {
-          const response = await fetch(url, {
+          await fetch(url, {
             signal: controller.signal,
             mode: 'no-cors',
           });

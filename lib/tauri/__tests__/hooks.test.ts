@@ -96,7 +96,7 @@ const mockMarkersApi = markersApi as jest.Mocked<typeof markersApi>;
 // Mock Data Factories (properly typed)
 // ============================================================================
 
-const createMockEquipmentData = (overrides?: Partial<EquipmentData>): EquipmentData => ({
+const _createMockEquipmentData = (overrides?: Partial<EquipmentData>): EquipmentData => ({
   telescopes: [],
   cameras: [],
   eyepieces: [],
@@ -105,7 +105,7 @@ const createMockEquipmentData = (overrides?: Partial<EquipmentData>): EquipmentD
   ...overrides,
 });
 
-const createMockLocation = (overrides?: Partial<ObservationLocation>): ObservationLocation => ({
+const _createMockLocation = (overrides?: Partial<ObservationLocation>): ObservationLocation => ({
   id: '1',
   name: 'Test Location',
   latitude: 45,
@@ -118,18 +118,18 @@ const createMockLocation = (overrides?: Partial<ObservationLocation>): Observati
   ...overrides,
 });
 
-const createMockLocationsData = (overrides?: Partial<LocationsData>): LocationsData => ({
+const _createMockLocationsData = (overrides?: Partial<LocationsData>): LocationsData => ({
   locations: [],
   current_location_id: undefined,
   ...overrides,
 });
 
-const createMockObservationLogData = (overrides?: Partial<ObservationLogData>): ObservationLogData => ({
+const _createMockObservationLogData = (overrides?: Partial<ObservationLogData>): ObservationLogData => ({
   sessions: [],
   ...overrides,
 });
 
-const createMockObservationStats = (overrides?: Partial<ObservationStats>): ObservationStats => ({
+const _createMockObservationStats = (overrides?: Partial<ObservationStats>): ObservationStats => ({
   total_sessions: 0,
   total_observations: 0,
   unique_objects: 0,
@@ -139,7 +139,7 @@ const createMockObservationStats = (overrides?: Partial<ObservationStats>): Obse
   ...overrides,
 });
 
-const createMockAppSettings = (overrides?: Partial<AppSettings>): AppSettings => ({
+const _createMockAppSettings = (overrides?: Partial<AppSettings>): AppSettings => ({
   window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false },
   recent_files: [],
   auto_save_interval: 300,
@@ -152,7 +152,7 @@ const createMockAppSettings = (overrides?: Partial<AppSettings>): AppSettings =>
   ...overrides,
 });
 
-const createMockSystemInfo = (overrides?: Partial<SystemInfo>): SystemInfo => ({
+const _createMockSystemInfo = (overrides?: Partial<SystemInfo>): SystemInfo => ({
   os: 'windows',
   arch: 'x64',
   app_version: '1.0.0',
@@ -260,12 +260,12 @@ describe('useLocations', () => {
   });
 
   it('should set current location', async () => {
-    const mockLocations = {
+    const mockLocations: LocationsData = {
       locations: [
-        { id: '1', name: 'Home', latitude: 45, longitude: -75, altitude: 100 },
-        { id: '2', name: 'Observatory', latitude: 46, longitude: -76, altitude: 200 },
+        { id: '1', name: 'Home', latitude: 45, longitude: -75, altitude: 100, is_default: true, is_current: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
+        { id: '2', name: 'Observatory', latitude: 46, longitude: -76, altitude: 200, is_default: false, is_current: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
       ],
-      default_location_id: '1',
+      current_location_id: '1',
     };
     
     mockLocationsApi.load.mockResolvedValue(mockLocations);
@@ -286,7 +286,7 @@ describe('useLocations', () => {
   });
 
   it('should handle error when setting current location', async () => {
-    mockLocationsApi.load.mockResolvedValue({ locations: [], default_location_id: null });
+    mockLocationsApi.load.mockResolvedValue({ locations: [], current_location_id: undefined });
     mockLocationsApi.getCurrent.mockResolvedValue(null);
     mockLocationsApi.setCurrent.mockRejectedValue(new Error('Set current failed'));
 
@@ -311,8 +311,8 @@ describe('useObservationLog', () => {
   });
 
   it('should load observation log and stats on mount', async () => {
-    const mockLog = { entries: [], version: 1 };
-    const mockStats = { totalObservations: 10, uniqueObjects: 5 };
+    const mockLog: ObservationLogData = { sessions: [] };
+    const mockStats: ObservationStats = { total_sessions: 0, total_observations: 10, unique_objects: 5, total_hours: 0, objects_by_type: [], monthly_counts: [] };
     
     mockObservationLogApi.load.mockResolvedValue(mockLog);
     mockObservationLogApi.getStats.mockResolvedValue(mockStats);
@@ -347,8 +347,8 @@ describe('useAppSettings', () => {
   });
 
   it('should load settings and system info on mount', async () => {
-    const mockSettings = { theme: 'dark', language: 'en' };
-    const mockSystemInfo = { os: 'windows', version: '1.0.0' };
+    const mockSettings: AppSettings = { theme: 'dark', language: 'en', window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false }, recent_files: [], auto_save_interval: 300, check_updates: true, telemetry_enabled: false, sidebar_collapsed: false, show_welcome: true };
+    const mockSystemInfo: SystemInfo = { os: 'windows', arch: 'x64', app_version: '1.0.0', tauri_version: '2.0.0' };
     
     mockAppSettingsApi.load.mockResolvedValue(mockSettings);
     mockAppSettingsApi.getSystemInfo.mockResolvedValue(mockSystemInfo);
@@ -364,9 +364,9 @@ describe('useAppSettings', () => {
   });
 
   it('should update settings', async () => {
-    const mockSettings = { theme: 'dark', language: 'en' };
+    const mockSettings: AppSettings = { theme: 'dark', language: 'en', window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false }, recent_files: [], auto_save_interval: 300, check_updates: true, telemetry_enabled: false, sidebar_collapsed: false, show_welcome: true };
     mockAppSettingsApi.load.mockResolvedValue(mockSettings);
-    mockAppSettingsApi.getSystemInfo.mockResolvedValue({});
+    mockAppSettingsApi.getSystemInfo.mockResolvedValue({ os: 'windows', arch: 'x64', app_version: '1.0.0', tauri_version: '2.0.0' });
     mockAppSettingsApi.save.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAppSettings());
@@ -379,14 +379,14 @@ describe('useAppSettings', () => {
       await result.current.updateSettings({ theme: 'light' });
     });
 
-    expect(mockAppSettingsApi.save).toHaveBeenCalledWith({ theme: 'light', language: 'en' });
-    expect(result.current.settings).toEqual({ theme: 'light', language: 'en' });
+    expect(mockAppSettingsApi.save).toHaveBeenCalledWith(expect.objectContaining({ theme: 'light', language: 'en' }));
+    expect(result.current.settings).toEqual(expect.objectContaining({ theme: 'light', language: 'en' }));
   });
 
   it('should handle update error', async () => {
-    const mockSettings = { theme: 'dark', language: 'en' };
+    const mockSettings: AppSettings = { theme: 'dark', language: 'en', window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false }, recent_files: [], auto_save_interval: 300, check_updates: true, telemetry_enabled: false, sidebar_collapsed: false, show_welcome: true };
     mockAppSettingsApi.load.mockResolvedValue(mockSettings);
-    mockAppSettingsApi.getSystemInfo.mockResolvedValue({});
+    mockAppSettingsApi.getSystemInfo.mockResolvedValue({ os: 'windows', arch: 'x64', app_version: '1.0.0', tauri_version: '2.0.0' });
     mockAppSettingsApi.save.mockRejectedValue(new Error('Save failed'));
 
     const { result } = renderHook(() => useAppSettings());

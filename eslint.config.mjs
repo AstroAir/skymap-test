@@ -19,6 +19,19 @@ const eslintConfig = defineConfig([
     // Touch-N-Stars (reference code)
     "Touch-N-Stars/**",
   ]),
+  // Allow unused variables with underscore prefix
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

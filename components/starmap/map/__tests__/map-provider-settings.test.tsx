@@ -41,7 +41,7 @@ jest.mock('@/lib/services/connectivity-checker', () => ({
 }));
 
 import { mapConfig } from '@/lib/services/map-config';
-const mockMapConfig = mapConfig as jest.Mocked<typeof mapConfig>;
+const _mockMapConfig = mapConfig as jest.Mocked<typeof mapConfig>;
 
 jest.mock('sonner', () => ({
   toast: { success: jest.fn(), error: jest.fn() },

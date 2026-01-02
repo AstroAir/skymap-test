@@ -649,6 +649,8 @@ export function useCache() {
 // ============================================================================
 
 import { eventsApi, type AstroEvent, type MeteorShowerInfo } from './events-api';
+import { geolocationApi, type Position, type PermissionStatus, type WatchId } from './geolocation-api';
+import { isMobile } from '@/lib/storage/platform';
 
 export function useAstroEvents(startDate?: string, endDate?: string) {
   const [events, setEvents] = useState<AstroEvent[]>([]);
@@ -699,5 +701,133 @@ export function useAstroEvents(startDate?: string, endDate?: string) {
     refresh: load,
     getTonightHighlights,
     isAvailable: isTauri(),
+  };
+}
+
+// ============================================================================
+// Geolocation Hook (Mobile Only)
+// ============================================================================
+
+export interface GeolocationState {
+  position: Position | null;
+  permissionStatus: PermissionStatus | null;
+  loading: boolean;
+  error: string | null;
+  isAvailable: boolean;
+  isWatching: boolean;
+}
+
+export function useGeolocation() {
+  const [position, setPosition] = useState<Position | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [watchId, setWatchId] = useState<WatchId | null>(null);
+
+  const isAvailable = isTauri() && isMobile();
+
+  const checkPermissions = useCallback(async (): Promise<PermissionStatus | null> => {
+    if (!isAvailable) return null;
+    
+    try {
+      const status = await geolocationApi.checkPermissions();
+      setPermissionStatus(status);
+      return status;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, [isAvailable]);
+
+  const requestPermissions = useCallback(async (): Promise<PermissionStatus | null> => {
+    if (!isAvailable) return null;
+    
+    try {
+      const status = await geolocationApi.requestPermissions(['location']);
+      setPermissionStatus(status);
+      return status;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, [isAvailable]);
+
+  const getCurrentPosition = useCallback(async (): Promise<Position | null> => {
+    if (!isAvailable) return null;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const pos = await geolocationApi.getPositionWithPermission({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      });
+      setPosition(pos);
+      return pos;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [isAvailable]);
+
+  const startWatching = useCallback(async (): Promise<boolean> => {
+    if (!isAvailable) return false;
+    if (watchId !== null) return true; // Already watching
+    
+    try {
+      setError(null);
+      const id = await geolocationApi.watchPosition(
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        (pos, err) => {
+          if (err) {
+            setError(err);
+          } else if (pos) {
+            setPosition(pos);
+          }
+        }
+      );
+      setWatchId(id);
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    }
+  }, [isAvailable, watchId]);
+
+  const stopWatching = useCallback(async () => {
+    if (watchId === null) return;
+    
+    try {
+      await geolocationApi.clearWatch(watchId);
+      setWatchId(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [watchId]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (watchId !== null) {
+        geolocationApi.clearWatch(watchId).catch(console.error);
+      }
+    };
+  }, [watchId]);
+
+  return {
+    position,
+    permissionStatus,
+    loading,
+    error,
+    isAvailable,
+    isWatching: watchId !== null,
+    checkPermissions,
+    requestPermissions,
+    getCurrentPosition,
+    startWatching,
+    stopWatching,
   };
 }

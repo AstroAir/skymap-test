@@ -1,18 +1,21 @@
-# Copilot Instructions for react-quick-starter
+# Copilot Instructions for SkyMap
 
-## Project Architecture
+## Project Overview
 
-This is a **Next.js 16 (App Router) + Tauri v2 hybrid desktop application** combining:
+A desktop star map and astronomy planning application built with **Next.js 16 (App Router) + Tauri 2.9**. Integrates with Stellarium Web Engine for sky visualization, observation planning, equipment management, and astronomical calculations.
+
+**Tech Stack:**
 - **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui components
-- **Desktop wrapper**: Tauri v2.9 (Rust-based) for native desktop capabilities
-- **State management**: Zustand (configured but not actively used in starter)
+- **Desktop wrapper**: Tauri 2.9 (Rust-based) for native desktop capabilities
+- **State management**: Zustand stores
+- **Internationalization**: next-intl (English/Chinese)
 
 ### Dual Runtime Model
 
 1. **Web mode** (`pnpm dev`): Next.js dev server at http://localhost:3000
 2. **Desktop mode** (`pnpm tauri dev`): Tauri wraps the Next.js app in a native window
 
-⚠️ **Critical**: When Tauri builds for production, it expects static export from Next.js (`out/` directory). The `tauri.conf.json` points `frontendDist` to `../out`, but Next.js currently uses default (server-side) mode. To enable Tauri production builds, you must add `output: "export"` to `next.config.ts`.
+**Critical:** For Tauri production builds, Next.js must use static export. Ensure `output: "export"` is set in `next.config.ts` as `tauri.conf.json` expects the `out/` directory.
 
 ## Key File Locations & Conventions
 
@@ -23,7 +26,7 @@ This is a **Next.js 16 (App Router) + Tauri v2 hybrid desktop application** comb
 
 ### Styling System
 - **Tailwind v4** via PostCSS plugin (`@tailwindcss/postcss`)
-- `app/globals.css`: 
+- `app/globals.css`:
   - Imports `tailwindcss` and `tw-animate-css`
   - Defines CSS variables for theme colors (oklch color space)
   - Uses `@theme inline` to map CSS vars to Tailwind utilities
@@ -38,9 +41,22 @@ This is a **Next.js 16 (App Router) + Tauri v2 hybrid desktop application** comb
   - `cn()` utility from `@/lib/utils` (clsx + tailwind-merge)
 - Config: `components.json` defines shadcn settings (New York style, RSC mode)
 
+### Architecture
+
+```
+React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → Rust command
+```
+
+- `lib/astronomy/` - Pure astronomical calculations (coordinates, time, visibility, twilight)
+- `lib/stores/` - Zustand state management (stellarium, settings, equipment, target-list, markers)
+- `lib/tauri/` - TypeScript wrappers for Tauri IPC
+- `components/starmap/` - Star map UI components (core, overlays, planning, objects, management)
+- `src-tauri/src/` - Rust backend modules (storage, equipment, astronomy, cache, events, markers)
+- `i18n/messages/` - Translation files (en.json, zh.json)
+
 ### Tauri Integration
 - `src-tauri/src/lib.rs`: Main Tauri setup (enables debug logging in dev)
-- `src-tauri/tauri.conf.json`: 
+- `src-tauri/tauri.conf.json`:
   - `devUrl`: Points to Next.js dev server
   - `frontendDist`: Expects `../out` (static export)
   - `beforeDevCommand`: Runs `pnpm dev`
@@ -54,14 +70,25 @@ This is a **Next.js 16 (App Router) + Tauri v2 hybrid desktop application** comb
 - `pnpm dev` - Next.js dev server (web-only)
 - `pnpm tauri dev` - Desktop app with hot reload
 - `pnpm build` - Next.js production build
-- `pnpm tauri build` - Create desktop installer (requires static export)
+- `pnpm tauri build` - Create desktop installer
 
 ### Code Quality
 - **Type checking**: `pnpm exec tsc --noEmit` (strict mode enabled)
-- **Linting**: `pnpm run lint` (ESLint flat config with `eslint-config-next`)
-  - Auto-fix: `pnpm exec eslint . --fix`
+- **Linting**: `pnpm lint` (ESLint flat config with `eslint-config-next`)
+  - Auto-fix: `pnpm lint --fix`
   - Single file: `pnpm exec eslint <file>`
-- **No test framework configured** (no test scripts present)
+
+### Testing
+- **Unit/Integration (Jest)**:
+  - `pnpm test` - Run all tests
+  - `pnpm test:watch` - Watch mode
+  - `pnpm test:coverage` - With coverage
+  - `pnpm test path/to/file` - Run specific test file
+- **E2E (Playwright)**:
+  - `pnpm exec playwright test` - Run all E2E tests
+  - `pnpm exec playwright test --project=chromium` - Single browser
+- **Coverage thresholds**: 50% branches, 35% functions, 60% lines/statements
+- **Mocks**: Tauri APIs mocked in `__mocks__/` directory
 
 ### Adding shadcn/ui Components
 Use the shadcn CLI: `pnpm dlx shadcn@latest add <component-name>`
@@ -100,4 +127,3 @@ Prefer composition patterns with `asChild` for buttons/links:
 - **TypeScript**: Strict mode, bundler module resolution, JSX set to `react-jsx`
 - **Next.js config**: Currently minimal (no custom webpack/rewrites)
 - **Rust toolchain**: Requires v1.77.2+ for Tauri builds
-- **WARP.md exists**: Contains terminal-focused guidance (complementary to this file)

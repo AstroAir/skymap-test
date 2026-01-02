@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { I18nProvider } from "@/components/providers/i18n-provider";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TauriSyncProvider } from "@/lib/tauri/TauriSyncProvider";
+import { TitleBar } from "@/components/ui/titlebar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,17 +32,24 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <I18nProvider>
-          <TauriSyncProvider>
-            {children}
-          </TauriSyncProvider>
-          <Toaster 
-            position="bottom-right" 
-            theme="dark"
-            richColors
-            closeButton
-          />
-        </I18nProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <TitleBar />
+          <I18nProvider>
+            <TauriSyncProvider>
+              {children}
+            </TauriSyncProvider>
+            <Toaster 
+              position="bottom-right" 
+              richColors
+              closeButton
+            />
+          </I18nProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

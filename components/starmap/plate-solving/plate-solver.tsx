@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { cn } from '@/lib/utils';
 import { 
   Crosshair, 
   Loader2, 
@@ -133,9 +134,9 @@ export function PlateSolver({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button variant="outline" className={className}>
-            <Crosshair className="h-4 w-4 mr-2" />
-            {t('plateSolving.title') || 'Plate Solve'}
+          <Button variant="outline" size="sm" className={cn("gap-2", className)}>
+            <Crosshair className="h-4 w-4" />
+            <span className="hidden xl:inline">{t('plateSolving.title') || 'Plate Solve'}</span>
           </Button>
         )}
       </DialogTrigger>

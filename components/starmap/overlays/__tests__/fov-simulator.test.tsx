@@ -102,7 +102,7 @@ describe('FOVSimulator', () => {
     rows: 2,
     cols: 2,
     overlap: 10,
-    overlapUnit: 'percent',
+    overlapUnit: 'percent' as const,
   };
 
   const defaultProps = {

@@ -31,3 +31,11 @@ regex-lite = "0.1"
 open = "5"
 reqwest = { version = "0.12", features = ["json"] }
 url = "2.5"
+
+# Geolocation plugin for mobile location services
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-geolocation = "2"
+
+# Single instance plugin for desktop (prevent multiple app instances)
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"

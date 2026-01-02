@@ -14,7 +14,6 @@ export { StellariumSurveySelector } from './settings/stellarium-survey-selector'
 
 // Controls - View controls
 export { ZoomControls } from './controls/zoom-controls';
-export { StellariumViewDirection } from './controls/stellarium-view-direction';
 
 // Time - Time control
 export { StellariumClock } from './time/stellarium-clock';
@@ -47,6 +46,8 @@ export { InfoPanel } from './objects/info-panel';
 export { ObjectDetailDrawer } from './objects/object-detail-drawer';
 export { ObjectImageGallery } from './objects/object-image-gallery';
 export { ObjectInfoSourcesConfig } from './objects/object-info-sources-config';
+export { ObjectTypeLegend } from './objects/object-type-legend';
+export { TranslatedName } from './objects/translated-name';
 
 // Planning components
 export { AstroSessionPanel } from './planning/astro-session-panel';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   MapPin,
@@ -41,6 +41,13 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   const [adding, setAdding] = useState(false);
   const [inputMethod, setInputMethod] = useState<'manual' | 'map'>('manual');
 
+  // Hydration-safe mounting detection using useSyncExternalStore
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+
   // Form state
   const [form, setForm] = useState({
     name: '',
@@ -50,7 +57,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
     bortle_class: '',
   });
 
-  if (!isAvailable) {
+  if (!mounted || !isAvailable) {
     return null;
   }
 

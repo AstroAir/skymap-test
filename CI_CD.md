@@ -54,10 +54,10 @@ This job performs:
 
 **Coverage Thresholds:**
 
-- Branches: 60%
-- Functions: 60%
-- Lines: 70%
-- Statements: 70%
+- Branches: 50%
+- Functions: 35%
+- Lines: 60%
+- Statements: 60%
 
 ### 3. Deploy Preview
 

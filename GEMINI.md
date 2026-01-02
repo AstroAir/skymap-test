@@ -2,45 +2,77 @@
 
 ## Project Overview
 
-This is a boilerplate project for creating a desktop application using web technologies. It combines a Next.js/React frontend with a Tauri (Rust) backend.
+A desktop star map and astronomy planning application built with Next.js 16 + Tauri 2.9. Integrates with Stellarium Web Engine for sky visualization, observation planning, equipment management, and astronomical calculations.
 
-The key technologies used are:
-
-- **Frontend:** Next.js, React, TypeScript
-- **Styling:** Tailwind CSS, with `shadcn/ui` for UI components.
-- **Desktop Framework:** Tauri (using Rust)
-
-The project is structured as a standard Next.js application, with the addition of a `src-tauri` directory that contains the Rust backend for the Tauri desktop application.
+**Tech Stack:**
+- **Frontend:** Next.js 16, React 19, TypeScript
+- **Styling:** Tailwind CSS v4, with `shadcn/ui` for UI components
+- **Desktop Framework:** Tauri 2.9 (Rust backend)
+- **State Management:** Zustand stores
+- **Internationalization:** next-intl (English/Chinese)
 
 ## Building and Running
 
 ### Frontend (Web)
 
-The following commands are available for running the Next.js application in a web browser:
-
-- `pnpm dev`: Starts the Next.js development server on `http://localhost:3000`.
-- `pnpm build`: Creates a production build of the Next.js application.
-- `pnpm start`: Starts the production Next.js server.
-- `pnpm lint`: Lints the code using ESLint.
+- `pnpm dev`: Starts the Next.js development server on `http://localhost:3000`
+- `pnpm build`: Creates a production build (outputs to `out/`)
+- `pnpm start`: Starts the production Next.js server
+- `pnpm lint`: Lints the code using ESLint
 
 ### Desktop (Tauri)
 
-The following commands are available for running the application as a desktop app:
+- `pnpm tauri dev`: Runs the application in development mode with hot-reload
+- `pnpm tauri build`: Builds the final, distributable desktop application
 
-- `pnpm tauri dev`: Runs the application in development mode, which will open a desktop window that hot-reloads on changes.
-- `pnpm tauri build`: Builds the final, distributable desktop application for your platform.
+**Important:** For Tauri production builds, `output: "export"` must be set in `next.config.ts`.
+
+### Testing
+
+- `pnpm test`: Run all unit/integration tests (Jest)
+- `pnpm test:watch`: Watch mode
+- `pnpm test:coverage`: Run with coverage reporting
+- `pnpm exec playwright test`: Run E2E tests (Playwright)
+- `pnpm exec tsc --noEmit`: Type check without emitting
+
+## Architecture
+
+### Frontend-Backend Communication
+
+```
+React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → Rust command
+```
+
+1. **Rust commands** defined in `src-tauri/src/*.rs` modules
+2. **TypeScript APIs** in `lib/tauri/` wrap Tauri's `invoke()` with type safety
+3. **Zustand stores** in `lib/stores/` manage client state and sync with Rust backend
+
+### Key Directories
+
+- `lib/astronomy/` - Pure astronomical calculations (coordinates, time, celestial, visibility, twilight, imaging)
+- `lib/stores/` - Zustand state (stellarium, settings, equipment, target-list, markers)
+- `lib/tauri/` - TypeScript wrappers for Tauri IPC
+- `components/starmap/` - Star map UI (core, overlays, planning, objects, management)
+- `src-tauri/src/` - Rust backend modules (storage, equipment, astronomy, cache, events, markers)
+- `i18n/messages/` - Translation files (en.json, zh.json)
 
 ## Development Conventions
 
 ### Styling
 
-- **Tailwind CSS:** The project uses Tailwind CSS for styling. Utility classes are managed with `clsx` and `tailwind-merge`.
-- **UI Components:** `shadcn/ui` is used for UI components. These components are not installed as a dependency, but rather copied into the `components/ui` directory to be modified and extended.
+- **Tailwind CSS v4:** Utility classes managed with `clsx` and `tailwind-merge`
+- **UI Components:** `shadcn/ui` components in `components/ui/`, copied and extended locally
+- **Class merging:** Use `cn()` from `@/lib/utils` to merge Tailwind classes
 
-### Linting
+### Linting & Type Checking
 
-ESLint is configured via `eslint.config.mjs` and extends the recommended Next.js configurations (`next/core-web-vitals` and `next/typescript`).
+- ESLint configured via `eslint.config.mjs` (Next.js core-web-vitals + TypeScript)
+- TypeScript strict mode enabled
+- Path alias: `@/*` maps to repo root
 
-### TypeScript
+### Testing
 
-The `tsconfig.json` file is configured for a strict Next.js project. It includes a path alias `@/*` which points to the root directory of the project.
+- **Unit/Integration:** Jest with React Testing Library
+- **E2E:** Playwright in `tests/e2e/`
+- **Coverage thresholds:** 50% branches, 35% functions, 60% lines/statements
+- **Mocks:** Tauri APIs mocked in `__mocks__/` directory

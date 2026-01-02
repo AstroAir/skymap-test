@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -125,6 +126,10 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden bg-card/95 backdrop-blur-md border-border p-0">
+        {/* Visually hidden title for accessibility */}
+        <DialogTitle className="sr-only">
+          {t('setupWizard.title') || 'Setup Wizard'}
+        </DialogTitle>
         {/* Header with progress */}
         <div className="relative">
           {/* Background decoration */}

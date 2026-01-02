@@ -51,7 +51,7 @@ describe('equipmentApi', () => {
   });
 
   it('should add telescope', async () => {
-    const telescope = { name: 'Test', focal_length: 1000, aperture: 200 };
+    const telescope = { name: 'Test', focal_length: 1000, aperture: 200, focal_ratio: 5, telescope_type: 'refractor' as const, is_default: false };
     mockInvoke.mockResolvedValue({ telescopes: [{ id: '1', ...telescope }], cameras: [], barlow_reducers: [], eyepieces: [], filters: [] });
 
     const result = await equipmentApi.addTelescope(telescope);
@@ -61,7 +61,7 @@ describe('equipmentApi', () => {
   });
 
   it('should add camera', async () => {
-    const camera = { name: 'Test Camera', sensor_width: 36, sensor_height: 24, pixel_size: 4.5, resolution_x: 6000, resolution_y: 4000 };
+    const camera = { name: 'Test Camera', sensor_width: 36, sensor_height: 24, pixel_size: 4.5, resolution_x: 6000, resolution_y: 4000, camera_type: 'cmos' as const, has_cooler: false, is_default: false };
     mockInvoke.mockResolvedValue({ telescopes: [], cameras: [{ id: '1', ...camera }], barlow_reducers: [], eyepieces: [], filters: [] });
 
     const result = await equipmentApi.addCamera(camera);
@@ -71,7 +71,7 @@ describe('equipmentApi', () => {
   });
 
   it('should add eyepiece', async () => {
-    const eyepiece = { name: 'Test Eyepiece', focal_length: 25, apparent_fov: 68 };
+    const eyepiece = { name: 'Test Eyepiece', focal_length: 25, apparent_fov: 68, barrel_size: 1.25 };
     mockInvoke.mockResolvedValue({ telescopes: [], cameras: [], barlow_reducers: [], eyepieces: [{ id: '1', ...eyepiece }], filters: [] });
 
     const result = await equipmentApi.addEyepiece(eyepiece);
@@ -91,7 +91,7 @@ describe('equipmentApi', () => {
   });
 
   it('should add filter', async () => {
-    const filter = { name: 'Test Filter', filter_type: 'narrowband', bandwidth: 7 };
+    const filter = { name: 'Test Filter', filter_type: 'ha' as const, bandwidth: 7 };
     mockInvoke.mockResolvedValue({ telescopes: [], cameras: [], barlow_reducers: [], eyepieces: [], filters: [{ id: '1', ...filter }] });
 
     const result = await equipmentApi.addFilter(filter);
@@ -110,7 +110,7 @@ describe('equipmentApi', () => {
   });
 
   it('should update telescope', async () => {
-    const telescope = { id: '1', name: 'Updated', focal_length: 1200, aperture: 250, created_at: '', updated_at: '' };
+    const telescope = { id: '1', name: 'Updated', focal_length: 1200, aperture: 250, focal_ratio: 4.8, telescope_type: 'refractor' as const, is_default: false, created_at: '', updated_at: '' };
     mockInvoke.mockResolvedValue({ telescopes: [telescope], cameras: [], barlow_reducers: [], eyepieces: [], filters: [] });
 
     const result = await equipmentApi.updateTelescope(telescope);
@@ -120,7 +120,7 @@ describe('equipmentApi', () => {
   });
 
   it('should update camera', async () => {
-    const camera = { id: '1', name: 'Updated Camera', sensor_width: 36, sensor_height: 24, pixel_size: 4.5, resolution_x: 6000, resolution_y: 4000, created_at: '', updated_at: '' };
+    const camera = { id: '1', name: 'Updated Camera', sensor_width: 36, sensor_height: 24, pixel_size: 4.5, resolution_x: 6000, resolution_y: 4000, camera_type: 'cmos' as const, has_cooler: false, is_default: false, created_at: '', updated_at: '' };
     mockInvoke.mockResolvedValue({ telescopes: [], cameras: [camera], barlow_reducers: [], eyepieces: [], filters: [] });
 
     const result = await equipmentApi.updateCamera(camera);
@@ -130,7 +130,7 @@ describe('equipmentApi', () => {
   });
 
   it('should update eyepiece', async () => {
-    const eyepiece = { id: '1', name: 'Updated Eyepiece', focal_length: 20, apparent_fov: 72, created_at: '', updated_at: '' };
+    const eyepiece = { id: '1', name: 'Updated Eyepiece', focal_length: 20, apparent_fov: 72, barrel_size: 1.25, created_at: '', updated_at: '' };
     mockInvoke.mockResolvedValue({ telescopes: [], cameras: [], barlow_reducers: [], eyepieces: [eyepiece], filters: [] });
 
     const result = await equipmentApi.updateEyepiece(eyepiece);
@@ -150,7 +150,7 @@ describe('equipmentApi', () => {
   });
 
   it('should update filter', async () => {
-    const filter = { id: '1', name: 'Updated Filter', filter_type: 'broadband', bandwidth: 100, created_at: '', updated_at: '' };
+    const filter = { id: '1', name: 'Updated Filter', filter_type: 'luminance' as const, bandwidth: 100, created_at: '', updated_at: '' };
     mockInvoke.mockResolvedValue({ telescopes: [], cameras: [], barlow_reducers: [], eyepieces: [], filters: [filter] });
 
     const result = await equipmentApi.updateFilter(filter);
@@ -230,7 +230,7 @@ describe('locationsApi', () => {
   });
 
   it('should add location', async () => {
-    const location = { name: 'Test Location', latitude: 45, longitude: -75, altitude: 100 };
+    const location = { name: 'Test Location', latitude: 45, longitude: -75, altitude: 100, is_default: false, is_current: false };
     mockInvoke.mockResolvedValue({ locations: [{ id: '1', ...location }], default_location_id: null });
 
     const result = await locationsApi.add(location);
@@ -240,7 +240,7 @@ describe('locationsApi', () => {
   });
 
   it('should update location', async () => {
-    const location = { id: '1', name: 'Updated Location', latitude: 46, longitude: -76, altitude: 200, created_at: '', updated_at: '' };
+    const location = { id: '1', name: 'Updated Location', latitude: 46, longitude: -76, altitude: 200, is_default: false, is_current: false, created_at: '', updated_at: '' };
     mockInvoke.mockResolvedValue({ locations: [location], default_location_id: null });
 
     const result = await locationsApi.update(location);
@@ -259,12 +259,12 @@ describe('locationsApi', () => {
   });
 
   it('should set current location', async () => {
-    mockInvoke.mockResolvedValue({ locations: [], default_location_id: 'location-1' });
+    mockInvoke.mockResolvedValue({ locations: [], current_location_id: 'location-1' });
 
     const result = await locationsApi.setCurrent('location-1');
 
     expect(mockInvoke).toHaveBeenCalledWith('set_current_location', { locationId: 'location-1' });
-    expect(result.default_location_id).toBe('location-1');
+    expect(result.current_location_id).toBe('location-1');
   });
 
   it('should get current location', async () => {
@@ -314,7 +314,7 @@ describe('observationLogApi', () => {
   });
 
   it('should add observation', async () => {
-    const observation = { target_name: 'M31', target_type: 'galaxy', notes: 'Great view' };
+    const observation = { object_name: 'M31', object_type: 'galaxy', notes: 'Great view', image_paths: [] };
     const mockSession = { id: '1', date: '2024-01-01', observations: [{ id: '1', ...observation }] };
     mockInvoke.mockResolvedValue(mockSession);
 
@@ -325,7 +325,7 @@ describe('observationLogApi', () => {
   });
 
   it('should update session', async () => {
-    const session = { id: '1', date: '2024-01-01', notes: 'Updated notes', observations: [] };
+    const session = { id: '1', date: '2024-01-01', notes: 'Updated notes', observations: [], equipment_ids: [], created_at: '', updated_at: '' };
     mockInvoke.mockResolvedValue(session);
 
     const result = await observationLogApi.updateSession(session);
@@ -335,13 +335,13 @@ describe('observationLogApi', () => {
   });
 
   it('should end session', async () => {
-    const mockSession = { id: '1', date: '2024-01-01', ended_at: '2024-01-02T00:00:00Z', observations: [] };
+    const mockSession = { id: '1', date: '2024-01-01', end_time: '2024-01-02T00:00:00Z', observations: [], equipment_ids: [], created_at: '2024-01-01', updated_at: '2024-01-01' };
     mockInvoke.mockResolvedValue(mockSession);
 
     const result = await observationLogApi.endSession('session-1');
 
     expect(mockInvoke).toHaveBeenCalledWith('end_session', { sessionId: 'session-1' });
-    expect(result.ended_at).toBeDefined();
+    expect(result.end_time).toBeDefined();
   });
 
   it('should delete session', async () => {
@@ -380,7 +380,7 @@ describe('targetIoApi', () => {
   });
 
   it('should export targets', async () => {
-    const targets = [{ id: '1', name: 'M31', ra: 10.68, dec: 41.27 }];
+    const targets = [{ name: 'M31', ra: 10.68, dec: 41.27, ra_string: '00h 42m 44s', dec_string: "+41° 16' 09\"" }];
     mockInvoke.mockResolvedValue('/path/to/export.csv');
 
     const result = await targetIoApi.exportTargets(targets, 'csv', '/export/path');
@@ -417,7 +417,7 @@ describe('appSettingsApi', () => {
   });
 
   it('should save settings', async () => {
-    const settings = { theme: 'light', language: 'zh' };
+    const settings = { theme: 'light', language: 'zh', window_state: { width: 1200, height: 800, x: 0, y: 0, maximized: false, fullscreen: false }, recent_files: [], auto_save_interval: 300, check_updates: true, telemetry_enabled: false, sidebar_collapsed: false, show_welcome: true };
     mockInvoke.mockResolvedValue(undefined);
 
     await appSettingsApi.save(settings);

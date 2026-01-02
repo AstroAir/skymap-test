@@ -55,6 +55,7 @@ import {
 } from '@/components/ui/tooltip';
 
 import { ObjectImageGallery } from './object-image-gallery';
+import { AltitudeChart } from '../planning/altitude-chart';
 import { useMountStore, useTargetListStore } from '@/lib/stores';
 import { useCelestialName } from '@/lib/hooks';
 import { raDecToAltAz } from '@/lib/astronomy/starmap-utils';
@@ -644,6 +645,18 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                       <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
                         {t('session.circumpolar')}
                       </Badge>
+                    )}
+                    
+                    {/* Altitude Chart */}
+                    {selectedObject && (
+                      <div className="mt-4">
+                        <AltitudeChart
+                          ra={selectedObject.raDeg}
+                          dec={selectedObject.decDeg}
+                          name={displayName}
+                          hoursAhead={12}
+                        />
+                      </div>
                     )}
                   </>
                 )}

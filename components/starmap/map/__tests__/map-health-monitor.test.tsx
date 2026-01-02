@@ -112,9 +112,9 @@ describe('MapHealthMonitor', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockConnectivityChecker.getAllProviderHealth.mockReturnValue([]);
-    mockConnectivityChecker.getNetworkQuality.mockReturnValue(null);
+    mockConnectivityChecker.getNetworkQuality.mockReturnValue({ isOnline: false, successRate: 0, averageResponseTime: 0 });
     mockConnectivityChecker.addHealthListener.mockReturnValue(() => {});
-    mockConnectivityChecker.quickConnectivityTest.mockResolvedValue(undefined);
+    mockConnectivityChecker.quickConnectivityTest.mockResolvedValue(true);
   });
 
   describe('Rendering', () => {
@@ -153,8 +153,8 @@ describe('MapHealthMonitor', () => {
 
     it('shows provider count in compact mode', () => {
       mockConnectivityChecker.getAllProviderHealth.mockReturnValue([
-        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: 'connected' as const },
-        { provider: 'google', isHealthy: true, successRate: 1, responseTime: 150, errorCount: 0, lastChecked: Date.now(), status: 'connected' as const },
+        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
+        { provider: 'google', isHealthy: true, successRate: 1, responseTime: 150, errorCount: 0, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
       ]);
 
       render(<MapHealthMonitor compact />);
@@ -231,7 +231,7 @@ describe('MapHealthMonitor', () => {
           responseTime: 100,
           errorCount: 0,
           lastChecked: Date.now(),
-          status: 'connected' as const,
+          status: { isConnected: true, lastChecked: Date.now() },
         },
       ]);
 
@@ -248,12 +248,12 @@ describe('MapHealthMonitor', () => {
           responseTime: 100,
           errorCount: 0,
           lastChecked: Date.now(),
-          status: 'connected' as const,
+          status: { isConnected: true, lastChecked: Date.now() },
         },
       ]);
 
       render(<MapHealthMonitor />);
-      expect(screen.getByText(/map\.healthy|Healthy/)).toBeInTheDocument();
+      expect(screen.getAllByText(/map\.healthy|Healthy/).length).toBeGreaterThan(0);
     });
 
     it('shows degraded badge for partially healthy provider', () => {
@@ -265,7 +265,7 @@ describe('MapHealthMonitor', () => {
           responseTime: 2000,
           errorCount: 3,
           lastChecked: Date.now(),
-          status: 'degraded' as const,
+          status: { isConnected: false, lastChecked: Date.now() },
         },
       ]);
 
@@ -282,7 +282,7 @@ describe('MapHealthMonitor', () => {
           responseTime: 5000,
           errorCount: 7,
           lastChecked: Date.now(),
-          status: 'disconnected' as const,
+          status: { isConnected: false, lastChecked: Date.now() },
         },
       ]);
 
@@ -299,7 +299,7 @@ describe('MapHealthMonitor', () => {
           responseTime: 150,
           errorCount: 0,
           lastChecked: Date.now(),
-          status: 'connected' as const,
+          status: { isConnected: true, lastChecked: Date.now() },
         },
       ]);
 
@@ -316,7 +316,7 @@ describe('MapHealthMonitor', () => {
           responseTime: 2500,
           errorCount: 5,
           lastChecked: Date.now(),
-          status: 'degraded' as const,
+          status: { isConnected: false, lastChecked: Date.now() },
         },
       ]);
 
@@ -333,7 +333,7 @@ describe('MapHealthMonitor', () => {
           responseTime: 100,
           errorCount: 2,
           lastChecked: Date.now(),
-          status: 'connected' as const,
+          status: { isConnected: true, lastChecked: Date.now() },
         },
       ]);
 
@@ -388,9 +388,9 @@ describe('MapHealthMonitor', () => {
 
     it('displays healthy provider count', () => {
       mockConnectivityChecker.getAllProviderHealth.mockReturnValue([
-        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: 'connected' as const },
-        { provider: 'google', isHealthy: true, successRate: 1, responseTime: 150, errorCount: 0, lastChecked: Date.now(), status: 'connected' as const },
-        { provider: 'mapbox', isHealthy: false, successRate: 0.5, responseTime: 2000, errorCount: 5, lastChecked: Date.now(), status: 'degraded' as const },
+        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
+        { provider: 'google', isHealthy: true, successRate: 1, responseTime: 150, errorCount: 0, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
+        { provider: 'mapbox', isHealthy: false, successRate: 0.5, responseTime: 2000, errorCount: 5, lastChecked: Date.now(), status: { isConnected: false, lastChecked: Date.now() } },
       ]);
       mockConnectivityChecker.getNetworkQuality.mockReturnValue({
         isOnline: true,
@@ -404,8 +404,8 @@ describe('MapHealthMonitor', () => {
 
     it('displays total error count', () => {
       mockConnectivityChecker.getAllProviderHealth.mockReturnValue([
-        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 1, lastChecked: Date.now(), status: 'connected' as const },
-        { provider: 'google', isHealthy: false, successRate: 0.8, responseTime: 500, errorCount: 4, lastChecked: Date.now(), status: 'degraded' as const },
+        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 1, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
+        { provider: 'google', isHealthy: false, successRate: 0.8, responseTime: 500, errorCount: 4, lastChecked: Date.now(), status: { isConnected: false, lastChecked: Date.now() } },
       ]);
       mockConnectivityChecker.getNetworkQuality.mockReturnValue({
         isOnline: true,
@@ -422,7 +422,7 @@ describe('MapHealthMonitor', () => {
   describe('Last Updated', () => {
     it('displays last updated time', () => {
       mockConnectivityChecker.getAllProviderHealth.mockReturnValue([
-        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: 'connected' as const },
+        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
       ]);
 
       render(<MapHealthMonitor />);
@@ -447,7 +447,7 @@ describe('MapHealthMonitor', () => {
     });
 
     it('updates provider health when listener callback fires', () => {
-      let healthCallback: ((status: { provider: string; isHealthy: boolean; successRate: number; responseTime: number; errorCount: number }) => void) | undefined;
+      let healthCallback: ((status: import('@/lib/services/connectivity-checker').ProviderHealthStatus) => void) | undefined;
       mockConnectivityChecker.addHealthListener.mockImplementation((callback) => {
         healthCallback = callback;
         return () => {};
@@ -463,6 +463,8 @@ describe('MapHealthMonitor', () => {
           successRate: 1,
           responseTime: 100,
           errorCount: 0,
+          lastChecked: Date.now(),
+          status: { isConnected: true, lastChecked: Date.now() },
         });
       });
 

@@ -234,22 +234,21 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
 
     setHelpers({ getCurrentViewDirection, setViewDirection });
 
-    // Add data sources - use local path for textures
+    // Data source URLs - use local data from /stellarium-data/
     const baseUrl = '/stellarium-data/';
     setBaseUrl(baseUrl);
 
     const core = stel.core;
 
-    // Add all data sources
+    // Add all data sources from local stellarium-data directory
     core.stars.addDataSource({ url: baseUrl + 'stars' });
     core.skycultures.addDataSource({ url: baseUrl + 'skycultures/western', key: 'western' });
     core.dsos.addDataSource({ url: baseUrl + 'dso' });
-    // Use remote CDS server for DSS - local data only has limited resolution (Norder3-4)
-    core.dss.addDataSource({ url: 'https://alasky.cds.unistra.fr/DSS/DSSColor/' });
+    core.dss.addDataSource({ url: baseUrl + 'surveys/dss' });
     core.milkyway.addDataSource({ url: baseUrl + 'surveys/milkyway' });
     core.minor_planets.addDataSource({ url: baseUrl + 'mpcorb.dat', key: 'mpc_asteroids' });
     
-    // Planets
+    // Planets - use local surveys
     core.planets.addDataSource({ url: baseUrl + 'surveys/sso/moon', key: 'moon' });
     core.planets.addDataSource({ url: baseUrl + 'surveys/sso/sun', key: 'sun' });
     core.planets.addDataSource({ url: baseUrl + 'surveys/sso/mercury', key: 'mercury' });
@@ -267,6 +266,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     core.planets.addDataSource({ url: baseUrl + 'surveys/sso/callisto', key: 'callisto' });
     
     core.planets.addDataSource({ url: baseUrl + 'surveys/sso', key: 'default' });
+    // Comet elements file
     core.comets.addDataSource({ url: baseUrl + 'CometEls.txt', key: 'mpc_comets' });
 
     // Apply initial settings - get latest from store to avoid stale closure

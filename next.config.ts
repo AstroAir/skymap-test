@@ -15,6 +15,24 @@ const nextConfig: NextConfig = {
   },
   // Configure assetPrefix or else the server won't properly resolve your assets.
   assetPrefix: isProd ? undefined : `http://${internalHost}:3000`,
+  
+  // Empty turbopack config to silence webpack warning (Next.js 16 uses Turbopack by default)
+  turbopack: {},
+  
+  // Rewrites for development - proxy Stellarium data requests to bypass CORS
+  // Note: These only work in dev mode, not with static export
+  async rewrites() {
+    return [
+      {
+        source: '/stellarium-proxy/:path*',
+        destination: 'https://data.stellarium-web.org/:path*',
+      },
+      {
+        source: '/cds-proxy/:path*',
+        destination: 'https://alasky.cds.unistra.fr/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

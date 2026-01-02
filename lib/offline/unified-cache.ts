@@ -376,14 +376,18 @@ class UnifiedCacheManager {
     strategy: CacheStrategy = 'cache-first'
   ): Promise<Response> {
     // SECURITY: Validate URL to prevent SSRF attacks
-    try {
-      validateUrl(url, { allowHttp: false });
-    } catch (error) {
-      if (error instanceof SecurityError) {
-        console.error('[Security] URL validation failed:', error.message);
-        throw new Error(`URL validation failed: ${error.message}`);
+    // Skip validation for relative URLs (local resources) - they don't need SSRF protection
+    const isRelativeUrl = url.startsWith('/') && !url.startsWith('//');
+    if (!isRelativeUrl) {
+      try {
+        validateUrl(url, { allowHttp: false });
+      } catch (error) {
+        if (error instanceof SecurityError) {
+          console.error('[Security] URL validation failed:', error.message);
+          throw new Error(`URL validation failed: ${error.message}`);
+        }
+        throw error;
       }
-      throw error;
     }
 
     const cacheKey = options.cacheKey || url;

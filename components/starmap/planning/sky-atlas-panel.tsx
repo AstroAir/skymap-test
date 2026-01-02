@@ -586,7 +586,7 @@ export function SkyAtlasPanel() {
       <DrawerTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Telescope className="h-4 w-4" />
-          {t('skyAtlas.title')}
+          <span className="hidden xl:inline">{t('skyAtlas.title')}</span>
         </Button>
       </DrawerTrigger>
       <DrawerContent className="w-[320px] sm:w-[450px] md:w-[540px] h-full p-0 flex flex-col">

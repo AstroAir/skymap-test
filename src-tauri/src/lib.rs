@@ -90,12 +90,32 @@ use markers::{
     remove_marker_group, rename_marker_group, get_visible_markers,
 };
 
+#[cfg(desktop)]
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single instance plugin must be registered FIRST (desktop only)
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // Focus the main window when a new instance is attempted
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // Geolocation plugin (mobile only)
+            #[cfg(mobile)]
+            app.handle().plugin(tauri_plugin_geolocation::init())?;
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

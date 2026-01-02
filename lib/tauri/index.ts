@@ -22,3 +22,13 @@ export { eventsApi } from './events-api';
 export { targetListApi } from './target-list-api';
 export { markersApi } from './markers-api';
 export { TauriSyncProvider } from './TauriSyncProvider';
+
+// Geolocation API (mobile only)
+export { geolocationApi } from './geolocation-api';
+export type { 
+  Position, 
+  PositionOptions, 
+  PermissionState, 
+  PermissionStatus, 
+  WatchId 
+} from './geolocation-api';

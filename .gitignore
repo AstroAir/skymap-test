@@ -16,10 +16,15 @@ junit.xml
 *.test.js.snap
 *.test.ts.snap
 *.test.tsx.snap
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
 /out/
+
+# swc
+/.swc/
 
 # production
 /build
@@ -43,7 +48,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-Touch-N-Stars
-public/stellarium-data
 
-llmdoc/
+# AI assistant settings
+/.claude/
+
+# external projects
+/Touch-N-Stars/
+/nina/
+
+# project specific
+/llmdoc/

@@ -1,91 +1,136 @@
 'use client';
 
-import { useEffect, useCallback, useSyncExternalStore } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { useEffect, useSyncExternalStore } from 'react';
+import { useTheme } from 'next-themes';
+import { Moon, Sun, Monitor, ChevronDown, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useTranslations } from 'next-intl';
+import { useThemeStore } from '@/lib/stores/theme-store';
+import { cn } from '@/lib/utils';
 
-type Theme = 'light' | 'dark' | 'system';
-
-const THEME_KEY = 'theme';
-const DEFAULT_THEME: Theme = 'dark';
-
-// Subscribe to storage changes
-function subscribeToTheme(callback: () => void) {
-  window.addEventListener('storage', callback);
-  return () => window.removeEventListener('storage', callback);
+interface ThemeToggleProps {
+  variant?: 'icon' | 'dropdown';
+  className?: string;
+  showCustomize?: boolean;
+  onCustomizeClick?: () => void;
 }
 
-function getThemeSnapshot(): Theme {
-  if (typeof window === 'undefined') return DEFAULT_THEME;
-  return (localStorage.getItem(THEME_KEY) as Theme) || DEFAULT_THEME;
-}
-
-function getThemeServerSnapshot(): Theme {
-  return DEFAULT_THEME;
-}
-
-function applyThemeToDOM(newTheme: Theme) {
-  const root = document.documentElement;
-  
-  if (newTheme === 'system') {
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.classList.toggle('dark', systemDark);
-  } else {
-    root.classList.toggle('dark', newTheme === 'dark');
-  }
-}
-
-export function ThemeToggle() {
+export function ThemeToggle({ 
+  variant = 'dropdown', 
+  className,
+  showCustomize = false,
+  onCustomizeClick,
+}: ThemeToggleProps) {
   const t = useTranslations();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const applyCustomization = useThemeStore((state) => state.applyCustomization);
   
-  // Use useSyncExternalStore to read theme from localStorage
-  const theme = useSyncExternalStore(
-    subscribeToTheme,
-    getThemeSnapshot,
-    getThemeServerSnapshot
+  // Use useSyncExternalStore to safely detect client-side rendering
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
   );
-
-  // Apply theme when it changes
+  
+  // Re-apply customization when theme changes
   useEffect(() => {
-    applyThemeToDOM(theme);
-  }, [theme]);
+    applyCustomization();
+  }, [resolvedTheme, applyCustomization]);
 
-  const toggleTheme = useCallback(() => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(THEME_KEY, newTheme);
-    applyThemeToDOM(newTheme);
-    // Dispatch storage event to trigger re-render
-    window.dispatchEvent(new StorageEvent('storage', { key: THEME_KEY }));
-  }, [theme]);
+  // Use Sun as default during SSR to avoid hydration mismatch
+  const ThemeIcon = mounted && resolvedTheme === 'dark' ? Moon : Sun;
 
-  // Always render the same structure to avoid hydration mismatch
-  // Use suppressHydrationWarning for the icon that changes
+  if (variant === 'icon') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-10 w-10', className)}
+            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+            suppressHydrationWarning
+          >
+            <ThemeIcon className="h-5 w-5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p suppressHydrationWarning>
+            {resolvedTheme === 'dark' ? t('theme.switchToLight') : t('theme.switchToDark')}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="icon"
-          className="h-10 w-10"
-          onClick={toggleTheme}
+          size="sm"
+          className={cn('gap-2', className)}
           suppressHydrationWarning
         >
-          {theme === 'dark' ? (
-            <Moon className="h-5 w-5" />
-          ) : (
-            <Sun className="h-5 w-5" />
-          )}
+          <ThemeIcon className="h-4 w-4" />
+          <span className="hidden xl:inline" suppressHydrationWarning>
+            {theme === 'system' 
+              ? t('theme.system') 
+              : resolvedTheme === 'dark' 
+                ? t('common.darkMode') 
+                : t('common.lightMode')}
+          </span>
+          <ChevronDown className="h-3 w-3 opacity-50 hidden xl:block" />
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p suppressHydrationWarning>{theme === 'dark' ? t('common.lightMode') : t('common.darkMode')}</p>
-      </TooltipContent>
-    </Tooltip>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuItem 
+          onClick={() => setTheme('light')}
+          className={cn(theme === 'light' && 'bg-accent')}
+        >
+          <Sun className="mr-2 h-4 w-4" />
+          {t('common.lightMode')}
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => setTheme('dark')}
+          className={cn(theme === 'dark' && 'bg-accent')}
+        >
+          <Moon className="mr-2 h-4 w-4" />
+          {t('common.darkMode')}
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => setTheme('system')}
+          className={cn(theme === 'system' && 'bg-accent')}
+        >
+          <Monitor className="mr-2 h-4 w-4" />
+          {t('theme.system')}
+        </DropdownMenuItem>
+        {showCustomize && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onCustomizeClick}>
+              <Palette className="mr-2 h-4 w-4" />
+              {t('theme.customize')}
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
+}
+
+export function ThemeIconToggle({ className }: { className?: string }) {
+  return <ThemeToggle variant="icon" className={className} />;
 }

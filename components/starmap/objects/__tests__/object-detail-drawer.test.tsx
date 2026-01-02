@@ -39,6 +39,8 @@ jest.mock('@/lib/astronomy/astro-utils', () => ({
     durationScore: 85,
   })),
   formatTimeShort: jest.fn((date) => date ? '22:00' : '--:--'),
+  getAltitudeOverTime: jest.fn(() => Array.from({ length: 24 }, (_, i) => ({ hour: i, altitude: 30 + Math.sin(i / 4) * 40 }))),
+  getTransitTime: jest.fn(() => new Date()),
 }));
 
 // Mock hooks
@@ -72,8 +74,8 @@ jest.mock('@/lib/stores', () => ({
 
 import { useMountStore, useTargetListStore } from '@/lib/stores';
 
-const mockUseMountStore = useMountStore as jest.Mock;
-const mockUseTargetListStore = useTargetListStore as jest.Mock;
+const mockUseMountStore = useMountStore as unknown as jest.Mock;
+const mockUseTargetListStore = useTargetListStore as unknown as jest.Mock;
 
 // Mock UI components
 jest.mock('@/components/ui/button', () => ({

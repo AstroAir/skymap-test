@@ -103,7 +103,7 @@ export function validateUrl(
   let url: URL;
   try {
     url = new URL(urlStr);
-  } catch (e) {
+  } catch {
     throw new SecurityError(
       `Invalid URL format: ${urlStr}`,
       'INVALID_URL'

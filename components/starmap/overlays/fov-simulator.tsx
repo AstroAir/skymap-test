@@ -56,6 +56,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import {
   type MosaicSettings,
@@ -702,20 +703,23 @@ export function FOVSimulator({
                 <LayoutGrid className="h-4 w-4" />
                 {t('fov.compositionGrid')}
               </Label>
-              <div className="grid grid-cols-5 gap-1">
+              <ToggleGroup 
+                type="single" 
+                value={gridType} 
+                onValueChange={(value) => value && onGridTypeChange(value as GridType)}
+                className="grid grid-cols-5 gap-1"
+              >
                 {GRID_OPTIONS.map((option) => (
-                  <Button
+                  <ToggleGroupItem
                     key={option.value}
-                    variant={gridType === option.value ? 'default' : 'outline'}
-                    size="sm"
-                    className="h-12 flex-col gap-1"
-                    onClick={() => onGridTypeChange(option.value)}
+                    value={option.value}
+                    className="h-12 flex-col gap-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
                   >
                     <span className="text-lg font-mono">{option.icon}</span>
                     <span className="text-[10px]">{option.label}</span>
-                  </Button>
+                  </ToggleGroupItem>
                 ))}
-              </div>
+              </ToggleGroup>
             </div>
 
             <Separator />
@@ -821,17 +825,17 @@ export function FOVSimulator({
                 {/* Frame Style */}
                 <div className="space-y-2">
                   <Label className="text-sm">{t('fov.frameStyle')}</Label>
-                  <div className="flex gap-1">
-                    <Button variant="outline" size="sm" className="flex-1 h-8 text-xs">
+                  <ToggleGroup type="single" defaultValue="solid" className="flex gap-1">
+                    <ToggleGroupItem value="solid" className="flex-1 h-8 text-xs">
                       {t('fov.styleSolid')}
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1 h-8 text-xs">
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="dashed" className="flex-1 h-8 text-xs">
                       {t('fov.styleDashed')}
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1 h-8 text-xs">
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="dotted" className="flex-1 h-8 text-xs">
                       {t('fov.styleDotted')}
-                    </Button>
-                  </div>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
 
                 <Separator />

@@ -61,3 +61,24 @@ export async function onlyInWeb<T>(fn: () => Promise<T>): Promise<T | null> {
   }
   return null;
 }
+
+/**
+ * Check if running on a mobile device (Android or iOS)
+ * This is useful for mobile-specific features like geolocation
+ */
+export function isMobile(): boolean {
+  if (isServer()) {
+    return false;
+  }
+  
+  // Check user agent for mobile platforms
+  const userAgent = navigator.userAgent.toLowerCase();
+  return /android|iphone|ipad|ipod/.test(userAgent);
+}
+
+/**
+ * Check if running on desktop (Windows, macOS, Linux)
+ */
+export function isDesktop(): boolean {
+  return !isMobile() && !isServer();
+}

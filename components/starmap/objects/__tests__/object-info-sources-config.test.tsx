@@ -23,7 +23,7 @@ import {
   stopHealthChecks,
 } from '@/lib/services/object-info-config';
 
-const mockUseObjectInfoConfigStore = useObjectInfoConfigStore as jest.Mock;
+const mockUseObjectInfoConfigStore = useObjectInfoConfigStore as unknown as jest.Mock;
 const mockCheckAllSourcesHealth = checkAllSourcesHealth as jest.Mock;
 const mockCheckImageSourceHealth = checkImageSourceHealth as jest.Mock;
 const mockCheckDataSourceHealth = checkDataSourceHealth as jest.Mock;

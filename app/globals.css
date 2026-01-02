@@ -433,6 +433,15 @@
   }
 }
 
+/* Manual reduce motion toggle */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
 /* ============================================================================
    Mobile-Specific Styles
    ============================================================================ */
@@ -888,4 +897,37 @@
 
 .splash-fade-out {
   animation: splash-fade-out 0.4s ease-out forwards;
+}
+
+/* ============================================================================
+   Custom Titlebar Styles (Tauri Window Customization)
+   ============================================================================ */
+
+/* Titlebar drag region - enables window dragging */
+.titlebar [data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+  cursor: default;
+}
+
+/* Titlebar buttons - disable drag on interactive elements */
+.titlebar-button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Content offset when titlebar is present */
+.titlebar-offset {
+  padding-top: 2rem; /* 32px - matches titlebar height */
+}
+
+/* Titlebar hover effects */
+.titlebar-button:active {
+  transform: scale(0.95);
+}
+
+/* Ensure titlebar is always on top */
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
 }

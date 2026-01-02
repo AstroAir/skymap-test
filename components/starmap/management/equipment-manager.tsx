@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Telescope,
@@ -48,6 +48,12 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   const [addingCamera, setAddingCamera] = useState(false);
   const [addingBarlow, setAddingBarlow] = useState(false);
   const [addingFilter, setAddingFilter] = useState(false);
+  // Fix hydration mismatch by only rendering Dialog after mount
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   // Telescope form state
   const [telescopeForm, setTelescopeForm] = useState({
@@ -194,13 +200,19 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
     }
   };
 
+  // Return null during SSR to avoid hydration mismatch
+  // (DialogTrigger asChild adds props that differ from plain Button)
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button variant="outline" size="sm">
-            <Settings2 className="h-4 w-4 mr-2" />
-            {t('equipment.title') || 'Equipment'}
+          <Button variant="outline" size="sm" className="gap-2">
+            <Settings2 className="h-4 w-4" />
+            <span className="hidden xl:inline">{t('equipment.title') || 'Equipment'}</span>
           </Button>
         )}
       </DialogTrigger>

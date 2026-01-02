@@ -70,3 +70,12 @@ export {
   SETUP_WIZARD_STEPS,
   type SetupWizardStep,
 } from './setup-wizard-store';
+
+// Theme customization store
+export {
+  useThemeStore,
+  themePresets,
+  type ThemeColors,
+  type ThemePreset,
+  type ThemeCustomization,
+} from './theme-store';

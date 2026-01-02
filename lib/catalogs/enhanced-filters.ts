@@ -7,7 +7,6 @@
 
 import { 
   calculateTargetAltitudeData, 
-  getNoonReferenceDate,
   type DataPoint,
 } from '../astronomy/visibility/target-visibility';
 import { CustomHorizon } from '../astronomy/horizon/custom-horizon';
@@ -237,10 +236,10 @@ export function checkAltitudeDuration(
 export function applyEnhancedFilters(
   objects: FilteredDSOResult[],
   filters: EnhancedSearchFilters,
-  latitude: number,
-  longitude: number,
-  referenceDate: Date,
-  customHorizon?: CustomHorizon
+  _latitude: number,
+  _longitude: number,
+  _referenceDate: Date,
+  _customHorizon?: CustomHorizon
 ): FilteredDSOResult[] {
   let result = [...objects];
   

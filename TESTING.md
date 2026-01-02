@@ -4,15 +4,27 @@ This document provides information about the testing setup and how to run tests 
 
 ## Testing Stack
 
-- **Test Runner**: Jest 30.x
+- **Test Runner (Unit/Integration)**: Jest 30.x
 - **Testing Library**: @testing-library/react 16.x
 - **Test Environment**: jsdom (simulates browser environment)
+- **E2E Testing**: Playwright
 - **Coverage Provider**: V8
 - **CI/CD**: GitHub Actions
 
+## Coverage Thresholds
+
+The project enforces these minimum coverage thresholds:
+
+- **Branches**: 50%
+- **Functions**: 35%
+- **Lines**: 60%
+- **Statements**: 60%
+
 ## Running Tests
 
-### Run all tests
+### Unit/Integration Tests (Jest)
+
+#### Run all tests
 
 ```bash
 pnpm test
@@ -40,6 +52,42 @@ pnpm test path/to/test-file.test.tsx
 
 ```bash
 pnpm test --testNamePattern="Button"
+```
+
+### E2E Tests (Playwright)
+
+E2E tests are located in `tests/e2e/` and run against `http://localhost:3001/starmap`.
+
+#### Run all E2E tests
+
+```bash
+pnpm exec playwright test
+```
+
+#### Run tests for a specific browser
+
+```bash
+pnpm exec playwright test --project=chromium
+pnpm exec playwright test --project=firefox
+pnpm exec playwright test --project=webkit
+```
+
+#### Run specific test file
+
+```bash
+pnpm exec playwright test tests/e2e/starmap/ui-controls.spec.ts
+```
+
+#### Run tests with UI mode
+
+```bash
+pnpm exec playwright test --ui
+```
+
+#### View test report
+
+```bash
+pnpm exec playwright show-report
 ```
 
 ## Test File Structure
