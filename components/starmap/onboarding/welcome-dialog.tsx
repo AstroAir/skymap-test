@@ -86,7 +86,10 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-card/95 backdrop-blur-md border-border text-card-foreground overflow-hidden">
+      <DialogContent 
+        className="sm:max-w-lg bg-card/95 backdrop-blur-md border-border text-card-foreground overflow-hidden"
+        showCloseButton={false}
+      >
         {/* Animated background stars */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {Array.from({ length: 30 }, (_, i) => (

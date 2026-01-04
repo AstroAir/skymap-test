@@ -136,9 +136,8 @@ export function PlateSolver({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button variant="outline" size="sm" className={cn("gap-2", className)}>
+          <Button variant="ghost" size="icon" className={cn("h-9 w-9", className)}>
             <Crosshair className="h-4 w-4" />
-            <span className="hidden xl:inline">{t('plateSolving.title') || 'Plate Solve'}</span>
           </Button>
         )}
       </DialogTrigger>

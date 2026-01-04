@@ -21,18 +21,20 @@ const nextConfig: NextConfig = {
   
   // Rewrites for development - proxy Stellarium data requests to bypass CORS
   // Note: These only work in dev mode, not with static export
-  async rewrites() {
-    return [
-      {
-        source: '/stellarium-proxy/:path*',
-        destination: 'https://data.stellarium-web.org/:path*',
-      },
-      {
-        source: '/cds-proxy/:path*',
-        destination: 'https://alasky.cds.unistra.fr/:path*',
-      },
-    ];
-  },
+  ...(isProd ? {} : {
+    async rewrites() {
+      return [
+        {
+          source: '/stellarium-proxy/:path*',
+          destination: 'https://data.stellarium-web.org/:path*',
+        },
+        {
+          source: '/cds-proxy/:path*',
+          destination: 'https://alasky.cds.unistra.fr/:path*',
+        },
+      ];
+    },
+  }),
 };
 
 export default nextConfig;

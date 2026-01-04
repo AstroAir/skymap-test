@@ -189,6 +189,28 @@
   }
 }
 
+/* Theme transition - smooth color changes */
+:root {
+  --theme-transition-duration: 200ms;
+}
+
+/* Apply smooth transitions to theme-sensitive properties */
+html:not(.no-transitions),
+html:not(.no-transitions) body,
+html:not(.no-transitions) * {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: var(--theme-transition-duration);
+  transition-timing-function: ease-out;
+}
+
+/* Disable transitions during initial load to prevent flash */
+html.no-transitions,
+html.no-transitions *,
+html.no-transitions *::before,
+html.no-transitions *::after {
+  transition: none !important;
+}
+
 /* ============================================================================
    Mobile-First Responsive Utilities & Animations
    ============================================================================ */

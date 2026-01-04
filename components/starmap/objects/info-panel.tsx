@@ -185,13 +185,25 @@ export function InfoPanel({
     
     const padding = 16;
     const offset = 20; // Offset from click point
+    const rightPanelWidth = 320; // Reserve space for right-side panels
+    const topBarHeight = 64; // Reserve space for top toolbar
+    const bottomBarHeight = 48; // Reserve space for bottom status bar
+    
+    // Calculate available width (exclude right panel area)
+    const availableWidth = containerBounds.width - rightPanelWidth;
     
     let left = clickPosition.x + offset;
     let top = clickPosition.y - panelSize.height / 2;
     
-    // Check right edge
-    if (left + panelSize.width + padding > containerBounds.width) {
+    // Check right edge - ensure InfoPanel stays within left portion of screen
+    if (left + panelSize.width + padding > availableWidth) {
+      // Try to position on left side of click
       left = clickPosition.x - panelSize.width - offset;
+    }
+    
+    // If still exceeds available width, clamp to available area
+    if (left + panelSize.width > availableWidth) {
+      left = availableWidth - panelSize.width - padding;
     }
     
     // Check left edge
@@ -199,14 +211,14 @@ export function InfoPanel({
       left = padding;
     }
     
-    // Check top edge
-    if (top < padding) {
-      top = padding;
+    // Check top edge (account for top toolbar)
+    if (top < topBarHeight + padding) {
+      top = topBarHeight + padding;
     }
     
-    // Check bottom edge
-    if (top + panelSize.height + padding > containerBounds.height) {
-      top = containerBounds.height - panelSize.height - padding;
+    // Check bottom edge (account for bottom status bar)
+    if (top + panelSize.height + padding > containerBounds.height - bottomBarHeight) {
+      top = containerBounds.height - panelSize.height - bottomBarHeight - padding;
     }
     
     return { left, top };

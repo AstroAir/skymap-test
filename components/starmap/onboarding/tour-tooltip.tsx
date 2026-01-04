@@ -59,9 +59,12 @@ export function TourTooltip({
     const tooltipRect = tooltip.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const targetRect = element?.getBoundingClientRect();
+    const padding = step.highlightPadding || 8;
+    const gap = ARROW_SIZE + 6;
 
     // Center placement (no target element or center specified)
-    if (!element || step.placement === 'center') {
+    if (!element || step.placement === 'center' || !targetRect) {
       setPosition({
         top: (viewportHeight - tooltipRect.height) / 2,
         left: (viewportWidth - tooltipRect.width) / 2,
@@ -71,38 +74,55 @@ export function TourTooltip({
       return;
     }
 
-    const targetRect = element.getBoundingClientRect();
-    const padding = step.highlightPadding || 8;
+    const targetCenterX = targetRect.left + targetRect.width / 2;
+    const targetCenterY = targetRect.top + targetRect.height / 2;
+
+    const canPlace = {
+      bottom: targetRect.bottom + padding + gap + tooltipRect.height < viewportHeight - TOOLTIP_MARGIN,
+      top: targetRect.top - padding - gap - tooltipRect.height > TOOLTIP_MARGIN,
+      left: targetRect.left - padding - gap - tooltipRect.width > TOOLTIP_MARGIN,
+      right: targetRect.right + padding + gap + tooltipRect.width < viewportWidth - TOOLTIP_MARGIN,
+    };
+
+    const placementOrder = [
+      step.placement,
+      'bottom',
+      'top',
+      'right',
+      'left',
+    ].filter((value, index, self) => Boolean(value) && self.indexOf(value) === index) as Array<TourStep['placement']>;
+
+    const resolvedPlacement = placementOrder.find((p) => p === 'bottom' ? canPlace.bottom : p === 'top' ? canPlace.top : p === 'left' ? canPlace.left : p === 'right' ? canPlace.right : true) || 'bottom';
 
     let top = 0;
     let left = 0;
     let arrowPosition: TooltipPosition['arrowPosition'] = 'none';
     let arrowOffset = 0;
 
-    switch (step.placement) {
+    switch (resolvedPlacement) {
       case 'bottom':
-        top = targetRect.bottom + padding + ARROW_SIZE + 4;
-        left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
+        top = targetRect.bottom + padding + gap;
+        left = targetCenterX - tooltipRect.width / 2;
         arrowPosition = 'top';
-        arrowOffset = tooltipRect.width / 2;
+        arrowOffset = targetCenterX - left;
         break;
       case 'top':
-        top = targetRect.top - padding - tooltipRect.height - ARROW_SIZE - 4;
-        left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
+        top = targetRect.top - padding - tooltipRect.height - gap;
+        left = targetCenterX - tooltipRect.width / 2;
         arrowPosition = 'bottom';
-        arrowOffset = tooltipRect.width / 2;
+        arrowOffset = targetCenterX - left;
         break;
       case 'left':
-        top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
-        left = targetRect.left - padding - tooltipRect.width - ARROW_SIZE - 4;
+        top = targetCenterY - tooltipRect.height / 2;
+        left = targetRect.left - padding - tooltipRect.width - gap;
         arrowPosition = 'right';
-        arrowOffset = tooltipRect.height / 2;
+        arrowOffset = targetCenterY - top;
         break;
       case 'right':
-        top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
-        left = targetRect.right + padding + ARROW_SIZE + 4;
+        top = targetCenterY - tooltipRect.height / 2;
+        left = targetRect.right + padding + gap;
         arrowPosition = 'left';
-        arrowOffset = tooltipRect.height / 2;
+        arrowOffset = targetCenterY - top;
         break;
     }
 

@@ -47,7 +47,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
-  MapPin,
+  MapPinned,
   Plus,
   Trash2,
   Edit,
@@ -70,7 +70,7 @@ const MarkerIconDisplay: Record<MarkerIcon, React.ComponentType<{ className?: st
   star: Star,
   circle: Circle,
   crosshair: Crosshair,
-  pin: MapPin,
+  pin: MapPinned,
   diamond: Diamond,
   triangle: Triangle,
   square: Square,
@@ -277,7 +277,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
           <TooltipTrigger asChild>
             <DrawerTrigger asChild>
               <Button variant="ghost" size="icon" className="h-10 w-10 touch-target toolbar-btn">
-                <MapPin className="h-5 w-5" />
+                <MapPinned className="h-5 w-5" />
               </Button>
             </DrawerTrigger>
           </TooltipTrigger>
@@ -290,7 +290,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
           <DrawerHeader className="p-4 pb-2">
             <div className="flex items-center justify-between">
               <DrawerTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
+                <MapPinned className="h-5 w-5" />
                 {t('markers.skyMarkers')}
               </DrawerTitle>
               <div className="flex items-center gap-1">
@@ -351,7 +351,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
           <ScrollArea className="h-[calc(100vh-180px)]">
             {filteredMarkers.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-                <MapPin className="h-12 w-12 mb-4 opacity-50" />
+                <MapPinned className="h-12 w-12 mb-4 opacity-50" />
                 <p className="text-center">{t('markers.noMarkers')}</p>
                 <p className="text-center text-sm mt-1">{t('markers.noMarkersHint')}</p>
               </div>

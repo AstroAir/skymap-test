@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMarkerStore, type SkyMarker, type MarkerIcon } from '@/lib/stores';
 import { useStellariumStore } from '@/lib/stores';
+import { useThrottledUpdate } from '@/lib/hooks';
 import {
   Star,
   Circle,
@@ -161,45 +162,28 @@ export function SkyMarkers({
     markersRef.current = visibleMarkers;
   }, [visibleMarkers]);
 
-  // Update marker positions periodically
-  useEffect(() => {
-    if (!stel || !showMarkers) {
-      return;
+  // Optimized position update callback using RAF-based throttling
+  const updatePositions = useCallback(() => {
+    const currentMarkers = markersRef.current;
+    const positions: MarkerPosition[] = [];
+
+    for (const marker of currentMarkers) {
+      const pos = convertToScreen(marker.ra, marker.dec);
+      if (pos) {
+        positions.push({
+          marker,
+          x: pos.x,
+          y: pos.y,
+          visible: pos.visible,
+        });
+      }
     }
 
-    let mounted = true;
+    setMarkerPositions(positions);
+  }, [convertToScreen]);
 
-    const updatePositions = () => {
-      if (!mounted) return;
-      
-      const currentMarkers = markersRef.current;
-      const positions: MarkerPosition[] = [];
-
-      for (const marker of currentMarkers) {
-        const pos = convertToScreen(marker.ra, marker.dec);
-        if (pos) {
-          positions.push({
-            marker,
-            x: pos.x,
-            y: pos.y,
-            visible: pos.visible,
-          });
-        }
-      }
-
-      setMarkerPositions(positions);
-    };
-
-    // Initial update via RAF to avoid synchronous setState
-    requestAnimationFrame(updatePositions);
-    // Update at 30fps for smooth tracking
-    const interval = setInterval(updatePositions, 33);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [stel, showMarkers, convertToScreen]);
+  // Use RAF-based throttled update for smooth 30fps tracking
+  useThrottledUpdate(updatePositions, 33, !!stel && showMarkers);
 
   // Memoize renderable markers for rendering
   const renderableMarkers = useMemo(() => {

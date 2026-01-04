@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::storage::StorageError;
 use crate::utils::generate_id;
+use crate::security::limits;
 
 // ============================================================================
 // Types
@@ -320,6 +321,18 @@ pub async fn save_cached_tile(
     // SECURITY: Validate tile size to prevent DoS attacks
     crate::security::validate_size(&data, crate::security::limits::MAX_TILE_SIZE)
         .map_err(|e| StorageError::Other(e.to_string()))?;
+
+    // SECURITY: Check total cache size limit
+    let cache_data = load_cache_data(&app)?;
+    let current_total: u64 = cache_data.tiles.values().map(|t| t.size_bytes).sum();
+    let new_total = current_total + data.len() as u64;
+
+    if new_total > limits::MAX_CACHE_TOTAL_SIZE as u64 {
+        return Err(StorageError::Other(format!(
+            "Offline cache size limit reached ({} bytes)",
+            limits::MAX_CACHE_TOTAL_SIZE
+        )));
+    }
 
     let tile_path = get_tile_path(&app, &survey_id, zoom, x, y)?;
     fs::write(&tile_path, &data)?;

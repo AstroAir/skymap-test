@@ -79,3 +79,21 @@ export {
   type ThemePreset,
   type ThemeCustomization,
 } from './theme-store';
+
+// Favorites store
+export {
+  useFavoritesStore,
+  FAVORITE_TAGS,
+  type FavoriteObject,
+  type FavoriteTag,
+} from './favorites-store';
+
+// Bookmarks store
+export {
+  useBookmarksStore,
+  BOOKMARK_ICONS,
+  BOOKMARK_COLORS,
+  DEFAULT_BOOKMARKS,
+  type ViewBookmark,
+  type BookmarkIcon,
+} from './bookmarks-store';

@@ -651,9 +651,9 @@ export function TonightRecommendations() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10"
+              className="h-9 w-9"
             >
-              <Sparkles className="h-5 w-5" />
+              <Sparkles className="h-4 w-4" />
             </Button>
           </DialogTrigger>
         </TooltipTrigger>

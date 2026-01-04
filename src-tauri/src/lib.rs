@@ -18,6 +18,9 @@ mod http_client;
 #[cfg(desktop)]
 mod updater;
 
+#[cfg(desktop)]
+mod app_control;
+
 #[cfg(test)]
 mod security_tests;
 
@@ -103,6 +106,11 @@ use http_client::{
 use updater::{
     check_for_update, download_update, install_update, download_and_install_update,
     get_current_version, clear_pending_update, has_pending_update,
+};
+
+#[cfg(desktop)]
+use app_control::{
+    restart_app, quit_app, reload_webview, is_dev_mode,
 };
 
 #[cfg(desktop)]
@@ -317,6 +325,15 @@ pub fn run() {
             clear_pending_update,
             #[cfg(desktop)]
             has_pending_update,
+            // App control (desktop only)
+            #[cfg(desktop)]
+            restart_app,
+            #[cfg(desktop)]
+            quit_app,
+            #[cfg(desktop)]
+            reload_webview,
+            #[cfg(desktop)]
+            is_dev_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
-import { Moon, Sun, Monitor, ChevronDown, Palette } from 'lucide-react';
+import { Moon, Sun, Monitor, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -59,11 +59,11 @@ export function ThemeToggle({
           <Button
             variant="ghost"
             size="icon"
-            className={cn('h-10 w-10', className)}
+            className={cn('h-9 w-9', className)}
             onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
             suppressHydrationWarning
           >
-            <ThemeIcon className="h-5 w-5" />
+            <ThemeIcon className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -80,19 +80,11 @@ export function ThemeToggle({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
-          className={cn('gap-2', className)}
+          size="icon"
+          className={cn('h-9 w-9', className)}
           suppressHydrationWarning
         >
           <ThemeIcon className="h-4 w-4" />
-          <span className="hidden xl:inline" suppressHydrationWarning>
-            {theme === 'system' 
-              ? t('theme.system') 
-              : resolvedTheme === 'dark' 
-                ? t('common.darkMode') 
-                : t('common.lightMode')}
-          </span>
-          <ChevronDown className="h-3 w-3 opacity-50 hidden xl:block" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">

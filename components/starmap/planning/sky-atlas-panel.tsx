@@ -584,9 +584,8 @@ export function SkyAtlasPanel() {
   return (
     <Drawer open={isOpen} onOpenChange={setIsOpen} direction="right">
       <DrawerTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="ghost" size="icon" className="h-9 w-9">
           <Telescope className="h-4 w-4" />
-          <span className="hidden xl:inline">{t('skyAtlas.title')}</span>
         </Button>
       </DrawerTrigger>
       <DrawerContent className="w-[320px] sm:w-[450px] md:w-[540px] h-full p-0 flex flex-col">

@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore, useFramingStore, useMountStore, useEquipmentStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
+import { cn } from '@/lib/utils';
 import { Search, X, Crosshair, RotateCcw, Menu, ZoomIn, ZoomOut, Camera, Copy, MapPin, RotateCw, PanelLeftClose, PanelLeft, Plus, Settings, Target, Navigation, Grid3X3 } from 'lucide-react';
 import type { SelectedObjectData } from '@/lib/core/types';
 
@@ -53,7 +54,6 @@ import { StellariumCanvas, type StellariumCanvasRef } from '../canvas/stellarium
 import { StellariumSearch, type StellariumSearchRef } from '../search/stellarium-search';
 import { StellariumSettings } from '../settings/stellarium-settings';
 import { UnifiedSettings } from '../management/unified-settings';
-import { StellariumCredits } from '../dialogs/stellarium-credits';
 import { StellariumClock } from '../time/stellarium-clock';
 import { StellariumMount } from '../mount/stellarium-mount';
 import { ZoomControls } from '../controls/zoom-controls';
@@ -80,12 +80,23 @@ import { LanguageSwitcher } from '@/components/common/language-switcher';
 import { ThemeToggle } from '@/components/common/theme-toggle';
 import { NightModeToggle } from '@/components/common/night-mode-toggle';
 import { SensorControlToggle } from '@/components/common/sensor-control-toggle';
+import { AppControlMenu } from '@/components/common/app-control-menu';
+import { ToolbarGroup } from '@/components/common/toolbar-button';
+import { isTauri, quitApp } from '@/lib/tauri/app-control-api';
+import { Power } from 'lucide-react';
 import { OnboardingTour } from '../onboarding/onboarding-tour';
 import { WelcomeDialog } from '../onboarding/welcome-dialog';
 import { PlateSolver } from '../plate-solving/plate-solver';
 import { SkyAtlasPanel } from '../planning/sky-atlas-panel';
 import { AstroSessionPanel } from '../planning/astro-session-panel';
+import { AstroCalculatorDialog } from '../planning/astro-calculator-dialog';
+import { SessionPlanner } from '../planning/session-planner';
 import { EquipmentManager } from '../management/equipment-manager';
+import { KeyboardShortcutsManager } from '../controls/keyboard-shortcuts-manager';
+import { KeyboardShortcutsDialog } from '../dialogs/keyboard-shortcuts-dialog';
+import { NavigationHistory } from '../controls/navigation-history';
+import { ViewBookmarks } from '../controls/view-bookmarks';
+import { useNavigationHistoryStore } from '@/lib/hooks';
 
 // Context menu click coordinates type
 interface ClickCoords {
@@ -273,6 +284,9 @@ export function StellariumView() {
   // Marker store - for adding and editing markers from context menu
   const setPendingMarkerCoords = useMarkerStore((state) => state.setPendingCoords);
   const setEditingMarkerId = useMarkerStore((state) => state.setEditingMarkerId);
+  
+  // Navigation history store
+  const pushNavigationHistory = useNavigationHistoryStore((state) => state.push);
 
   // Track container bounds on resize
   useEffect(() => {
@@ -316,9 +330,16 @@ export function StellariumView() {
           setClickPosition(lastPos);
         }
       }
+      // Track navigation history when selecting an object
+      pushNavigationHistory({
+        ra: selection.raDeg,
+        dec: selection.decDeg,
+        fov: currentFov,
+        name: selection.names[0],
+      });
     }
     setSelectedObject(selection);
-  }, []);
+  }, [currentFov, pushNavigationHistory]);
 
   // Handle FOV change
   const handleFovChange = useCallback((fov: number) => {
@@ -502,6 +523,25 @@ export function StellariumView() {
         {/* Onboarding Components */}
         <WelcomeDialog />
         <OnboardingTour />
+
+        {/* Keyboard Shortcuts Manager */}
+        <KeyboardShortcutsManager
+          onToggleSearch={() => {
+            setIsSearchOpen(prev => !prev);
+            if (!isSearchOpen) {
+              setTimeout(() => searchRef.current?.focusSearchInput(), 100);
+            }
+          }}
+          onToggleSessionPanel={() => setShowSessionPanel(prev => !prev)}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onResetView={handleResetView}
+          onClosePanel={() => {
+            if (isSearchOpen) setIsSearchOpen(false);
+            else if (selectedObject) setSelectedObject(null);
+          }}
+          enabled={!!stel}
+        />
 
         {/* Canvas with context menu handling */}
         <div className="absolute inset-0">
@@ -915,19 +955,27 @@ export function StellariumView() {
           />
         )}
 
-        {/* Top Bar */}
-        <div className="absolute top-0 left-0 right-0 p-2 sm:p-3 flex items-center justify-between pointer-events-none safe-area-top animate-fade-in">
+        {/* Top Bar with integrated drag region */}
+        <div className="absolute top-0 left-0 right-0 pointer-events-none safe-area-top animate-fade-in">
+          {/* Drag region layer - covers entire top bar area */}
+          <div
+            data-tauri-drag-region
+            className="absolute inset-0 h-12 pointer-events-auto"
+            style={{ zIndex: 0 }}
+          />
+
+          <div className="relative p-2 sm:p-3 flex items-center justify-between" style={{ zIndex: 1 }}>
           {/* Left: Menu & Search */}
-          <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="flex items-center gap-1.5 pointer-events-auto">
             {/* Mobile Menu */}
             <Drawer direction="left">
               <DrawerTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11 bg-black/60 backdrop-blur-sm text-white hover:bg-black/80 md:hidden touch-target toolbar-btn"
+                  className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground/80 hover:text-foreground hover:bg-accent md:hidden touch-target toolbar-btn"
                 >
-                  <Menu className="h-5 w-5" />
+                  <Menu className="h-4 w-4" />
                 </Button>
               </DrawerTrigger>
               <DrawerContent className="w-[85vw] max-w-80 h-full bg-card border-border p-0 flex flex-col drawer-content">
@@ -995,6 +1043,19 @@ export function StellariumView() {
                         <AboutDialog />
                         <span className="text-[10px] text-muted-foreground mt-1">{t('about.title')}</span>
                       </div>
+                      {isTauri() && (
+                        <div className="flex flex-col items-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 text-destructive hover:bg-destructive/10"
+                            onClick={() => quitApp()}
+                          >
+                            <Power className="h-5 w-5" />
+                          </Button>
+                          <span className="text-[10px] text-destructive mt-1">{t('appControl.quit')}</span>
+                        </div>
+                      )}
                     </div>
                     
                     <Separator />
@@ -1012,13 +1073,6 @@ export function StellariumView() {
                       <h3 className="text-sm font-medium text-muted-foreground">{t('cache.offlineStorage')}</h3>
                       <OfflineCacheManager />
                     </div>
-                    
-                    <Separator />
-                    
-                    {/* Credits */}
-                    <div className="pt-2">
-                      <StellariumCredits />
-                    </div>
                   </div>
                 </ScrollArea>
               </DrawerContent>
@@ -1031,7 +1085,12 @@ export function StellariumView() {
                   data-tour-id="search-button"
                   variant="ghost"
                   size="icon"
-                  className={`h-11 w-11 backdrop-blur-sm touch-target toolbar-btn ${isSearchOpen ? 'bg-primary/30 text-primary' : 'bg-black/60 text-white hover:bg-black/80'}`}
+                  className={cn(
+                    "h-9 w-9 backdrop-blur-md border border-border/50 touch-target toolbar-btn",
+                    isSearchOpen
+                      ? "bg-primary/20 text-primary border-primary/50"
+                      : "bg-card/60 text-foreground/80 hover:text-foreground hover:bg-accent"
+                  )}
                   onClick={() => {
                     setIsSearchOpen(!isSearchOpen);
                     if (!isSearchOpen) {
@@ -1040,7 +1099,7 @@ export function StellariumView() {
                     }
                   }}
                 >
-                  {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+                  {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -1055,68 +1114,74 @@ export function StellariumView() {
           </div>
 
           {/* Right: Settings */}
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-1.5 pointer-events-auto">
+            {/* Desktop Toolbar */}
+            <div className="hidden md:flex items-center gap-1.5">
               {/* Unified Settings Panel */}
-              <div data-tour-id="settings-button">
+              <ToolbarGroup gap="sm" className="p-0.5" data-tour-id="settings-button">
                 <UnifiedSettings />
-              </div>
-              
-              <div className="flex gap-1 bg-black/60 backdrop-blur-sm rounded-md">
-                <NightModeToggle className="text-white hover:bg-black/80" />
-                <SensorControlToggle className="text-white hover:bg-black/80" />
-                <ThemeToggle />
-                <LanguageSwitcher className="h-10 w-10 text-white hover:bg-black/80" />
-              </div>
-              
-              {/* Tonight's Recommendations - Now powered by Sky Atlas */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md" data-tour-id="tonight-button">
+              </ToolbarGroup>
+
+              {/* Display Mode Controls */}
+              <ToolbarGroup gap="none" className="p-0.5">
+                <NightModeToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+                <SensorControlToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+                <ThemeToggle className="h-9 w-9" />
+                <LanguageSwitcher className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              </ToolbarGroup>
+
+              {/* Main Tools Group */}
+              <ToolbarGroup gap="none" className="p-0.5" data-tour-id="tonight-button">
                 <TonightRecommendations />
-              </div>
-              
-              {/* Sky Atlas Panel - Deep Sky Object Catalog */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
                 <SkyAtlasPanel />
-              </div>
-              
-              {/* Astronomical Events Calendar */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+                <AstroCalculatorDialog />
+                <SessionPlanner />
                 <AstroEventsCalendar />
-              </div>
-              
-              {/* Satellite Tracker */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
                 <SatelliteTracker />
-              </div>
-              
-              {/* Ocular Simulator */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+              </ToolbarGroup>
+
+              {/* Secondary Tools Group */}
+              <ToolbarGroup gap="none" className="p-0.5">
                 <OcularSimulator />
-              </div>
-              
-              {/* Plate Solver */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
-                <PlateSolver 
+                <PlateSolver
                   onGoToCoordinates={(ra, dec) => {
                     if (setViewDirection) {
                       setViewDirection(ra, dec);
                     }
                   }}
                 />
-              </div>
-              
-              {/* Equipment Manager */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
                 <EquipmentManager />
-              </div>
-              
-              <StellariumCredits />
-              
-              {/* About */}
-              <div className="bg-black/60 backdrop-blur-sm rounded-md">
+              </ToolbarGroup>
+
+              {/* Info Group */}
+              <ToolbarGroup gap="none" className="p-0.5">
+                <KeyboardShortcutsDialog />
                 <AboutDialog />
-              </div>
+              </ToolbarGroup>
             </div>
+            
+            {/* Navigation History & Bookmarks */}
+            <ToolbarGroup gap="none" className="p-0.5 bg-card/60 backdrop-blur-md border border-border/50 rounded-lg">
+              <NavigationHistory 
+                onNavigate={(ra, dec, fov) => {
+                  if (setViewDirection) {
+                    setViewDirection(ra, dec);
+                  }
+                  canvasRef.current?.setFov(fov);
+                }}
+              />
+              <ViewBookmarks
+                currentRa={selectedObject?.raDeg ?? 0}
+                currentDec={selectedObject?.decDeg ?? 0}
+                currentFov={currentFov}
+                onNavigate={(ra, dec, fov) => {
+                  if (setViewDirection) {
+                    setViewDirection(ra, dec);
+                  }
+                  canvasRef.current?.setFov(fov);
+                }}
+              />
+            </ToolbarGroup>
             
             {/* Reset View */}
             <Tooltip>
@@ -1124,10 +1189,10 @@ export function StellariumView() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11 bg-black/60 backdrop-blur-sm text-white hover:bg-black/80 touch-target toolbar-btn"
+                  className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground/80 hover:text-foreground hover:bg-accent touch-target toolbar-btn"
                   onClick={handleResetView}
                 >
-                  <RotateCcw className="h-5 w-5" />
+                  <RotateCcw className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -1141,10 +1206,15 @@ export function StellariumView() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-11 w-11 backdrop-blur-sm touch-target toolbar-btn ${showSessionPanel ? 'bg-primary/30 text-primary' : 'bg-black/60 text-white hover:bg-black/80'}`}
+                  className={cn(
+                    "h-9 w-9 backdrop-blur-md border border-border/50 touch-target toolbar-btn",
+                    showSessionPanel
+                      ? "bg-primary/20 text-primary border-primary/50"
+                      : "bg-card/60 text-foreground/80 hover:text-foreground hover:bg-accent"
+                  )}
                   onClick={() => setShowSessionPanel(!showSessionPanel)}
                 >
-                  {showSessionPanel ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
+                  {showSessionPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -1153,9 +1223,17 @@ export function StellariumView() {
             </Tooltip>
 
             {/* Object Type Legend */}
-            <div className="bg-black/60 backdrop-blur-sm rounded-lg">
+            <ToolbarGroup gap="none" className="p-0.5">
               <ObjectTypeLegend variant="popover" />
+            </ToolbarGroup>
+
+            {/* App Controls - Window controls integrated into toolbar */}
+            <div className="hidden md:flex">
+              <ToolbarGroup gap="none" className="p-0.5 ml-1">
+                <AppControlMenu variant="inline" />
+              </ToolbarGroup>
             </div>
+          </div>
           </div>
         </div>
 
@@ -1187,7 +1265,7 @@ export function StellariumView() {
         {/* Right Side Controls - Desktop Only */}
         <div className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto animate-slide-in-right">
           {/* Zoom Controls */}
-          <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border" data-tour-id="zoom-controls">
+          <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-[72px]" data-tour-id="zoom-controls">
             <ZoomControls
               fov={currentFov}
               onZoomIn={handleZoomIn}
@@ -1197,7 +1275,7 @@ export function StellariumView() {
           </div>
 
           {/* Tool Buttons - Vertical */}
-          <div className="flex flex-col gap-1 bg-black/80 backdrop-blur-sm rounded-lg border border-border p-1">
+          <div className="flex flex-col items-center gap-1 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-1 w-[72px]">
             <MarkerManager initialCoords={contextMenuCoords} />
             <TooltipProvider>
               <Tooltip>
@@ -1207,7 +1285,7 @@ export function StellariumView() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-white hover:bg-white/20 h-10 w-10"
+                        className="text-foreground/80 hover:text-foreground hover:bg-accent h-9 w-9"
                       >
                         <MapPin className="h-4 w-4" />
                       </Button>
@@ -1262,14 +1340,14 @@ export function StellariumView() {
 
           {/* Mount Controls */}
           {stel && (
-            <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border">
+            <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50">
               <StellariumMount />
             </div>
           )}
-          
+
           {/* Astro Session Panel - Show conditions for selected object */}
           {selectedObject && (
-            <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border p-2 max-w-[280px]">
+            <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-2 max-w-[280px]">
               <AstroSessionPanel
                 selectedRa={selectedObject.raDeg}
                 selectedDec={selectedObject.decDeg}
@@ -1278,11 +1356,11 @@ export function StellariumView() {
             </div>
           )}
         </div>
-        
+
         {/* Mobile Controls - Bottom Right Corner */}
         <div className="sm:hidden absolute right-2 bottom-16 flex flex-col items-center gap-1 pointer-events-auto animate-slide-in-right">
           {/* Compact Zoom */}
-          <div className="bg-black/80 backdrop-blur-sm rounded-lg border border-border">
+          <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50">
             <ZoomControls
               fov={currentFov}
               onZoomIn={handleZoomIn}
@@ -1291,9 +1369,9 @@ export function StellariumView() {
             />
           </div>
         </div>
-        
+
         {/* Mobile Bottom Tools Bar - Horizontal */}
-        <div className="sm:hidden absolute bottom-16 left-2 right-16 flex items-center gap-1 bg-black/80 backdrop-blur-sm rounded-lg border border-border p-1 pointer-events-auto overflow-x-auto scrollbar-hide animate-slide-in-left">
+        <div className="sm:hidden absolute bottom-16 left-2 right-16 flex items-center gap-1 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-1 pointer-events-auto overflow-x-auto scrollbar-hide animate-slide-in-left">
           <MarkerManager initialCoords={contextMenuCoords} />
           <TooltipProvider>
             <Tooltip>
@@ -1303,7 +1381,7 @@ export function StellariumView() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-white hover:bg-white/20 h-10 w-10 shrink-0"
+                      className="text-foreground/80 hover:text-foreground hover:bg-accent h-9 w-9 shrink-0"
                     >
                       <MapPin className="h-4 w-4" />
                     </Button>
@@ -1364,16 +1442,15 @@ export function StellariumView() {
 
         {/* Info Panel - only show when object is selected */}
         {selectedObject && !isSearchOpen && (
-          <div className="pointer-events-auto z-40 info-panel-enter">
-            <InfoPanel
-              selectedObject={selectedObject}
-              onClose={() => setSelectedObject(null)}
-              onSetFramingCoordinates={handleSetFramingCoordinates}
-              onViewDetails={() => setDetailDrawerOpen(true)}
-              clickPosition={clickPosition}
-              containerBounds={containerBounds}
-            />
-          </div>
+          <InfoPanel
+            selectedObject={selectedObject}
+            onClose={() => setSelectedObject(null)}
+            onSetFramingCoordinates={handleSetFramingCoordinates}
+            onViewDetails={() => setDetailDrawerOpen(true)}
+            clickPosition={clickPosition}
+            containerBounds={containerBounds}
+            className="pointer-events-auto info-panel-enter"
+          />
         )}
 
         {/* Object Detail Drawer */}
@@ -1386,20 +1463,20 @@ export function StellariumView() {
 
         {/* Bottom Status Bar */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none safe-area-bottom">
-          <div className="bg-black/80 backdrop-blur-sm border-t border-border px-2 sm:px-4 py-1.5 sm:py-2 status-bar-reveal">
+          <div className="bg-card/80 backdrop-blur-md border-t border-border/50 px-2 sm:px-4 py-1.5 sm:py-2 status-bar-reveal">
             <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
               {/* Left: View Center Coordinates */}
               <div className="flex items-center gap-4">
                 <ViewCenterDisplay />
               </div>
-              
+
               {/* Center: FOV */}
               <div className="flex items-center gap-4">
                 <span className="text-muted-foreground">
                   FOV: <span className="text-foreground font-mono">{currentFov < 1 ? currentFov.toFixed(2) : currentFov.toFixed(1)}°</span>
                 </span>
               </div>
-              
+
               {/* Right: Location & Time */}
               <div className="flex items-center gap-4">
                 <LocationTimeDisplay />

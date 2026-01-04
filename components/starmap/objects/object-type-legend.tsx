@@ -17,7 +17,7 @@ import {
   Moon,
   Asterisk,
   Atom,
-  HelpCircle,
+  Library,
 } from 'lucide-react';
 import {
   Dialog,
@@ -154,7 +154,7 @@ export const ObjectTypeLegend = memo(function ObjectTypeLegend({
       size="sm"
       className={cn('h-8 px-2 text-xs gap-1.5 touch-target', triggerClassName)}
     >
-      <HelpCircle className="h-4 w-4" />
+      <Library className="h-4 w-4" />
       <span className="hidden sm:inline">{t('objectTypes')}</span>
     </Button>
   );

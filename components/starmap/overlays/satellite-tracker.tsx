@@ -688,8 +688,8 @@ export function SatelliteTracker() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <Satellite className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="h-9 w-9">
+              <Satellite className="h-4 w-4" />
             </Button>
           </DialogTrigger>
         </TooltipTrigger>

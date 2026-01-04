@@ -68,3 +68,16 @@ export type {
 // Updater Hooks
 export { useUpdater, useAutoUpdater } from './updater-hooks';
 export type { UseUpdaterOptions, UseUpdaterReturn } from './updater-hooks';
+
+// App Control API (desktop only)
+export {
+  isTauri,
+  restartApp,
+  quitApp,
+  reloadWebview,
+  isDevMode,
+  closeWindow,
+  minimizeWindow,
+  toggleMaximizeWindow,
+  isWindowMaximized,
+} from './app-control-api';

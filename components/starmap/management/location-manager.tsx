@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   MapPin,
@@ -29,6 +29,20 @@ import { toast } from 'sonner';
 import { useLocations, tauriApi } from '@/lib/tauri';
 import { MapLocationPicker } from '@/components/starmap/map';
 
+// Web location storage key
+const WEB_LOCATIONS_KEY = 'starmap-web-locations';
+
+interface WebLocation {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  bortle_class?: number;
+  is_default: boolean;
+  is_current: boolean;
+}
+
 interface LocationManagerProps {
   trigger?: React.ReactNode;
   onLocationChange?: (lat: number, lon: number, alt: number) => void;
@@ -36,17 +50,41 @@ interface LocationManagerProps {
 
 export function LocationManager({ trigger, onLocationChange }: LocationManagerProps) {
   const t = useTranslations();
-  const { locations, currentLocation, loading, refresh, setCurrent, isAvailable } = useLocations();
+  const { locations, currentLocation, loading, refresh, setCurrent, isAvailable: isTauriAvailable } = useLocations();
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [inputMethod, setInputMethod] = useState<'manual' | 'map'>('manual');
-
+  
   // Hydration-safe mounting detection using useSyncExternalStore
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false
   );
+  
+  // Web locations state with lazy initialization
+  const [webLocations, setWebLocations] = useState<WebLocation[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = localStorage.getItem(WEB_LOCATIONS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Computed current location for web
+  const webCurrentLocation = webLocations.find(l => l.is_current) || null;
+
+  // Save web locations to localStorage
+  const saveWebLocations = useCallback((locs: WebLocation[]) => {
+    try {
+      localStorage.setItem(WEB_LOCATIONS_KEY, JSON.stringify(locs));
+      setWebLocations(locs);
+    } catch (e) {
+      console.error('Failed to save web locations:', e);
+    }
+  }, []);
 
   // Form state
   const [form, setForm] = useState({
@@ -57,9 +95,13 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
     bortle_class: '',
   });
 
-  if (!mounted || !isAvailable) {
+  if (!mounted) {
     return null;
   }
+
+  // Determine which data source to use
+  const locationList = isTauriAvailable ? (locations?.locations ?? []) : webLocations;
+  const activeLocation = isTauriAvailable ? currentLocation : webCurrentLocation;
 
   const handleAdd = async () => {
     if (!form.name || !form.latitude || !form.longitude) {
@@ -67,46 +109,84 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       return;
     }
 
-    try {
-      await tauriApi.locations.add({
+    if (isTauriAvailable) {
+      try {
+        await tauriApi.locations.add({
+          name: form.name,
+          latitude: parseFloat(form.latitude),
+          longitude: parseFloat(form.longitude),
+          altitude: parseFloat(form.altitude) || 0,
+          bortle_class: form.bortle_class ? parseInt(form.bortle_class) : undefined,
+          is_default: !locations?.locations.length,
+          is_current: !locations?.locations.length,
+        });
+        
+        toast.success(t('locations.added') || 'Location added');
+        setForm({ name: '', latitude: '', longitude: '', altitude: '', bortle_class: '' });
+        setAdding(false);
+        refresh();
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    } else {
+      // Web environment - use localStorage
+      const newLocation: WebLocation = {
+        id: `loc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         name: form.name,
         latitude: parseFloat(form.latitude),
         longitude: parseFloat(form.longitude),
         altitude: parseFloat(form.altitude) || 0,
         bortle_class: form.bortle_class ? parseInt(form.bortle_class) : undefined,
-        is_default: !locations?.locations.length,
-        is_current: !locations?.locations.length,
-      });
-      
+        is_default: webLocations.length === 0,
+        is_current: webLocations.length === 0,
+      };
+      saveWebLocations([...webLocations, newLocation]);
       toast.success(t('locations.added') || 'Location added');
       setForm({ name: '', latitude: '', longitude: '', altitude: '', bortle_class: '' });
       setAdding(false);
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
+      
+      if (newLocation.is_current && onLocationChange) {
+        onLocationChange(newLocation.latitude, newLocation.longitude, newLocation.altitude);
+      }
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await tauriApi.locations.delete(id);
+    if (isTauriAvailable) {
+      try {
+        await tauriApi.locations.delete(id);
+        toast.success(t('locations.deleted') || 'Location deleted');
+        refresh();
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    } else {
+      const updated = webLocations.filter(l => l.id !== id);
+      saveWebLocations(updated);
       toast.success(t('locations.deleted') || 'Location deleted');
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
     }
   };
 
   const handleSetCurrent = async (id: string) => {
-    try {
-      await setCurrent(id);
-      const loc = locations?.locations.find(l => l.id === id);
+    if (isTauriAvailable) {
+      try {
+        await setCurrent(id);
+        const loc = locations?.locations.find(l => l.id === id);
+        if (loc && onLocationChange) {
+          onLocationChange(loc.latitude, loc.longitude, loc.altitude);
+        }
+        toast.success(t('locations.setCurrent') || 'Location set as current');
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    } else {
+      const updated = webLocations.map(l => ({ ...l, is_current: l.id === id }));
+      saveWebLocations(updated);
+      const loc = updated.find(l => l.id === id);
       if (loc && onLocationChange) {
         onLocationChange(loc.latitude, loc.longitude, loc.altitude);
       }
       toast.success(t('locations.setCurrent') || 'Location set as current');
-    } catch (e) {
-      toast.error((e as Error).message);
     }
   };
 
@@ -159,7 +239,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
         {trigger || (
           <Button variant="outline" size="sm">
             <MapPin className="h-4 w-4 mr-2" />
-            {currentLocation?.name || t('locations.title') || 'Location'}
+            {activeLocation?.name || t('locations.title') || 'Location'}
           </Button>
         )}
       </DialogTrigger>
@@ -174,20 +254,20 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
           </DialogDescription>
         </DialogHeader>
 
-        {loading ? (
+        {isTauriAvailable && loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
           <div className="space-y-4">
             <ScrollArea className="h-[200px]">
-              {locations?.locations.length === 0 ? (
+              {locationList.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">
                   {t('locations.noLocations') || 'No locations added'}
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {locations?.locations.map((loc) => (
+                  {locationList.map((loc) => (
                     <div 
                       key={loc.id} 
                       className={`flex items-center justify-between p-2 border rounded ${

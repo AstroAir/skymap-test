@@ -154,11 +154,13 @@ export function UnifiedSettings() {
               variant="ghost"
               size="icon"
               className={cn(
-                "h-11 w-11 backdrop-blur-sm touch-target toolbar-btn",
-                open ? "bg-primary/30 text-primary" : "bg-black/60 text-white hover:bg-black/80"
+                "h-9 w-9 backdrop-blur-md border border-border/50 touch-target toolbar-btn",
+                open
+                  ? "bg-primary/20 text-primary border-primary/50"
+                  : "bg-card/80 text-foreground/80 hover:text-foreground hover:bg-accent"
               )}
             >
-              <Settings className="h-5 w-5" />
+              <Settings className="h-4 w-4" />
             </Button>
           </DrawerTrigger>
         </TooltipTrigger>

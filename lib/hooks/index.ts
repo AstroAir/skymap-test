@@ -67,3 +67,31 @@ export {
   type UseHttpClientReturn,
   type HttpRequestState,
 } from './use-http-client';
+
+// Animation and performance hooks
+export {
+  useAnimationFrame,
+  useThrottledUpdate,
+  useGlobalAnimationLoop,
+  globalAnimationLoop,
+  AnimationLoopManager,
+  type AnimationFrameOptions,
+} from './use-animation-frame';
+
+// Keyboard shortcuts
+export {
+  useKeyboardShortcuts,
+  formatShortcut,
+  STARMAP_SHORTCUT_KEYS,
+  type KeyboardShortcut,
+  type UseKeyboardShortcutsOptions,
+} from './use-keyboard-shortcuts';
+
+// Navigation history
+export {
+  useNavigationHistory,
+  useNavigationHistoryStore,
+  formatNavigationPoint,
+  formatTimestamp,
+  type NavigationPoint,
+} from './use-navigation-history';

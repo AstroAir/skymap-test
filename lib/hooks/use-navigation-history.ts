@@ -1,0 +1,198 @@
+/**
+ * Navigation history hook for star map view positions
+ * Allows users to go back/forward through visited celestial locations
+ */
+
+import { useCallback, useRef } from 'react';
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { getZustandStorage } from '@/lib/storage';
+
+export interface NavigationPoint {
+  id: string;
+  ra: number;
+  dec: number;
+  fov: number;
+  name?: string;
+  timestamp: number;
+}
+
+interface NavigationHistoryState {
+  history: NavigationPoint[];
+  currentIndex: number;
+  maxHistory: number;
+  
+  // Actions
+  push: (point: Omit<NavigationPoint, 'id' | 'timestamp'>) => void;
+  back: () => NavigationPoint | null;
+  forward: () => NavigationPoint | null;
+  canGoBack: () => boolean;
+  canGoForward: () => boolean;
+  clear: () => void;
+  getCurrent: () => NavigationPoint | null;
+  getHistory: () => NavigationPoint[];
+}
+
+// Generate unique ID for navigation points
+const generateId = () => `nav_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+// Check if two points are similar enough to be considered the same location
+const isSimilarPoint = (a: NavigationPoint, b: Omit<NavigationPoint, 'id' | 'timestamp'>): boolean => {
+  const raDiff = Math.abs(a.ra - b.ra);
+  const decDiff = Math.abs(a.dec - b.dec);
+  const fovDiff = Math.abs(a.fov - b.fov);
+  
+  // Consider points similar if within 0.1 degree and same FOV
+  return raDiff < 0.1 && decDiff < 0.1 && fovDiff < 0.5;
+};
+
+export const useNavigationHistoryStore = create<NavigationHistoryState>()(
+  persist(
+    (set, get) => ({
+      history: [],
+      currentIndex: -1,
+      maxHistory: 50,
+
+      push: (point) => {
+        const state = get();
+        const { history, currentIndex, maxHistory } = state;
+        
+        // Don't add if it's the same as current position
+        const current = currentIndex >= 0 ? history[currentIndex] : null;
+        if (current && isSimilarPoint(current, point)) {
+          return;
+        }
+
+        const newPoint: NavigationPoint = {
+          ...point,
+          id: generateId(),
+          timestamp: Date.now(),
+        };
+
+        // Remove any forward history when adding new point
+        const newHistory = history.slice(0, currentIndex + 1);
+        newHistory.push(newPoint);
+
+        // Limit history size
+        const trimmedHistory = newHistory.slice(-maxHistory);
+        const newIndex = trimmedHistory.length - 1;
+
+        set({
+          history: trimmedHistory,
+          currentIndex: newIndex,
+        });
+      },
+
+      back: () => {
+        const { history, currentIndex } = get();
+        if (currentIndex > 0) {
+          const newIndex = currentIndex - 1;
+          set({ currentIndex: newIndex });
+          return history[newIndex];
+        }
+        return null;
+      },
+
+      forward: () => {
+        const { history, currentIndex } = get();
+        if (currentIndex < history.length - 1) {
+          const newIndex = currentIndex + 1;
+          set({ currentIndex: newIndex });
+          return history[newIndex];
+        }
+        return null;
+      },
+
+      canGoBack: () => {
+        const { currentIndex } = get();
+        return currentIndex > 0;
+      },
+
+      canGoForward: () => {
+        const { history, currentIndex } = get();
+        return currentIndex < history.length - 1;
+      },
+
+      clear: () => {
+        set({ history: [], currentIndex: -1 });
+      },
+
+      getCurrent: () => {
+        const { history, currentIndex } = get();
+        return currentIndex >= 0 ? history[currentIndex] : null;
+      },
+
+      getHistory: () => {
+        return get().history;
+      },
+    }),
+    {
+      name: 'starmap-navigation-history',
+      storage: getZustandStorage(),
+      partialize: (state) => ({
+        history: state.history.slice(-20), // Only persist last 20 items
+        currentIndex: Math.min(state.currentIndex, 19),
+      }),
+    }
+  )
+);
+
+/**
+ * Hook for using navigation history with automatic position tracking
+ */
+export function useNavigationHistory() {
+  const store = useNavigationHistoryStore();
+  const lastPushRef = useRef<number>(0);
+  const DEBOUNCE_MS = 1000; // Minimum time between auto-pushes
+
+  const pushWithDebounce = useCallback((point: Omit<NavigationPoint, 'id' | 'timestamp'>) => {
+    const now = Date.now();
+    if (now - lastPushRef.current > DEBOUNCE_MS) {
+      lastPushRef.current = now;
+      store.push(point);
+    }
+  }, [store]);
+
+  return {
+    ...store,
+    pushWithDebounce,
+    historyCount: store.history.length,
+    currentIndex: store.currentIndex,
+  };
+}
+
+/**
+ * Format navigation point for display
+ */
+export function formatNavigationPoint(point: NavigationPoint): string {
+  if (point.name) {
+    return point.name;
+  }
+  
+  // Format RA as hours
+  const raHours = point.ra / 15;
+  const h = Math.floor(raHours);
+  const m = Math.floor((raHours - h) * 60);
+  
+  // Format Dec
+  const decSign = point.dec >= 0 ? '+' : '';
+  const dec = Math.abs(point.dec).toFixed(1);
+  
+  return `${h}h${m}m ${decSign}${dec}°`;
+}
+
+/**
+ * Format timestamp for display
+ */
+export function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - timestamp;
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+  
+  return date.toLocaleDateString();
+}

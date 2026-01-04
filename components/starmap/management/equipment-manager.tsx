@@ -9,7 +9,8 @@ import {
   Trash2,
   Star,
   Loader2,
-  Settings2,
+  Wrench,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,9 +32,15 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useEquipment, tauriApi } from '@/lib/tauri';
 import type { TelescopeType as TScopeType, CameraType as TCamType } from '@/lib/tauri';
+import { useEquipmentStore } from '@/lib/stores/equipment-store';
 
 interface EquipmentManagerProps {
   trigger?: React.ReactNode;
@@ -41,13 +48,26 @@ interface EquipmentManagerProps {
 
 export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   const t = useTranslations();
-  const { equipment, loading, refresh, isAvailable } = useEquipment();
+  const { equipment, loading, refresh, isAvailable: isTauriAvailable } = useEquipment();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('telescopes');
   const [addingTelescope, setAddingTelescope] = useState(false);
   const [addingCamera, setAddingCamera] = useState(false);
   const [addingBarlow, setAddingBarlow] = useState(false);
   const [addingFilter, setAddingFilter] = useState(false);
+  
+  // Web equipment store
+  const customCameras = useEquipmentStore((state) => state.customCameras);
+  const customTelescopes = useEquipmentStore((state) => state.customTelescopes);
+  const addCustomCamera = useEquipmentStore((state) => state.addCustomCamera);
+  const addCustomTelescope = useEquipmentStore((state) => state.addCustomTelescope);
+  const removeCustomCamera = useEquipmentStore((state) => state.removeCustomCamera);
+  const removeCustomTelescope = useEquipmentStore((state) => state.removeCustomTelescope);
+  const applyCamera = useEquipmentStore((state) => state.applyCamera);
+  const applyTelescope = useEquipmentStore((state) => state.applyTelescope);
+  const activeCameraId = useEquipmentStore((state) => state.activeCameraId);
+  const activeTelescopeId = useEquipmentStore((state) => state.activeTelescopeId);
+  
   // Fix hydration mismatch by only rendering Dialog after mount
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -87,9 +107,51 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
     bandwidth: '',
   });
 
-  if (!isAvailable) {
-    return null; // Only show in Tauri environment
-  }
+  // ============================================================================
+  // Web Environment Handlers
+  // ============================================================================
+
+  const handleWebAddTelescope = () => {
+    if (!telescopeForm.name || !telescopeForm.aperture || !telescopeForm.focal_length) {
+      toast.error(t('equipment.fillRequired') || 'Please fill required fields');
+      return;
+    }
+
+    addCustomTelescope({
+      name: telescopeForm.name,
+      focalLength: parseFloat(telescopeForm.focal_length),
+      aperture: parseFloat(telescopeForm.aperture),
+      type: telescopeForm.telescope_type,
+    });
+
+    toast.success(t('equipment.telescopeAdded') || 'Telescope added');
+    setTelescopeForm({ name: '', aperture: '', focal_length: '', telescope_type: 'reflector' });
+    setAddingTelescope(false);
+  };
+
+  const handleWebAddCamera = () => {
+    if (!cameraForm.name || !cameraForm.sensor_width || !cameraForm.sensor_height) {
+      toast.error(t('equipment.fillRequired') || 'Please fill required fields');
+      return;
+    }
+
+    addCustomCamera({
+      name: cameraForm.name,
+      sensorWidth: parseFloat(cameraForm.sensor_width),
+      sensorHeight: parseFloat(cameraForm.sensor_height),
+      pixelSize: parseFloat(cameraForm.pixel_size) || 3.76,
+      resolutionX: parseInt(cameraForm.resolution_x) || undefined,
+      resolutionY: parseInt(cameraForm.resolution_y) || undefined,
+    });
+
+    toast.success(t('equipment.cameraAdded') || 'Camera added');
+    setCameraForm({ name: '', sensor_width: '', sensor_height: '', pixel_size: '', resolution_x: '', resolution_y: '', camera_type: 'cmos' });
+    setAddingCamera(false);
+  };
+
+  // ============================================================================
+  // Tauri Environment Handlers
+  // ============================================================================
 
   const handleAddTelescope = async () => {
     if (!telescopeForm.name || !telescopeForm.aperture || !telescopeForm.focal_length) {
@@ -206,20 +268,65 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
     return null;
   }
 
+  // Determine data source based on environment
+  const telescopeList = isTauriAvailable 
+    ? equipment?.telescopes ?? [] 
+    : customTelescopes;
+  const cameraList = isTauriAvailable 
+    ? equipment?.cameras ?? [] 
+    : customCameras;
+
+  // Select appropriate handlers based on environment
+  const onAddTelescope = isTauriAvailable ? handleAddTelescope : handleWebAddTelescope;
+  const onAddCamera = isTauriAvailable ? handleAddCamera : handleWebAddCamera;
+  const onDeleteTelescope = isTauriAvailable 
+    ? handleDelete 
+    : (id: string) => {
+        removeCustomTelescope(id);
+        toast.success(t('equipment.deleted') || 'Equipment deleted');
+      };
+  const onDeleteCamera = isTauriAvailable 
+    ? handleDelete 
+    : (id: string) => {
+        removeCustomCamera(id);
+        toast.success(t('equipment.deleted') || 'Equipment deleted');
+      };
+
+  // Handle selecting equipment (web only)
+  const handleSelectTelescope = (telescope: typeof customTelescopes[0]) => {
+    if (!isTauriAvailable) {
+      applyTelescope(telescope);
+      toast.success(t('equipment.selected') || 'Telescope selected');
+    }
+  };
+
+  const handleSelectCamera = (camera: typeof customCameras[0]) => {
+    if (!isTauriAvailable) {
+      applyCamera(camera);
+      toast.success(t('equipment.selected') || 'Camera selected');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button variant="outline" size="sm" className="gap-2">
-            <Settings2 className="h-4 w-4" />
-            <span className="hidden xl:inline">{t('equipment.title') || 'Equipment'}</span>
-          </Button>
-        )}
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            {trigger || (
+              <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Wrench className="h-4 w-4" />
+              </Button>
+            )}
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{t('equipment.title') || 'Equipment Manager'}</p>
+        </TooltipContent>
+      </Tooltip>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5" />
+            <Wrench className="h-5 w-5" />
             {t('equipment.title') || 'Equipment Manager'}
           </DialogTitle>
           <DialogDescription>
@@ -227,13 +334,13 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {loading ? (
+        {isTauriAvailable && loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className={isTauriAvailable ? "grid w-full grid-cols-4" : "grid w-full grid-cols-2"}>
               <TabsTrigger value="telescopes" className="flex items-center gap-1 text-xs">
                 <Telescope className="h-3 w-3" />
                 {t('equipment.telescopes') || 'Scopes'}
@@ -242,41 +349,59 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                 <Camera className="h-3 w-3" />
                 {t('equipment.cameras') || 'Cameras'}
               </TabsTrigger>
-              <TabsTrigger value="barlows" className="flex items-center gap-1 text-xs">
-                <Plus className="h-3 w-3" />
-                {t('equipment.barlows') || 'Barlows'}
-              </TabsTrigger>
-              <TabsTrigger value="filters" className="flex items-center gap-1 text-xs">
-                <Settings2 className="h-3 w-3" />
-                {t('equipment.filters') || 'Filters'}
-              </TabsTrigger>
+              {isTauriAvailable && (
+                <>
+                  <TabsTrigger value="barlows" className="flex items-center gap-1 text-xs">
+                    <Plus className="h-3 w-3" />
+                    {t('equipment.barlows') || 'Barlows'}
+                  </TabsTrigger>
+                  <TabsTrigger value="filters" className="flex items-center gap-1 text-xs">
+                    <Wrench className="h-3 w-3" />
+                    {t('equipment.filters') || 'Filters'}
+                  </TabsTrigger>
+                </>
+              )}
             </TabsList>
 
             <TabsContent value="telescopes" className="space-y-4">
               <ScrollArea className="h-[200px]">
-                {equipment?.telescopes.length === 0 ? (
+                {telescopeList.length === 0 ? (
                   <p className="text-center text-muted-foreground py-4">
                     {t('equipment.noTelescopes') || 'No telescopes added'}
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {equipment?.telescopes.map((scope) => (
-                      <div key={scope.id} className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          <Telescope className="h-4 w-4" />
-                          <div>
-                            <p className="font-medium text-sm">{scope.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {scope.aperture}mm f/{scope.focal_ratio.toFixed(1)}
-                            </p>
+                    {telescopeList.map((scope) => {
+                      const isSelected = !isTauriAvailable && activeTelescopeId === scope.id;
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const s = scope as any;
+                      const focalRatio = isTauriAvailable ? s.focal_ratio : s.focalLength / s.aperture;
+                      const aperture = s.aperture;
+                      const isDefault = isTauriAvailable && s.is_default;
+                      
+                      return (
+                        <div 
+                          key={scope.id} 
+                          className={`flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 ${isSelected ? 'border-primary bg-primary/10' : ''}`}
+                          onClick={() => !isTauriAvailable && handleSelectTelescope(scope as typeof customTelescopes[0])}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Telescope className="h-4 w-4" />
+                            <div>
+                              <p className="font-medium text-sm">{scope.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {aperture}mm f/{focalRatio.toFixed(1)}
+                              </p>
+                            </div>
+                            {isSelected && <Check className="h-3 w-3 text-primary" />}
+                            {isDefault && <Star className="h-3 w-3 text-yellow-500" />}
                           </div>
-                          {scope.is_default && <Star className="h-3 w-3 text-yellow-500" />}
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onDeleteTelescope(scope.id); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(scope.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
@@ -331,7 +456,7 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={handleAddTelescope}>
+                    <Button size="sm" onClick={onAddTelescope}>
                       {t('common.save') || 'Save'}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setAddingTelescope(false)}>
@@ -349,29 +474,43 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
 
             <TabsContent value="cameras" className="space-y-4">
               <ScrollArea className="h-[200px]">
-                {equipment?.cameras.length === 0 ? (
+                {cameraList.length === 0 ? (
                   <p className="text-center text-muted-foreground py-4">
                     {t('equipment.noCameras') || 'No cameras added'}
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {equipment?.cameras.map((cam) => (
-                      <div key={cam.id} className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          <Camera className="h-4 w-4" />
-                          <div>
-                            <p className="font-medium text-sm">{cam.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {cam.sensor_width}×{cam.sensor_height}mm
-                            </p>
+                    {cameraList.map((cam) => {
+                      const isSelected = !isTauriAvailable && activeCameraId === cam.id;
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const c = cam as any;
+                      const sensorWidth = isTauriAvailable ? c.sensor_width : c.sensorWidth;
+                      const sensorHeight = isTauriAvailable ? c.sensor_height : c.sensorHeight;
+                      const isDefault = isTauriAvailable && c.is_default;
+                      
+                      return (
+                        <div 
+                          key={cam.id} 
+                          className={`flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 ${isSelected ? 'border-primary bg-primary/10' : ''}`}
+                          onClick={() => !isTauriAvailable && handleSelectCamera(cam as typeof customCameras[0])}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Camera className="h-4 w-4" />
+                            <div>
+                              <p className="font-medium text-sm">{cam.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {sensorWidth}×{sensorHeight}mm
+                              </p>
+                            </div>
+                            {isSelected && <Check className="h-3 w-3 text-primary" />}
+                            {isDefault && <Star className="h-3 w-3 text-yellow-500" />}
                           </div>
-                          {cam.is_default && <Star className="h-3 w-3 text-yellow-500" />}
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onDeleteCamera(cam.id); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(cam.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
@@ -429,7 +568,7 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={handleAddCamera}>
+                    <Button size="sm" onClick={onAddCamera}>
                       {t('common.save') || 'Save'}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setAddingCamera(false)}>
@@ -525,7 +664,7 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                     {equipment?.filters.map((filter) => (
                       <div key={filter.id} className="flex items-center justify-between p-2 border rounded">
                         <div className="flex items-center gap-2">
-                          <Settings2 className="h-4 w-4" />
+                          <Wrench className="h-4 w-4" />
                           <div>
                             <p className="font-medium text-sm">{filter.name}</p>
                             <p className="text-xs text-muted-foreground">

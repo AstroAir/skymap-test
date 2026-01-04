@@ -7,6 +7,7 @@ export { StellariumView } from './view/stellarium-view';
 // Search - Search functionality
 export { StellariumSearch } from './search/stellarium-search';
 export { AdvancedSearchDialog } from './search/advanced-search-dialog';
+export { FavoritesQuickAccess } from './search/favorites-quick-access';
 
 // Settings - Configuration components
 export { StellariumSettings } from './settings/stellarium-settings';
@@ -14,6 +15,9 @@ export { StellariumSurveySelector } from './settings/stellarium-survey-selector'
 
 // Controls - View controls
 export { ZoomControls } from './controls/zoom-controls';
+export { KeyboardShortcutsManager } from './controls/keyboard-shortcuts-manager';
+export { NavigationHistory } from './controls/navigation-history';
+export { ViewBookmarks } from './controls/view-bookmarks';
 
 // Time - Time control
 export { StellariumClock } from './time/stellarium-clock';
@@ -24,6 +28,7 @@ export { StellariumMount } from './mount/stellarium-mount';
 // Dialogs - Information dialogs
 export { AboutDialog } from './dialogs/about-dialog';
 export { StellariumCredits } from './dialogs/stellarium-credits';
+export { KeyboardShortcutsDialog } from './dialogs/keyboard-shortcuts-dialog';
 
 // Onboarding - Tour and welcome components
 export { OnboardingTour } from './onboarding/onboarding-tour';
@@ -37,6 +42,12 @@ export { PlateSolver } from './plate-solving/plate-solver';
 
 // Feedback - UI feedback components
 export { SplashScreen } from './feedback/splash-screen';
+export { 
+  LoadingSkeleton, 
+  FullScreenLoader, 
+  InlineLoader, 
+  StarmapLoadingSkeleton 
+} from './feedback/loading-skeleton';
 
 // Setup Wizard
 export { SetupWizard, SetupWizardButton } from './setup-wizard';
@@ -58,6 +69,8 @@ export { SkyAtlasPanel } from './planning/sky-atlas-panel';
 export { AstroEventsCalendar } from './planning/astro-events-calendar';
 export { TonightRecommendations } from './planning/tonight-recommendations';
 export { ObservationLog } from './planning/observation-log';
+export { AstroCalculatorDialog } from './planning/astro-calculator-dialog';
+export { SessionPlanner } from './planning/session-planner';
 
 // Overlays components
 export { FOVSimulator, type MosaicSettings, type GridType } from './overlays/fov-simulator';

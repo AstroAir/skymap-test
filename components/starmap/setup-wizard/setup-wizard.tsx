@@ -10,7 +10,6 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  X,
   Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -135,18 +134,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           {/* Background decoration */}
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5" />
           
-          {/* Close button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-4 top-4 z-10 h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => closeWizard()}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-
           {/* Step indicators */}
-          <div className="relative px-6 pt-6 pb-4">
+          <div className="relative px-6 pt-10 pb-4">
             <div className="flex items-center justify-between mb-4">
               {SETUP_WIZARD_STEPS.map((step, index) => {
                 const Icon = STEP_ICONS[step];

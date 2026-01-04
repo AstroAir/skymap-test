@@ -14,6 +14,9 @@ import {
   Trash2,
   ChevronRight,
   BarChart3,
+  Cloud,
+  Thermometer,
+  Wind,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -97,6 +100,9 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
   );
   const [newSessionLocation, setNewSessionLocation] = useState('');
   const [newSessionNotes, setNewSessionNotes] = useState('');
+  const [newSessionSeeing, setNewSessionSeeing] = useState<number>(3);
+  const [newSessionTransparency, setNewSessionTransparency] = useState<number>(3);
+  const [newSessionBortle, setNewSessionBortle] = useState<number>(5);
   
   // New observation form
   const [obsObjectName, setObsObjectName] = useState('');
@@ -604,13 +610,81 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                 onChange={(e) => setNewSessionLocation(e.target.value)}
               />
             </div>
+            {/* Weather Conditions */}
+            <div className="space-y-3 p-3 rounded-lg bg-muted/50">
+              <Label className="flex items-center gap-2">
+                <Cloud className="h-4 w-4" />
+                {t('observationLog.conditions') || 'Observing Conditions'}
+              </Label>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Wind className="h-3 w-3" />
+                    {t('observationLog.seeing') || 'Seeing'}
+                  </Label>
+                  <Select value={String(newSessionSeeing)} onValueChange={(v) => setNewSessionSeeing(Number(v))}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 - Poor</SelectItem>
+                      <SelectItem value="2">2 - Fair</SelectItem>
+                      <SelectItem value="3">3 - Average</SelectItem>
+                      <SelectItem value="4">4 - Good</SelectItem>
+                      <SelectItem value="5">5 - Excellent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Eye className="h-3 w-3" />
+                    {t('observationLog.transparency') || 'Transparency'}
+                  </Label>
+                  <Select value={String(newSessionTransparency)} onValueChange={(v) => setNewSessionTransparency(Number(v))}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 - Poor</SelectItem>
+                      <SelectItem value="2">2 - Fair</SelectItem>
+                      <SelectItem value="3">3 - Average</SelectItem>
+                      <SelectItem value="4">4 - Good</SelectItem>
+                      <SelectItem value="5">5 - Excellent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Thermometer className="h-3 w-3" />
+                    {t('observationLog.bortle') || 'Bortle Class'}
+                  </Label>
+                  <Select value={String(newSessionBortle)} onValueChange={(v) => setNewSessionBortle(Number(v))}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 - Excellent</SelectItem>
+                      <SelectItem value="2">2 - Dark</SelectItem>
+                      <SelectItem value="3">3 - Rural</SelectItem>
+                      <SelectItem value="4">4 - Rural/Suburban</SelectItem>
+                      <SelectItem value="5">5 - Suburban</SelectItem>
+                      <SelectItem value="6">6 - Bright Suburban</SelectItem>
+                      <SelectItem value="7">7 - Suburban/Urban</SelectItem>
+                      <SelectItem value="8">8 - City</SelectItem>
+                      <SelectItem value="9">9 - Inner City</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            
             <div className="space-y-2">
               <Label>{t('observationLog.notes') || 'Notes'}</Label>
               <Textarea
-                placeholder={t('observationLog.notesPlaceholder') || 'Weather conditions, equipment used...'}
+                placeholder={t('observationLog.notesPlaceholder') || 'Additional notes, equipment used...'}
                 value={newSessionNotes}
                 onChange={(e) => setNewSessionNotes(e.target.value)}
-                rows={3}
+                rows={2}
               />
             </div>
           </div>

@@ -169,7 +169,36 @@ pub async fn put_unified_cache_entry(
 ) -> Result<(), StorageError> {
     let mut index = load_cache_index(&app)?;
     let data_dir = get_cache_data_dir(&app)?;
-    
+
+    // SECURITY: Check cache entry count limit
+    if index.entries.len() >= limits::MAX_CACHE_ENTRIES {
+        // Auto cleanup expired entries first
+        let _ = cleanup_expired_entries(&app, &mut index);
+
+        // If still over limit, reject
+        if index.entries.len() >= limits::MAX_CACHE_ENTRIES {
+            return Err(StorageError::Other(format!(
+                "Cache entry limit reached ({} entries)",
+                limits::MAX_CACHE_ENTRIES
+            )));
+        }
+    }
+
+    // SECURITY: Check total size limit
+    let new_total = index.total_size + data.len() as u64;
+    if new_total > limits::MAX_CACHE_TOTAL_SIZE as u64 {
+        // Auto cleanup expired entries first
+        let _ = cleanup_expired_entries(&app, &mut index);
+
+        // If still over limit, reject
+        if index.total_size + data.len() as u64 > limits::MAX_CACHE_TOTAL_SIZE as u64 {
+            return Err(StorageError::Other(format!(
+                "Cache size limit reached ({} bytes)",
+                limits::MAX_CACHE_TOTAL_SIZE
+            )));
+        }
+    }
+
     let filename = key_to_filename(&key);
     let data_path = data_dir.join(&filename);
     let size_bytes = data.len() as u64;
@@ -292,6 +321,34 @@ pub struct UnifiedCacheStats {
     pub total_size: u64,
     pub expired_entries: usize,
     pub expired_size: u64,
+}
+
+/// Internal helper to cleanup expired entries (used by put_unified_cache_entry)
+fn cleanup_expired_entries(app: &AppHandle, index: &mut CacheIndex) -> Result<u64, StorageError> {
+    let data_dir = get_cache_data_dir(app)?;
+    let now = Utc::now().timestamp_millis();
+    let mut deleted_count = 0u64;
+    let mut keys_to_remove = Vec::new();
+
+    for (key, meta) in &index.entries {
+        if meta.ttl > 0 && now > meta.timestamp + meta.ttl {
+            keys_to_remove.push(key.clone());
+        }
+    }
+
+    for key in keys_to_remove {
+        if let Some(meta) = index.entries.remove(&key) {
+            index.total_size = index.total_size.saturating_sub(meta.size_bytes);
+            let filename = key_to_filename(&key);
+            let data_path = data_dir.join(&filename);
+            if data_path.exists() {
+                let _ = fs::remove_file(&data_path);
+            }
+            deleted_count += 1;
+        }
+    }
+
+    Ok(deleted_count)
 }
 
 /// Cleanup expired entries

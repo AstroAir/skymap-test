@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Moon } from 'lucide-react';
+import { MoonStar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -46,7 +46,7 @@ export function NightModeToggle({ className }: NightModeToggleProps) {
             )}
             onClick={() => toggleStellariumSetting('nightMode')}
           >
-            <Moon className={cn('h-5 w-5', nightMode && 'fill-current')} />
+            <MoonStar className={cn('h-5 w-5', nightMode && 'fill-current')} />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">

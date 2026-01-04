@@ -207,4 +207,4 @@ When user responds to infinite_ask:
 - summary：AI 刚刚完成了什么（必填）
 
 调用示例：
-{"tool": "infinite_dialog_feedback", "arguments": {"summary": "任务完成，等待确认"}}
+{"tool": "infinite_dialog_3457_feedback", "arguments": {"summary": "任务完成，等待确认"}}

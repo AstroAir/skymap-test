@@ -172,42 +172,64 @@ const fontSizeScale: Record<ThemeCustomization['fontSize'], number> = {
   large: 1.125,
 };
 
+// Batch DOM updates for better performance
+let pendingUpdate: number | null = null;
+
 function applyThemeToDOM(customization: ThemeCustomization) {
-  const root = document.documentElement;
-  
-  // Apply radius
-  root.style.setProperty('--radius', `${customization.radius}rem`);
-  
-  // Apply font family
-  root.style.setProperty('--font-sans', fontFamilyMap[customization.fontFamily]);
-  
-  // Apply font size
-  root.style.setProperty('--font-size-scale', String(fontSizeScale[customization.fontSize]));
-  root.style.fontSize = `${fontSizeScale[customization.fontSize] * 16}px`;
-  
-  // Apply animations
-  if (!customization.animationsEnabled) {
-    root.classList.add('reduce-motion');
-  } else {
-    root.classList.remove('reduce-motion');
+  // Cancel any pending update
+  if (pendingUpdate !== null) {
+    cancelAnimationFrame(pendingUpdate);
   }
-  
-  // Apply custom colors based on current theme
-  const isDark = root.classList.contains('dark');
-  const colors = isDark ? customization.customColors.dark : customization.customColors.light;
-  
-  // Find active preset colors
-  const activePreset = themePresets.find(p => p.id === customization.activePreset);
-  const presetColors = activePreset 
-    ? (isDark ? activePreset.colors.dark : activePreset.colors.light)
-    : {};
-  
-  // Merge preset and custom colors
-  const mergedColors = { ...presetColors, ...colors };
-  
-  Object.entries(mergedColors).forEach(([key, value]) => {
-    if (value) {
-      root.style.setProperty(`--${key}`, value);
+
+  // Batch DOM updates in a single animation frame
+  pendingUpdate = requestAnimationFrame(() => {
+    pendingUpdate = null;
+    const root = document.documentElement;
+
+    // Collect all style changes
+    const styleUpdates: [string, string][] = [];
+
+    // Apply radius
+    styleUpdates.push(['--radius', `${customization.radius}rem`]);
+
+    // Apply font family
+    styleUpdates.push(['--font-sans', fontFamilyMap[customization.fontFamily]]);
+
+    // Apply font size
+    styleUpdates.push(['--font-size-scale', String(fontSizeScale[customization.fontSize])]);
+
+    // Apply custom colors based on current theme
+    const isDark = root.classList.contains('dark');
+    const colors = isDark ? customization.customColors.dark : customization.customColors.light;
+
+    // Find active preset colors
+    const activePreset = themePresets.find(p => p.id === customization.activePreset);
+    const presetColors = activePreset
+      ? (isDark ? activePreset.colors.dark : activePreset.colors.light)
+      : {};
+
+    // Merge preset and custom colors
+    const mergedColors = { ...presetColors, ...colors };
+
+    Object.entries(mergedColors).forEach(([key, value]) => {
+      if (value) {
+        styleUpdates.push([`--${key}`, value]);
+      }
+    });
+
+    // Apply all style updates at once
+    styleUpdates.forEach(([prop, value]) => {
+      root.style.setProperty(prop, value);
+    });
+
+    // Update font size on root
+    root.style.fontSize = `${fontSizeScale[customization.fontSize] * 16}px`;
+
+    // Apply animations class
+    if (!customization.animationsEnabled) {
+      root.classList.add('reduce-motion');
+    } else {
+      root.classList.remove('reduce-motion');
     }
   });
 }
