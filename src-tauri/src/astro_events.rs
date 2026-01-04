@@ -1,12 +1,10 @@
 //! Astronomical events module
 //! Calculates and provides information about astronomical events
 
-use chrono::{DateTime, NaiveDate, Utc, Datelike};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::astronomy::{
-    calculate_moon_phase, calculate_sun_position, calculate_moon_position,
-};
+use crate::astronomy::{calculate_moon_phase, calculate_moon_position, calculate_sun_position};
 
 // ============================================================================
 // Types
@@ -71,7 +69,7 @@ pub struct MeteorShowerInfo {
     pub peak_date: String,
     pub active_start: String,
     pub active_end: String,
-    pub zhr: u32,  // Zenith Hourly Rate
+    pub zhr: u32, // Zenith Hourly Rate
     pub radiant_ra: f64,
     pub radiant_dec: f64,
     pub parent_body: Option<String>,
@@ -86,26 +84,32 @@ pub struct MeteorShowerInfo {
 #[tauri::command]
 pub fn get_moon_phases_for_month(year: i32, month: u32) -> Vec<MoonPhaseEvent> {
     let mut events = Vec::new();
-    
+
     // Get first and last day of month
     let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
     let last_day = if month == 12 {
-        NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap().pred_opt().unwrap()
+        NaiveDate::from_ymd_opt(year + 1, 1, 1)
+            .unwrap()
+            .pred_opt()
+            .unwrap()
     } else {
-        NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap().pred_opt().unwrap()
+        NaiveDate::from_ymd_opt(year, month + 1, 1)
+            .unwrap()
+            .pred_opt()
+            .unwrap()
     };
-    
+
     let mut current = first_day;
     let mut prev_phase: Option<f64> = None;
-    
+
     while current <= last_day {
         let dt = current.and_hms_opt(12, 0, 0).unwrap().and_utc();
         let phase = calculate_moon_phase(Some(dt.timestamp()));
-        
+
         // Detect phase transitions
         if let Some(prev) = prev_phase {
             let phase_val = phase.phase;
-            
+
             // New Moon (phase crosses 0)
             if prev > 0.9 && phase_val < 0.1 {
                 events.push(MoonPhaseEvent {
@@ -147,11 +151,11 @@ pub fn get_moon_phases_for_month(year: i32, month: u32) -> Vec<MoonPhaseEvent> {
                 });
             }
         }
-        
+
         prev_phase = Some(phase.phase);
         current = current.succ_opt().unwrap();
     }
-    
+
     events
 }
 
@@ -289,8 +293,12 @@ pub fn get_seasonal_events(year: i32) -> Vec<AstroEvent> {
             description: "First day of spring in Northern Hemisphere".to_string(),
             date: format!("{}-03-20", year),
             time: Some("12:00".to_string()),
-            timestamp: NaiveDate::from_ymd_opt(year, 3, 20).unwrap()
-                .and_hms_opt(12, 0, 0).unwrap().and_utc().timestamp(),
+            timestamp: NaiveDate::from_ymd_opt(year, 3, 20)
+                .unwrap()
+                .and_hms_opt(12, 0, 0)
+                .unwrap()
+                .and_utc()
+                .timestamp(),
             magnitude: None,
             visibility: Some("Global".to_string()),
             details: None,
@@ -302,8 +310,12 @@ pub fn get_seasonal_events(year: i32) -> Vec<AstroEvent> {
             description: "Longest day in Northern Hemisphere".to_string(),
             date: format!("{}-06-21", year),
             time: Some("12:00".to_string()),
-            timestamp: NaiveDate::from_ymd_opt(year, 6, 21).unwrap()
-                .and_hms_opt(12, 0, 0).unwrap().and_utc().timestamp(),
+            timestamp: NaiveDate::from_ymd_opt(year, 6, 21)
+                .unwrap()
+                .and_hms_opt(12, 0, 0)
+                .unwrap()
+                .and_utc()
+                .timestamp(),
             magnitude: None,
             visibility: Some("Global".to_string()),
             details: None,
@@ -315,8 +327,12 @@ pub fn get_seasonal_events(year: i32) -> Vec<AstroEvent> {
             description: "First day of autumn in Northern Hemisphere".to_string(),
             date: format!("{}-09-22", year),
             time: Some("12:00".to_string()),
-            timestamp: NaiveDate::from_ymd_opt(year, 9, 22).unwrap()
-                .and_hms_opt(12, 0, 0).unwrap().and_utc().timestamp(),
+            timestamp: NaiveDate::from_ymd_opt(year, 9, 22)
+                .unwrap()
+                .and_hms_opt(12, 0, 0)
+                .unwrap()
+                .and_utc()
+                .timestamp(),
             magnitude: None,
             visibility: Some("Global".to_string()),
             details: None,
@@ -328,8 +344,12 @@ pub fn get_seasonal_events(year: i32) -> Vec<AstroEvent> {
             description: "Shortest day in Northern Hemisphere".to_string(),
             date: format!("{}-12-21", year),
             time: Some("12:00".to_string()),
-            timestamp: NaiveDate::from_ymd_opt(year, 12, 21).unwrap()
-                .and_hms_opt(12, 0, 0).unwrap().and_utc().timestamp(),
+            timestamp: NaiveDate::from_ymd_opt(year, 12, 21)
+                .unwrap()
+                .and_hms_opt(12, 0, 0)
+                .unwrap()
+                .and_utc()
+                .timestamp(),
             magnitude: None,
             visibility: Some("Global".to_string()),
             details: None,
@@ -343,21 +363,18 @@ pub fn get_seasonal_events(year: i32) -> Vec<AstroEvent> {
 
 /// Get all astronomical events for a date range
 #[tauri::command]
-pub fn get_astro_events(
-    start_date: String,
-    end_date: String,
-) -> Result<Vec<AstroEvent>, String> {
+pub fn get_astro_events(start_date: String, end_date: String) -> Result<Vec<AstroEvent>, String> {
     let start = NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")
         .map_err(|e| format!("Invalid start date: {}", e))?;
     let end = NaiveDate::parse_from_str(&end_date, "%Y-%m-%d")
         .map_err(|e| format!("Invalid end date: {}", e))?;
-    
+
     let mut events = Vec::new();
-    
+
     // Get years covered
     let start_year = start.year();
     let end_year = end.year();
-    
+
     for year in start_year..=end_year {
         // Add seasonal events
         for event in get_seasonal_events(year) {
@@ -368,14 +385,18 @@ pub fn get_astro_events(
                 }
             }
         }
-        
+
         // Add meteor showers
         for shower in get_meteor_showers(year) {
             let peak_date = NaiveDate::parse_from_str(&shower.peak_date, "%Y-%m-%d").ok();
             if let Some(date) = peak_date {
                 if date >= start && date <= end {
                     events.push(AstroEvent {
-                        id: format!("meteor-{}-{}", shower.name.to_lowercase().replace(' ', "-"), year),
+                        id: format!(
+                            "meteor-{}-{}",
+                            shower.name.to_lowercase().replace(' ', "-"),
+                            year
+                        ),
                         event_type: AstroEventType::MeteorShower,
                         name: shower.name.clone(),
                         description: shower.description,
@@ -396,16 +417,22 @@ pub fn get_astro_events(
                 }
             }
         }
-        
+
         // Add moon phases
         for month in 1..=12 {
             let month_start = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
             let month_end = if month == 12 {
-                NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap().pred_opt().unwrap()
+                NaiveDate::from_ymd_opt(year + 1, 1, 1)
+                    .unwrap()
+                    .pred_opt()
+                    .unwrap()
             } else {
-                NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap().pred_opt().unwrap()
+                NaiveDate::from_ymd_opt(year, month + 1, 1)
+                    .unwrap()
+                    .pred_opt()
+                    .unwrap()
             };
-            
+
             // Only process if month overlaps with date range
             if month_end >= start && month_start <= end {
                 for phase in get_moon_phases_for_month(year, month) {
@@ -419,18 +446,25 @@ pub fn get_astro_events(
                                 "Last Quarter" => AstroEventType::LastQuarter,
                                 _ => continue,
                             };
-                            
+
                             let name = if phase.is_supermoon {
                                 format!("{} (Supermoon)", phase.phase_type)
                             } else {
                                 phase.phase_type.clone()
                             };
-                            
+
                             events.push(AstroEvent {
-                                id: format!("moon-{}-{}", phase.phase_type.to_lowercase().replace(' ', "-"), phase.timestamp),
+                                id: format!(
+                                    "moon-{}-{}",
+                                    phase.phase_type.to_lowercase().replace(' ', "-"),
+                                    phase.timestamp
+                                ),
                                 event_type,
                                 name,
-                                description: format!("Moon illumination: {:.1}%", phase.illumination),
+                                description: format!(
+                                    "Moon illumination: {:.1}%",
+                                    phase.illumination
+                                ),
                                 date: phase.date,
                                 time: None,
                                 timestamp: phase.timestamp,
@@ -447,10 +481,10 @@ pub fn get_astro_events(
             }
         }
     }
-    
+
     // Sort by date
     events.sort_by_key(|e| e.timestamp);
-    
+
     Ok(events)
 }
 
@@ -464,29 +498,27 @@ pub fn get_tonight_highlights(
     let dt = timestamp
         .map(|ts| DateTime::from_timestamp(ts, 0).unwrap_or_else(Utc::now))
         .unwrap_or_else(Utc::now);
-    
+
     let mut highlights = Vec::new();
-    
+
     // Moon phase
     let moon_phase = calculate_moon_phase(Some(dt.timestamp()));
     highlights.push(format!(
         "Moon: {} ({:.0}% illuminated)",
-        moon_phase.phase_name,
-        moon_phase.illumination
+        moon_phase.phase_name, moon_phase.illumination
     ));
-    
+
     // Moon position
     let moon_pos = calculate_moon_position(latitude, longitude, Some(dt.timestamp()));
     if moon_pos.altitude > 0.0 {
         highlights.push(format!(
             "Moon altitude: {:.1}° (azimuth {:.1}°)",
-            moon_pos.altitude,
-            moon_pos.azimuth
+            moon_pos.altitude, moon_pos.azimuth
         ));
     } else {
         highlights.push("Moon is below the horizon".to_string());
     }
-    
+
     // Sun position (for twilight info)
     let sun_pos = calculate_sun_position(latitude, longitude, Some(dt.timestamp()));
     if sun_pos.altitude < -18.0 {
@@ -500,6 +532,6 @@ pub fn get_tonight_highlights(
     } else {
         highlights.push("Daytime - wait for sunset".to_string());
     }
-    
+
     highlights
 }

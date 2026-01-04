@@ -48,10 +48,10 @@ pub struct AppSettings {
     pub recent_files: Vec<RecentFile>,
     pub last_export_dir: Option<String>,
     pub last_import_dir: Option<String>,
-    pub auto_save_interval: u32,     // seconds, 0 = disabled
+    pub auto_save_interval: u32, // seconds, 0 = disabled
     pub check_updates: bool,
     pub telemetry_enabled: bool,
-    pub theme: String,               // "system", "light", "dark"
+    pub theme: String, // "system", "light", "dark"
     pub sidebar_collapsed: bool,
     pub show_welcome: bool,
     pub language: String,
@@ -80,13 +80,13 @@ fn get_settings_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
         .path()
         .app_data_dir()
         .map_err(|_| StorageError::AppDataDirNotFound)?;
-    
+
     let dir = app_data_dir.join("skymap");
-    
+
     if !dir.exists() {
         fs::create_dir_all(&dir)?;
     }
-    
+
     Ok(dir.join("app_settings.json"))
 }
 
@@ -94,61 +94,59 @@ fn get_settings_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
 #[tauri::command]
 pub async fn load_app_settings(app: AppHandle) -> Result<AppSettings, StorageError> {
     let path = get_settings_path(&app)?;
-    
+
     if !path.exists() {
         return Ok(AppSettings::default());
     }
-    
+
     let data = fs::read_to_string(&path)?;
     let settings: AppSettings = serde_json::from_str(&data)?;
-    
+
     Ok(settings)
 }
 
 /// Save app settings
 #[tauri::command]
-pub async fn save_app_settings(
-    app: AppHandle,
-    settings: AppSettings,
-) -> Result<(), StorageError> {
+pub async fn save_app_settings(app: AppHandle, settings: AppSettings) -> Result<(), StorageError> {
     let path = get_settings_path(&app)?;
     let json = serde_json::to_string_pretty(&settings)?;
     fs::write(&path, json)?;
-    
+
     Ok(())
 }
 
 /// Save window state
 #[tauri::command]
 pub async fn save_window_state(app: AppHandle) -> Result<(), StorageError> {
-    let window = app.get_webview_window("main")
-        .ok_or_else(|| StorageError::Io(std::io::Error::new(
+    let window = app.get_webview_window("main").ok_or_else(|| {
+        StorageError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "Main window not found",
-        )))?;
-    
+        ))
+    })?;
+
     let mut settings = load_app_settings(app.clone()).await?;
-    
+
     if let Ok(size) = window.outer_size() {
         settings.window_state.width = size.width;
         settings.window_state.height = size.height;
     }
-    
+
     if let Ok(pos) = window.outer_position() {
         settings.window_state.x = pos.x;
         settings.window_state.y = pos.y;
     }
-    
+
     if let Ok(maximized) = window.is_maximized() {
         settings.window_state.maximized = maximized;
     }
-    
+
     if let Ok(fullscreen) = window.is_fullscreen() {
         settings.window_state.fullscreen = fullscreen;
     }
-    
+
     save_app_settings(app, settings).await?;
-    
+
     Ok(())
 }
 
@@ -157,26 +155,27 @@ pub async fn save_window_state(app: AppHandle) -> Result<(), StorageError> {
 pub async fn restore_window_state(app: AppHandle) -> Result<(), StorageError> {
     let settings = load_app_settings(app.clone()).await?;
     let state = settings.window_state;
-    
-    let window = app.get_webview_window("main")
-        .ok_or_else(|| StorageError::Io(std::io::Error::new(
+
+    let window = app.get_webview_window("main").ok_or_else(|| {
+        StorageError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "Main window not found",
-        )))?;
-    
+        ))
+    })?;
+
     // Restore size
     let _ = window.set_size(PhysicalSize::new(state.width, state.height));
-    
+
     // Restore position
     let _ = window.set_position(PhysicalPosition::new(state.x, state.y));
-    
+
     // Restore maximized/fullscreen state
     if state.fullscreen {
         let _ = window.set_fullscreen(true);
     } else if state.maximized {
         let _ = window.maximize();
     }
-    
+
     Ok(())
 }
 
@@ -188,29 +187,32 @@ pub async fn add_recent_file(
     file_type: String,
 ) -> Result<(), StorageError> {
     let mut settings = load_app_settings(app.clone()).await?;
-    
+
     // Extract file name from path
     let name = std::path::Path::new(&path)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.clone());
-    
+
     // Remove existing entry with same path
     settings.recent_files.retain(|f| f.path != path);
-    
+
     // Add new entry at the beginning
-    settings.recent_files.insert(0, RecentFile {
-        path,
-        name,
-        file_type,
-        accessed_at: chrono::Utc::now().timestamp(),
-    });
-    
+    settings.recent_files.insert(
+        0,
+        RecentFile {
+            path,
+            name,
+            file_type,
+            accessed_at: chrono::Utc::now().timestamp(),
+        },
+    );
+
     // Keep only last 20 files
     settings.recent_files.truncate(20);
-    
+
     save_app_settings(app, settings).await?;
-    
+
     Ok(())
 }
 
@@ -245,10 +247,7 @@ pub struct SystemInfo {
 /// Open file in system default app
 #[tauri::command]
 pub async fn open_path(path: String) -> Result<(), StorageError> {
-    open::that(&path).map_err(|e| StorageError::Io(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        e.to_string(),
-    )))?;
+    open::that(&path).map_err(|e| StorageError::Io(std::io::Error::other(e.to_string())))?;
     Ok(())
 }
 
@@ -260,17 +259,17 @@ pub async fn reveal_in_file_manager(path: String) -> Result<(), StorageError> {
         std::process::Command::new("explorer")
             .args(["/select,", &path])
             .spawn()
-            .map_err(|e| StorageError::Io(e))?;
+            .map_err(StorageError::Io)?;
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
             .args(["-R", &path])
             .spawn()
-            .map_err(|e| StorageError::Io(e))?;
+            .map_err(StorageError::Io)?;
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         // Try common file managers
@@ -278,12 +277,12 @@ pub async fn reveal_in_file_manager(path: String) -> Result<(), StorageError> {
             .parent()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| path.clone());
-        
+
         std::process::Command::new("xdg-open")
             .arg(&parent)
             .spawn()
-            .map_err(|e| StorageError::Io(e))?;
+            .map_err(StorageError::Io)?;
     }
-    
+
     Ok(())
 }

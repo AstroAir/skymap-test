@@ -22,7 +22,7 @@
 //! let is_dev = is_dev_mode();
 //! ```
 
-use tauri::{AppHandle, Runtime, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 /// Restart the application
 ///
@@ -94,7 +94,8 @@ pub async fn reload_webview<R: Runtime>(app: AppHandle<R>) -> Result<(), String>
 
     if let Some(window) = app.get_webview_window("main") {
         // Get the webview and evaluate JavaScript to reload
-        window.eval("window.location.reload()")
+        window
+            .eval("window.location.reload()")
             .map_err(|e| format!("Failed to reload webview: {}", e))?;
         Ok(())
     } else {
@@ -165,35 +166,30 @@ mod tests {
     fn test_documentation_compiles() {
         // This test verifies that the module compiles correctly
         // The actual functionality tests require Tauri runtime
-        assert!(true);
     }
 
     /// Verify exit code default behavior
     #[test]
     fn test_exit_code_default() {
         // Test that None maps to 0
-        let default: Option<i32> = None;
-        let code = default.unwrap_or(0);
+        let code = 0;
         assert_eq!(code, 0, "Default exit code should be 0");
     }
 
     /// Verify exit code with specific values
     #[test]
     fn test_exit_code_specific() {
-        let some_code: Option<i32> = Some(1);
-        let code = some_code.unwrap_or(0);
+        let code = 1;
         assert_eq!(code, 1, "Exit code should be 1 when specified");
 
-        let error_code: Option<i32> = Some(255);
-        let code = error_code.unwrap_or(0);
+        let code = 255;
         assert_eq!(code, 255, "Exit code should preserve specified value");
     }
 
     /// Test negative exit codes
     #[test]
     fn test_negative_exit_code() {
-        let negative_code: Option<i32> = Some(-1);
-        let code = negative_code.unwrap_or(0);
+        let code = -1;
         assert_eq!(code, -1, "Negative exit codes should be supported");
     }
 }

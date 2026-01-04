@@ -20,7 +20,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
 
-use crate::rate_limiter::{GlobalRateLimiter, RateLimitConfig, RateLimitResult, get_command_rate_limit};
+use crate::rate_limiter::{
+    get_command_rate_limit, GlobalRateLimiter, RateLimitConfig, RateLimitResult,
+};
 use crate::security::{self, SecurityError};
 
 // ============================================================================
@@ -123,12 +125,12 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            connect_timeout_ms: 10_000,      // 10 seconds
-            read_timeout_ms: 30_000,         // 30 seconds
-            request_timeout_ms: 60_000,      // 60 seconds
+            connect_timeout_ms: 10_000, // 10 seconds
+            read_timeout_ms: 30_000,    // 30 seconds
+            request_timeout_ms: 60_000, // 60 seconds
             max_retries: 3,
-            retry_base_delay_ms: 1000,       // 1 second
-            retry_max_delay_ms: 30_000,      // 30 seconds
+            retry_base_delay_ms: 1000,  // 1 second
+            retry_max_delay_ms: 30_000, // 30 seconds
             user_agent: format!("SkyMap/{}", env!("CARGO_PKG_VERSION")),
             proxy_url: None,
             max_response_size: 100 * 1024 * 1024, // 100 MB
@@ -268,7 +270,10 @@ impl CancellationRegistry {
 
     pub async fn register(&self, request_id: &str) -> Arc<AtomicBool> {
         let token = Arc::new(AtomicBool::new(false));
-        self.tokens.write().await.insert(request_id.to_string(), token.clone());
+        self.tokens
+            .write()
+            .await
+            .insert(request_id.to_string(), token.clone());
         token
     }
 
@@ -337,7 +342,9 @@ fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
         builder = builder.proxy(proxy);
     }
 
-    builder.build().map_err(|e| HttpError::RequestError(e.to_string()))
+    builder
+        .build()
+        .map_err(|e| HttpError::RequestError(e.to_string()))
 }
 
 /// Calculate exponential backoff delay
@@ -409,7 +416,11 @@ async fn execute_request_with_retry(
 
                 // Retryable error
                 if attempt < config.max_retries {
-                    let delay = calculate_backoff(attempt, config.retry_base_delay_ms, config.retry_max_delay_ms);
+                    let delay = calculate_backoff(
+                        attempt,
+                        config.retry_base_delay_ms,
+                        config.retry_max_delay_ms,
+                    );
                     log::warn!(
                         "Request failed with status {}, retrying in {:?} (attempt {}/{})",
                         response.status(),
@@ -432,7 +443,11 @@ async fn execute_request_with_retry(
             Err(e) => {
                 if e.is_timeout() || e.is_connect() {
                     if attempt < config.max_retries {
-                        let delay = calculate_backoff(attempt, config.retry_base_delay_ms, config.retry_max_delay_ms);
+                        let delay = calculate_backoff(
+                            attempt,
+                            config.retry_base_delay_ms,
+                            config.retry_max_delay_ms,
+                        );
                         log::warn!(
                             "Request failed: {}, retrying in {:?} (attempt {}/{})",
                             e,
@@ -453,7 +468,9 @@ async fn execute_request_with_retry(
     }
 
     Err(HttpError::MaxRetriesExceeded(
-        last_error.map(|e| e.to_string()).unwrap_or_else(|| "Unknown error".to_string())
+        last_error
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "Unknown error".to_string()),
     ))
 }
 
@@ -495,12 +512,11 @@ pub async fn http_request(
 
     // Get rate limit config based on domain characteristics
     let rate_limit_config = get_rate_limit_for_domain(&domain);
-    let rate_limit_result = RATE_LIMITER.check(
-        &format!("http:{}", domain),
-        rate_limit_config,
-    );
+    let rate_limit_result = RATE_LIMITER.check(&format!("http:{}", domain), rate_limit_config);
 
-    if let RateLimitResult::RateLimited { retry_after } | RateLimitResult::Banned { retry_after } = rate_limit_result {
+    if let RateLimitResult::RateLimited { retry_after } | RateLimitResult::Banned { retry_after } =
+        rate_limit_result
+    {
         return Err(HttpError::RateLimited { retry_after });
     }
 
@@ -544,7 +560,15 @@ pub async fn http_request(
 
     // Download body with progress
     let body = if let Some(ref request_id) = config.request_id {
-        download_with_progress(&app, request_id, &config.url, response, content_length, &http_config).await?
+        download_with_progress(
+            &app,
+            request_id,
+            &config.url,
+            response,
+            content_length,
+            &http_config,
+        )
+        .await?
     } else {
         let bytes = response.bytes().await?;
         if bytes.len() as u64 > http_config.max_response_size {
@@ -594,17 +618,20 @@ async fn download_with_progress(
     while let Some(chunk) = stream.next().await {
         // Check cancellation
         if CANCELLATION_REGISTRY.is_cancelled(request_id).await {
-            let _ = app.emit("download-progress", DownloadProgress {
-                request_id: request_id.to_string(),
-                url: url.to_string(),
-                downloaded,
-                total: total_size,
-                percentage: None,
-                speed_bps: None,
-                eta_seconds: None,
-                is_complete: false,
-                error: Some("Cancelled".to_string()),
-            });
+            let _ = app.emit(
+                "download-progress",
+                DownloadProgress {
+                    request_id: request_id.to_string(),
+                    url: url.to_string(),
+                    downloaded,
+                    total: total_size,
+                    percentage: None,
+                    speed_bps: None,
+                    eta_seconds: None,
+                    is_complete: false,
+                    error: Some("Cancelled".to_string()),
+                },
+            );
             return Err(HttpError::Cancelled);
         }
 
@@ -646,31 +673,37 @@ async fn download_with_progress(
         };
 
         // Emit progress event
-        let _ = app.emit("download-progress", DownloadProgress {
+        let _ = app.emit(
+            "download-progress",
+            DownloadProgress {
+                request_id: request_id.to_string(),
+                url: url.to_string(),
+                downloaded,
+                total: total_size,
+                percentage,
+                speed_bps,
+                eta_seconds,
+                is_complete: false,
+                error: None,
+            },
+        );
+    }
+
+    // Emit completion event
+    let _ = app.emit(
+        "download-progress",
+        DownloadProgress {
             request_id: request_id.to_string(),
             url: url.to_string(),
             downloaded,
             total: total_size,
-            percentage,
-            speed_bps,
-            eta_seconds,
-            is_complete: false,
+            percentage: Some(100.0),
+            speed_bps: None,
+            eta_seconds: Some(0),
+            is_complete: true,
             error: None,
-        });
-    }
-
-    // Emit completion event
-    let _ = app.emit("download-progress", DownloadProgress {
-        request_id: request_id.to_string(),
-        url: url.to_string(),
-        downloaded,
-        total: total_size,
-        percentage: Some(100.0),
-        speed_bps: None,
-        eta_seconds: Some(0),
-        is_complete: true,
-        error: None,
-    });
+        },
+    );
 
     Ok(body)
 }
@@ -683,13 +716,17 @@ pub async fn http_get(
     headers: Option<HashMap<String, String>>,
     allow_http: Option<bool>,
 ) -> Result<HttpResponse, HttpError> {
-    http_request(app, RequestConfig {
-        method: "GET".to_string(),
-        url,
-        headers,
-        allow_http: allow_http.unwrap_or(false),
-        ..Default::default()
-    }).await
+    http_request(
+        app,
+        RequestConfig {
+            method: "GET".to_string(),
+            url,
+            headers,
+            allow_http: allow_http.unwrap_or(false),
+            ..Default::default()
+        },
+    )
+    .await
 }
 
 /// Simple POST request
@@ -702,15 +739,19 @@ pub async fn http_post(
     headers: Option<HashMap<String, String>>,
     allow_http: Option<bool>,
 ) -> Result<HttpResponse, HttpError> {
-    http_request(app, RequestConfig {
-        method: "POST".to_string(),
-        url,
-        body: Some(body),
-        content_type,
-        headers,
-        allow_http: allow_http.unwrap_or(false),
-        ..Default::default()
-    }).await
+    http_request(
+        app,
+        RequestConfig {
+            method: "POST".to_string(),
+            url,
+            body: Some(body),
+            content_type,
+            headers,
+            allow_http: allow_http.unwrap_or(false),
+            ..Default::default()
+        },
+    )
+    .await
 }
 
 /// Download file to cache with progress
@@ -721,13 +762,17 @@ pub async fn http_download(
     request_id: String,
     allow_http: Option<bool>,
 ) -> Result<HttpResponse, HttpError> {
-    http_request(app, RequestConfig {
-        method: "GET".to_string(),
-        url,
-        request_id: Some(request_id),
-        allow_http: allow_http.unwrap_or(false),
-        ..Default::default()
-    }).await
+    http_request(
+        app,
+        RequestConfig {
+            method: "GET".to_string(),
+            url,
+            request_id: Some(request_id),
+            allow_http: allow_http.unwrap_or(false),
+            ..Default::default()
+        },
+    )
+    .await
 }
 
 /// Cancel a request by ID
@@ -763,13 +808,18 @@ pub async fn http_batch_download(
             let app = app.clone();
             async move {
                 let request_id = format!("batch-{}", uuid_simple());
-                match http_request(app, RequestConfig {
-                    method: "GET".to_string(),
-                    url: url.clone(),
-                    request_id: Some(request_id),
-                    allow_http,
-                    ..Default::default()
-                }).await {
+                match http_request(
+                    app,
+                    RequestConfig {
+                        method: "GET".to_string(),
+                        url: url.clone(),
+                        request_id: Some(request_id),
+                        allow_http,
+                        ..Default::default()
+                    },
+                )
+                .await
+                {
                     Ok(response) => BatchItemResult {
                         url,
                         success: true,
@@ -806,10 +856,7 @@ pub async fn http_batch_download(
 
 /// Check URL accessibility (HEAD request)
 #[tauri::command]
-pub async fn http_check_url(
-    url: String,
-    allow_http: Option<bool>,
-) -> Result<bool, HttpError> {
+pub async fn http_check_url(url: String, allow_http: Option<bool>) -> Result<bool, HttpError> {
     let http_config = HTTP_CONFIG.read().await.clone();
 
     // Security validation
@@ -817,7 +864,8 @@ pub async fn http_check_url(
 
     let client = build_client(&http_config)?;
 
-    match client.head(&url)
+    match client
+        .head(&url)
         .timeout(Duration::from_secs(10))
         .send()
         .await
@@ -840,7 +888,8 @@ pub async fn http_head(
 
     let client = build_client(&http_config)?;
 
-    let response = client.head(&url)
+    let response = client
+        .head(&url)
         .timeout(Duration::from_secs(10))
         .send()
         .await?;
@@ -877,13 +926,10 @@ fn get_rate_limit_for_domain(domain: &str) -> RateLimitConfig {
         "celestrak.org",
         "minorplanetcenter.net",
     ];
-    
+
     // Tile/image servers - very permissive for tile loading
-    let tile_domains = [
-        "alasky.cds.unistra.fr",
-        "hips.cds.unistra.fr",
-    ];
-    
+    let tile_domains = ["alasky.cds.unistra.fr", "hips.cds.unistra.fr"];
+
     // Check domain type and return appropriate config
     if tile_domains.iter().any(|d| domain.contains(d)) {
         // Tile servers need high request rates
@@ -924,18 +970,30 @@ mod tests {
         assert_eq!(calculate_backoff(1, base, max), Duration::from_millis(2000));
         assert_eq!(calculate_backoff(2, base, max), Duration::from_millis(4000));
         assert_eq!(calculate_backoff(3, base, max), Duration::from_millis(8000));
-        assert_eq!(calculate_backoff(4, base, max), Duration::from_millis(16000));
-        assert_eq!(calculate_backoff(5, base, max), Duration::from_millis(30000)); // Capped at max
+        assert_eq!(
+            calculate_backoff(4, base, max),
+            Duration::from_millis(16000)
+        );
+        assert_eq!(
+            calculate_backoff(5, base, max),
+            Duration::from_millis(30000)
+        ); // Capped at max
     }
 
     #[test]
     fn test_calculate_backoff_edge_cases() {
         // Test with very small base
         assert_eq!(calculate_backoff(0, 100, 1000), Duration::from_millis(100));
-        assert_eq!(calculate_backoff(10, 100, 1000), Duration::from_millis(1000)); // Capped
-        
+        assert_eq!(
+            calculate_backoff(10, 100, 1000),
+            Duration::from_millis(1000)
+        ); // Capped
+
         // Test with same base and max
-        assert_eq!(calculate_backoff(5, 1000, 1000), Duration::from_millis(1000));
+        assert_eq!(
+            calculate_backoff(5, 1000, 1000),
+            Duration::from_millis(1000)
+        );
     }
 
     #[test]
@@ -955,12 +1013,12 @@ mod tests {
         assert!(!is_retryable_status(StatusCode::CREATED));
         assert!(!is_retryable_status(StatusCode::ACCEPTED));
         assert!(!is_retryable_status(StatusCode::NO_CONTENT));
-        
+
         // Client errors - not retryable
         assert!(!is_retryable_status(StatusCode::UNAUTHORIZED));
         assert!(!is_retryable_status(StatusCode::FORBIDDEN));
         assert!(!is_retryable_status(StatusCode::METHOD_NOT_ALLOWED));
-        
+
         // More server errors that are retryable
         assert!(is_retryable_status(StatusCode::BAD_GATEWAY));
     }
@@ -977,17 +1035,17 @@ mod tests {
     #[test]
     fn test_default_config_all_fields() {
         let config = HttpClientConfig::default();
-        
+
         // Timeouts
         assert_eq!(config.connect_timeout_ms, 10_000);
         assert_eq!(config.read_timeout_ms, 30_000);
         assert_eq!(config.request_timeout_ms, 60_000);
-        
+
         // Retry settings
         assert_eq!(config.max_retries, 3);
         assert_eq!(config.retry_base_delay_ms, 1_000);
         assert_eq!(config.retry_max_delay_ms, 30_000);
-        
+
         // Other settings
         assert!(config.enable_compression);
         assert!(config.follow_redirects);
@@ -1019,7 +1077,7 @@ mod tests {
         assert_eq!(config.max_requests, 500);
         assert_eq!(config.window_seconds, 60);
         assert!(!config.ban_on_exceed);
-        
+
         let config2 = get_rate_limit_for_domain("hips.cds.unistra.fr");
         assert_eq!(config2.max_requests, 500);
     }
@@ -1030,10 +1088,10 @@ mod tests {
         let config = get_rate_limit_for_domain("simbad.u-strasbg.fr");
         assert_eq!(config.max_requests, 100);
         assert_eq!(config.window_seconds, 60);
-        
+
         let config2 = get_rate_limit_for_domain("celestrak.org");
         assert_eq!(config2.max_requests, 100);
-        
+
         let config3 = get_rate_limit_for_domain("aa.usno.navy.mil");
         assert_eq!(config3.max_requests, 100);
     }
@@ -1052,7 +1110,7 @@ mod tests {
         // Should match subdomains
         let config = get_rate_limit_for_domain("api.simbad.u-strasbg.fr");
         assert_eq!(config.max_requests, 100); // Astronomy API rate
-        
+
         let config2 = get_rate_limit_for_domain("data.celestrak.org");
         assert_eq!(config2.max_requests, 100);
     }
@@ -1070,7 +1128,7 @@ mod tests {
             allow_http: false,
             request_id: None,
         };
-        
+
         assert_eq!(config.method, "GET");
         assert!(!config.skip_security_check);
         assert!(!config.allow_http);
@@ -1088,7 +1146,7 @@ mod tests {
             final_url: "https://example.com".to_string(),
             response_time_ms: 100,
         };
-        
+
         assert_eq!(response.status, 200);
         assert_eq!(response.status_text, "OK");
         assert_eq!(response.body.len(), 3);
@@ -1109,7 +1167,7 @@ mod tests {
             is_complete: false,
             error: None,
         };
-        
+
         assert_eq!(progress.request_id, "test-123");
         assert_eq!(progress.downloaded, 1024);
         assert_eq!(progress.total, Some(2048));
@@ -1131,7 +1189,7 @@ mod tests {
             is_complete: true,
             error: None,
         };
-        
+
         assert!(progress.is_complete);
         assert_eq!(progress.percentage, Some(100.0));
     }
@@ -1149,7 +1207,7 @@ mod tests {
             is_complete: true,
             error: Some("Connection reset".to_string()),
         };
-        
+
         assert!(progress.is_complete);
         assert!(progress.error.is_some());
         assert_eq!(progress.error.unwrap(), "Connection reset");
@@ -1179,7 +1237,7 @@ mod tests {
             ],
             total_time_ms: 5000,
         };
-        
+
         assert_eq!(result.total, 5);
         assert_eq!(result.success, 4);
         assert_eq!(result.failed, 1);
@@ -1191,10 +1249,10 @@ mod tests {
     fn test_http_error_display() {
         let err = HttpError::RequestError("Connection failed".to_string());
         assert!(err.to_string().contains("Connection failed"));
-        
+
         let err2 = HttpError::Timeout("Request timed out".to_string());
         assert!(err2.to_string().contains("Timeout") || err2.to_string().contains("timed out"));
-        
+
         let err3 = HttpError::Cancelled;
         assert!(err3.to_string().contains("cancel") || err3.to_string().contains("Cancel"));
     }
@@ -1211,16 +1269,16 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let registry = CancellationRegistry::new();
-            
+
             // Register a token
             let token = registry.register("test-request").await;
             assert!(!token.load(Ordering::SeqCst));
-            
+
             // Cancel it
             let cancelled = registry.cancel("test-request").await;
             assert!(cancelled);
             assert!(token.load(Ordering::SeqCst));
-            
+
             // Try to cancel non-existent
             let not_cancelled = registry.cancel("non-existent").await;
             assert!(!not_cancelled);
@@ -1232,19 +1290,19 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let registry = CancellationRegistry::new();
-            
+
             // Register multiple tokens
             let token1 = registry.register("request-1").await;
             let token2 = registry.register("request-2").await;
             let token3 = registry.register("request-3").await;
-            
+
             assert!(!token1.load(Ordering::SeqCst));
             assert!(!token2.load(Ordering::SeqCst));
             assert!(!token3.load(Ordering::SeqCst));
-            
+
             // Cancel all
             registry.cancel_all().await;
-            
+
             assert!(token1.load(Ordering::SeqCst));
             assert!(token2.load(Ordering::SeqCst));
             assert!(token3.load(Ordering::SeqCst));
@@ -1256,11 +1314,11 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let registry = CancellationRegistry::new();
-            
+
             // Register and then remove
             let _token = registry.register("test-request").await;
             registry.remove("test-request").await;
-            
+
             // is_cancelled should return false (not found)
             let result = registry.is_cancelled("test-request").await;
             assert!(!result);

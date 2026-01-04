@@ -61,29 +61,31 @@ impl Serialize for UpdaterError {
     }
 }
 
-use std::sync::Mutex;
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 static PENDING_UPDATE: Lazy<Mutex<Option<Update>>> = Lazy::new(|| Mutex::new(None));
 
 #[tauri::command]
 pub async fn check_for_update<R: Runtime>(app: AppHandle<R>) -> Result<UpdateStatus, UpdaterError> {
-    let updater = app.updater().map_err(|e| UpdaterError::CheckFailed(e.to_string()))?;
-    
+    let updater = app
+        .updater()
+        .map_err(|e| UpdaterError::CheckFailed(e.to_string()))?;
+
     match updater.check().await {
         Ok(Some(update)) => {
             let info = UpdateInfo {
                 version: update.version.clone(),
                 current_version: update.current_version.clone(),
-                date: update.date.map(|d| format_datetime(d)),
+                date: update.date.map(format_datetime),
                 body: update.body.clone(),
             };
-            
+
             // Store the update for later
             if let Ok(mut pending) = PENDING_UPDATE.lock() {
                 *pending = Some(update);
             }
-            
+
             Ok(UpdateStatus::Available(info))
         }
         Ok(None) => Ok(UpdateStatus::NotAvailable),
@@ -97,40 +99,47 @@ pub async fn download_update<R: Runtime>(
     window: tauri::Window<R>,
 ) -> Result<UpdateStatus, UpdaterError> {
     let update = {
-        let pending = PENDING_UPDATE.lock().map_err(|_| UpdaterError::NoPendingUpdate)?;
+        let pending = PENDING_UPDATE
+            .lock()
+            .map_err(|_| UpdaterError::NoPendingUpdate)?;
         pending.clone().ok_or(UpdaterError::NoPendingUpdate)?
     };
-    
+
     let info = UpdateInfo {
         version: update.version.clone(),
         current_version: update.current_version.clone(),
-        date: update.date.map(|d| format_datetime(d)),
+        date: update.date.map(format_datetime),
         body: update.body.clone(),
     };
-    
+
     let window_clone = window.clone();
     let mut total_downloaded: u64 = 0;
-    
-    update.download(
-        |chunk_length, content_length| {
-            total_downloaded += chunk_length as u64;
-            let progress = UpdateProgress {
-                downloaded: total_downloaded,
-                total: content_length.map(|l| l as u64),
-                percent: content_length.map(|l| (total_downloaded as f64 / l as f64) * 100.0).unwrap_or(0.0),
-            };
-            let _ = window_clone.emit("update-progress", UpdateStatus::Downloading(progress));
-        },
-        || {
-            log::info!("Download finished");
-        },
-    ).await.map_err(|e| UpdaterError::DownloadFailed(e.to_string()))?;
-    
+
+    update
+        .download(
+            |chunk_length, content_length| {
+                total_downloaded += chunk_length as u64;
+                let progress = UpdateProgress {
+                    downloaded: total_downloaded,
+                    total: content_length,
+                    percent: content_length
+                        .map(|l| (total_downloaded as f64 / l as f64) * 100.0)
+                        .unwrap_or(0.0),
+                };
+                let _ = window_clone.emit("update-progress", UpdateStatus::Downloading(progress));
+            },
+            || {
+                log::info!("Download finished");
+            },
+        )
+        .await
+        .map_err(|e| UpdaterError::DownloadFailed(e.to_string()))?;
+
     // Store downloaded bytes for install
     if let Ok(mut pending) = PENDING_UPDATE.lock() {
         *pending = Some(update);
     }
-    
+
     Ok(UpdateStatus::Ready(info))
 }
 
@@ -138,16 +147,21 @@ pub async fn download_update<R: Runtime>(
 pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), UpdaterError> {
     // Get the pending update and download + install it
     let update = {
-        let mut pending = PENDING_UPDATE.lock().map_err(|_| UpdaterError::NoPendingUpdate)?;
+        let mut pending = PENDING_UPDATE
+            .lock()
+            .map_err(|_| UpdaterError::NoPendingUpdate)?;
         pending.take().ok_or(UpdaterError::NoPendingUpdate)?
     };
-    
+
     // Download and install the update
-    update.download_and_install(
-        |_, _| {},  // Progress is optional for this function
-        || log::info!("Install completed"),
-    ).await.map_err(|e| UpdaterError::InstallFailed(e.to_string()))?;
-    
+    update
+        .download_and_install(
+            |_, _| {}, // Progress is optional for this function
+            || log::info!("Install completed"),
+        )
+        .await
+        .map_err(|e| UpdaterError::InstallFailed(e.to_string()))?;
+
     // Restart the app
     app.restart();
 }
@@ -158,28 +172,35 @@ pub async fn download_and_install_update<R: Runtime>(
     window: tauri::Window<R>,
 ) -> Result<(), UpdaterError> {
     let update = {
-        let mut pending = PENDING_UPDATE.lock().map_err(|_| UpdaterError::NoPendingUpdate)?;
+        let mut pending = PENDING_UPDATE
+            .lock()
+            .map_err(|_| UpdaterError::NoPendingUpdate)?;
         pending.take().ok_or(UpdaterError::NoPendingUpdate)?
     };
-    
+
     let window_clone = window.clone();
     let mut downloaded: u64 = 0;
-    
-    update.download_and_install(
-        |chunk_length, content_length| {
-            downloaded += chunk_length as u64;
-            let progress = UpdateProgress {
-                downloaded,
-                total: content_length.map(|l| l as u64),
-                percent: content_length.map(|l| (downloaded as f64 / l as f64) * 100.0).unwrap_or(0.0),
-            };
-            let _ = window_clone.emit("update-progress", UpdateStatus::Downloading(progress));
-        },
-        || {
-            log::info!("Download finished, installing...");
-        },
-    ).await.map_err(|e| UpdaterError::InstallFailed(e.to_string()))?;
-    
+
+    update
+        .download_and_install(
+            |chunk_length, content_length| {
+                downloaded += chunk_length as u64;
+                let progress = UpdateProgress {
+                    downloaded,
+                    total: content_length,
+                    percent: content_length
+                        .map(|l| (downloaded as f64 / l as f64) * 100.0)
+                        .unwrap_or(0.0),
+                };
+                let _ = window_clone.emit("update-progress", UpdateStatus::Downloading(progress));
+            },
+            || {
+                log::info!("Download finished, installing...");
+            },
+        )
+        .await
+        .map_err(|e| UpdaterError::InstallFailed(e.to_string()))?;
+
     // Restart the app
     app.restart();
 }

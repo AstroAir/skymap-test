@@ -106,14 +106,13 @@ pub fn validate_url(
     }
 
     // Parse URL
-    let url = Url::parse(url_str).map_err(|e| {
-        SecurityError::InvalidUrl(format!("{}: {}", url_str, e))
-    })?;
+    let url = Url::parse(url_str)
+        .map_err(|e| SecurityError::InvalidUrl(format!("{}: {}", url_str, e)))?;
 
     // Check scheme - only HTTPS (and optionally HTTP) allowed
     match url.scheme() {
-        "https" => {}, // Always allowed
-        "http" if allow_http => {}, // Conditionally allowed
+        "https" => {}              // Always allowed
+        "http" if allow_http => {} // Conditionally allowed
         scheme => {
             return Err(SecurityError::InvalidScheme(format!(
                 "Scheme '{}' is not allowed (only HTTPS{} is permitted)",
@@ -128,12 +127,13 @@ pub fn validate_url(
         let host_lower = host.to_lowercase();
 
         // Block localhost variants
-        if host_lower == "localhost" ||
-           host_lower == "127.0.0.1" ||
-           host_lower.starts_with("127.") ||
-           host_lower == "::1" ||
-           host_lower == "[::1]" ||
-           host_lower.ends_with(".localhost") {
+        if host_lower == "localhost"
+            || host_lower == "127.0.0.1"
+            || host_lower.starts_with("127.")
+            || host_lower == "::1"
+            || host_lower == "[::1]"
+            || host_lower.ends_with(".localhost")
+        {
             return Err(SecurityError::BlockedLocalhost);
         }
 
@@ -151,8 +151,7 @@ pub fn validate_url(
         if let Some(allowed) = allowlist {
             if !allowed.iter().any(|&domain| {
                 // Exact match or subdomain match
-                host_lower == domain ||
-                host_lower.ends_with(&format!(".{}", domain))
+                host_lower == domain || host_lower.ends_with(&format!(".{}", domain))
             }) {
                 return Err(SecurityError::UrlNotAllowlisted(host.to_string()));
             }

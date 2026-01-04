@@ -27,7 +27,13 @@ pub fn generate_id(prefix: &str) -> String {
         .subsec_nanos()
         .wrapping_mul(1103515245)
         .wrapping_add(12345);
-    format!("{}-{:x}{:04x}{:08x}", prefix, timestamp, counter & 0xFFFF, random)
+    format!(
+        "{}-{:x}{:04x}{:08x}",
+        prefix,
+        timestamp,
+        counter & 0xFFFF,
+        random
+    )
 }
 
 #[cfg(test)]
@@ -47,7 +53,7 @@ mod tests {
     fn test_generate_id_prefix() {
         let id = generate_id("marker");
         assert!(id.starts_with("marker-"));
-        
+
         let id2 = generate_id("session");
         assert!(id2.starts_with("session-"));
     }

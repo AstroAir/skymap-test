@@ -86,9 +86,9 @@ impl SlidingWindowLimiter {
         let now = Instant::now();
 
         // Remove requests outside the current window
-        state.requests.retain(|&timestamp| {
-            now.duration_since(timestamp) < self.window
-        });
+        state
+            .requests
+            .retain(|&timestamp| now.duration_since(timestamp) < self.window);
 
         // Check if currently banned
         if let Some(banned_until) = state.banned_until {
@@ -127,19 +127,10 @@ impl SlidingWindowLimiter {
 }
 
 /// Rate limit state for a single client
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RateLimitState {
     requests: Vec<Instant>,
     banned_until: Option<Instant>,
-}
-
-impl Default for RateLimitState {
-    fn default() -> Self {
-        Self {
-            requests: Vec::new(),
-            banned_until: None,
-        }
-    }
 }
 
 /// Result of a rate limit check
@@ -173,16 +164,15 @@ impl GlobalRateLimiter {
     }
 
     /// Check if a command should be rate limited
-    pub fn check(
-        &self,
-        command: &str,
-        config: RateLimitConfig,
-    ) -> RateLimitResult {
+    pub fn check(&self, command: &str, config: RateLimitConfig) -> RateLimitResult {
         let mut limiters = self.limiters.lock().unwrap();
 
-        let entry = limiters
-            .entry(command.to_string())
-            .or_insert_with(|| (SlidingWindowLimiter::new(config.clone()), RateLimitState::default()));
+        let entry = limiters.entry(command.to_string()).or_insert_with(|| {
+            (
+                SlidingWindowLimiter::new(config.clone()),
+                RateLimitState::default(),
+            )
+        });
 
         entry.0.check(&mut entry.1)
     }
@@ -198,9 +188,9 @@ impl GlobalRateLimiter {
     #[allow(dead_code)]
     pub fn get_state(&self, command: &str) -> Option<(usize, Option<Instant>)> {
         let limiters = self.limiters.lock().unwrap();
-        limiters.get(command).map(|(_, state)| {
-            (state.requests.len(), state.banned_until)
-        })
+        limiters
+            .get(command)
+            .map(|(_, state)| (state.requests.len(), state.banned_until))
     }
 }
 
@@ -214,36 +204,29 @@ impl Default for GlobalRateLimiter {
 pub fn get_command_rate_limit(command: &str) -> RateLimitConfig {
     match command {
         // Sensitive commands - conservative limits
-        | "open_path"
+        "open_path"
         | "reveal_in_file_manager"
         | "import_all_data"
         | "export_all_data"
         | "delete_store_data"
-        | "clear_all_data"
-        => RateLimitConfig::conservative(),
+        | "clear_all_data" => RateLimitConfig::conservative(),
 
         // File operations - moderate limits
-        | "save_store_data"
-        | "load_store_data"
-        | "save_cached_tile"
-        | "import_targets"
-        | "export_targets"
-        => RateLimitConfig::moderate(),
+        "save_store_data" | "load_store_data" | "save_cached_tile" | "import_targets"
+        | "export_targets" => RateLimitConfig::moderate(),
 
         // Cache operations - permissive limits
-        | "prefetch_url"
-        | "load_cached_tile"
-        | "get_unified_cache_stats"
-        => RateLimitConfig::permissive(),
+        "prefetch_url" | "load_cached_tile" | "get_unified_cache_stats" => {
+            RateLimitConfig::permissive()
+        }
 
         // Read-only operations - very permissive
-        | "get_data_directory"
+        "get_data_directory"
         | "list_stores"
         | "get_storage_stats"
         | "get_current_location"
         | "load_equipment"
-        | "load_locations"
-        => RateLimitConfig {
+        | "load_locations" => RateLimitConfig {
             max_requests: 10000,
             window_seconds: 60,
             ban_on_exceed: false,
@@ -330,7 +313,7 @@ mod tests {
 
         // While banned, all requests should be rejected
         match limiter.check(&mut state) {
-            RateLimitResult::Banned { .. } => {},
+            RateLimitResult::Banned { .. } => {}
             _ => panic!("Expected banned result"),
         }
 

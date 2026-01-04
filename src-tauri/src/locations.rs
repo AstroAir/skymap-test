@@ -15,14 +15,14 @@ use crate::utils::generate_id;
 pub struct ObservationLocation {
     pub id: String,
     pub name: String,
-    pub latitude: f64,       // degrees, positive = North
-    pub longitude: f64,      // degrees, positive = East
-    pub altitude: f64,       // meters above sea level
+    pub latitude: f64,  // degrees, positive = North
+    pub longitude: f64, // degrees, positive = East
+    pub altitude: f64,  // meters above sea level
     pub timezone: Option<String>,
     pub bortle_class: Option<u8>, // 1-9 light pollution scale
     pub notes: Option<String>,
     pub is_default: bool,
-    pub is_current: bool,    // Currently active location
+    pub is_current: bool, // Currently active location
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -39,13 +39,13 @@ fn get_locations_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
         .path()
         .app_data_dir()
         .map_err(|_| StorageError::AppDataDirNotFound)?;
-    
+
     let dir = app_data_dir.join("skymap").join("locations");
-    
+
     if !dir.exists() {
         fs::create_dir_all(&dir)?;
     }
-    
+
     Ok(dir.join("locations.json"))
 }
 
@@ -53,27 +53,24 @@ fn get_locations_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
 #[tauri::command]
 pub async fn load_locations(app: AppHandle) -> Result<LocationsData, StorageError> {
     let path = get_locations_path(&app)?;
-    
+
     if !path.exists() {
         return Ok(LocationsData::default());
     }
-    
+
     let data = fs::read_to_string(&path)?;
     let locations: LocationsData = serde_json::from_str(&data)?;
-    
+
     Ok(locations)
 }
 
 /// Save all locations
 #[tauri::command]
-pub async fn save_locations(
-    app: AppHandle,
-    locations: LocationsData,
-) -> Result<(), StorageError> {
+pub async fn save_locations(app: AppHandle, locations: LocationsData) -> Result<(), StorageError> {
     let path = get_locations_path(&app)?;
     let json = serde_json::to_string_pretty(&locations)?;
     fs::write(&path, json)?;
-    
+
     log::info!("Saved locations data to {:?}", path);
     Ok(())
 }
@@ -85,11 +82,11 @@ pub async fn add_location(
     mut location: ObservationLocation,
 ) -> Result<LocationsData, StorageError> {
     let mut data = load_locations(app.clone()).await?;
-    
+
     location.id = generate_id("location");
     location.created_at = Utc::now();
     location.updated_at = Utc::now();
-    
+
     // If first location or marked as default, set as default
     if data.locations.is_empty() || location.is_default {
         for loc in &mut data.locations {
@@ -97,7 +94,7 @@ pub async fn add_location(
         }
         location.is_default = true;
     }
-    
+
     // If marked as current, update current_location_id
     if location.is_current {
         for loc in &mut data.locations {
@@ -105,10 +102,10 @@ pub async fn add_location(
         }
         data.current_location_id = Some(location.id.clone());
     }
-    
+
     data.locations.push(location);
     save_locations(app, data.clone()).await?;
-    
+
     Ok(data)
 }
 
@@ -119,7 +116,7 @@ pub async fn update_location(
     location: ObservationLocation,
 ) -> Result<LocationsData, StorageError> {
     let mut data = load_locations(app.clone()).await?;
-    
+
     if let Some(existing) = data.locations.iter_mut().find(|l| l.id == location.id) {
         // Update fields
         existing.name = location.name;
@@ -130,14 +127,14 @@ pub async fn update_location(
         existing.bortle_class = location.bortle_class;
         existing.notes = location.notes;
         existing.updated_at = Utc::now();
-        
+
         // Handle default flag
         if location.is_default {
             for loc in &mut data.locations {
                 loc.is_default = loc.id == location.id;
             }
         }
-        
+
         // Handle current flag
         if location.is_current {
             for loc in &mut data.locations {
@@ -146,9 +143,9 @@ pub async fn update_location(
             data.current_location_id = Some(location.id.clone());
         }
     }
-    
+
     save_locations(app, data.clone()).await?;
-    
+
     Ok(data)
 }
 
@@ -159,9 +156,9 @@ pub async fn delete_location(
     location_id: String,
 ) -> Result<LocationsData, StorageError> {
     let mut data = load_locations(app.clone()).await?;
-    
+
     data.locations.retain(|l| l.id != location_id);
-    
+
     // Update current_location_id if deleted
     if data.current_location_id.as_ref() == Some(&location_id) {
         data.current_location_id = data.locations.first().map(|l| l.id.clone());
@@ -171,9 +168,9 @@ pub async fn delete_location(
             }
         }
     }
-    
+
     save_locations(app, data.clone()).await?;
-    
+
     Ok(data)
 }
 
@@ -184,14 +181,14 @@ pub async fn set_current_location(
     location_id: String,
 ) -> Result<LocationsData, StorageError> {
     let mut data = load_locations(app.clone()).await?;
-    
+
     for loc in &mut data.locations {
         loc.is_current = loc.id == location_id;
     }
     data.current_location_id = Some(location_id);
-    
+
     save_locations(app, data.clone()).await?;
-    
+
     Ok(data)
 }
 
@@ -201,11 +198,10 @@ pub async fn get_current_location(
     app: AppHandle,
 ) -> Result<Option<ObservationLocation>, StorageError> {
     let data = load_locations(app).await?;
-    
+
     if let Some(id) = data.current_location_id {
         Ok(data.locations.into_iter().find(|l| l.id == id))
     } else {
         Ok(data.locations.into_iter().find(|l| l.is_default))
     }
 }
-

@@ -4,10 +4,10 @@
 //! are working correctly.
 
 #[cfg(test)]
-mod security_tests {
+mod security_integration_tests {
     // Import security modules
+    use crate::rate_limiter::{self, GlobalRateLimiter, RateLimitConfig};
     use crate::security::{self, limits};
-    use crate::rate_limiter::{self, RateLimitConfig, GlobalRateLimiter};
 
     // ============================================================================
     // URL Validation Tests
@@ -91,8 +91,15 @@ mod security_tests {
     fn test_url_validation_respects_allowlist() {
         let allowlist = vec!["api.example.com", "cdn.example.com"];
 
-        assert!(security::validate_url("https://api.example.com/data", false, Some(&allowlist)).is_ok());
-        assert!(security::validate_url("https://sub.api.example.com/test", false, Some(&allowlist)).is_ok());
+        assert!(
+            security::validate_url("https://api.example.com/data", false, Some(&allowlist)).is_ok()
+        );
+        assert!(security::validate_url(
+            "https://sub.api.example.com/test",
+            false,
+            Some(&allowlist)
+        )
+        .is_ok());
         assert!(security::validate_url("https://evil.com", false, Some(&allowlist)).is_err());
     }
 
@@ -104,7 +111,10 @@ mod security_tests {
 
     #[test]
     fn test_url_validation_limits_length() {
-        let long_url = format!("https://example.com/{}", "a".repeat(security::limits::MAX_URL_LENGTH));
+        let long_url = format!(
+            "https://example.com/{}",
+            "a".repeat(security::limits::MAX_URL_LENGTH)
+        );
         assert!(security::validate_url(&long_url, false, None).is_err());
     }
 
@@ -219,7 +229,10 @@ mod security_tests {
 
         // Layer 1: URL validation should block
         let url_result = security::validate_url(url, false, None);
-        assert!(url_result.is_err(), "URL validation should block private IPs");
+        assert!(
+            url_result.is_err(),
+            "URL validation should block private IPs"
+        );
 
         // Layer 2: Even if URL passed, rate limiting should apply
         let limiter = GlobalRateLimiter::new();
@@ -279,7 +292,10 @@ pub mod test_utils {
 
     #[test]
     fn test_utility_functions() {
-        assert_eq!(test_url("https", "example.com", "path"), "https://example.com/path");
+        assert_eq!(
+            test_url("https", "example.com", "path"),
+            "https://example.com/path"
+        );
         assert_eq!(create_test_data(5), "xxxxx");
 
         let csv = create_test_csv(3);
