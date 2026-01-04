@@ -319,10 +319,7 @@ pub async fn get_storage_stats(app: AppHandle) -> Result<StorageStats, StorageEr
                             stores.push(StoreInfo {
                                 name: name.to_string_lossy().to_string(),
                                 size,
-                                modified: metadata
-                                    .modified()
-                                    .ok()
-                                    .map(|t| DateTime::<Utc>::from(t)),
+                                modified: metadata.modified().ok().map(DateTime::<Utc>::from),
                             });
                         }
                     }
