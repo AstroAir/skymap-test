@@ -10,7 +10,7 @@ graph TD
     C --> S[Zustand Store]
     S --> T[Tauri Commands]
     T --> B[Rust Backend]
-    B --> D[(SQLite)]
+    B --> D[(JSON Stores)]
     
     B --> S
     S --> C
@@ -67,7 +67,7 @@ function TelescopeForm() {
 | 数据类型 | 缓存位置 | TTL |
 |---------|---------|-----|
 | 星表数据 | 内存 + 磁盘 | 永久 |
-| 用户设置 | Zustand + SQLite | 永久 |
+| 用户设置 | Zustand + JSON | 永久 |
 | HiPS 瓦片 | 磁盘缓存 | 7天 |
 | 天体信息 | 内存缓存 | 1小时 |
 

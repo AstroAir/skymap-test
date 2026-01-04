@@ -221,35 +221,70 @@ if (visibility.visible) {
 }
 ```
 
-## 缓存管理 API
+## 离线缓存模块 API
 
 ### 命令列表
 
 | 命令名 | 功能 | 参数 | 返回值 |
 |--------|------|------|--------|
 | `get_cache_stats` | 获取缓存统计 | - | CacheStats |
-| `save_cached_tile` | 保存瓦片 | tile, data | void |
-| `load_cached_tile` | 加载瓦片 | tile | bytes \| null |
-| `is_tile_cached` | 检查瓦片是否存在 | tile | boolean |
-| `clear_survey_cache` | 清除星图缓存 | surveyId | void |
-| `clear_all_cache` | 清除所有缓存 | - | void |
+| `list_cache_regions` | 列出所有缓存区域 | - | CacheRegion[] |
+| `create_cache_region` | 创建新缓存区域 | args: CreateRegionArgs | CacheRegion |
+| `update_cache_region` | 更新区域状态 | regionId, status?, progress?, sizeBytes? | CacheRegion |
+| `delete_cache_region` | 删除缓存区域 | regionId, deleteTiles | void |
+| `save_cached_tile` | 保存瓦片到缓存 | surveyId, zoom, x, y, data | void |
+| `load_cached_tile` | 从缓存加载瓦片 | surveyId, zoom, x, y | bytes \| null |
+| `is_tile_cached` | 检查瓦片是否存在 | surveyId, zoom, x, y | boolean |
+| `clear_survey_cache` | 清除特定星图缓存 | surveyId | number |
+| `clear_all_cache` | 清除所有缓存数据 | - | number |
+| `get_cache_directory` | 获取缓存目录路径 | - | string |
 
 ### 数据结构
 
 ```typescript
-interface CacheStats {
-  totalSize: number;
-  tileCount: number;
-  surveyCount: number;
-  lastUpdate: string;
+interface CreateRegionArgs {
+  name: string;
+  center_ra: number;
+  center_dec: number;
+  radius_deg: number;
+  min_zoom: number;
+  max_zoom: number;
+  survey_id: string;
 }
 
-interface Tile {
-  survey: string;
-  level: number;
-  x: number;
-  y: number;
+interface CacheRegion {
+  id: string;
+  name: string;
+  center_ra: number;
+  center_dec: number;
+  radius_deg: number;
+  min_zoom: number;
+  max_zoom: number;
+  survey_id: string;
+  tile_count: number;
+  size_bytes: number;
+  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  created_at: string; // ISO Date
+  updated_at: string; // ISO Date
 }
+```
+
+### 使用示例
+
+```typescript
+import { cacheApi } from '@/lib/tauri/cache-api';
+
+// 创建新区域
+const region = await cacheApi.createRegion(
+  'Orion Nebula',
+  83.82,   // RA
+  -5.39,   // Dec
+  2.0,     // Radius deg
+  1,       // Min zoom
+  12,      // Max zoom
+  'dss'    // Survey ID
+);
 ```
 
 ## 统一缓存 API

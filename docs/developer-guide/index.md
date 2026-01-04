@@ -60,7 +60,7 @@
 
 - **Tauri 2.9** - 桌面应用框架
 - **Rust** - 系统编程语言
-- **SQLite** - 数据存储
+- **JSON File Storage** - 数据存储
 
 ## 快速开始
 
@@ -187,7 +187,7 @@ graph TB
     end
 
     subgraph 数据层
-        J[SQLite Database]
+        J[JSON Stores]
         K[File System]
         L[Cache Files]
     end

@@ -25,7 +25,7 @@ graph TD
     end
 
     subgraph 数据层
-        F --> K[(SQLite)]
+        F --> K[(JSON Stores)]
         I --> L[文件缓存]
     end
 ```

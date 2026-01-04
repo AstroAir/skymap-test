@@ -31,7 +31,7 @@ graph TB
     end
 
     subgraph 数据层
-        D1[(SQLite Database)]
+        D1[(JSON Stores)]
         D2[File System Cache]
         D3[Star Catalog Data]
         D4[User Settings]
@@ -159,7 +159,7 @@ graph TD
 
 - **框架**: Tauri 2.9
 - **语言**: Rust
-- **数据库**: SQLite
+- **存储**: JSON File Storage
 - **序列化**: Serde
 
 ### 后端模块组织
@@ -179,7 +179,7 @@ graph TD
     end
 
     subgraph 数据访问层
-        A1[SQLite<br/>数据库]
+        A1[JSON<br/>文件存储]
         A2[File System<br/>文件系统]
         A3[Network<br/>网络请求]
     end
@@ -201,7 +201,7 @@ graph TD
 **文件**: `storage.rs`
 
 **职责**:
-- SQLite数据库管理
+- JSON 文件存储管理
 - CRUD操作
 - 数据持久化
 
@@ -438,10 +438,12 @@ graph TD
 - 无需Provider包裹
 - 良好的TypeScript支持
 
-### 为什么选择 SQLite?
+### 为什么选择 JSON 存储?
 
 - 零配置
 - 轻量级
+- 易于调试和人工检查数据
+- 适合桌面应用配置与轻量级数据存储
 - 跨平台
 - 适合桌面应用
 

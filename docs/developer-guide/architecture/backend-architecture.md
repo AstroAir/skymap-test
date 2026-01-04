@@ -12,9 +12,8 @@
 
 ### 数据存储
 
-- **SQLite**：本地数据库
-- **Rusqlite**：SQLite Rust 绑定
-- **Serde**：序列化/反序列化
+- **JSON 文件存储**：本地持久化存储
+- **Serde**：序列化/反序列化 (JSON)
 
 ## 目录结构
 
@@ -65,7 +64,8 @@ pub fn run() {
 
 ```rust
 // src-tauri/src/storage.rs
-use rusqlite::{Connection, params};
+use std::fs;
+use serde_json;
 
 #[tauri::command]
 pub async fn save_store_data(

@@ -83,22 +83,24 @@ export const cacheApi = {
    */
   async createRegion(
     name: string,
-    centerRa: number,
-    centerDec: number,
-    radiusDeg: number,
-    minZoom: number,
-    maxZoom: number,
-    surveyId: string
+    center_ra: number,
+    center_dec: number,
+    radius_deg: number,
+    min_zoom: number,
+    max_zoom: number,
+    survey_id: string
   ): Promise<CacheRegion> {
     const invoke = await getInvoke();
     return invoke('create_cache_region', {
-      name,
-      centerRa,
-      centerDec,
-      radiusDeg,
-      minZoom,
-      maxZoom,
-      surveyId,
+      args: {
+        name,
+        center_ra,
+        center_dec,
+        radius_deg,
+        min_zoom,
+        max_zoom,
+        survey_id,
+      },
     });
   },
 

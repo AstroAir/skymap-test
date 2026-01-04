@@ -36,7 +36,7 @@ graph LR
     C --> D[Zustand状态]
     D --> E[Tauri IPC]
     E --> F[Rust后端]
-    F --> G[SQLite]
+    F --> G[JSON Stores]
     F --> H[文件缓存]
 ```
 

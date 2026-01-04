@@ -1,41 +1,43 @@
 # 存储 API
 
-本文档介绍 SkyMap Test 后端的数据存储 API。
+本文档介绍 SkyMap 后端的数据存储 API。
 
 ## 概览
 
-存储模块提供本地数据持久化功能，使用 SQLite 数据库。
+存储模块提供本地数据持久化功能，所有数据以 JSON 格式存储在应用程序数据目录中（`skymap/stores/*.json`）。
 
-## 数据库结构
+## 存储结构
 
-### 主要表
+### 主要存储 (Stores)
 
-| 表名 | 用途 |
-|-----|------|
-| `stores` | 通用键值存储 |
-| `equipment` | 设备配置 |
-| `targets` | 目标列表 |
-| `markers` | 用户标记 |
-| `cache` | 缓存数据 |
+| 存储名称 | 用途 |
+| --- | --- |
+| `starmap-settings` | 应用程序通用设置 |
+| `starmap-equipment` | 设备配置信息 |
+| `starmap-target-list` | 观测目标列表 |
+| `starmap-markers` | 用户自定义标记 |
+| `skymap-offline` | 离线地图区域配置 |
+| `skymap-locale` | 语言与国际化偏好 |
 
 ## Store 命令
 
 ### save_store_data
 
-保存数据到指定存储。
+保存数据到指定存储。后端会自动执行数据大小验证（最大 10MB）和 JSON 格式校验。
 
 ```typescript
 await invoke('save_store_data', {
-  storeName: 'settings',
+  storeName: 'starmap-settings',
   data: JSON.stringify(settingsObject)
 });
 ```
 
 **参数**：
+
 - `storeName: string` - 存储名称
 - `data: string` - JSON 字符串数据
 
-**返回**：`Result<(), String>`
+**返回**：`Result<(), StorageError>`
 
 ### load_store_data
 
@@ -43,19 +45,20 @@ await invoke('save_store_data', {
 
 ```typescript
 const data = await invoke<string | null>('load_store_data', {
-  storeName: 'settings'
+  storeName: 'starmap-settings'
 });
 const settings = data ? JSON.parse(data) : defaultSettings;
 ```
 
 **参数**：
+
 - `storeName: string` - 存储名称
 
-**返回**：`Result<Option<String>, String>`
+**返回**：`Result<Option<String>, StorageError>`
 
 ### delete_store_data
 
-删除指定存储的数据。
+删除指定存储的文件。
 
 ```typescript
 await invoke('delete_store_data', {
@@ -64,13 +67,14 @@ await invoke('delete_store_data', {
 ```
 
 **参数**：
+
 - `storeName: string` - 存储名称
 
-**返回**：`Result<(), String>`
+**返回**：`Result<boolean, StorageError>`
 
 ### get_storage_stats
 
-获取存储统计信息。
+获取存储统计信息，包括总大小、存储文件数量和每个文件的详细信息。
 
 ```typescript
 interface StorageStats {
@@ -80,12 +84,20 @@ interface StorageStats {
   directory: string;
 }
 
+interface StoreInfo {
+  name: string;
+  size: number;
+  modified: string | null; // ISO Date string
+}
+
 const stats = await invoke<StorageStats>('get_storage_stats');
 ```
 
-**返回**：`Result<StorageStats, String>`
+**返回**：`Result<StorageStats, StorageError>`
 
-## 缓存命令
+## 统一缓存命令 (Unified Cache)
+
+统一缓存系统用于临时存储 API 响应或计算结果，支持 TTL 过期。
 
 ### get_unified_cache_entry
 
@@ -111,85 +123,33 @@ await invoke('put_unified_cache_entry', {
 
 ### cleanup_unified_cache
 
-清理过期缓存。
+手动清理所有已过期的缓存条目。
 
 ```typescript
 const removedCount = await invoke<number>('cleanup_unified_cache');
 ```
 
-## 使用示例
+## 安全性
 
-### 设备数据存储
-
-```typescript
-// 保存设备配置
-async function saveEquipment(equipment: Equipment) {
-  await invoke('save_store_data', {
-    storeName: 'equipment',
-    data: JSON.stringify(equipment)
-  });
-}
-
-// 加载设备配置
-async function loadEquipment(): Promise<Equipment> {
-  const data = await invoke<string | null>('load_store_data', {
-    storeName: 'equipment'
-  });
-  return data ? JSON.parse(data) : { telescopes: [], cameras: [] };
-}
-```
-
-### 带缓存的数据获取
-
-```typescript
-async function getObjectInfo(objectId: string): Promise<ObjectInfo> {
-  const cacheKey = `object-info-${objectId}`;
-  
-  // 先检查缓存
-  const cached = await invoke<string | null>('get_unified_cache_entry', {
-    key: cacheKey
-  });
-  
-  if (cached) {
-    return JSON.parse(cached);
-  }
-  
-  // 从API获取
-  const info = await fetchFromApi(objectId);
-  
-  // 存入缓存
-  await invoke('put_unified_cache_entry', {
-    key: cacheKey,
-    value: JSON.stringify(info),
-    ttlSeconds: 3600
-  });
-  
-  return info;
-}
-```
+存储模块包含以下安全防护：
+1. **大小限制**：单个存储文件最大限制为 10MB。
+2. **速率限制**：保存与加载操作受速率限制器保护。
+3. **路径验证**：仅允许访问预定义的存储目录。
 
 ## 错误处理
 
-所有存储命令返回 `Result` 类型：
+所有存储命令返回结构化的 `StorageError`。
 
 ```typescript
 try {
   await invoke('save_store_data', { storeName, data });
 } catch (error) {
-  console.error('保存失败:', error);
-  toast.error('数据保存失败');
+  // error 为字符串形式的错误描述
+  console.error('存储操作失败:', error);
 }
 ```
 
-## 最佳实践
-
-1. **使用有意义的存储名称**
-2. **数据序列化前验证**
-3. **设置合理的缓存 TTL**
-4. **定期清理过期缓存**
-5. **处理存储错误**
-
 ## 相关文档
 
-- [Tauri 命令](tauri-commands.md)
-- [Stores API](../frontend-apis/stores.md)
+- [Tauri 命令大全](tauri-commands.md)
+- [前端状态管理 (Zustand)](../frontend-apis/stores.md)

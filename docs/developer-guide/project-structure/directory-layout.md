@@ -265,7 +265,7 @@ src-tauri/
 ├── src/                      # Rust 源代码
 │   ├── main.rs              # 主入口
 │   ├── lib.rs               # 库入口，注册所有命令
-│   ├── storage.rs           # 数据存储 (SQLite)
+│   ├── storage.rs           # 数据存储 (JSON)
 │   ├── equipment.rs         # 设备管理
 │   ├── locations.rs         # 位置管理
 │   ├── observation_log.rs   # 观测日志
@@ -294,7 +294,7 @@ src-tauri/
 
 **Rust 模块职责**:
 
-- **storage.rs**: SQLite 数据库管理，通用 CRUD 操作
+- **storage.rs**: JSON 文件存储管理，通用 CRUD 操作
 - **equipment.rs**: 望远镜、相机、目镜等设备管理
 - **locations.rs**: 观测位置管理
 - **observation_log.rs**: 观测日志记录
