@@ -19,6 +19,8 @@ graph TD
     A --> J[onboarding-store<br/>新手引导]
     A --> K[setup-wizard-store<br/>设置向导]
     A --> L[theme-store<br/>主题定制]
+    A --> M[favorites-store<br/>收藏对象]
+    A --> N[bookmarks-store<br/>视图书签]
 ```
 
 ### Store 列表
@@ -36,6 +38,8 @@ graph TD
 | `useOnboardingStore` | `onboarding-store.ts` | 新手引导教程 |
 | `useSetupWizardStore` | `setup-wizard-store.ts` | 首次设置向导 |
 | `useThemeStore` | `theme-store.ts` | 主题颜色定制 |
+| `useFavoritesStore` | `favorites-store.ts` | 收藏天体对象 |
+| `useBookmarksStore` | `bookmarks-store.ts` | 视图书签 |
 
 ## Stellarium Store
 
@@ -680,11 +684,359 @@ const state = useStellariumStore.getState();
 console.log('完整状态:', state);
 ```
 
+## Framing Store
+
+管理取景框和图像构图状态。
+
+**文件**: `lib/stores/framing-store.ts`
+
+### 主要功能
+
+```typescript
+interface FramingStoreState {
+  // 坐标
+  RAangle: number;           // 赤经角度
+  DECangle: number;          // 赤纬角度
+  RAangleString: string;     // 赤经字符串
+  DECangleString: string;    // 赤纬字符串
+  rotationAngle: number;     // 旋转角度
+
+  // 界面状态
+  showFramingModal: boolean; // 显示取景框对话框
+  selectedItem: object | null;
+  containerSize: number;     // 容器尺寸
+
+  // 望远镜状态
+  isSlewing: boolean;        // 是否正在转向
+  isSlewingAndCentering: boolean;
+
+  // Actions
+  setRAangle: (angle: number) => void;
+  setDECangle: (angle: number) => void;
+  setRotationAngle: (angle: number) => void;
+  setShowFramingModal: (show: boolean) => void;
+  setCoordinates: (coords: {
+    ra?: number;
+    dec?: number;
+    raString?: string;
+    decString?: string;
+  }) => void;
+}
+```
+
+### 使用示例
+
+```typescript
+import { useFramingStore } from '@/lib/stores';
+
+// 设置目标坐标
+const setCoordinates = useFramingStore(state => state.setCoordinates);
+setCoordinates({
+  ra: 83.82,
+  dec: -5.39,
+  raString: '5h 35m 17s',
+  decString: '-5° 23\' 24"'
+});
+
+// 打开取景框模态框
+const setShowFramingModal = useFramingStore(state => state.setShowFramingModal);
+setShowFramingModal(true);
+
+// 设置相机旋转角度
+const setRotationAngle = useFramingStore(state => state.setRotationAngle);
+setRotationAngle(45); // 45度
+```
+
+## Mount Store
+
+管理赤道仪和望远镜架台状态。
+
+**文件**: `lib/stores/mount-store.ts`
+
+### 主要功能
+
+```typescript
+interface MountStoreState {
+  // 赤道仪信息
+  mountInfo: {
+    Connected: boolean;      // 连接状态
+    Coordinates: {
+      RADegrees: number;     // 赤经（度）
+      Dec: number;           // 赤纬（度）
+    };
+  };
+
+  // 观测站配置
+  profileInfo: {
+    AstrometrySettings: {
+      Latitude: number;      // 纬度
+      Longitude: number;     // 经度
+      Elevation: number;     // 海拔
+    };
+  };
+
+  // 拍摄序列状态
+  sequenceRunning: boolean;  // 序列是否运行中
+  currentTab: string;        // 当前标签页
+
+  // Actions
+  setMountInfo: (info: Partial<MountInfo>) => void;
+  setMountCoordinates: (ra: number, dec: number) => void;
+  setMountConnected: (connected: boolean) => void;
+  setProfileInfo: (info: Partial<ProfileInfo>) => void;
+  setSequenceRunning: (running: boolean) => void;
+}
+```
+
+### 使用示例
+
+```typescript
+import { useMountStore } from '@/lib/stores';
+
+// 检查赤道仪连接状态
+const isConnected = useMountStore(state => state.mountInfo.Connected);
+
+// 更新赤道仪坐标
+const setMountCoordinates = useMountStore(state => state.setMountCoordinates);
+setMountCoordinates(180.5, 45.2);
+
+// 设置观测站位置
+const setProfileInfo = useMountStore(state => state.setProfileInfo);
+setProfileInfo({
+  AstrometrySettings: {
+    Latitude: 39.904,
+    Longitude: 116.407,
+    Elevation: 50
+  }
+});
+```
+
+## Favorites Store
+
+管理用户收藏的天体对象。
+
+**文件**: `lib/stores/favorites-store.ts`
+
+### 主要功能
+
+```typescript
+interface FavoriteObject {
+  id: string;
+  name: string;
+  ra: number;
+  dec: number;
+  raString: string;
+  decString: string;
+  type?: string;
+  magnitude?: number;
+  constellation?: string;
+  notes?: string;
+  addedAt: number;
+  lastViewedAt?: number;
+  viewCount: number;
+  tags: string[];
+}
+
+interface FavoritesState {
+  favorites: FavoriteObject[];
+  recentlyViewed: FavoriteObject[];
+  maxRecent: number;
+
+  // Actions
+  addFavorite: (object: Omit<FavoriteObject, 'id' | 'addedAt' | 'viewCount' | 'tags'>) => void;
+  removeFavorite: (id: string) => void;
+  updateFavorite: (id: string, updates: Partial<FavoriteObject>) => void;
+  isFavorite: (name: string) => boolean;
+  getFavoriteByName: (name: string) => FavoriteObject | undefined;
+  addTag: (id: string, tag: string) => void;
+  removeTag: (id: string, tag: string) => void;
+  recordView: (object: Omit<FavoriteObject, ...>) => void;
+  clearRecentlyViewed: () => void;
+  getAllTags: () => string[];
+  getFavoritesByTag: (tag: string) => FavoriteObject[];
+}
+```
+
+### 预定义标签
+
+```typescript
+const FAVORITE_TAGS = [
+  'imaging',    // 适合摄影
+  'visual',     // 适合目视
+  'must-see',   // 必看
+  'difficult',  // 难度较高
+  'seasonal',   // 季节性
+  'priority',   // 优先
+] as const;
+```
+
+### 使用示例
+
+```typescript
+import { useFavoritesStore, FAVORITE_TAGS } from '@/lib/stores';
+
+// 添加收藏
+const addFavorite = useFavoritesStore(state => state.addFavorite);
+addFavorite({
+  name: 'M31',
+  ra: 10.6847,
+  dec: 41.2687,
+  raString: '0h 42m 44s',
+  decString: '+41° 16\' 9"',
+  type: 'Galaxy',
+  magnitude: 3.4,
+  constellation: 'Andromeda',
+  notes: '仙女座星系，最佳秋季观测'
+});
+
+// 检查是否已收藏
+const isFavorite = useFavoritesStore(state => state.isFavorite);
+if (isFavorite('M31')) {
+  console.log('M31 已在收藏列表中');
+}
+
+// 添加标签
+const addTag = useFavoritesStore(state => state.addTag);
+addTag('fav_xxx', 'imaging');
+
+// 获取某标签下的所有收藏
+const getFavoritesByTag = useFavoritesStore(state => state.getFavoritesByTag);
+const imagingTargets = getFavoritesByTag('imaging');
+
+// 记录浏览历史
+const recordView = useFavoritesStore(state => state.recordView);
+recordView({
+  name: 'M42',
+  ra: 83.82,
+  dec: -5.39,
+  raString: '5h 35m 17s',
+  decString: '-5° 23\' 24"'
+});
+```
+
+## Bookmarks Store
+
+管理视图书签，保存和恢复天空视图位置。
+
+**文件**: `lib/stores/bookmarks-store.ts`
+
+### 主要功能
+
+```typescript
+interface ViewBookmark {
+  id: string;
+  name: string;
+  ra: number;
+  dec: number;
+  fov: number;            // 视场角
+  description?: string;
+  color?: string;         // 标记颜色
+  icon?: BookmarkIcon;    // 图标类型
+  createdAt: number;
+  updatedAt: number;
+}
+
+type BookmarkIcon = 'star' | 'heart' | 'flag' | 'pin' | 'eye' | 'camera' | 'telescope';
+
+interface BookmarksState {
+  bookmarks: ViewBookmark[];
+
+  // Actions
+  addBookmark: (bookmark: Omit<ViewBookmark, 'id' | 'createdAt' | 'updatedAt'>) => string;
+  updateBookmark: (id: string, updates: Partial<ViewBookmark>) => void;
+  removeBookmark: (id: string) => void;
+  getBookmark: (id: string) => ViewBookmark | undefined;
+  reorderBookmarks: (fromIndex: number, toIndex: number) => void;
+  duplicateBookmark: (id: string) => string | null;
+}
+```
+
+### 预定义颜色
+
+```typescript
+const BOOKMARK_COLORS = [
+  '#ef4444', // 红色
+  '#f97316', // 橙色
+  '#eab308', // 黄色
+  '#22c55e', // 绿色
+  '#06b6d4', // 青色
+  '#3b82f6', // 蓝色
+  '#8b5cf6', // 紫色
+  '#ec4899', // 粉色
+];
+```
+
+### 默认书签
+
+```typescript
+const DEFAULT_BOOKMARKS = [
+  {
+    name: 'North Celestial Pole',
+    ra: 0, dec: 90, fov: 30,
+    description: '北天极',
+    icon: 'star',
+  },
+  {
+    name: 'Orion Nebula',
+    ra: 83.82, dec: -5.39, fov: 2,
+    description: 'M42 - 猎户座大星云',
+    icon: 'camera',
+  },
+  {
+    name: 'Andromeda Galaxy',
+    ra: 10.68, dec: 41.27, fov: 3,
+    description: 'M31 - 仙女座星系',
+    icon: 'telescope',
+  },
+  {
+    name: 'Galactic Center',
+    ra: 266.42, dec: -29.01, fov: 15,
+    description: '银河系中心',
+    icon: 'eye',
+  },
+];
+```
+
+### 使用示例
+
+```typescript
+import { useBookmarksStore, BOOKMARK_COLORS, BOOKMARK_ICONS } from '@/lib/stores';
+
+// 添加书签
+const addBookmark = useBookmarksStore(state => state.addBookmark);
+const bookmarkId = addBookmark({
+  name: '我的观测位置',
+  ra: 180.5,
+  dec: 45.2,
+  fov: 5,
+  description: '银河拍摄最佳区域',
+  color: BOOKMARK_COLORS[5],
+  icon: 'camera'
+});
+
+// 获取所有书签
+const bookmarks = useBookmarksStore(state => state.bookmarks);
+
+// 跳转到书签位置
+const bookmark = useBookmarksStore(state => state.getBookmark(bookmarkId));
+if (bookmark) {
+  stellariumStore.setViewDirection(bookmark.ra, bookmark.dec);
+  stellariumStore.setFov(bookmark.fov);
+}
+
+// 重新排序书签
+const reorderBookmarks = useBookmarksStore(state => state.reorderBookmarks);
+reorderBookmarks(0, 2); // 将第一个移到第三个位置
+
+// 复制书签
+const duplicateBookmark = useBookmarksStore(state => state.duplicateBookmark);
+const newId = duplicateBookmark(bookmarkId);
+```
+
 ## 相关文档
 
-- [状态管理](../architecture/state-management.md)
-- [数据流设计](../architecture/data-flow.md)
-- [组件开发](../frontend-development/react-components.md)
+- [数据流设计](../../architecture/data-flow.md)
+- [组件开发](../../frontend-development/react-components.md)
 
 ---
 

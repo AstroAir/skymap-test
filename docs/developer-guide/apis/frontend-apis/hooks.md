@@ -11,6 +11,10 @@ graph TD
     A --> D[规划 Hooks]
     A --> E[翻译 Hooks]
     A --> F[缓存 Hooks]
+    A --> G[HTTP Hooks]
+    A --> H[导航 Hooks]
+    A --> I[动画 Hooks]
+    A --> J[更新 Hooks]
 
     B --> B1[useGeolocation]
     B --> B2[useDeviceOrientation]
@@ -26,6 +30,19 @@ graph TD
     E --> E2[useSkyCultureLanguage]
 
     F --> F1[useCacheInit]
+
+    G --> G1[useHttpClient]
+    G --> G2[useFetch]
+
+    H --> H1[useNavigationHistory]
+    H --> H2[useKeyboardShortcuts]
+
+    I --> I1[useAnimationFrame]
+    I --> I2[useThrottledUpdate]
+    I --> I3[useGlobalAnimationLoop]
+
+    J --> J1[useUpdater]
+    J --> J2[useAutoUpdater]
 ```
 
 ### Hooks 列表
@@ -40,6 +57,13 @@ graph TD
 | `useTonightRecommendations` | `use-tonight-recommendations.ts` | 今晚观测推荐 |
 | `useTargetPlanner` | `use-target-planner.ts` | 目标规划器 |
 | `useCacheInit` | `use-cache-init.ts` | 缓存初始化 |
+| `useHttpClient` | `use-http-client.ts` | HTTP 客户端 |
+| `useFetch` | `use-http-client.ts` | 数据获取 |
+| `useNavigationHistory` | `use-navigation-history.ts` | 导航历史 |
+| `useKeyboardShortcuts` | `use-keyboard-shortcuts.ts` | 键盘快捷键 |
+| `useAnimationFrame` | `use-animation-frame.ts` | 动画帧 |
+| `useThrottledUpdate` | `use-animation-frame.ts` | 节流更新 |
+| `useUpdater` | `lib/tauri/updater-hooks.ts` | 应用更新 |
 
 ## 设备 Hooks
 
@@ -561,6 +585,465 @@ function App() {
   }
 
   return <MainApp />;
+}
+```
+
+## HTTP Hooks
+
+### useHttpClient
+
+完整的 HTTP 客户端 Hook，支持 Tauri 和浏览器环境。
+
+**文件**: `lib/hooks/use-http-client.ts`
+
+```typescript
+interface UseHttpClientOptions {
+  baseUrl?: string;              // 基础 URL
+  timeout?: number;              // 超时时间
+  defaultHeaders?: Record<string, string>;
+  allowHttp?: boolean;           // 允许 HTTP
+}
+
+interface UseHttpClientReturn {
+  get: <T>(url: string, options?: FetchOptions) => Promise<T>;
+  post: <T>(url: string, body?: unknown, options?: FetchOptions) => Promise<T>;
+  put: <T>(url: string, body?: unknown, options?: FetchOptions) => Promise<T>;
+  del: <T>(url: string, options?: FetchOptions) => Promise<T>;
+  download: (url: string, onProgress?: (progress: DownloadProgress) => void) => Promise<FetchResponse>;
+  batchDownload: (urls: string[], options?: { concurrency?: number }) => Promise<{ success: number; failed: number }>;
+  checkUrl: (url: string) => Promise<boolean>;
+  cancel: () => void;
+  cancelAll: () => void;
+  state: HttpRequestState;
+  isTauriEnv: boolean;
+}
+```
+
+**使用示例**:
+
+```typescript
+import { useHttpClient } from '@/lib/hooks';
+
+function DataFetcher() {
+  const { get, post, state, cancel } = useHttpClient({
+    baseUrl: 'https://api.example.com',
+    timeout: 10000,
+  });
+
+  const fetchData = async () => {
+    try {
+      const data = await get<MyData>('/endpoint');
+      console.log(data);
+    } catch (error) {
+      console.error('请求失败:', error);
+    }
+  };
+
+  return (
+    <div>
+      {state.loading && <Spinner />}
+      <Button onClick={fetchData}>获取数据</Button>
+      <Button onClick={cancel}>取消</Button>
+    </div>
+  );
+}
+```
+
+### useFetch
+
+简化的数据获取 Hook，支持自动请求。
+
+```typescript
+function useFetch<T = unknown>(
+  url: string | null,
+  options?: UseHttpClientOptions & { enabled?: boolean }
+): {
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
+  refetch: () => Promise<T | null>;
+};
+```
+
+**使用示例**:
+
+```typescript
+import { useFetch } from '@/lib/hooks';
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data, loading, error, refetch } = useFetch<User>(
+    `/api/users/${userId}`,
+    { enabled: !!userId }
+  );
+
+  if (loading) return <Spinner />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!data) return null;
+
+  return (
+    <div>
+      <h1>{data.name}</h1>
+      <Button onClick={refetch}>刷新</Button>
+    </div>
+  );
+}
+```
+
+## 导航 Hooks
+
+### useNavigationHistory
+
+管理星图视图的导航历史，支持后退/前进。
+
+**文件**: `lib/hooks/use-navigation-history.ts`
+
+```typescript
+interface NavigationPoint {
+  id: string;
+  ra: number;
+  dec: number;
+  fov: number;
+  name?: string;
+  timestamp: number;
+}
+
+function useNavigationHistory(): {
+  history: NavigationPoint[];
+  currentIndex: number;
+  historyCount: number;
+  push: (point: Omit<NavigationPoint, 'id' | 'timestamp'>) => void;
+  pushWithDebounce: (point: Omit<NavigationPoint, 'id' | 'timestamp'>) => void;
+  back: () => NavigationPoint | null;
+  forward: () => NavigationPoint | null;
+  canGoBack: () => boolean;
+  canGoForward: () => boolean;
+  clear: () => void;
+  getCurrent: () => NavigationPoint | null;
+};
+```
+
+**使用示例**:
+
+```typescript
+import { useNavigationHistory, formatNavigationPoint } from '@/lib/hooks';
+
+function NavigationControls() {
+  const {
+    back,
+    forward,
+    canGoBack,
+    canGoForward,
+    history
+  } = useNavigationHistory();
+
+  const handleBack = () => {
+    const point = back();
+    if (point) {
+      stellariumStore.setViewDirection(point.ra, point.dec);
+      stellariumStore.setFov(point.fov);
+    }
+  };
+
+  return (
+    <div>
+      <Button onClick={handleBack} disabled={!canGoBack()}>
+        ← 后退
+      </Button>
+      <Button onClick={() => forward()} disabled={!canGoForward()}>
+        前进 →
+      </Button>
+      <DropdownMenu>
+        {history.map(point => (
+          <DropdownItem key={point.id}>
+            {formatNavigationPoint(point)}
+          </DropdownItem>
+        ))}
+      </DropdownMenu>
+    </div>
+  );
+}
+```
+
+### useKeyboardShortcuts
+
+全局键盘快捷键管理。
+
+**文件**: `lib/hooks/use-keyboard-shortcuts.ts`
+
+```typescript
+interface KeyboardShortcut {
+  key: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  meta?: boolean;
+  description: string;
+  action: () => void;
+  ignoreInputs?: boolean;  // 输入框聚焦时忽略（默认 true）
+}
+
+function useKeyboardShortcuts(options: {
+  shortcuts: KeyboardShortcut[];
+  enabled?: boolean;
+}): void;
+```
+
+**预定义快捷键**:
+
+```typescript
+const STARMAP_SHORTCUT_KEYS = {
+  // 导航
+  ZOOM_IN: '+',
+  ZOOM_OUT: '-',
+  RESET_VIEW: 'r',
+  CENTER_VIEW: 'c',
+
+  // 面板
+  TOGGLE_SEARCH: 'f',
+  TOGGLE_SETTINGS: ',',
+  TOGGLE_FOV: 'o',
+
+  // 显示
+  TOGGLE_CONSTELLATIONS: 'l',
+  TOGGLE_GRID: 'g',
+  TOGGLE_DSO: 'd',
+
+  // 时间
+  PAUSE_TIME: ' ', // 空格
+  SPEED_UP: ']',
+  SLOW_DOWN: '[',
+  RESET_TIME: 't',
+};
+```
+
+**使用示例**:
+
+```typescript
+import {
+  useKeyboardShortcuts,
+  STARMAP_SHORTCUT_KEYS,
+  formatShortcut
+} from '@/lib/hooks';
+
+function StarmapView() {
+  const shortcuts = useMemo(() => [
+    {
+      key: STARMAP_SHORTCUT_KEYS.ZOOM_IN,
+      description: '放大',
+      action: () => zoomIn(),
+    },
+    {
+      key: STARMAP_SHORTCUT_KEYS.TOGGLE_SEARCH,
+      description: '打开搜索',
+      action: () => setSearchOpen(true),
+    },
+    {
+      key: 's',
+      ctrl: true,
+      description: '保存设置',
+      action: () => saveSettings(),
+    },
+  ], []);
+
+  useKeyboardShortcuts({ shortcuts, enabled: true });
+
+  return <StarmapCanvas />;
+}
+```
+
+## 动画 Hooks
+
+### useAnimationFrame
+
+高性能动画帧 Hook，支持 FPS 控制。
+
+**文件**: `lib/hooks/use-animation-frame.ts`
+
+```typescript
+interface AnimationFrameOptions {
+  fps?: number;           // 目标 FPS（默认 60）
+  enabled?: boolean;      // 是否启用
+  callback: (deltaTime: number, timestamp: number) => void;
+}
+
+function useAnimationFrame(options: AnimationFrameOptions): void;
+```
+
+**使用示例**:
+
+```typescript
+import { useAnimationFrame } from '@/lib/hooks';
+
+function AnimatedComponent() {
+  const [rotation, setRotation] = useState(0);
+
+  useAnimationFrame({
+    fps: 30,
+    callback: (deltaTime) => {
+      setRotation(r => r + deltaTime * 0.01);
+    },
+  });
+
+  return (
+    <div style={{ transform: `rotate(${rotation}deg)` }}>
+      旋转元素
+    </div>
+  );
+}
+```
+
+### useThrottledUpdate
+
+节流更新 Hook，适合不需要平滑动画的定期更新。
+
+```typescript
+function useThrottledUpdate(
+  callback: () => void,
+  intervalMs: number,
+  enabled?: boolean
+): void;
+```
+
+**使用示例**:
+
+```typescript
+import { useThrottledUpdate } from '@/lib/hooks';
+
+function TimeDisplay() {
+  const [time, setTime] = useState(new Date());
+
+  useThrottledUpdate(() => {
+    setTime(new Date());
+  }, 1000, true);
+
+  return <div>{time.toLocaleTimeString()}</div>;
+}
+```
+
+### useGlobalAnimationLoop
+
+订阅全局动画循环，多个组件共享一个 RAF 循环。
+
+```typescript
+function useGlobalAnimationLoop(
+  id: string,
+  callback: (deltaTime: number, timestamp: number) => void,
+  enabled?: boolean
+): void;
+```
+
+**使用示例**:
+
+```typescript
+import { useGlobalAnimationLoop } from '@/lib/hooks';
+
+function MultipleAnimations() {
+  useGlobalAnimationLoop('stars', (dt) => {
+    updateStarPositions(dt);
+  });
+
+  useGlobalAnimationLoop('satellites', (dt) => {
+    updateSatellitePositions(dt);
+  });
+
+  return <Canvas />;
+}
+```
+
+## 更新 Hooks
+
+### useUpdater
+
+应用更新管理 Hook（仅桌面端）。
+
+**文件**: `lib/tauri/updater-hooks.ts`
+
+```typescript
+interface UseUpdaterOptions {
+  autoCheck?: boolean;       // 自动检查
+  checkInterval?: number;    // 检查间隔（毫秒）
+  onUpdateAvailable?: (info: UpdateInfo) => void;
+  onUpdateReady?: (info: UpdateInfo) => void;
+  onError?: (error: string) => void;
+}
+
+interface UseUpdaterReturn {
+  status: UpdateStatus;
+  currentVersion: string | null;
+  isChecking: boolean;
+  isDownloading: boolean;
+  isReady: boolean;
+  hasUpdate: boolean;
+  updateInfo: UpdateInfo | null;
+  progress: UpdateProgress | null;
+  error: string | null;
+  checkForUpdate: () => Promise<void>;
+  downloadUpdate: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  downloadAndInstall: () => Promise<void>;
+  dismissUpdate: () => void;
+}
+```
+
+**使用示例**:
+
+```typescript
+import { useUpdater, useAutoUpdater } from '@/lib/tauri/updater-hooks';
+
+function UpdatePanel() {
+  const {
+    hasUpdate,
+    updateInfo,
+    progress,
+    isDownloading,
+    checkForUpdate,
+    downloadAndInstall,
+    dismissUpdate,
+  } = useUpdater({
+    onUpdateAvailable: (info) => {
+      toast.info(`发现新版本 ${info.version}`);
+    },
+  });
+
+  return (
+    <div>
+      <Button onClick={checkForUpdate}>检查更新</Button>
+
+      {hasUpdate && updateInfo && (
+        <Card>
+          <h3>新版本 {updateInfo.version}</h3>
+          <p>{updateInfo.body}</p>
+
+          {isDownloading ? (
+            <Progress value={progress?.percent ?? 0} />
+          ) : (
+            <div>
+              <Button onClick={downloadAndInstall}>
+                下载并安装
+              </Button>
+              <Button variant="ghost" onClick={dismissUpdate}>
+                稍后提醒
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// 自动检查更新
+function App() {
+  const { hasUpdate } = useAutoUpdater({
+    checkInterval: 3600000, // 每小时检查
+  });
+
+  return (
+    <div>
+      {hasUpdate && <UpdateBadge />}
+      <MainContent />
+    </div>
+  );
 }
 ```
 

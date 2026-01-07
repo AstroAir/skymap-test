@@ -1,110 +1,97 @@
-mod app_settings;
-mod astro_events;
-mod astronomy;
-mod equipment;
-mod http_client;
-mod locations;
-mod markers;
-mod observation_log;
-mod offline_cache;
-mod rate_limiter;
-pub mod security;
-mod storage;
-mod target_io;
-mod target_list;
-mod unified_cache;
-mod utils;
+//! SkyMap Tauri Backend
+//! 
+//! Organized into the following modules:
+//! - `astronomy`: Astronomical calculations and events
+//! - `data`: Data storage, equipment, locations, targets, markers, observation logs
+//! - `cache`: Offline tile caching and unified network caching
+//! - `network`: HTTP client, security, rate limiting
+//! - `platform`: App settings, control, updater, plate solver (desktop only)
+//! - `utils`: Common utilities
+
+pub mod astronomy;
+pub mod data;
+pub mod cache;
+pub mod network;
+pub mod utils;
 
 #[cfg(desktop)]
-mod updater;
+pub mod platform;
 
-#[cfg(desktop)]
-mod app_control;
-
-#[cfg(test)]
-mod security_tests;
-
-use storage::{
+// Re-export for backward compatibility and ease of use
+use data::{
+    // Storage
     clear_all_data, delete_store_data, export_all_data, get_data_directory, get_storage_stats,
     import_all_data, list_stores, load_store_data, save_store_data,
-};
-
-use equipment::{
+    // Equipment
     add_barlow_reducer, add_camera, add_eyepiece, add_filter, add_telescope, delete_equipment,
     get_default_camera, get_default_telescope, load_equipment, save_equipment, set_default_camera,
     set_default_telescope, update_barlow_reducer, update_camera, update_eyepiece, update_filter,
     update_telescope,
-};
-
-use locations::{
+    // Locations
     add_location, delete_location, get_current_location, load_locations, save_locations,
     set_current_location, update_location,
-};
-
-use observation_log::{
+    // Observation log
     add_observation, create_session, delete_session, end_session, get_observation_stats,
     load_observation_log, save_observation_log, search_observations, update_session,
-};
-
-use target_io::{export_targets, import_targets};
-
-use app_settings::{
-    add_recent_file, clear_recent_files, get_system_info, load_app_settings, open_path,
-    restore_window_state, reveal_in_file_manager, save_app_settings, save_window_state,
-};
-
-use astronomy::{
-    angular_separation, calculate_fov, calculate_moon_phase, calculate_moon_position,
-    calculate_mosaic_coverage, calculate_sun_position, calculate_twilight, calculate_visibility,
-    ecliptic_to_equatorial, equatorial_to_ecliptic, equatorial_to_galactic,
-    equatorial_to_horizontal, format_dec_dms, format_ra_hms, galactic_to_equatorial,
-    horizontal_to_equatorial, parse_dec_dms, parse_ra_hms,
-};
-
-use offline_cache::{
-    clear_all_cache, clear_survey_cache, create_cache_region, delete_cache_region,
-    get_cache_directory, get_cache_stats, is_tile_cached, list_cache_regions, load_cached_tile,
-    save_cached_tile, update_cache_region,
-};
-
-use unified_cache::{
-    cleanup_unified_cache, clear_unified_cache, delete_unified_cache_entry,
-    get_unified_cache_entry, get_unified_cache_size, get_unified_cache_stats,
-    list_unified_cache_keys, prefetch_url, prefetch_urls, put_unified_cache_entry,
-};
-
-use astro_events::{
-    get_astro_events, get_meteor_showers, get_moon_phases_for_month, get_seasonal_events,
-    get_tonight_highlights,
-};
-
-use target_list::{
+    // Target I/O
+    export_targets, import_targets,
+    // Target list
     add_tag_to_targets, add_target, add_targets_batch, archive_completed_targets,
     clear_all_targets, clear_completed_targets, get_target_stats, load_target_list,
     remove_tag_from_targets, remove_target, remove_targets_batch, save_target_list, search_targets,
     set_active_target, set_targets_priority_batch, set_targets_status_batch, toggle_target_archive,
     toggle_target_favorite, update_target,
-};
-
-use markers::{
+    // Markers
     add_marker, add_marker_group, clear_all_markers, get_visible_markers, load_markers,
     remove_marker, remove_marker_group, remove_markers_by_group, rename_marker_group, save_markers,
     set_all_markers_visible, set_show_markers, toggle_marker_visibility, update_marker,
 };
 
-use http_client::{
-    get_http_config, http_batch_download, http_cancel_all_requests, http_cancel_request,
-    http_check_url, http_download, http_get, http_head, http_post, http_request, set_http_config,
+use astronomy::{
+    // Calculations
+    angular_separation, calculate_fov, calculate_moon_phase, calculate_moon_position,
+    calculate_mosaic_coverage, calculate_sun_position, calculate_twilight, calculate_visibility,
+    ecliptic_to_equatorial, equatorial_to_ecliptic, equatorial_to_galactic,
+    equatorial_to_horizontal, format_dec_dms, format_ra_hms, galactic_to_equatorial,
+    horizontal_to_equatorial, parse_dec_dms, parse_ra_hms,
+    // Events
+    get_astro_events, get_meteor_showers, get_moon_phases_for_month, get_seasonal_events,
+    get_tonight_highlights,
+};
+
+use cache::{
+    // Offline cache
+    clear_all_cache, clear_survey_cache, create_cache_region, delete_cache_region,
+    get_cache_directory, get_cache_stats, is_tile_cached, list_cache_regions, load_cached_tile,
+    save_cached_tile, update_cache_region,
+    // Unified cache
+    cleanup_unified_cache, clear_unified_cache, delete_unified_cache_entry,
+    get_unified_cache_entry, get_unified_cache_size, get_unified_cache_stats,
+    list_unified_cache_keys, prefetch_url, prefetch_urls, put_unified_cache_entry,
+};
+
+use network::{
+    cancel_request, get_active_requests, get_http_config, http_batch_download,
+    http_cancel_all_requests, http_cancel_request, http_check_url, http_download,
+    http_get, http_head, http_post, http_request, set_http_config,
 };
 
 #[cfg(desktop)]
-use updater::{
+use platform::{
+    // App settings
+    add_recent_file, clear_recent_files, get_system_info, load_app_settings, open_path,
+    restore_window_state, reveal_in_file_manager, save_app_settings, save_window_state,
+    // App control
+    is_dev_mode, quit_app, reload_webview, restart_app,
+    // Updater
     check_for_update, clear_pending_update, download_and_install_update, download_update,
     get_current_version, has_pending_update, install_update,
+    // Plate solver
+    delete_index, detect_plate_solvers, download_index, get_available_indexes,
+    get_default_index_path, get_downloadable_indexes, get_installed_indexes,
+    get_recommended_indexes, get_solver_indexes, get_solver_info, load_solver_config,
+    plate_solve, save_solver_config, solve_image_local, validate_solver_path,
 };
-
-#[cfg(desktop)]
-use app_control::{is_dev_mode, quit_app, reload_webview, restart_app};
 
 #[cfg(desktop)]
 use tauri::Manager;
@@ -199,16 +186,6 @@ pub fn run() {
             // Target import/export
             export_targets,
             import_targets,
-            // App settings
-            load_app_settings,
-            save_app_settings,
-            save_window_state,
-            restore_window_state,
-            add_recent_file,
-            clear_recent_files,
-            get_system_info,
-            open_path,
-            reveal_in_file_manager,
             // Astronomy calculations
             equatorial_to_horizontal,
             horizontal_to_equatorial,
@@ -293,17 +270,38 @@ pub fn run() {
             rename_marker_group,
             get_visible_markers,
             // HTTP Client
+            http_request,
+            http_download,
+            cancel_request,
+            get_active_requests,
             get_http_config,
             set_http_config,
-            http_request,
             http_get,
             http_post,
-            http_download,
+            http_head,
+            http_check_url,
             http_cancel_request,
             http_cancel_all_requests,
             http_batch_download,
-            http_check_url,
-            http_head,
+            // Desktop-only commands
+            #[cfg(desktop)]
+            load_app_settings,
+            #[cfg(desktop)]
+            save_app_settings,
+            #[cfg(desktop)]
+            save_window_state,
+            #[cfg(desktop)]
+            restore_window_state,
+            #[cfg(desktop)]
+            add_recent_file,
+            #[cfg(desktop)]
+            clear_recent_files,
+            #[cfg(desktop)]
+            get_system_info,
+            #[cfg(desktop)]
+            open_path,
+            #[cfg(desktop)]
+            reveal_in_file_manager,
             // Updater (desktop only)
             #[cfg(desktop)]
             check_for_update,
@@ -328,6 +326,37 @@ pub fn run() {
             reload_webview,
             #[cfg(desktop)]
             is_dev_mode,
+            // Plate Solver (desktop only)
+            #[cfg(desktop)]
+            detect_plate_solvers,
+            #[cfg(desktop)]
+            plate_solve,
+            #[cfg(desktop)]
+            get_solver_indexes,
+            #[cfg(desktop)]
+            get_downloadable_indexes,
+            #[cfg(desktop)]
+            download_index,
+            #[cfg(desktop)]
+            get_solver_info,
+            #[cfg(desktop)]
+            validate_solver_path,
+            #[cfg(desktop)]
+            solve_image_local,
+            #[cfg(desktop)]
+            get_available_indexes,
+            #[cfg(desktop)]
+            get_installed_indexes,
+            #[cfg(desktop)]
+            delete_index,
+            #[cfg(desktop)]
+            get_recommended_indexes,
+            #[cfg(desktop)]
+            get_default_index_path,
+            #[cfg(desktop)]
+            save_solver_config,
+            #[cfg(desktop)]
+            load_solver_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

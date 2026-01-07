@@ -15,6 +15,10 @@ graph TD
     A --> F[事件模块]
     A --> G[目标列表模块]
     A --> H[标记模块]
+    A --> I[HTTP客户端模块]
+    A --> J[应用控制模块]
+    A --> K[自动更新模块]
+    A --> L[地理定位模块]
 ```
 
 ## 存储模块 API
@@ -870,7 +874,287 @@ const imported = await targetListApi.importTargets('/path/to/bookmarks.json');
 
 - `export_targets`, `import_targets`
 
-**总计: 120+ 个 Tauri 命令**
+#### 应用控制模块 (4 个命令)
+
+- `restart_app`, `quit_app`, `reload_webview`, `is_dev_mode`
+
+#### 自动更新模块 (7 个命令)
+
+- `check_for_update`, `download_update`, `install_update`, `download_and_install_update`
+- `get_current_version`, `has_pending_update`, `clear_pending_update`
+
+**总计: 130+ 个 Tauri 命令**
+
+## 应用控制 API
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `restart_app` | 重启应用 | - | void |
+| `quit_app` | 退出应用 | exitCode? | void |
+| `reload_webview` | 刷新 WebView | - | void |
+| `is_dev_mode` | 检查开发模式 | - | boolean |
+
+### TypeScript 类型定义
+
+```typescript
+// lib/tauri/app-control-api.ts
+
+// 检查是否在 Tauri 环境
+function isTauri(): boolean;
+
+// 重启应用（保存窗口状态）
+async function restartApp(): Promise<void>;
+
+// 退出应用
+async function quitApp(exitCode?: number): Promise<void>;
+
+// 刷新 WebView（不重启后端）
+async function reloadWebview(): Promise<void>;
+
+// 检查是否开发模式
+async function isDevMode(): Promise<boolean>;
+
+// 窗口控制
+async function closeWindow(): Promise<void>;
+async function minimizeWindow(): Promise<void>;
+async function toggleMaximizeWindow(): Promise<void>;
+async function toggleFullscreen(): Promise<void>;
+async function isWindowMaximized(): Promise<boolean>;
+```
+
+### 前端调用示例
+
+```typescript
+import {
+  restartApp,
+  quitApp,
+  reloadWebview,
+  toggleFullscreen,
+  isDevMode
+} from '@/lib/tauri/app-control-api';
+
+// 重启应用
+await restartApp();
+
+// 切换全屏
+await toggleFullscreen();
+
+// 检查开发模式
+if (await isDevMode()) {
+  console.log('运行在开发模式');
+}
+
+// 退出应用
+await quitApp(0);
+```
+
+## 自动更新 API
+
+管理应用自动更新功能（仅桌面端）。
+
+### 命令列表
+
+| 命令名 | 功能 | 参数 | 返回值 |
+|--------|------|------|--------|
+| `check_for_update` | 检查更新 | - | UpdateStatus |
+| `download_update` | 下载更新 | - | UpdateStatus |
+| `install_update` | 安装更新 | - | void |
+| `download_and_install_update` | 下载并安装 | - | void |
+| `get_current_version` | 获取当前版本 | - | string |
+| `has_pending_update` | 是否有待安装更新 | - | boolean |
+| `clear_pending_update` | 清除待安装更新 | - | void |
+
+### TypeScript 类型定义
+
+```typescript
+// lib/tauri/updater-api.ts
+
+interface UpdateInfo {
+  version: string;           // 新版本号
+  current_version: string;   // 当前版本号
+  date: string | null;       // 发布日期
+  body: string | null;       // 更新说明
+}
+
+interface UpdateProgress {
+  downloaded: number;        // 已下载字节数
+  total: number | null;      // 总字节数
+  percent: number;           // 下载进度百分比
+}
+
+type UpdateStatus =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'available'; data: UpdateInfo }
+  | { status: 'not_available' }
+  | { status: 'downloading'; data: UpdateProgress }
+  | { status: 'ready'; data: UpdateInfo }
+  | { status: 'error'; data: string };
+```
+
+### 前端调用示例
+
+```typescript
+import {
+  checkForUpdate,
+  downloadUpdate,
+  installUpdate,
+  onUpdateProgress,
+  isUpdateAvailable,
+  formatProgress
+} from '@/lib/tauri/updater-api';
+
+// 检查更新
+const status = await checkForUpdate();
+
+if (isUpdateAvailable(status)) {
+  console.log(`发现新版本: ${status.data.version}`);
+
+  // 监听下载进度
+  const unlisten = await onUpdateProgress((progress) => {
+    if (progress.status === 'downloading') {
+      console.log(formatProgress(progress.data));
+    }
+  });
+
+  // 开始下载
+  await downloadUpdate();
+
+  // 安装更新（会重启应用）
+  await installUpdate();
+}
+```
+
+### 更新事件
+
+```typescript
+// 监听更新进度事件
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen<UpdateStatus>('update-progress', (event) => {
+  switch (event.payload.status) {
+    case 'downloading':
+      console.log(`下载进度: ${event.payload.data.percent}%`);
+      break;
+    case 'ready':
+      console.log('更新已就绪，准备安装');
+      break;
+    case 'error':
+      console.error('更新失败:', event.payload.data);
+      break;
+  }
+});
+```
+
+## 地理定位 API（移动端）
+
+移动平台专用的设备定位 API。
+
+### 平台支持
+
+| 平台 | 支持状态 |
+|------|----------|
+| Android | ✅ 支持 |
+| iOS | ✅ 支持 |
+| Windows/macOS/Linux | ❌ 不支持 |
+
+### TypeScript 类型定义
+
+```typescript
+// lib/tauri/geolocation-api.ts
+
+interface Position {
+  coords: {
+    latitude: number;         // 纬度
+    longitude: number;        // 经度
+    accuracy: number;         // 精度（米）
+    altitude: number | null;  // 海拔（米）
+    altitudeAccuracy: number | null;
+    heading: number | null;   // 方向（度）
+    speed: number | null;     // 速度（米/秒）
+  };
+  timestamp: number;          // 时间戳
+}
+
+interface PositionOptions {
+  enableHighAccuracy: boolean;  // 启用高精度
+  timeout: number;              // 超时时间（毫秒）
+  maximumAge: number;           // 缓存时间（毫秒）
+}
+
+type PermissionState = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale';
+
+interface PermissionStatus {
+  location: PermissionState;
+  coarseLocation: PermissionState;
+}
+```
+
+### API 方法
+
+```typescript
+const geolocationApi = {
+  // 检查是否可用
+  isAvailable(): boolean;
+
+  // 检查权限状态
+  checkPermissions(): Promise<PermissionStatus>;
+
+  // 请求权限
+  requestPermissions(permissions?: ('location' | 'coarseLocation')[]): Promise<PermissionStatus>;
+
+  // 获取当前位置
+  getCurrentPosition(options?: PositionOptions): Promise<Position>;
+
+  // 监听位置变化
+  watchPosition(options, callback): Promise<WatchId>;
+
+  // 停止监听
+  clearWatch(watchId: WatchId): Promise<void>;
+
+  // 一键获取位置（自动处理权限）
+  getPositionWithPermission(options?: PositionOptions): Promise<Position | null>;
+};
+```
+
+### 前端调用示例
+
+```typescript
+import { geolocationApi } from '@/lib/tauri/geolocation-api';
+
+// 检查是否可用
+if (geolocationApi.isAvailable()) {
+  // 获取位置（自动处理权限）
+  const position = await geolocationApi.getPositionWithPermission({
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 0
+  });
+
+  if (position) {
+    console.log(`纬度: ${position.coords.latitude}`);
+    console.log(`经度: ${position.coords.longitude}`);
+    console.log(`精度: ${position.coords.accuracy}米`);
+  }
+}
+
+// 持续监听位置变化
+const watchId = await geolocationApi.watchPosition(
+  { enableHighAccuracy: true },
+  (position, error) => {
+    if (error) {
+      console.error('定位错误:', error);
+    } else if (position) {
+      updateLocationOnMap(position.coords);
+    }
+  }
+);
+
+// 停止监听
+await geolocationApi.clearWatch(watchId);
+```
 
 ## 相关文档
 

@@ -1,5 +1,5 @@
 // Re-export from refactored settings module for backward compatibility
-export { UnifiedSettings } from './settings';
+export { UnifiedSettings } from '../settings';
 export {
   DisplaySettings,
   EquipmentSettings,
@@ -9,5 +9,5 @@ export {
   ConnectionSettings,
   SettingsSection,
   ToggleItem,
-} from './settings';
-export * from './settings/settings-constants';
+} from '../settings';
+export * from '../settings/settings-constants';

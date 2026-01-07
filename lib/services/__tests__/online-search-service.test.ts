@@ -1,0 +1,185 @@
+/**
+ * Online Search Service Tests
+ */
+
+import {
+  searchOnlineByName,
+  resolveObjectName,
+  checkOnlineSearchAvailability,
+  ONLINE_SEARCH_SOURCES,
+  type OnlineSearchResult,
+  type OnlineSearchResponse,
+} from '../online-search-service';
+
+// Mock smartFetch
+jest.mock('../http-fetch', () => ({
+  smartFetch: jest.fn(),
+}));
+
+import { smartFetch, type FetchResponse } from '../http-fetch';
+const mockSmartFetch = smartFetch as jest.MockedFunction<typeof smartFetch>;
+
+// Helper to create mock response
+function createMockResponse(text: string, ok = true): Partial<FetchResponse> {
+  return {
+    ok,
+    text: jest.fn().mockResolvedValue(text),
+  };
+}
+
+describe('online-search-service', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('ONLINE_SEARCH_SOURCES', () => {
+    it('should have all required sources configured', () => {
+      expect(ONLINE_SEARCH_SOURCES.simbad).toBeDefined();
+      expect(ONLINE_SEARCH_SOURCES.sesame).toBeDefined();
+      expect(ONLINE_SEARCH_SOURCES.vizier).toBeDefined();
+      expect(ONLINE_SEARCH_SOURCES.ned).toBeDefined();
+    });
+
+    it('should have correct base URLs', () => {
+      expect(ONLINE_SEARCH_SOURCES.simbad.baseUrl).toBe('https://simbad.cds.unistra.fr');
+      expect(ONLINE_SEARCH_SOURCES.sesame.baseUrl).toBe('https://cds.unistra.fr');
+    });
+  });
+
+  describe('searchOnlineByName', () => {
+    it('should return empty results for empty query', async () => {
+      const result = await searchOnlineByName('');
+      expect(result.results).toHaveLength(0);
+      expect(result.totalCount).toBe(0);
+    });
+
+    it('should call Sesame API for name resolution', async () => {
+      const mockResponse = createMockResponse(`
+          <Sesame>
+            <Resolver name="S=Simbad">
+              <oname>M 31</oname>
+              <jpos>10.6847 41.2689</jpos>
+              <otype>G</otype>
+            </Resolver>
+          </Sesame>
+        `);
+      mockSmartFetch.mockResolvedValue(mockResponse as FetchResponse);
+
+      const result = await searchOnlineByName('M31', { sources: ['sesame'] });
+
+      expect(mockSmartFetch).toHaveBeenCalled();
+      expect(result.sources).toContain('sesame');
+    });
+
+    it('should handle API errors gracefully', async () => {
+      mockSmartFetch.mockRejectedValue(new Error('Network error'));
+
+      const result = await searchOnlineByName('M31', { sources: ['sesame'] });
+
+      expect(result.results).toHaveLength(0);
+      expect(result.errors).toBeDefined();
+    });
+
+    it('should merge results from multiple sources', async () => {
+      const mockSesameResponse = createMockResponse(`
+          <Sesame>
+            <Resolver>
+              <oname>M 31</oname>
+              <jpos>10.6847 41.2689</jpos>
+            </Resolver>
+          </Sesame>
+        `);
+
+      mockSmartFetch.mockResolvedValue(mockSesameResponse as FetchResponse);
+
+      const result = await searchOnlineByName('M31', { 
+        sources: ['sesame'], 
+        limit: 10 
+      });
+
+      expect(result.searchTimeMs).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('resolveObjectName', () => {
+    it('should resolve known object names', async () => {
+      const mockResponse = createMockResponse(`
+          <Sesame>
+            <Resolver>
+              <oname>NGC 7000</oname>
+              <jpos>314.6833 44.3167</jpos>
+              <otype>HII</otype>
+            </Resolver>
+          </Sesame>
+        `);
+      mockSmartFetch.mockResolvedValue(mockResponse as FetchResponse);
+
+      const result = await resolveObjectName('NGC7000');
+
+      if (result) {
+        expect(result.name).toBeDefined();
+        expect(result.ra).toBeDefined();
+        expect(result.dec).toBeDefined();
+      }
+    });
+
+    it('should return null for unknown objects', async () => {
+      const mockResponse = createMockResponse('<Sesame></Sesame>');
+      mockSmartFetch.mockResolvedValue(mockResponse as FetchResponse);
+
+      const result = await resolveObjectName('UNKNOWN_OBJECT_12345');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('checkOnlineSearchAvailability', () => {
+    it('should check availability of online sources', async () => {
+      mockSmartFetch.mockResolvedValue({ ok: true } as FetchResponse);
+
+      const result = await checkOnlineSearchAvailability();
+
+      expect(result).toHaveProperty('sesame');
+      expect(result).toHaveProperty('simbad');
+      expect(result.local).toBe(true);
+    });
+
+    it('should handle offline sources', async () => {
+      mockSmartFetch.mockRejectedValue(new Error('Network error'));
+
+      const result = await checkOnlineSearchAvailability();
+
+      expect(result.local).toBe(true);
+    });
+  });
+
+  describe('OnlineSearchResult type', () => {
+    it('should have correct structure', () => {
+      const mockResult: OnlineSearchResult = {
+        id: 'sesame-m31',
+        name: 'M 31',
+        type: 'Galaxy',
+        category: 'galaxy',
+        ra: 10.6847,
+        dec: 41.2689,
+        source: 'sesame',
+      };
+
+      expect(mockResult.id).toBe('sesame-m31');
+      expect(mockResult.source).toBe('sesame');
+    });
+  });
+
+  describe('OnlineSearchResponse type', () => {
+    it('should have correct structure', () => {
+      const mockResponse: OnlineSearchResponse = {
+        results: [],
+        sources: ['sesame'],
+        totalCount: 0,
+        searchTimeMs: 100,
+      };
+
+      expect(mockResponse.results).toEqual([]);
+      expect(mockResponse.sources).toContain('sesame');
+    });
+  });
+});

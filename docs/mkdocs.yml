@@ -240,6 +240,10 @@ nav:
       - 贡献指南:
           - 贡献概览: developer-guide/contributing/index.md
 
+      # 安全开发
+      - 安全开发:
+          - 安全开发指南: developer-guide/security/index.md
+
   # 部署指南
   - 部署指南:
       - 概览: deployment/index.md
@@ -247,6 +251,10 @@ nav:
           - 构建指南: deployment/desktop/building.md
           - Windows打包: deployment/desktop/windows.md
           - macOS打包: deployment/desktop/macos.md
+
+  # 安全
+  - 安全:
+      - 安全特性: security/security-features.md
 
   # 参考资料
   - 参考资料:

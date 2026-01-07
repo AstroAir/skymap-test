@@ -35,6 +35,16 @@ export {
   type SearchMode,
 } from './use-object-search';
 
+export {
+  useOnlineSearch,
+  type OnlineSearchResultItem,
+  type OnlineObjectType,
+  type OnlineSortOption,
+  type OnlineSearchFilters,
+  type OnlineSearchStats,
+  type UseOnlineSearchReturn,
+} from './use-online-search';
+
 export { 
   useCelestialName,
   useCelestialNames,
@@ -95,3 +105,6 @@ export {
   formatTimestamp,
   type NavigationPoint,
 } from './use-navigation-history';
+
+// Window state management (Tauri desktop)
+export { useWindowState } from './use-window-state';

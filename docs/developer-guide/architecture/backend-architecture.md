@@ -22,14 +22,24 @@ src-tauri/
 ├── src/
 │   ├── main.rs              # 主入口
 │   ├── lib.rs               # 库入口，命令注册
-│   ├── storage.rs           # 数据存储
+│   ├── storage.rs           # 数据存储 (JSON)
 │   ├── equipment.rs         # 设备管理
+│   ├── locations.rs         # 位置管理
 │   ├── astronomy.rs         # 天文计算
 │   ├── astro_events.rs      # 天文事件
 │   ├── target_list.rs       # 目标列表
+│   ├── target_io.rs         # 目标导入/导出
 │   ├── markers.rs           # 标记管理
+│   ├── observation_log.rs   # 观测日志
 │   ├── offline_cache.rs     # 离线缓存
 │   ├── unified_cache.rs     # 统一缓存
+│   ├── http_client.rs       # HTTP 客户端
+│   ├── security.rs          # 安全模块
+│   ├── rate_limiter.rs      # 速率限制
+│   ├── security_tests.rs    # 安全测试
+│   ├── updater.rs           # 自动更新
+│   ├── app_control.rs       # 应用控制
+│   ├── app_settings.rs      # 应用设置
 │   └── utils.rs             # 工具函数
 ├── Cargo.toml               # Rust 依赖
 └── tauri.conf.json          # Tauri 配置
@@ -44,6 +54,8 @@ src-tauri/
 mod storage;
 mod equipment;
 mod astronomy;
+mod security;
+mod rate_limiter;
 
 pub fn run() {
     tauri::Builder::default()
@@ -62,22 +74,25 @@ pub fn run() {
 
 ### 存储模块
 
+所有数据以 JSON 格式存储在应用程序数据目录中：
+
 ```rust
 // src-tauri/src/storage.rs
 use std::fs;
 use serde_json;
+use crate::security;
 
 #[tauri::command]
 pub async fn save_store_data(
     app: AppHandle,
     store_name: String,
     data: String,
-) -> Result<(), String> {
-    let conn = open_database(&app)?;
-    conn.execute(
-        "INSERT OR REPLACE INTO stores (name, data) VALUES (?1, ?2)",
-        params![store_name, data],
-    ).map_err(|e| e.to_string())?;
+) -> Result<(), StorageError> {
+    // 安全：验证数据大小
+    security::validate_size(&data, security::limits::MAX_JSON_SIZE)?;
+
+    let path = get_store_path(&app, &store_name)?;
+    fs::write(&path, &data).map_err(|e| StorageError::Io(e.to_string()))?;
     Ok(())
 }
 
@@ -85,13 +100,59 @@ pub async fn save_store_data(
 pub async fn load_store_data(
     app: AppHandle,
     store_name: String,
-) -> Result<Option<String>, String> {
-    let conn = open_database(&app)?;
-    let mut stmt = conn.prepare("SELECT data FROM stores WHERE name = ?1")
-        .map_err(|e| e.to_string())?;
-    stmt.query_row(params![store_name], |row| row.get(0))
-        .optional()
-        .map_err(|e| e.to_string())
+) -> Result<Option<String>, StorageError> {
+    let path = get_store_path(&app, &store_name)?;
+    if path.exists() {
+        let data = fs::read_to_string(&path)
+            .map_err(|e| StorageError::Io(e.to_string()))?;
+        Ok(Some(data))
+    } else {
+        Ok(None)
+    }
+}
+```
+
+### 安全模块
+
+```rust
+// src-tauri/src/security.rs
+pub mod limits {
+    pub const MAX_JSON_SIZE: usize = 10 * 1024 * 1024;  // 10 MB
+    pub const MAX_CSV_SIZE: usize = 50 * 1024 * 1024;   // 50 MB
+    pub const MAX_TILE_SIZE: usize = 5 * 1024 * 1024;   // 5 MB
+}
+
+pub fn validate_size(data: &str, max_size: usize) -> Result<(), SecurityError> {
+    if data.len() > max_size {
+        Err(SecurityError::SizeExceeded(data.len(), max_size))
+    } else {
+        Ok(())
+    }
+}
+
+pub fn validate_url(url: &str, allow_http: bool, allowlist: Option<&[&str]>)
+    -> Result<url::Url, SecurityError> {
+    // URL 验证逻辑：阻止私有 IP、localhost、危险协议
+    // ...
+}
+```
+
+### 速率限制模块
+
+```rust
+// src-tauri/src/rate_limiter.rs
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+pub struct RateLimiter {
+    requests: Mutex<HashMap<String, Vec<std::time::Instant>>>,
+}
+
+impl RateLimiter {
+    pub fn check(&self, command: &str, config: RateLimitConfig) -> RateLimitResult {
+        // 滑动窗口速率限制算法
+        // ...
+    }
 }
 ```
 
@@ -158,9 +219,26 @@ pub async fn some_command() -> Result<Data, String> {
 
 ## 安全考虑
 
-- **参数化查询**：防止 SQL 注入
-- **输入验证**：验证所有用户输入
+SkyMap 后端实现了多层安全防护：
+
+### 速率限制
+
+- **滑动窗口算法**：防止 API 滥用
+- **分级限制**：保守（10/分钟）、中等（100/分钟）、宽松（1000/分钟）、只读（10000/分钟）
+- **自动封禁**：敏感操作超限后临时封禁
+
+### 输入验证
+
+- **大小限制**：JSON (10MB)、CSV (50MB)、瓦片 (5MB)
+- **URL 验证**：阻止私有 IP、localhost、危险协议
 - **路径安全**：防止路径遍历攻击
+
+### 存储安全
+
+- **路径沙箱**：仅允许访问应用数据目录
+- **JSON 校验**：写入前验证数据格式
+
+详细信息请参考[安全特性文档](../../security/security-features.md)。
 
 ## 相关文档
 

@@ -14,6 +14,9 @@ import {
   Fullscreen,
   Minimize2,
   Copy,
+  Pin,
+  PinOff,
+  Move,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +42,10 @@ import {
   quitApp,
   reloadWebview,
   isTauri,
+  setAlwaysOnTop,
+  isAlwaysOnTop,
+  saveWindowState,
+  centerWindow,
 } from "@/lib/tauri/app-control-api";
 
 interface AppControlMenuProps {
@@ -51,6 +58,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
 
   useEffect(() => {
     const checkTauri = async () => {
@@ -59,6 +67,8 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
         try {
           const maximized = await isWindowMaximized();
           setIsMaximized(maximized);
+          const pinned = await isAlwaysOnTop();
+          setIsPinned(pinned);
         } catch (error) {
           console.error("Failed to get window state:", error);
         }
@@ -114,6 +124,8 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
 
   const handleClose = useCallback(async () => {
     try {
+      // Save window state before closing
+      await saveWindowState();
       await closeWindow();
     } catch (error) {
       console.error("Failed to close:", error);
@@ -130,9 +142,29 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
 
   const handleQuit = useCallback(async () => {
     try {
+      // Save window state before quitting
+      await saveWindowState();
       await quitApp();
     } catch (error) {
       console.error("Failed to quit:", error);
+    }
+  }, []);
+
+  const handleTogglePin = useCallback(async () => {
+    try {
+      const newPinned = !isPinned;
+      await setAlwaysOnTop(newPinned);
+      setIsPinned(newPinned);
+    } catch (error) {
+      console.error("Failed to toggle always on top:", error);
+    }
+  }, [isPinned]);
+
+  const handleCenterWindow = useCallback(async () => {
+    try {
+      await centerWindow();
+    } catch (error) {
+      console.error("Failed to center window:", error);
     }
   }, []);
 
@@ -208,6 +240,52 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
     // Tauri environment: Show essential window controls
     return (
       <div className={cn("flex items-center gap-0.5", className)}>
+        {/* Always on Top Toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-9 w-9",
+                isPinned
+                  ? "text-primary hover:text-primary hover:bg-primary/10"
+                  : "text-foreground/80 hover:text-foreground hover:bg-accent"
+              )}
+              onClick={handleTogglePin}
+              aria-label={isPinned ? t("unpinWindow") : t("pinWindow")}
+            >
+              {isPinned ? (
+                <PinOff className="h-4 w-4" />
+              ) : (
+                <Pin className="h-4 w-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>{isPinned ? t("unpinWindow") : t("pinWindow")}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Minimize */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent"
+              onClick={handleMinimize}
+              aria-label={t("minimize")}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>{t("minimize")}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Maximize/Restore */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -229,6 +307,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
           </TooltipContent>
         </Tooltip>
 
+        {/* Fullscreen */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -250,6 +329,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
           </TooltipContent>
         </Tooltip>
 
+        {/* Close */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -264,23 +344,6 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <p>{t("close")}</p>
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-foreground/80 hover:text-destructive hover:bg-destructive/10"
-              onClick={handleQuit}
-              aria-label={t("quit")}
-            >
-              <Power className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>{t("quit")}</p>
           </TooltipContent>
         </Tooltip>
       </div>
@@ -322,6 +385,19 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
               {t("restart")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleTogglePin}>
+              {isPinned ? (
+                <PinOff className="mr-2 h-4 w-4" />
+              ) : (
+                <Pin className="mr-2 h-4 w-4" />
+              )}
+              {isPinned ? t("unpinWindow") : t("pinWindow")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleCenterWindow}>
+              <Move className="mr-2 h-4 w-4" />
+              {t("centerWindow")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleMinimize}>
               <Minus className="mr-2 h-4 w-4" />
               {t("minimize")}
@@ -333,6 +409,14 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
                 <Square className="mr-2 h-4 w-4" />
               )}
               {isMaximized ? t("restore") : t("maximize")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleToggleFullscreen}>
+              {isFullscreen ? (
+                <Minimize2 className="mr-2 h-4 w-4" />
+              ) : (
+                <Fullscreen className="mr-2 h-4 w-4" />
+              )}
+              {isFullscreen ? t("exitFullscreen") : t("fullscreen")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleClose}>

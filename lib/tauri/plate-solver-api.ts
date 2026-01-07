@@ -1,0 +1,437 @@
+/**
+ * Plate Solver API
+ * TypeScript wrapper for local plate solving Tauri commands
+ */
+
+import { invoke } from '@tauri-apps/api/core';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export type SolverType = 'astap' | 'astrometry_net' | 'astrometry_net_online';
+
+export interface ScaleRange {
+  min_arcmin: number;
+  max_arcmin: number;
+}
+
+export interface IndexInfo {
+  name: string;
+  file_name: string;
+  path: string;
+  size_bytes: number;
+  scale_range: ScaleRange | null;
+  description: string | null;
+}
+
+export interface SolverInfo {
+  solver_type: SolverType;
+  name: string;
+  version: string | null;
+  executable_path: string;
+  is_available: boolean;
+  index_path: string | null;
+  installed_indexes: IndexInfo[];
+}
+
+export type AstapSpeedMode = 'auto' | 'slow';
+export type ScaleUnits = 'deg_width' | 'arcmin_width' | 'arcsec_per_pix';
+
+export interface SolverConfig {
+  solver_type: SolverType;
+  executable_path: string | null;
+  index_path: string | null;
+  timeout_seconds: number;
+  downsample: number;
+  search_radius: number;
+  use_sip: boolean;
+  // ASTAP-specific options
+  astap_database: string | null;
+  astap_max_stars: number;
+  astap_tolerance: number;
+  astap_speed_mode: AstapSpeedMode;
+  astap_min_star_size: number;
+  astap_equalise_background: boolean;
+  // Astrometry.net-specific options
+  astrometry_scale_low: number | null;
+  astrometry_scale_high: number | null;
+  astrometry_scale_units: ScaleUnits;
+  astrometry_depth: string | null;
+  astrometry_no_plots: boolean;
+  astrometry_no_verify: boolean;
+  astrometry_crpix_center: boolean;
+  // General options
+  keep_wcs_file: boolean;
+  auto_hints: boolean;
+  retry_on_failure: boolean;
+  max_retries: number;
+}
+
+export interface SolveParameters {
+  image_path: string;
+  ra_hint: number | null;
+  dec_hint: number | null;
+  fov_hint: number | null;
+  search_radius: number | null;
+  downsample: number | null;
+  timeout: number | null;
+}
+
+export interface SolveResult {
+  success: boolean;
+  ra: number | null;
+  dec: number | null;
+  ra_hms: string | null;
+  dec_dms: string | null;
+  position_angle: number | null;
+  pixel_scale: number | null;
+  fov_width: number | null;
+  fov_height: number | null;
+  flipped: boolean | null;
+  solver_name: string;
+  solve_time_ms: number;
+  error_message: string | null;
+  wcs_file: string | null;
+}
+
+export interface DownloadableIndex {
+  name: string;
+  file_name: string;
+  download_url: string;
+  size_bytes: number;
+  scale_range: ScaleRange;
+  description: string;
+  solver_type: SolverType;
+}
+
+export interface DownloadProgress {
+  file_name: string;
+  downloaded_bytes: number;
+  total_bytes: number;
+  percent: number;
+  status: string;
+}
+
+// ============================================================================
+// Default Config
+// ============================================================================
+
+export const DEFAULT_SOLVER_CONFIG: SolverConfig = {
+  solver_type: 'astap',
+  executable_path: null,
+  index_path: null,
+  timeout_seconds: 120,
+  downsample: 0, // auto
+  search_radius: 30.0,
+  use_sip: true,
+  // ASTAP defaults
+  astap_database: null,
+  astap_max_stars: 500,
+  astap_tolerance: 0.007,
+  astap_speed_mode: 'auto',
+  astap_min_star_size: 1.5,
+  astap_equalise_background: false,
+  // Astrometry.net defaults
+  astrometry_scale_low: null,
+  astrometry_scale_high: null,
+  astrometry_scale_units: 'deg_width',
+  astrometry_depth: null,
+  astrometry_no_plots: true,
+  astrometry_no_verify: false,
+  astrometry_crpix_center: true,
+  // General defaults
+  keep_wcs_file: true,
+  auto_hints: true,
+  retry_on_failure: false,
+  max_retries: 2,
+};
+
+// ============================================================================
+// API Functions
+// ============================================================================
+
+/**
+ * Detect all installed plate solvers
+ */
+export async function detectPlateSolvers(): Promise<SolverInfo[]> {
+  return invoke<SolverInfo[]>('detect_plate_solvers');
+}
+
+/**
+ * Get info for a specific solver type
+ */
+export async function getSolverInfo(solverType: SolverType): Promise<SolverInfo> {
+  return invoke<SolverInfo>('get_solver_info', { solverType });
+}
+
+/**
+ * Validate a custom solver executable path
+ */
+export async function validateSolverPath(
+  solverType: SolverType,
+  path: string
+): Promise<boolean> {
+  return invoke<boolean>('validate_solver_path', { solverType, path });
+}
+
+/**
+ * Solve an image using a local solver
+ */
+export async function solveImageLocal(
+  config: SolverConfig,
+  params: SolveParameters
+): Promise<SolveResult> {
+  return invoke<SolveResult>('solve_image_local', { config, params });
+}
+
+/**
+ * Get list of available indexes to download for a solver
+ */
+export async function getAvailableIndexes(
+  solverType: SolverType
+): Promise<DownloadableIndex[]> {
+  return invoke<DownloadableIndex[]>('get_available_indexes', { solverType });
+}
+
+/**
+ * Get list of installed indexes for a solver
+ */
+export async function getInstalledIndexes(
+  solverType: SolverType,
+  indexPath?: string
+): Promise<IndexInfo[]> {
+  return invoke<IndexInfo[]>('get_installed_indexes', { 
+    solverType, 
+    indexPath: indexPath ?? null 
+  });
+}
+
+/**
+ * Delete an index file or directory
+ */
+export async function deleteIndex(path: string): Promise<void> {
+  return invoke<void>('delete_index', { path });
+}
+
+/**
+ * Get recommended indexes for a given FOV
+ */
+export async function getRecommendedIndexes(
+  solverType: SolverType,
+  fovDegrees: number
+): Promise<DownloadableIndex[]> {
+  return invoke<DownloadableIndex[]>('get_recommended_indexes', { 
+    solverType, 
+    fovDegrees 
+  });
+}
+
+/**
+ * Get the default index path for a solver
+ */
+export async function getDefaultIndexPath(
+  solverType: SolverType
+): Promise<string | null> {
+  return invoke<string | null>('get_default_index_path', { solverType });
+}
+
+/**
+ * Save solver configuration
+ */
+export async function saveSolverConfig(config: SolverConfig): Promise<void> {
+  return invoke<void>('save_solver_config', { config });
+}
+
+/**
+ * Load solver configuration
+ */
+export async function loadSolverConfig(): Promise<SolverConfig> {
+  return invoke<SolverConfig>('load_solver_config');
+}
+
+// ============================================================================
+// Legacy Plate Solver API (backward compatibility)
+// ============================================================================
+
+export type LegacySolverType = 'astap' | 'astrometrynet' | 'localastrometry';
+
+export interface LegacyPlateSolverConfig {
+  solver_type: LegacySolverType;
+  image_path: string;
+  ra_hint: number | null;
+  dec_hint: number | null;
+  radius_hint: number | null;
+  scale_low: number | null;
+  scale_high: number | null;
+  downsample: number | null;
+  timeout_seconds: number | null;
+}
+
+export interface LegacyPlateSolveResult {
+  success: boolean;
+  ra: number | null;
+  dec: number | null;
+  rotation: number | null;
+  scale: number | null;
+  width_deg: number | null;
+  height_deg: number | null;
+  error_message: string | null;
+  solve_time_ms: number;
+}
+
+export interface LegacyAstrometryIndex {
+  name: string;
+  path: string;
+  scale_low: number;
+  scale_high: number;
+  size_mb: number;
+}
+
+export interface LegacyDownloadableIndex {
+  name: string;
+  url: string;
+  scale_low: number;
+  scale_high: number;
+  size_mb: number;
+  description: string;
+}
+
+/**
+ * Plate solve an image (legacy API)
+ */
+export async function plateSolve(config: LegacyPlateSolverConfig): Promise<LegacyPlateSolveResult> {
+  return invoke<LegacyPlateSolveResult>('plate_solve', { config });
+}
+
+/**
+ * Get installed indexes for a solver type (legacy API)
+ */
+export async function getSolverIndexes(solverType: LegacySolverType): Promise<LegacyAstrometryIndex[]> {
+  return invoke<LegacyAstrometryIndex[]>('get_solver_indexes', { solverType });
+}
+
+/**
+ * Get list of downloadable indexes (legacy API)
+ */
+export async function getDownloadableIndexes(): Promise<LegacyDownloadableIndex[]> {
+  return invoke<LegacyDownloadableIndex[]>('get_downloadable_indexes');
+}
+
+/**
+ * Download an index file (legacy API)
+ */
+export async function downloadIndex(
+  index: LegacyDownloadableIndex,
+  destPath: string
+): Promise<void> {
+  return invoke<void>('download_index', { index, destPath });
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Format file size in human-readable format
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+/**
+ * Get human-readable solver name
+ */
+export function getSolverDisplayName(solverType: SolverType): string {
+  switch (solverType) {
+    case 'astap':
+      return 'ASTAP';
+    case 'astrometry_net':
+      return 'Astrometry.net (Local)';
+    case 'astrometry_net_online':
+      return 'Astrometry.net (Online)';
+    default:
+      return solverType;
+  }
+}
+
+/**
+ * Check if a solver type is a local solver
+ */
+export function isLocalSolver(solverType: SolverType): boolean {
+  return solverType === 'astap' || solverType === 'astrometry_net';
+}
+
+/**
+ * Convert SolveResult to the existing PlateSolveResult format
+ */
+export function convertToLegacyResult(result: SolveResult): {
+  success: boolean;
+  coordinates: {
+    ra: number;
+    dec: number;
+    raHMS: string;
+    decDMS: string;
+  } | null;
+  positionAngle: number;
+  pixelScale: number;
+  fov: { width: number; height: number };
+  flipped: boolean;
+  solverName: string;
+  solveTime: number;
+  errorMessage?: string;
+} {
+  return {
+    success: result.success,
+    coordinates: result.success && result.ra !== null && result.dec !== null
+      ? {
+          ra: result.ra,
+          dec: result.dec,
+          raHMS: result.ra_hms ?? '',
+          decDMS: result.dec_dms ?? '',
+        }
+      : null,
+    positionAngle: result.position_angle ?? 0,
+    pixelScale: result.pixel_scale ?? 0,
+    fov: {
+      width: result.fov_width ?? 0,
+      height: result.fov_height ?? 0,
+    },
+    flipped: result.flipped ?? false,
+    solverName: result.solver_name,
+    solveTime: result.solve_time_ms,
+    errorMessage: result.error_message ?? undefined,
+  };
+}
+
+// ============================================================================
+// Plate Solver API Object
+// ============================================================================
+
+export const plateSolverApi = {
+  detectPlateSolvers,
+  getSolverInfo,
+  validateSolverPath,
+  solveImageLocal,
+  getAvailableIndexes,
+  getInstalledIndexes,
+  deleteIndex,
+  getRecommendedIndexes,
+  getDefaultIndexPath,
+  saveSolverConfig,
+  loadSolverConfig,
+  formatFileSize,
+  getSolverDisplayName,
+  isLocalSolver,
+  convertToLegacyResult,
+  // Legacy API
+  plateSolve,
+  getSolverIndexes,
+  getDownloadableIndexes,
+  downloadIndex,
+};
+
+export default plateSolverApi;

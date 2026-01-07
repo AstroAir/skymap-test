@@ -5,3 +5,6 @@ export { Spinner } from './spinner';
 export { ThemeCustomizer, ThemeCustomizerButton } from './theme-customizer';
 export { ThemeToggle, ThemeIconToggle } from './theme-toggle';
 export { TitleBar } from './titlebar';
+export { SystemStatusIndicator } from './system-status-indicator';
+export { AppControlMenu } from './app-control-menu';
+export { WindowControls } from './window-controls';

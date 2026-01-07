@@ -81,3 +81,47 @@ export {
   toggleMaximizeWindow,
   isWindowMaximized,
 } from './app-control-api';
+
+// Plate Solver API (desktop only)
+export { plateSolverApi } from './plate-solver-api';
+export type {
+  SolverType,
+  SolverInfo,
+  SolverConfig,
+  SolveParameters,
+  SolveResult,
+  IndexInfo,
+  ScaleRange,
+  DownloadableIndex,
+  DownloadProgress as IndexDownloadProgress,
+} from './plate-solver-api';
+export {
+  detectPlateSolvers,
+  getSolverInfo,
+  validateSolverPath,
+  solveImageLocal,
+  getAvailableIndexes,
+  getInstalledIndexes,
+  deleteIndex,
+  getRecommendedIndexes,
+  getDefaultIndexPath,
+  saveSolverConfig,
+  loadSolverConfig,
+  formatFileSize,
+  getSolverDisplayName,
+  isLocalSolver,
+  convertToLegacyResult,
+  DEFAULT_SOLVER_CONFIG,
+  // Legacy API
+  plateSolve,
+  getSolverIndexes,
+  getDownloadableIndexes,
+  downloadIndex,
+} from './plate-solver-api';
+export type {
+  LegacySolverType,
+  LegacyPlateSolverConfig,
+  LegacyPlateSolveResult,
+  LegacyAstrometryIndex,
+  LegacyDownloadableIndex,
+} from './plate-solver-api';

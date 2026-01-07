@@ -97,3 +97,20 @@ export {
   type ViewBookmark,
   type BookmarkIcon,
 } from './bookmarks-store';
+
+// Search store (online/offline, favorites, cache)
+export {
+  useSearchStore,
+  selectSearchSettings,
+  selectFavorites,
+  selectRecentSearches,
+  selectSearchMode,
+  selectOnlineStatus,
+  favoriteToSearchResult,
+  getAllFavoriteTags,
+  type SearchFavorite,
+  type RecentSearch,
+  type SearchSourceConfig,
+  type SearchMode as OnlineSearchMode,
+  type SearchSettings,
+} from './search-store';

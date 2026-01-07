@@ -244,55 +244,64 @@ const isNight = isAstronomicalNight(date, lat, lon);
 
 ```typescript
 import {
-  getObjectAltitude,
-  getMaxAltitude,
-  getTransitTime,
   getAltitudeAtTime,
+  getAltitudeOverTime,
+  getMaxAltitude,
+  getMinAltitude,
+  getTimeAtAltitude,
 } from '@/lib/astronomy';
 
-// 当前高度角
-const alt = getObjectAltitude(ra, dec, lat, lon, date);
+// 指定时间的高度角
+const alt = getAltitudeAtTime(ra, dec, lat, lon, date);
 
-// 最高高度
+// 获取高度曲线数据（用于绘制高度图表）
+const altitudeData = getAltitudeOverTime(ra, dec, lat, lon, 24, 30);
+// 返回 Array<{ hour: number; altitude: number; azimuth: number }>
+
+// 最高高度（在中天时）
 const maxAlt = getMaxAltitude(dec, lat);
 
-// 中天时刻
-const transit = getTransitTime(ra, lon, date);
+// 最低高度（拱极星的下中天）
+const minAlt = getMinAltitude(dec, lat);
 
-// 指定时间的高度
-const altAtTime = getAltitudeAtTime(ra, dec, lat, lon, targetTime);
+// 到达指定高度的时间
+const riseTime = getTimeAtAltitude(ra, dec, lat, lon, 30, true, startDate);  // 上升
+const setTime = getTimeAtAltitude(ra, dec, lat, lon, 30, false, startDate);  // 下降
 ```
 
 ### 目标可见性
 
 ```typescript
 import {
-  calculateVisibility,
-  getVisibleWindow,
-  isObjectVisible,
+  calculateTargetVisibility,
+  getTransitTime,
 } from '@/lib/astronomy';
 
 // 完整可见性信息
-const visibility = calculateVisibility(ra, dec, lat, lon, date);
+const visibility = calculateTargetVisibility(
+  ra, dec, lat, lon,
+  30,        // 最低成像高度（默认30°）
+  new Date() // 计算日期
+);
 
-interface Visibility {
-  isVisible: boolean;
-  riseTime: Date | null;
-  setTime: Date | null;
-  transitTime: Date;
-  maxAltitude: number;
-  currentAltitude: number;
-  visibleDuration: number; // 分钟
+interface TargetVisibility {
+  riseTime: Date | null;          // 升起时间
+  setTime: Date | null;           // 落下时间
+  transitTime: Date;              // 中天时间
+  transitAltitude: number;        // 中天高度
+  isCurrentlyVisible: boolean;    // 当前是否可见
+  isCircumpolar: boolean;         // 是否拱极
+  neverRises: boolean;            // 是否永不升起
+  imagingWindowStart: Date | null; // 成像窗口开始
+  imagingWindowEnd: Date | null;   // 成像窗口结束
+  imagingHours: number;           // 成像可用时长
+  darkImagingStart: Date | null;  // 暗夜成像开始（天文昏影后）
+  darkImagingEnd: Date | null;    // 暗夜成像结束（天文晨光前）
+  darkImagingHours: number;       // 暗夜成像时长
 }
 
-// 可见时段
-const window = getVisibleWindow(ra, dec, lat, lon, date, {
-  minAltitude: 30,    // 最低高度
-  twilightLimit: 'astronomical', // 薄暮限制
-});
-
-// 简单判断是否可见
-const visible = isObjectVisible(ra, dec, lat, lon, date, minAlt);
+// 中天时间
+const { transitLST, hoursUntilTransit } = getTransitTime(ra, lon);
 ```
 
 ### 拱极判断
@@ -300,19 +309,81 @@ const visible = isObjectVisible(ra, dec, lat, lon, date, minAlt);
 ```typescript
 import {
   isCircumpolar,
-  isNeverRises,
-  getCircumpolarLimit,
+  neverRises,
+  isAlwaysAbove,
+  canReachAltitude,
+  getVisibilityClass,
+  getHoursAboveHorizon,
+  getHoursAboveAltitude,
 } from '@/lib/astronomy';
 
-// 是否拱极
+// 是否拱极（永不落下）
 const circumpolar = isCircumpolar(dec, lat);
 
 // 是否永不升起
-const neverRises = isNeverRises(dec, lat);
+const invisible = neverRises(dec, lat);
 
-// 拱极赤纬限制
-const limit = getCircumpolarLimit(lat);
-// 赤纬大于此值的天体为拱极星
+// 是否始终高于指定高度
+const alwaysHigh = isAlwaysAbove(dec, lat, 30);
+
+// 是否能够达到指定高度
+const canReach = canReachAltitude(dec, lat, 60);
+
+// 可见性分类
+const visClass = getVisibilityClass(dec, lat);
+// 返回 'circumpolar' | 'visible' | 'never_rises'
+
+// 每天在地平线以上的时长
+const hoursAbove = getHoursAboveHorizon(dec, lat); // 0-24 小时
+
+// 每天高于某高度的时长
+const imagingHours = getHoursAboveAltitude(dec, lat, 30); // 0-24 小时
+```
+
+### 可见性分析示例
+
+```typescript
+import {
+  calculateTargetVisibility,
+  getAltitudeOverTime,
+  getVisibilityClass,
+} from '@/lib/astronomy';
+
+function analyzeTarget(target, location, date) {
+  const { ra, dec } = target;
+  const { lat, lon } = location;
+
+  // 1. 基本可见性分类
+  const visClass = getVisibilityClass(dec, lat);
+  if (visClass === 'never_rises') {
+    return { visible: false, reason: '该目标在当前纬度永远不可见' };
+  }
+
+  // 2. 详细可见性计算
+  const visibility = calculateTargetVisibility(ra, dec, lat, lon, 30, date);
+
+  // 3. 高度曲线（用于图表）
+  const altitudeCurve = getAltitudeOverTime(ra, dec, lat, lon, 12, 15);
+
+  // 4. 观测建议
+  const recommendations = [];
+  if (visibility.isCircumpolar) {
+    recommendations.push('拱极目标，全夜可观测');
+  }
+  if (visibility.darkImagingHours > 4) {
+    recommendations.push(`暗夜成像时间充足：${visibility.darkImagingHours.toFixed(1)} 小时`);
+  }
+  if (visibility.transitAltitude < 45) {
+    recommendations.push('最大高度较低，注意大气消光影响');
+  }
+
+  return {
+    visible: true,
+    visibility,
+    altitudeCurve,
+    recommendations,
+  };
+}
 ```
 
 ## 成像评估 (imaging/)
@@ -321,86 +392,179 @@ const limit = getCircumpolarLimit(lat);
 
 ```typescript
 import {
-  calculateExposureTime,
-  calculateSignalToNoise,
-  calculateStackedSNR,
+  calculateExposure,
+  calculateTotalIntegration,
+  calculateSubframeCount,
+  getImageScale,
+  checkSampling,
+  calculateFOV,
+  formatExposureTime,
+  getBortleExposureMultiplier,
 } from '@/lib/astronomy';
 
-// 计算曝光时间
-const exposure = calculateExposureTime({
-  magnitude: 10.5,      // 目标星等
-  aperture: 200,        // 口径 mm
-  focalRatio: 4,        // 焦比
-  pixelScale: 1.5,      // 像素比例 arcsec/pixel
-  skyBackground: 20,    // 天空背景星等
-  readNoise: 3,         // 读出噪声 e-
-  darkCurrent: 0.01,    // 暗电流 e-/s
-  targetSNR: 100,       // 目标信噪比
+// 计算推荐曝光时间
+const exposure = calculateExposure({
+  bortle: 6,          // 波特尔暗空等级 1-9
+  focalLength: 800,   // 焦距 mm
+  aperture: 200,      // 口径 mm
+  pixelSize: 3.76,    // 像素尺寸 μm（可选）
+  tracking: 'guided', // 'none' | 'basic' | 'guided'
 });
 
-// 计算信噪比
-const snr = calculateSignalToNoise({
-  exposureTime: 300,
-  // ... 其他参数
+interface ExposureResult {
+  maxUntracked: number;      // 无跟踪最大曝光（秒）
+  recommendedSingle: number; // 推荐单张曝光（秒）
+  minForSignal: number;      // 最小信号曝光（秒）
+}
+
+// 计算总积分时间
+const integration = calculateTotalIntegration({
+  bortle: 6,
+  targetType: 'galaxy', // 'galaxy' | 'nebula' | 'cluster' | 'planetary'
+  isNarrowband: false,  // 窄带成像
 });
 
-// 叠加后信噪比
-const stackedSNR = calculateStackedSNR(singleSNR, frameCount);
+interface IntegrationResult {
+  minimum: number;    // 最少分钟
+  recommended: number; // 推荐分钟
+  ideal: number;       // 理想分钟
+}
+
+// 计算所需张数
+const frameCount = calculateSubframeCount(180, 120); // 总分钟, 单张秒数
+
+// 计算像素比例 (arcsec/pixel)
+const imageScale = getImageScale(800, 3.76); // 焦距mm, 像素μm
+
+// 检查采样是否合适
+const sampling = checkSampling(imageScale, 2.5); // 像素比例, 视宁度
+// 返回 'undersampled' | 'optimal' | 'oversampled'
+
+// 计算视场 (度)
+const fovX = calculateFOV(23.5, 800); // 传感器宽度mm, 焦距mm
+const fovY = calculateFOV(15.6, 800); // 传感器高度mm, 焦距mm
+
+// 格式化曝光时间
+formatExposureTime(0.5);    // "500ms"
+formatExposureTime(30);     // "30s"
+formatExposureTime(180);    // "3m 0s"
+formatExposureTime(7200);   // "2h 0m"
 ```
 
 ### 可行性评估
 
 ```typescript
 import {
-  assessImagingFeasibility,
-  getRecommendedExposure,
+  calculateImagingFeasibility,
+  shouldImage,
+  rankTargets,
 } from '@/lib/astronomy';
 
-// 评估成像可行性
-const assessment = assessImagingFeasibility({
-  target: { ra, dec, magnitude, size },
-  equipment: { telescope, camera },
-  conditions: { moonPhase, skyQuality, seeing },
-  constraints: { minAltitude, maxExposure },
-});
+// 完整可行性评估
+const feasibility = calculateImagingFeasibility(
+  ra, dec,          // 目标坐标
+  latitude, longitude, // 观测位置
+  30,               // 最低成像高度
+  new Date()        // 评估日期
+);
 
-interface FeasibilityAssessment {
-  feasible: boolean;
-  score: number;           // 0-100
-  visibleWindow: TimeWindow;
-  recommendedExposure: number;
-  estimatedTotalTime: number;
-  warnings: string[];
-  suggestions: string[];
+interface ImagingFeasibility {
+  score: number;         // 总分 0-100
+  moonScore: number;     // 月亮评分
+  altitudeScore: number; // 高度评分
+  durationScore: number; // 时长评分
+  twilightScore: number; // 薄暮评分
+  recommendation: 'excellent' | 'good' | 'fair' | 'poor' | 'not_recommended';
+  warnings: string[];    // 警告信息
+  tips: string[];        // 建议提示
 }
+
+// 评分标准
+// - excellent: score >= 80
+// - good:      score >= 60
+// - fair:      score >= 40
+// - poor:      score >= 20
+// - not_recommended: score < 20
+
+// 简单判断是否适合成像
+const canImage = shouldImage(ra, dec, lat, lon, 40); // 最低分数阈值
+
+// 多目标排名
+const rankings = rankTargets(
+  [
+    { id: 'M31', ra: 10.68, dec: 41.27 },
+    { id: 'M42', ra: 83.82, dec: -5.39 },
+    { id: 'M101', ra: 210.8, dec: 54.35 },
+  ],
+  latitude, longitude, new Date()
+);
+// 返回按分数排序的数组
 ```
 
-### 多目标规划
+### 成像规划示例
 
 ```typescript
 import {
-  planImagingSession,
-  optimizeTargetOrder,
+  calculateExposure,
+  calculateTotalIntegration,
+  calculateImagingFeasibility,
+  calculateTargetVisibility,
 } from '@/lib/astronomy';
 
-// 规划拍摄会话
-const plan = planImagingSession({
-  targets: targetList,
-  equipment: equipmentConfig,
-  startTime: sessionStart,
-  endTime: sessionEnd,
-  constraints: {
-    minAltitude: 30,
-    meridianFlipBuffer: 15, // 分钟
-  },
-});
+function planImagingSession(target, equipment, location, date) {
+  const { ra, dec, magnitude, type } = target;
+  const { focalLength, aperture, pixelSize, tracking } = equipment;
+  const { lat, lon, bortle } = location;
 
-// 优化目标顺序
-const optimized = optimizeTargetOrder(targets, {
-  strategy: 'altitude', // 'altitude' | 'time' | 'efficiency'
-  location: { lat, lon },
-  date: sessionDate,
-});
+  // 1. 检查可行性
+  const feasibility = calculateImagingFeasibility(ra, dec, lat, lon, 30, date);
+  if (feasibility.recommendation === 'not_recommended') {
+    return { success: false, reason: feasibility.warnings.join('; ') };
+  }
+
+  // 2. 计算可见性窗口
+  const visibility = calculateTargetVisibility(ra, dec, lat, lon, 30, date);
+
+  // 3. 计算曝光参数
+  const exposure = calculateExposure({
+    bortle, focalLength, aperture, pixelSize, tracking,
+  });
+
+  // 4. 计算总积分时间
+  const integration = calculateTotalIntegration({
+    bortle,
+    targetType: type,
+    isNarrowband: false,
+  });
+
+  // 5. 检查是否有足够时间
+  const availableMinutes = visibility.darkImagingHours * 60;
+  const canComplete = availableMinutes >= integration.minimum;
+
+  // 6. 计算所需张数
+  const frameCount = calculateSubframeCount(
+    Math.min(availableMinutes, integration.recommended),
+    exposure.recommendedSingle
+  );
+
+  return {
+    success: canComplete,
+    feasibility,
+    visibility,
+    exposure: {
+      single: exposure.recommendedSingle,
+      total: Math.min(availableMinutes, integration.recommended),
+      frames: frameCount,
+    },
+    schedule: {
+      start: visibility.darkImagingStart,
+      end: visibility.darkImagingEnd,
+      bestTime: visibility.transitTime,
+    },
+    tips: feasibility.tips,
+    warnings: feasibility.warnings,
+  };
+}
 ```
 
 ## 自定义地平线 (horizon/)

@@ -154,6 +154,14 @@ React 16.8引入的特性，允许在函数组件中使用状态和其他React�
 
 前端通过Tauri IPC调用的后端Rust函数。
 
+### Rate Limiting (速率限制)
+
+限制单位时间内请求次数的安全机制，防止 API 滥用和资源耗尽。
+
+### SSRF (Server-Side Request Forgery, 服务端请求伪造)
+
+攻击者诱使服务器向内部资源发起请求的安全漏洞。SkyMap 通过 URL 验证防止此类攻击。
+
 ### Store (存储)
 
 Zustand中的状态管理单元。
@@ -161,6 +169,10 @@ Zustand中的状态管理单元。
 ### Tauri
 
 使用Web技术构建轻量级桌面应用的框架。
+
+### URL Validation (URL 验证)
+
+验证 URL 安全性的机制，阻止访问私有 IP、localhost 和危险协议。
 
 ---
 

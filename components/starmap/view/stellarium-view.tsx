@@ -81,8 +81,9 @@ import { ThemeToggle } from '@/components/common/theme-toggle';
 import { NightModeToggle } from '@/components/common/night-mode-toggle';
 import { SensorControlToggle } from '@/components/common/sensor-control-toggle';
 import { AppControlMenu } from '@/components/common/app-control-menu';
+import { SystemStatusIndicator } from '@/components/common/system-status-indicator';
 import { ToolbarGroup } from '@/components/common/toolbar-button';
-import { isTauri, quitApp } from '@/lib/tauri/app-control-api';
+import { isTauri, quitApp, toggleMaximizeWindow } from '@/lib/tauri/app-control-api';
 import { Power } from 'lucide-react';
 import { OnboardingTour } from '../onboarding/onboarding-tour';
 import { WelcomeDialog } from '../onboarding/welcome-dialog';
@@ -957,11 +958,16 @@ export function StellariumView() {
 
         {/* Top Bar with integrated drag region */}
         <div className="absolute top-0 left-0 right-0 pointer-events-none safe-area-top animate-fade-in">
-          {/* Drag region layer - covers entire top bar area */}
+          {/* Drag region layer - covers entire top bar area, double-click to maximize */}
           <div
             data-tauri-drag-region
             className="absolute inset-0 h-12 pointer-events-auto"
             style={{ zIndex: 0 }}
+            onDoubleClick={() => {
+              if (isTauri()) {
+                toggleMaximizeWindow();
+              }
+            }}
           />
 
           <div className="relative p-2 sm:p-3 flex items-center justify-between" style={{ zIndex: 1 }}>
@@ -1477,9 +1483,12 @@ export function StellariumView() {
                 </span>
               </div>
 
-              {/* Right: Location & Time */}
+              {/* Right: Location & Time + System Status */}
               <div className="flex items-center gap-4">
                 <LocationTimeDisplay />
+                <div className="hidden sm:block">
+                  <SystemStatusIndicator compact />
+                </div>
               </div>
             </div>
           </div>

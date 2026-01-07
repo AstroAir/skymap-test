@@ -932,6 +932,26 @@ html.no-transitions *::after {
   cursor: default;
 }
 
+/* Global drag region for frameless window - top bar area */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+  cursor: default;
+}
+
+/* Disable drag on all interactive elements within drag regions */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] select,
+[data-tauri-drag-region] [role="button"],
+[data-tauri-drag-region] [data-radix-collection-item],
+.toolbar-btn,
+.touch-target {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 /* Titlebar buttons - disable drag on interactive elements */
 .titlebar-button {
   -webkit-app-region: no-drag;
@@ -952,4 +972,41 @@ html.no-transitions *::after {
 .titlebar {
   -webkit-app-region: drag;
   app-region: drag;
+}
+
+/* Frameless window resize handles visual feedback */
+.window-resize-handle {
+  position: fixed;
+  z-index: 9999;
+  transition: background-color 0.2s ease;
+}
+
+.window-resize-handle:hover {
+  background-color: rgba(var(--primary), 0.1);
+}
+
+/* Safe area adjustments for frameless window */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Always on top indicator glow */
+.window-pinned::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
+  animation: pinned-glow 2s ease-in-out infinite;
+}
+
+@keyframes pinned-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
 }

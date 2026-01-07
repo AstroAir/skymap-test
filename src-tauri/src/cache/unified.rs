@@ -1,0 +1,613 @@
+//! Unified cache module for Tauri
+//! Provides file-system based caching for network resources
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
+
+use crate::data::StorageError;
+use crate::network::{http_client, security};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheEntryMeta {
+    pub key: String,
+    pub content_type: String,
+    pub size_bytes: u64,
+    pub timestamp: i64,
+    pub ttl: i64,
+    pub etag: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CacheIndex {
+    pub entries: HashMap<String, CacheEntryMeta>,
+    pub total_size: u64,
+    pub last_cleanup: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnifiedCacheResponse {
+    pub data: Vec<u8>,
+    pub content_type: String,
+    pub timestamp: i64,
+    pub ttl: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnifiedCacheStats {
+    pub total_entries: usize,
+    pub total_size: u64,
+    pub expired_entries: usize,
+    pub expired_size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrefetchResult {
+    pub success: usize,
+    pub failed: usize,
+}
+
+fn get_unified_cache_dir(app: &AppHandle) -> Result<PathBuf, StorageError> {
+    let app_data_dir = app.path().app_data_dir().map_err(|_| StorageError::AppDataDirNotFound)?;
+    let cache_dir = app_data_dir.join("skymap").join("unified_cache");
+    if !cache_dir.exists() { fs::create_dir_all(&cache_dir)?; }
+    Ok(cache_dir)
+}
+
+fn get_cache_index_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
+    Ok(get_unified_cache_dir(app)?.join("index.json"))
+}
+
+fn get_cache_data_dir(app: &AppHandle) -> Result<PathBuf, StorageError> {
+    let data_dir = get_unified_cache_dir(app)?.join("data");
+    if !data_dir.exists() { fs::create_dir_all(&data_dir)?; }
+    Ok(data_dir)
+}
+
+fn key_to_filename(key: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+fn load_cache_index(app: &AppHandle) -> Result<CacheIndex, StorageError> {
+    let path = get_cache_index_path(app)?;
+    if !path.exists() { return Ok(CacheIndex::default()); }
+    Ok(serde_json::from_str(&fs::read_to_string(&path)?)?)
+}
+
+fn save_cache_index(app: &AppHandle, index: &CacheIndex) -> Result<(), StorageError> {
+    fs::write(&get_cache_index_path(app)?, serde_json::to_string_pretty(index)?)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_unified_cache_entry(app: AppHandle, key: String) -> Result<Option<UnifiedCacheResponse>, StorageError> {
+    let index = load_cache_index(&app)?;
+    let meta = match index.entries.get(&key) {
+        Some(m) => m,
+        None => return Ok(None),
+    };
+
+    if meta.ttl > 0 {
+        let now = Utc::now().timestamp_millis();
+        if now > meta.timestamp + meta.ttl {
+            delete_unified_cache_entry(app, key).await?;
+            return Ok(None);
+        }
+    }
+
+    let data_path = get_cache_data_dir(&app)?.join(key_to_filename(&key));
+    if !data_path.exists() { return Ok(None); }
+
+    Ok(Some(UnifiedCacheResponse {
+        data: fs::read(&data_path)?,
+        content_type: meta.content_type.clone(),
+        timestamp: meta.timestamp,
+        ttl: meta.ttl,
+    }))
+}
+
+#[tauri::command]
+pub async fn put_unified_cache_entry(app: AppHandle, key: String, data: Vec<u8>, content_type: String, ttl: i64) -> Result<(), StorageError> {
+    let mut index = load_cache_index(&app)?;
+
+    if index.entries.len() >= security::limits::MAX_CACHE_ENTRIES {
+        let _ = cleanup_expired_entries_internal(&app, &mut index);
+        if index.entries.len() >= security::limits::MAX_CACHE_ENTRIES {
+            return Err(StorageError::Other(format!("Cache entry limit reached ({})", security::limits::MAX_CACHE_ENTRIES)));
+        }
+    }
+
+    if index.total_size + data.len() as u64 > security::limits::MAX_CACHE_TOTAL_SIZE as u64 {
+        let _ = cleanup_expired_entries_internal(&app, &mut index);
+        if index.total_size + data.len() as u64 > security::limits::MAX_CACHE_TOTAL_SIZE as u64 {
+            return Err(StorageError::Other(format!("Cache size limit reached ({} bytes)", security::limits::MAX_CACHE_TOTAL_SIZE)));
+        }
+    }
+
+    let data_path = get_cache_data_dir(&app)?.join(key_to_filename(&key));
+    let size_bytes = data.len() as u64;
+    fs::write(&data_path, &data)?;
+
+    if let Some(old_meta) = index.entries.get(&key) {
+        index.total_size = index.total_size.saturating_sub(old_meta.size_bytes);
+    }
+
+    index.entries.insert(key.clone(), CacheEntryMeta {
+        key, content_type, size_bytes, timestamp: Utc::now().timestamp_millis(), ttl, etag: None,
+    });
+    index.total_size += size_bytes;
+    save_cache_index(&app, &index)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_unified_cache_entry(app: AppHandle, key: String) -> Result<bool, StorageError> {
+    let mut index = load_cache_index(&app)?;
+    if let Some(meta) = index.entries.remove(&key) {
+        index.total_size = index.total_size.saturating_sub(meta.size_bytes);
+        let data_path = get_cache_data_dir(&app)?.join(key_to_filename(&key));
+        if data_path.exists() { fs::remove_file(&data_path)?; }
+        save_cache_index(&app, &index)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+#[tauri::command]
+pub async fn clear_unified_cache(app: AppHandle) -> Result<u64, StorageError> {
+    let index = load_cache_index(&app)?;
+    let deleted_count = index.entries.len() as u64;
+    let data_dir = get_cache_data_dir(&app)?;
+    if data_dir.exists() {
+        fs::remove_dir_all(&data_dir)?;
+        fs::create_dir_all(&data_dir)?;
+    }
+    save_cache_index(&app, &CacheIndex::default())?;
+    Ok(deleted_count)
+}
+
+#[tauri::command]
+pub async fn get_unified_cache_size(app: AppHandle) -> Result<u64, StorageError> {
+    Ok(load_cache_index(&app)?.total_size)
+}
+
+#[tauri::command]
+pub async fn list_unified_cache_keys(app: AppHandle) -> Result<Vec<String>, StorageError> {
+    Ok(load_cache_index(&app)?.entries.keys().cloned().collect())
+}
+
+#[tauri::command]
+pub async fn get_unified_cache_stats(app: AppHandle) -> Result<UnifiedCacheStats, StorageError> {
+    let index = load_cache_index(&app)?;
+    let now = Utc::now().timestamp_millis();
+    let mut expired_count = 0;
+    let mut expired_size = 0u64;
+    for meta in index.entries.values() {
+        if meta.ttl > 0 && now > meta.timestamp + meta.ttl {
+            expired_count += 1;
+            expired_size += meta.size_bytes;
+        }
+    }
+    Ok(UnifiedCacheStats { total_entries: index.entries.len(), total_size: index.total_size, expired_entries: expired_count, expired_size })
+}
+
+fn cleanup_expired_entries_internal(app: &AppHandle, index: &mut CacheIndex) -> Result<u64, StorageError> {
+    let data_dir = get_cache_data_dir(app)?;
+    let now = Utc::now().timestamp_millis();
+    let mut deleted_count = 0u64;
+    let keys_to_remove: Vec<String> = index.entries.iter()
+        .filter(|(_, meta)| meta.ttl > 0 && now > meta.timestamp + meta.ttl)
+        .map(|(k, _)| k.clone()).collect();
+
+    for key in keys_to_remove {
+        if let Some(meta) = index.entries.remove(&key) {
+            index.total_size = index.total_size.saturating_sub(meta.size_bytes);
+            let data_path = data_dir.join(key_to_filename(&key));
+            if data_path.exists() { let _ = fs::remove_file(&data_path); }
+            deleted_count += 1;
+        }
+    }
+    Ok(deleted_count)
+}
+
+#[tauri::command]
+pub async fn cleanup_unified_cache(app: AppHandle) -> Result<u64, StorageError> {
+    let mut index = load_cache_index(&app)?;
+    let deleted_count = cleanup_expired_entries_internal(&app, &mut index)?;
+    index.last_cleanup = Some(Utc::now());
+    save_cache_index(&app, &index)?;
+    Ok(deleted_count)
+}
+
+#[tauri::command]
+pub async fn prefetch_url(app: AppHandle, url: String, ttl: i64) -> Result<bool, StorageError> {
+    log::info!("Prefetching URL: {}", url);
+    let request_id = format!("prefetch-{}", chrono::Utc::now().timestamp_millis());
+
+    match http_client::http_request(app.clone(), http_client::RequestConfig {
+        method: "GET".to_string(), url: url.clone(), request_id: Some(request_id),
+        allow_http: false, ..Default::default()
+    }).await {
+        Ok(response) => {
+            if response.status >= 200 && response.status < 300 {
+                let content_type = response.content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+                security::validate_size(&response.body, security::limits::MAX_TILE_SIZE)
+                    .map_err(|e| StorageError::Other(e.to_string()))?;
+                let key = url_to_cache_key(&url);
+                put_unified_cache_entry(app, key, response.body, content_type, ttl).await?;
+                Ok(true)
+            } else {
+                log::warn!("Prefetch failed with status: {}", response.status);
+                Ok(false)
+            }
+        }
+        Err(e) => { log::warn!("Prefetch error: {}", e); Ok(false) }
+    }
+}
+
+#[tauri::command]
+pub async fn prefetch_urls(app: AppHandle, urls: Vec<String>, ttl: i64) -> Result<PrefetchResult, StorageError> {
+    let mut success = 0;
+    let mut failed = 0;
+    for url in urls {
+        match prefetch_url(app.clone(), url, ttl).await {
+            Ok(true) => success += 1,
+            _ => failed += 1,
+        }
+    }
+    Ok(PrefetchResult { success, failed })
+}
+
+fn url_to_cache_key(url: &str) -> String {
+    url.replace("https://", "").replace("http://", "")
+        .chars().filter(|c| c.is_alphanumeric() || *c == '/' || *c == '.' || *c == '-' || *c == '_')
+        .take(200).collect()
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ------------------------------------------------------------------------
+    // key_to_filename Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_key_to_filename_consistency() {
+        let key = "https://example.com/path/to/resource";
+        let filename1 = key_to_filename(key);
+        let filename2 = key_to_filename(key);
+        assert_eq!(filename1, filename2, "Same key should produce same filename");
+    }
+
+    #[test]
+    fn test_key_to_filename_different_keys() {
+        let key1 = "https://example.com/path1";
+        let key2 = "https://example.com/path2";
+        let filename1 = key_to_filename(key1);
+        let filename2 = key_to_filename(key2);
+        assert_ne!(filename1, filename2, "Different keys should produce different filenames");
+    }
+
+    #[test]
+    fn test_key_to_filename_format() {
+        let key = "test-key";
+        let filename = key_to_filename(key);
+        // Should be 16 hex characters
+        assert_eq!(filename.len(), 16);
+        assert!(filename.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // ------------------------------------------------------------------------
+    // url_to_cache_key Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_url_to_cache_key_https() {
+        let url = "https://example.com/path";
+        let key = url_to_cache_key(url);
+        assert!(!key.contains("https://"));
+        assert!(key.contains("example.com"));
+    }
+
+    #[test]
+    fn test_url_to_cache_key_http() {
+        let url = "http://example.com/path";
+        let key = url_to_cache_key(url);
+        assert!(!key.contains("http://"));
+    }
+
+    #[test]
+    fn test_url_to_cache_key_max_length() {
+        let long_url = "https://".to_string() + &"a".repeat(500);
+        let key = url_to_cache_key(&long_url);
+        assert!(key.len() <= 200, "Key should be truncated to 200 chars");
+    }
+
+    #[test]
+    fn test_url_to_cache_key_special_chars() {
+        let url = "https://example.com/path?query=value&foo=bar";
+        let key = url_to_cache_key(url);
+        // Query string chars like ? and & should be filtered out
+        assert!(!key.contains("?"));
+        assert!(!key.contains("&"));
+        assert!(!key.contains("="));
+    }
+
+    #[test]
+    fn test_url_to_cache_key_allowed_chars() {
+        let url = "https://example.com/path-to_file.jpg";
+        let key = url_to_cache_key(url);
+        assert!(key.contains("-"));
+        assert!(key.contains("_"));
+        assert!(key.contains("."));
+    }
+
+    // ------------------------------------------------------------------------
+    // CacheEntryMeta Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_cache_entry_meta_serialization() {
+        let meta = CacheEntryMeta {
+            key: "test-key".to_string(),
+            content_type: "image/jpeg".to_string(),
+            size_bytes: 1024,
+            timestamp: 1704067200000,
+            ttl: 3600000,
+            etag: Some("abc123".to_string()),
+        };
+
+        let json = serde_json::to_string(&meta).unwrap();
+        assert!(json.contains("test-key"));
+        assert!(json.contains("image/jpeg"));
+        assert!(json.contains("1024"));
+        assert!(json.contains("abc123"));
+    }
+
+    #[test]
+    fn test_cache_entry_meta_deserialization() {
+        let json = r#"{
+            "key": "my-key",
+            "content_type": "text/plain",
+            "size_bytes": 512,
+            "timestamp": 1704067200000,
+            "ttl": 7200000,
+            "etag": null
+        }"#;
+
+        let meta: CacheEntryMeta = serde_json::from_str(json).unwrap();
+        assert_eq!(meta.key, "my-key");
+        assert_eq!(meta.content_type, "text/plain");
+        assert_eq!(meta.size_bytes, 512);
+        assert!(meta.etag.is_none());
+    }
+
+    #[test]
+    fn test_cache_entry_meta_clone() {
+        let meta = CacheEntryMeta {
+            key: "key".to_string(),
+            content_type: "text/html".to_string(),
+            size_bytes: 100,
+            timestamp: 0,
+            ttl: 1000,
+            etag: None,
+        };
+
+        let cloned = meta.clone();
+        assert_eq!(cloned.key, meta.key);
+        assert_eq!(cloned.content_type, meta.content_type);
+    }
+
+    // ------------------------------------------------------------------------
+    // CacheIndex Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_cache_index_default() {
+        let index = CacheIndex::default();
+        assert!(index.entries.is_empty());
+        assert_eq!(index.total_size, 0);
+        assert!(index.last_cleanup.is_none());
+    }
+
+    #[test]
+    fn test_cache_index_serialization() {
+        let mut index = CacheIndex::default();
+        index.entries.insert(
+            "key1".to_string(),
+            CacheEntryMeta {
+                key: "key1".to_string(),
+                content_type: "text/plain".to_string(),
+                size_bytes: 100,
+                timestamp: 0,
+                ttl: 1000,
+                etag: None,
+            },
+        );
+        index.total_size = 100;
+
+        let json = serde_json::to_string(&index).unwrap();
+        assert!(json.contains("entries"));
+        assert!(json.contains("total_size"));
+        assert!(json.contains("key1"));
+    }
+
+    #[test]
+    fn test_cache_index_with_cleanup_timestamp() {
+        let mut index = CacheIndex::default();
+        index.last_cleanup = Some(Utc::now());
+
+        let json = serde_json::to_string(&index).unwrap();
+        let back: CacheIndex = serde_json::from_str(&json).unwrap();
+        assert!(back.last_cleanup.is_some());
+    }
+
+    // ------------------------------------------------------------------------
+    // UnifiedCacheResponse Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_unified_cache_response_serialization() {
+        let response = UnifiedCacheResponse {
+            data: vec![1, 2, 3, 4, 5],
+            content_type: "application/octet-stream".to_string(),
+            timestamp: 1704067200000,
+            ttl: 3600000,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("content_type"));
+        assert!(json.contains("timestamp"));
+        assert!(json.contains("ttl"));
+    }
+
+    #[test]
+    fn test_unified_cache_response_clone() {
+        let response = UnifiedCacheResponse {
+            data: vec![10, 20, 30],
+            content_type: "image/png".to_string(),
+            timestamp: 0,
+            ttl: 0,
+        };
+
+        let cloned = response.clone();
+        assert_eq!(cloned.data, response.data);
+        assert_eq!(cloned.content_type, response.content_type);
+    }
+
+    // ------------------------------------------------------------------------
+    // UnifiedCacheStats Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_unified_cache_stats_serialization() {
+        let stats = UnifiedCacheStats {
+            total_entries: 100,
+            total_size: 1024 * 1024,
+            expired_entries: 10,
+            expired_size: 50000,
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("total_entries"));
+        assert!(json.contains("100"));
+        assert!(json.contains("expired_entries"));
+        assert!(json.contains("10"));
+    }
+
+    #[test]
+    fn test_unified_cache_stats_deserialization() {
+        let json = r#"{
+            "total_entries": 50,
+            "total_size": 500000,
+            "expired_entries": 5,
+            "expired_size": 25000
+        }"#;
+
+        let stats: UnifiedCacheStats = serde_json::from_str(json).unwrap();
+        assert_eq!(stats.total_entries, 50);
+        assert_eq!(stats.total_size, 500000);
+        assert_eq!(stats.expired_entries, 5);
+        assert_eq!(stats.expired_size, 25000);
+    }
+
+    // ------------------------------------------------------------------------
+    // PrefetchResult Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_prefetch_result_serialization() {
+        let result = PrefetchResult {
+            success: 8,
+            failed: 2,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"success\":8"));
+        assert!(json.contains("\"failed\":2"));
+    }
+
+    #[test]
+    fn test_prefetch_result_deserialization() {
+        let json = r#"{"success": 10, "failed": 0}"#;
+        let result: PrefetchResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.success, 10);
+        assert_eq!(result.failed, 0);
+    }
+
+    #[test]
+    fn test_prefetch_result_clone() {
+        let result = PrefetchResult { success: 5, failed: 3 };
+        let cloned = result.clone();
+        assert_eq!(cloned.success, result.success);
+        assert_eq!(cloned.failed, result.failed);
+    }
+
+    // ------------------------------------------------------------------------
+    // Edge Cases
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_url_to_cache_key_empty() {
+        let key = url_to_cache_key("");
+        assert!(key.is_empty());
+    }
+
+    #[test]
+    fn test_key_to_filename_empty() {
+        let filename = key_to_filename("");
+        // Even empty string should produce a valid hash
+        assert_eq!(filename.len(), 16);
+    }
+
+    #[test]
+    fn test_cache_entry_meta_with_etag() {
+        let meta = CacheEntryMeta {
+            key: "etag-test".to_string(),
+            content_type: "text/css".to_string(),
+            size_bytes: 256,
+            timestamp: 1000,
+            ttl: 5000,
+            etag: Some("W/\"abc123\"".to_string()),
+        };
+
+        let json = serde_json::to_string(&meta).unwrap();
+        let back: CacheEntryMeta = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.etag, Some("W/\"abc123\"".to_string()));
+    }
+
+    #[test]
+    fn test_cache_index_multiple_entries() {
+        let mut index = CacheIndex::default();
+        
+        for i in 0..5 {
+            index.entries.insert(
+                format!("key-{}", i),
+                CacheEntryMeta {
+                    key: format!("key-{}", i),
+                    content_type: "text/plain".to_string(),
+                    size_bytes: 100 * (i + 1) as u64,
+                    timestamp: 0,
+                    ttl: 1000,
+                    etag: None,
+                },
+            );
+        }
+        index.total_size = 100 + 200 + 300 + 400 + 500;
+
+        assert_eq!(index.entries.len(), 5);
+        assert_eq!(index.total_size, 1500);
+    }
+}
