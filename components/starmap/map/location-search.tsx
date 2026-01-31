@@ -13,6 +13,9 @@ import { cn } from '@/lib/utils';
 import { geocodingService } from '@/lib/services/geocoding-service';
 import type { GeocodingResult } from '@/lib/services/map-providers/base-map-provider';
 import type { Coordinates, LocationResult } from './types';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('location-search');
 
 interface LocationSearchProps {
   onLocationSelect: (location: LocationResult) => void;
@@ -74,7 +77,7 @@ function LocationSearchComponent({
         setSearchHistory(filteredHistory.slice(0, MAX_HISTORY_ITEMS));
       }
     } catch (error) {
-      console.warn('Failed to load search history:', error);
+      logger.warn('Failed to load search history', error);
     }
   }, []);
 
@@ -82,7 +85,7 @@ function LocationSearchComponent({
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
     } catch (error) {
-      console.warn('Failed to save search history:', error);
+      logger.warn('Failed to save search history', error);
     }
   }, []);
 
@@ -139,7 +142,7 @@ function LocationSearchComponent({
       if (error instanceof Error && error.name === 'AbortError') {
         return;
       }
-      console.error('Search failed:', error);
+      logger.error('Search failed', error);
       if (latestQueryRef.current === searchQuery) {
         setResults([]);
       }
@@ -187,7 +190,7 @@ function LocationSearchComponent({
 
   const handleCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      console.error('Geolocation not supported');
+      logger.error('Geolocation not supported');
       return;
     }
 
@@ -220,13 +223,13 @@ function LocationSearchComponent({
           
           setIsOpen(false);
         } catch (error) {
-          console.error('Failed to process current location:', error);
+          logger.error('Failed to process current location', error);
         } finally {
           setIsGettingLocation(false);
         }
       },
       (error) => {
-        console.error('Geolocation failed:', error);
+        logger.error('Geolocation failed', error);
         setIsGettingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }

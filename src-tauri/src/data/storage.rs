@@ -49,15 +49,20 @@ pub struct ExportData {
     pub stores: HashMap<String, serde_json::Value>,
 }
 
-/// Known store names for validation
+/// Known store names for validation and export/import operations
 const KNOWN_STORES: &[&str] = &[
     "starmap-target-list",
     "starmap-markers",
     "starmap-settings",
     "starmap-equipment",
     "starmap-onboarding",
+    "starmap-locations",
+    "starmap-observation-log",
     "skymap-offline",
+    "skymap-unified-cache",
     "skymap-locale",
+    "skymap-solver-config",
+    "skymap-app-settings",
 ];
 
 /// Get the base storage directory for the application
@@ -644,14 +649,43 @@ mod tests {
 
     #[test]
     fn test_known_stores_contains_expected() {
+        // Core starmap stores
         assert!(KNOWN_STORES.contains(&"starmap-target-list"));
         assert!(KNOWN_STORES.contains(&"starmap-markers"));
         assert!(KNOWN_STORES.contains(&"starmap-settings"));
         assert!(KNOWN_STORES.contains(&"starmap-equipment"));
+        assert!(KNOWN_STORES.contains(&"starmap-onboarding"));
+        assert!(KNOWN_STORES.contains(&"starmap-locations"));
+        assert!(KNOWN_STORES.contains(&"starmap-observation-log"));
+        
+        // Skymap stores
+        assert!(KNOWN_STORES.contains(&"skymap-offline"));
+        assert!(KNOWN_STORES.contains(&"skymap-unified-cache"));
+        assert!(KNOWN_STORES.contains(&"skymap-locale"));
+        assert!(KNOWN_STORES.contains(&"skymap-solver-config"));
+        assert!(KNOWN_STORES.contains(&"skymap-app-settings"));
     }
 
     #[test]
     fn test_known_stores_count() {
-        assert!(KNOWN_STORES.len() >= 5, "Should have at least 5 known stores");
+        // Should have exactly 12 known stores after the update
+        assert_eq!(KNOWN_STORES.len(), 12, "Should have exactly 12 known stores, got {}", KNOWN_STORES.len());
+    }
+
+    #[test]
+    fn test_known_stores_no_duplicates() {
+        let mut seen = std::collections::HashSet::new();
+        for store in KNOWN_STORES {
+            assert!(seen.insert(store), "Duplicate store found: {}", store);
+        }
+    }
+
+    #[test]
+    fn test_known_stores_naming_convention() {
+        // All stores should follow naming convention (lowercase with hyphens)
+        for store in KNOWN_STORES {
+            assert!(store.chars().all(|c| c.is_ascii_lowercase() || c == '-'),
+                "Store '{}' should use lowercase and hyphens only", store);
+        }
     }
 }

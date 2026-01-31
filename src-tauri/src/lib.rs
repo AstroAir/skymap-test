@@ -127,13 +127,21 @@ pub fn run() {
                 app.handle().plugin(tauri_plugin_process::init())?;
             }
 
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // Enable logging in both debug and release builds
+            // Debug: Info level, Release: Warn level
+            let log_level = if cfg!(debug_assertions) {
+                log::LevelFilter::Debug
+            } else {
+                log::LevelFilter::Info
+            };
+            
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(log_level)
+                    .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                    .max_file_size(5_000_000) // 5MB max file size
+                    .build(),
+            )?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

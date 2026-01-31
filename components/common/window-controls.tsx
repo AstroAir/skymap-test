@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Minus, Square, X, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { createLogger } from "@/lib/logger";
 import {
   Tooltip,
   TooltipContent,
@@ -16,6 +17,8 @@ import {
   isWindowMaximized,
   isTauri,
 } from "@/lib/tauri/app-control-api";
+
+const logger = createLogger('window-controls');
 
 interface WindowControlsProps {
   className?: string;
@@ -35,7 +38,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
           const maximized = await isWindowMaximized();
           setIsMaximized(maximized);
         } catch (error) {
-          console.error("Failed to get window state:", error);
+          logger.error('Failed to get window state', error);
         }
       }
     };
@@ -50,7 +53,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
         const maximized = await isWindowMaximized();
         setIsMaximized(maximized);
       } catch (error) {
-        console.error("Failed to check maximized state:", error);
+        logger.error('Failed to check maximized state', error);
       }
     };
 
@@ -62,7 +65,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
     try {
       await minimizeWindow();
     } catch (error) {
-      console.error("Failed to minimize:", error);
+      logger.error('Failed to minimize', error);
     }
   }, []);
 
@@ -71,7 +74,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
       await toggleMaximizeWindow();
       setIsMaximized((prev) => !prev);
     } catch (error) {
-      console.error("Failed to toggle maximize:", error);
+      logger.error('Failed to toggle maximize', error);
     }
   }, []);
 
@@ -79,7 +82,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
     try {
       await closeWindow();
     } catch (error) {
-      console.error("Failed to close:", error);
+      logger.error('Failed to close', error);
     }
   }, []);
 
@@ -102,7 +105,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
           <button
             onClick={handleMinimize}
             className={cn(baseButtonClass, hoverClass, "rounded-l-md")}
-            aria-label="Minimize"
+            aria-label={t("minimize")}
           >
             <Minus className="h-4 w-4 text-white/70" />
           </button>
@@ -117,7 +120,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
           <button
             onClick={handleMaximize}
             className={cn(baseButtonClass, hoverClass)}
-            aria-label={isMaximized ? "Restore" : "Maximize"}
+            aria-label={isMaximized ? t("restore") : t("maximize")}
           >
             {isMaximized ? (
               <Square className="h-3.5 w-3.5 text-white/70" />
@@ -139,7 +142,7 @@ export function WindowControls({ className, variant = "default" }: WindowControl
               baseButtonClass,
               "rounded-r-md hover:bg-destructive hover:text-destructive-foreground"
             )}
-            aria-label="Close"
+            aria-label={t("close")}
           >
             <X className="h-4 w-4 text-white/70 hover:text-white" />
           </button>

@@ -120,8 +120,37 @@ pub async fn http_request(app: AppHandle, config: RequestConfig) -> Result<HttpR
     security::validate_url(&config.url, config.allow_http, None)?;
     register_request(&config.request_id);
 
-    let client = reqwest::Client::builder()
+    // Get global HTTP configuration
+    let global_config = HTTP_CONFIG.lock().map(|c| c.clone()).unwrap_or_default();
+
+    // Build client with global and request-specific configuration
+    let mut client_builder = reqwest::Client::builder()
         .timeout(Duration::from_secs(config.timeout_seconds))
+        .connect_timeout(Duration::from_millis(global_config.connect_timeout_ms))
+        .user_agent(&global_config.user_agent);
+
+    // Apply compression setting
+    if global_config.enable_compression {
+        client_builder = client_builder.gzip(true).deflate(true);
+    } else {
+        client_builder = client_builder.no_gzip().no_deflate();
+    }
+
+    // Apply redirect settings
+    if global_config.follow_redirects {
+        client_builder = client_builder.redirect(reqwest::redirect::Policy::limited(global_config.max_redirects as usize));
+    } else {
+        client_builder = client_builder.redirect(reqwest::redirect::Policy::none());
+    }
+
+    // Apply proxy if configured
+    if let Some(ref proxy_url) = global_config.proxy_url {
+        if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+            client_builder = client_builder.proxy(proxy);
+        }
+    }
+
+    let client = client_builder
         .build()
         .map_err(|e| HttpClientError::Request(e.to_string()))?;
 

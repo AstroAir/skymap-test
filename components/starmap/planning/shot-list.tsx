@@ -82,6 +82,9 @@ import {
   formatDuration,
   type ImagingFeasibility,
 } from '@/lib/astronomy/astro-utils';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('shot-list');
 
 interface ShotListProps {
   onNavigateToTarget?: (ra: number, dec: number) => void;
@@ -241,12 +244,12 @@ export function ShotList({
   // Import/Export handlers
   const handleExport = useCallback(async (format: ExportFormat) => {
     if (!isTauri()) {
-      toast.error(t('shotList.desktopOnly') || 'Export is only available in desktop app');
+      toast.error(t('shotList.desktopOnly'));
       return;
     }
     
     if (targets.length === 0) {
-      toast.error(t('shotList.noTargetsToExport') || 'No targets to export');
+      toast.error(t('shotList.noTargetsToExport'));
       return;
     }
 
@@ -263,12 +266,12 @@ export function ShotList({
       }));
 
       const result = await tauriApi.targetIo.exportTargets(exportTargets, format);
-      toast.success(t('shotList.exportSuccess') || 'Export successful', {
+      toast.success(t('shotList.exportSuccess'), {
         description: result,
       });
     } catch (error) {
-      console.error('Export failed:', error);
-      toast.error(t('shotList.exportFailed') || 'Export failed', {
+      logger.error('Export failed', error);
+      toast.error(t('shotList.exportFailed'), {
         description: String(error),
       });
     }
@@ -276,7 +279,7 @@ export function ShotList({
 
   const handleImport = useCallback(async () => {
     if (!isTauri()) {
-      toast.error(t('shotList.desktopOnly') || 'Import is only available in desktop app');
+      toast.error(t('shotList.desktopOnly'));
       return;
     }
 
@@ -295,19 +298,19 @@ export function ShotList({
         
         addTargetsBatch(batchTargets, { priority: 'medium' });
         
-        toast.success(t('shotList.importSuccess') || 'Import successful', {
+        toast.success(t('shotList.importSuccess'), {
           description: `${result.imported} targets imported${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`,
         });
       } else {
-        toast.info(t('shotList.noTargetsImported') || 'No targets were imported');
+        toast.info(t('shotList.noTargetsImported'));
       }
       
       if (result.errors.length > 0) {
-        console.warn('Import warnings:', result.errors);
+        logger.warn('Import warnings', { errors: result.errors });
       }
     } catch (error) {
-      console.error('Import failed:', error);
-      toast.error(t('shotList.importFailed') || 'Import failed', {
+      logger.error('Import failed', error);
+      toast.error(t('shotList.importFailed'), {
         description: String(error),
       });
     }
@@ -469,15 +472,15 @@ export function ShotList({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuLabel>{t('shotList.importExport') || 'Import / Export'}</DropdownMenuLabel>
+                      <DropdownMenuLabel>{t('shotList.importExport')}</DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleImport} disabled={!isTauri()}>
                         <Upload className="h-4 w-4 mr-2" />
-                        {t('shotList.import') || 'Import Targets...'}
+                        {t('shotList.import')}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel className="text-xs text-muted-foreground">
-                        {t('shotList.exportAs') || 'Export As'}
+                        {t('shotList.exportAs')}
                       </DropdownMenuLabel>
                       <DropdownMenuItem 
                         onClick={() => handleExport('csv')} 

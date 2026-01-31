@@ -191,7 +191,22 @@ pub async fn save_cached_tile(app: AppHandle, survey_id: String, zoom: u8, x: u6
         return Err(StorageError::Other(format!("Cache size limit reached ({} bytes)", limits::MAX_CACHE_TOTAL_SIZE)));
     }
 
-    fs::write(&get_tile_path(&app, &survey_id, zoom, x, y)?, &data)?;
+    // Use atomic write: write to temp file then rename
+    let tile_path = get_tile_path(&app, &survey_id, zoom, x, y)?;
+    let temp_path = tile_path.with_extension("tmp");
+    
+    // Ensure parent directory exists
+    if let Some(parent) = tile_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    
+    // Write to temp file first
+    fs::write(&temp_path, &data)?;
+    
+    // Atomic rename (on most filesystems this is atomic)
+    fs::rename(&temp_path, &tile_path)?;
+    
+    // Update metadata
     let mut cache_data = load_cache_data(&app)?;
     cache_data.tiles.insert(format!("{}_{}_{}_{}", survey_id, zoom, x, y), TileMetadata {
         survey_id, zoom, x, y, size_bytes: data.len() as u64, cached_at: Utc::now(),

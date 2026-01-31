@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useKeyboardShortcuts, STARMAP_SHORTCUT_KEYS, type KeyboardShortcut } from '@/lib/hooks';
 import { useStellariumStore, useSettingsStore, useEquipmentStore } from '@/lib/stores';
 
@@ -23,6 +24,7 @@ export function KeyboardShortcutsManager({
   onClosePanel,
   enabled = true,
 }: KeyboardShortcutsManagerProps) {
+  const t = useTranslations('shortcuts');
   const stel = useStellariumStore((state) => state.stel);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
   const _stellariumSettings = useSettingsStore((state) => state.stellarium);
@@ -65,12 +67,12 @@ export function KeyboardShortcutsManager({
     if (onZoomIn) {
       list.push({
         key: STARMAP_SHORTCUT_KEYS.ZOOM_IN,
-        description: 'Zoom in',
+        description: t('zoomIn'),
         action: onZoomIn,
       });
       list.push({
         key: '=', // Also allow = without shift
-        description: 'Zoom in',
+        description: t('zoomIn'),
         action: onZoomIn,
       });
     }
@@ -78,7 +80,7 @@ export function KeyboardShortcutsManager({
     if (onZoomOut) {
       list.push({
         key: STARMAP_SHORTCUT_KEYS.ZOOM_OUT,
-        description: 'Zoom out',
+        description: t('zoomOut'),
         action: onZoomOut,
       });
     }
@@ -86,7 +88,7 @@ export function KeyboardShortcutsManager({
     if (onResetView) {
       list.push({
         key: STARMAP_SHORTCUT_KEYS.RESET_VIEW,
-        description: 'Reset view',
+        description: t('resetView'),
         action: onResetView,
       });
     }
@@ -96,12 +98,12 @@ export function KeyboardShortcutsManager({
       list.push({
         key: STARMAP_SHORTCUT_KEYS.TOGGLE_SEARCH,
         ctrl: true,
-        description: 'Toggle search',
+        description: t('toggleSearch'),
         action: onToggleSearch,
       });
       list.push({
         key: '/',
-        description: 'Toggle search',
+        description: t('toggleSearch'),
         action: onToggleSearch,
       });
     }
@@ -109,7 +111,7 @@ export function KeyboardShortcutsManager({
     if (onToggleSessionPanel) {
       list.push({
         key: STARMAP_SHORTCUT_KEYS.TOGGLE_SESSION_PANEL,
-        description: 'Toggle session panel',
+        description: t('toggleSessionPanel'),
         action: onToggleSessionPanel,
       });
     }
@@ -117,57 +119,57 @@ export function KeyboardShortcutsManager({
     // FOV overlay
     list.push({
       key: STARMAP_SHORTCUT_KEYS.TOGGLE_FOV,
-      description: 'Toggle FOV overlay',
+      description: t('toggleFovOverlay'),
       action: () => setFovEnabled(!fovEnabled),
     });
 
     // Display toggles
     list.push({
       key: STARMAP_SHORTCUT_KEYS.TOGGLE_CONSTELLATIONS,
-      description: 'Toggle constellation lines',
+      description: t('toggleConstellations'),
       action: () => toggleStellariumSetting('constellationsLinesVisible'),
     });
 
     list.push({
       key: STARMAP_SHORTCUT_KEYS.TOGGLE_GRID,
-      description: 'Toggle grid',
+      description: t('toggleGrid'),
       action: () => toggleStellariumSetting('equatorialLinesVisible'),
     });
 
     list.push({
       key: STARMAP_SHORTCUT_KEYS.TOGGLE_DSO,
-      description: 'Toggle deep sky objects',
+      description: t('toggleDso'),
       action: () => toggleStellariumSetting('dsosVisible'),
     });
 
     list.push({
       key: STARMAP_SHORTCUT_KEYS.TOGGLE_ATMOSPHERE,
-      description: 'Toggle atmosphere',
+      description: t('toggleAtmosphere'),
       action: () => toggleStellariumSetting('atmosphereVisible'),
     });
 
     // Time controls
     list.push({
       key: STARMAP_SHORTCUT_KEYS.PAUSE_TIME,
-      description: 'Pause/resume time',
+      description: t('pauseResumeTime'),
       action: handlePauseTime,
     });
 
     list.push({
       key: STARMAP_SHORTCUT_KEYS.SPEED_UP,
-      description: 'Speed up time',
+      description: t('speedUpTime'),
       action: handleSpeedUp,
     });
 
     list.push({
       key: STARMAP_SHORTCUT_KEYS.SLOW_DOWN,
-      description: 'Slow down time',
+      description: t('slowDownTime'),
       action: handleSlowDown,
     });
 
     list.push({
       key: STARMAP_SHORTCUT_KEYS.RESET_TIME,
-      description: 'Reset to current time',
+      description: t('resetTime'),
       action: handleResetTime,
     });
 
@@ -175,7 +177,7 @@ export function KeyboardShortcutsManager({
     if (onClosePanel) {
       list.push({
         key: STARMAP_SHORTCUT_KEYS.CLOSE_PANEL,
-        description: 'Close panel',
+        description: t('closePanel'),
         action: onClosePanel,
         ignoreInputs: false, // Also work when input focused
       });
@@ -196,6 +198,7 @@ export function KeyboardShortcutsManager({
     handleSpeedUp,
     handleSlowDown,
     handleResetTime,
+    t,
   ]);
 
   useKeyboardShortcuts({

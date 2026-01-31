@@ -67,6 +67,9 @@ import type {
   Observation, 
   ObservationStats,
 } from '@/lib/tauri/types';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('observation-log');
 
 interface ObservationLogProps {
   currentSelection?: {
@@ -124,8 +127,8 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       setSessions(logData.sessions || []);
       setStats(statsData);
     } catch (error) {
-      console.error('Failed to load observation log:', error);
-      toast.error(t('observationLog.loadFailed') || 'Failed to load observation log');
+      logger.error('Failed to load observation log', error);
+      toast.error(t('observationLog.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -155,15 +158,15 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
         });
       }
       
-      toast.success(t('observationLog.sessionCreated') || 'Session created');
+      toast.success(t('observationLog.sessionCreated'));
       setShowNewSession(false);
       setNewSessionDate(new Date().toISOString().split('T')[0]);
       setNewSessionLocation('');
       setNewSessionNotes('');
       loadData();
     } catch (error) {
-      console.error('Failed to create session:', error);
-      toast.error(t('observationLog.createFailed') || 'Failed to create session');
+      logger.error('Failed to create session', error);
+      toast.error(t('observationLog.createFailed'));
     }
   }, [newSessionDate, newSessionLocation, newSessionNotes, t, loadData]);
 
@@ -184,7 +187,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
         image_paths: [],
       });
       
-      toast.success(t('observationLog.observationAdded') || 'Observation added');
+      toast.success(t('observationLog.observationAdded'));
       setShowAddObservation(false);
       setObsObjectName('');
       setObsObjectType('');
@@ -193,8 +196,8 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       setObsNotes('');
       loadData();
     } catch (error) {
-      console.error('Failed to add observation:', error);
-      toast.error(t('observationLog.addFailed') || 'Failed to add observation');
+      logger.error('Failed to add observation', error);
+      toast.error(t('observationLog.addFailed'));
     }
   }, [selectedSession, obsObjectName, obsObjectType, obsRating, obsDifficulty, obsNotes, currentSelection, t, loadData]);
 
@@ -204,11 +207,11 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     
     try {
       await tauriApi.observationLog.endSession(sessionId);
-      toast.success(t('observationLog.sessionEnded') || 'Session ended');
+      toast.success(t('observationLog.sessionEnded'));
       loadData();
     } catch (error) {
-      console.error('Failed to end session:', error);
-      toast.error(t('observationLog.endFailed') || 'Failed to end session');
+      logger.error('Failed to end session', error);
+      toast.error(t('observationLog.endFailed'));
     }
   }, [t, loadData]);
 
@@ -218,14 +221,14 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     
     try {
       await tauriApi.observationLog.deleteSession(sessionId);
-      toast.success(t('observationLog.sessionDeleted') || 'Session deleted');
+      toast.success(t('observationLog.sessionDeleted'));
       if (selectedSession?.id === sessionId) {
         setSelectedSession(null);
       }
       loadData();
     } catch (error) {
-      console.error('Failed to delete session:', error);
-      toast.error(t('observationLog.deleteFailed') || 'Failed to delete session');
+      logger.error('Failed to delete session', error);
+      toast.error(t('observationLog.deleteFailed'));
     }
   }, [selectedSession, t, loadData]);
 
@@ -237,7 +240,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       const results = await tauriApi.observationLog.search(searchQuery);
       setSearchResults(results);
     } catch (error) {
-      console.error('Search failed:', error);
+      logger.error('Search failed', error);
     }
   }, [searchQuery]);
 
@@ -296,7 +299,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
             </DrawerTrigger>
           </TooltipTrigger>
           <TooltipContent side="left">
-            <p>{t('observationLog.title') || 'Observation Log'}</p>
+            <p>{t('observationLog.title')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -304,14 +307,14 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
           <DrawerHeader>
             <DrawerTitle className="text-foreground flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-primary" />
-              {t('observationLog.title') || 'Observation Log'}
+              {t('observationLog.title')}
             </DrawerTitle>
           </DrawerHeader>
 
           {!isTauri() ? (
             <div className="p-4 text-center text-muted-foreground">
               <BookOpen className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>{t('observationLog.desktopOnly') || 'Observation log is only available in the desktop app'}</p>
+              <p>{t('observationLog.desktopOnly')}</p>
             </div>
           ) : (
             <Tabs defaultValue="sessions" className="flex-1">

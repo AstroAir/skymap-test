@@ -457,7 +457,7 @@ export function ExposureCalculator({
               {tracking === 'none' && (
                 <p className="text-xs text-destructive flex items-center gap-1">
                   <Info className="h-3 w-3" />
-                  Max untracked: {exposureCalc.maxUntracked.toFixed(1)}s (500 rule)
+                  {t('exposure.maxUntracked', { seconds: exposureCalc.maxUntracked.toFixed(1) })}
                 </p>
               )}
             </div>
@@ -607,15 +607,19 @@ export function ExposureCalculator({
                 <div className="space-y-2">
                   <Label className="text-xs">{t('exposure.tracking')}</Label>
                   <div className="flex gap-1">
-                    {(['none', 'basic', 'guided'] as const).map((t) => (
+                    {(['none', 'basic', 'guided'] as const).map((trackingMode) => (
                       <Button
-                        key={t}
-                        variant={tracking === t ? 'default' : 'outline'}
+                        key={trackingMode}
+                        variant={tracking === trackingMode ? 'default' : 'outline'}
                         size="sm"
                         className="flex-1 h-7 text-xs"
-                        onClick={() => setTracking(t)}
+                        onClick={() => setTracking(trackingMode)}
                       >
-                        {t === 'none' ? 'None' : t === 'basic' ? 'Basic' : 'Guided'}
+                        {trackingMode === 'none' 
+                          ? t('exposure.trackingNone') 
+                          : trackingMode === 'basic' 
+                            ? t('exposure.trackingBasic') 
+                            : t('exposure.trackingGuided')}
                       </Button>
                     ))}
                   </div>

@@ -4,6 +4,9 @@
  */
 
 import type { HiPSSurvey } from '@/lib/services/hips-service';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('cache-manager');
 
 export interface LayerConfig {
   id: string;
@@ -286,7 +289,7 @@ class OfflineCacheManager {
         integrityChecked: true,
       };
     } catch (error) {
-      console.error(`Error getting cache status for ${layerId}:`, error);
+      logger.error(`Error getting cache status for ${layerId}`, error);
       return {
         layerId,
         cached: false,
@@ -444,7 +447,7 @@ class OfflineCacheManager {
           });
 
           if (!response.ok) {
-            console.warn(`Failed to fetch ${url}: ${response.status}`);
+            logger.warn(`Failed to fetch ${url}: ${response.status}`);
             continue;
           }
 
@@ -463,7 +466,7 @@ class OfflineCacheManager {
             onProgress?.(progress);
             return false;
           }
-          console.warn(`Error fetching ${url}:`, fetchError);
+          logger.warn(`Error fetching ${url}`, fetchError);
         }
       }
 
@@ -548,7 +551,7 @@ class OfflineCacheManager {
       const deleted = await caches.delete(this.getCacheName(layerId));
       return deleted;
     } catch (error) {
-      console.error(`Error clearing cache for ${layerId}:`, error);
+      logger.error(`Error clearing cache for ${layerId}`, error);
       return false;
     }
   }
@@ -568,7 +571,7 @@ class OfflineCacheManager {
       await Promise.all(skymapCaches.map(name => caches.delete(name)));
       return true;
     } catch (error) {
-      console.error('Error clearing all caches:', error);
+      logger.error('Error clearing all caches', error);
       return false;
     }
   }
@@ -692,7 +695,7 @@ class OfflineCacheManager {
         maxCachedOrder,
       };
     } catch (error) {
-      console.error(`Error getting HiPS cache status for ${surveyId}:`, error);
+      logger.error(`Error getting HiPS cache status for ${surveyId}`, error);
       return {
         surveyId,
         surveyName: survey.name,
@@ -837,7 +840,7 @@ class OfflineCacheManager {
       if ((error as Error).name === 'AbortError') {
         throw error;
       }
-      console.warn(`Failed to cache tile: ${fetchUrl}`, error);
+      logger.warn(`Failed to cache tile: ${fetchUrl}`, error);
       return false;
     }
   }
@@ -877,7 +880,7 @@ class OfflineCacheManager {
       this.hipsCacheConfigs.delete(surveyId);
       return deleted;
     } catch (error) {
-      console.error(`Error clearing HiPS cache for ${surveyId}:`, error);
+      logger.error(`Error clearing HiPS cache for ${surveyId}`, error);
       return false;
     }
   }
@@ -898,7 +901,7 @@ class OfflineCacheManager {
       this.hipsCacheConfigs.clear();
       return true;
     } catch (error) {
-      console.error('Error clearing all HiPS caches:', error);
+      logger.error('Error clearing all HiPS caches', error);
       return false;
     }
   }

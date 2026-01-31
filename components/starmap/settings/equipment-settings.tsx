@@ -288,7 +288,7 @@ export function EquipmentSettings() {
                   <Input
                     value={newCameraName}
                     onChange={(e) => setNewCameraName(e.target.value)}
-                    placeholder="e.g. ASI294MC Pro"
+                    placeholder={t('equipment.cameraNamePlaceholder')}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -299,7 +299,7 @@ export function EquipmentSettings() {
                       step="0.1"
                       value={newCameraSensorWidth}
                       onChange={(e) => setNewCameraSensorWidth(e.target.value)}
-                      placeholder="23.5"
+                      placeholder={t('fov.sensorWidthPlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
@@ -309,7 +309,7 @@ export function EquipmentSettings() {
                       step="0.1"
                       value={newCameraSensorHeight}
                       onChange={(e) => setNewCameraSensorHeight(e.target.value)}
-                      placeholder="15.6"
+                      placeholder={t('fov.sensorHeightPlaceholder')}
                     />
                   </div>
                 </div>
@@ -320,7 +320,7 @@ export function EquipmentSettings() {
                     step="0.01"
                     value={newCameraPixelSize}
                     onChange={(e) => setNewCameraPixelSize(e.target.value)}
-                    placeholder="3.76"
+                    placeholder={t('fov.pixelSizePlaceholder')}
                   />
                 </div>
               </div>
@@ -496,7 +496,7 @@ export function EquipmentSettings() {
                   <Input
                     value={newTelescopeName}
                     onChange={(e) => setNewTelescopeName(e.target.value)}
-                    placeholder="e.g. Newton 200/1000"
+                    placeholder={t('equipment.telescopeNamePlaceholder')}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -506,7 +506,7 @@ export function EquipmentSettings() {
                       type="number"
                       value={newTelescopeFocalLength}
                       onChange={(e) => setNewTelescopeFocalLength(e.target.value)}
-                      placeholder="1000"
+                      placeholder={t('fov.focalLengthPlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
@@ -515,7 +515,7 @@ export function EquipmentSettings() {
                       type="number"
                       value={newTelescopeAperture}
                       onChange={(e) => setNewTelescopeAperture(e.target.value)}
-                      placeholder="200"
+                      placeholder={t('equipment.aperturePlaceholder')}
                     />
                   </div>
                 </div>

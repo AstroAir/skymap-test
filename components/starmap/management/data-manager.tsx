@@ -37,6 +37,9 @@ import { toast } from 'sonner';
 import { storage, isTauri, readFileAsText } from '@/lib/storage';
 import { storageApi } from '@/lib/tauri';
 import type { StorageStats, ImportResult } from '@/lib/storage';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('data-manager');
 
 interface DataManagerProps {
   trigger?: React.ReactNode;
@@ -65,7 +68,7 @@ export function DataManager({ trigger }: DataManagerProps) {
           : await storage.getStorageStats();
         setStats(storageStats);
       } catch (error) {
-        console.error('Failed to load storage stats:', error);
+        logger.error('Failed to load storage stats', error);
       } finally {
         setLoading(false);
       }
@@ -99,7 +102,7 @@ export function DataManager({ trigger }: DataManagerProps) {
         return;
       }
       toast.error(t('dataManager.exportError') || 'Failed to export data');
-      console.error('Export error:', error);
+      logger.error('Export error', error);
     } finally {
       setExporting(false);
     }
@@ -134,7 +137,7 @@ export function DataManager({ trigger }: DataManagerProps) {
       }, 1500);
     } catch (error) {
       toast.error(t('dataManager.importError') || 'Failed to import data');
-      console.error('Import error:', error);
+      logger.error('Import error', error);
     } finally {
       setImporting(false);
       if (fileInputRef.current) {
@@ -191,7 +194,7 @@ export function DataManager({ trigger }: DataManagerProps) {
         return;
       }
       toast.error(t('dataManager.importError') || 'Failed to import data');
-      console.error('Import error:', error);
+      logger.error('Import error', error);
     } finally {
       setImporting(false);
     }
@@ -214,7 +217,7 @@ export function DataManager({ trigger }: DataManagerProps) {
       }, 1500);
     } catch (error) {
       toast.error(t('dataManager.clearError') || 'Failed to clear data');
-      console.error('Clear error:', error);
+      logger.error('Clear error', error);
     }
   };
 

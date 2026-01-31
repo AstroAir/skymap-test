@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp } from 'lucide-react';
 
@@ -21,9 +22,11 @@ interface AltitudeChartProps {
 export function AltitudeChart({
   ra,
   dec,
-  name = 'Target',
+  name,
   hoursAhead = 12,
 }: AltitudeChartProps) {
+  const t = useTranslations();
+  const displayName = name || t('astroCalc.defaultTarget');
   const profileInfo = useMountStore((state) => state.profileInfo);
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
@@ -129,7 +132,7 @@ export function AltitudeChart({
       <CardHeader className="pb-1 pt-2 px-3">
         <CardTitle className="text-xs flex items-center gap-1.5 text-primary">
           <TrendingUp className="h-3 w-3" />
-          Altitude ({name})
+          {t('chart.altitudeTarget')} ({displayName})
         </CardTitle>
       </CardHeader>
       <CardContent className="p-2">
@@ -228,7 +231,7 @@ export function AltitudeChart({
             textAnchor="middle"
             className="text-[8px] fill-amber-400 font-medium"
           >
-            Now
+            {t('chart.now')}
           </text>
 
           {/* Transit marker */}
@@ -342,30 +345,30 @@ export function AltitudeChart({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[9px] text-muted-foreground px-1">
           <div className="flex items-center gap-1">
             <div className="w-2 h-0.5 bg-amber-400" />
-            <span>Now</span>
+            <span>{t('chart.now')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-0.5 bg-purple-400" />
-            <span>Transit</span>
+            <span>{t('chart.transit')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-0.5 bg-green-500" />
-            <span>Rise</span>
+            <span>{t('chart.rise')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-0.5 bg-red-500" />
-            <span>Set</span>
+            <span>{t('chart.set')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 bg-green-500/20 border border-green-500/50" />
-            <span>Window</span>
+            <span>{t('chart.window')}</span>
           </div>
         </div>
 
         {/* Dark imaging time summary */}
         {chartData.visibility.darkImagingHours > 0 && (
           <div className="mt-1 text-[9px] text-green-400 px-1">
-            ✓ {chartData.visibility.darkImagingHours.toFixed(1)}h dark imaging available
+            ✓ {chartData.visibility.darkImagingHours.toFixed(1)}h {t('chart.darkImagingAvailable')}
           </div>
         )}
       </CardContent>

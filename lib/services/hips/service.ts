@@ -8,6 +8,9 @@ import type {
   HiPSRegistryEntry, 
   HiPSCategory 
 } from './types';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('hips-service');
 
 // ============================================================================
 // Registry URL
@@ -109,7 +112,7 @@ export async function fetchRegistry(): Promise<HiPSRegistry> {
     
     return registryCache;
   } catch (error) {
-    console.warn('Failed to fetch HiPS registry, using defaults:', error);
+    logger.warn('Failed to fetch HiPS registry, using defaults', error);
     return {
       surveys: DEFAULT_SURVEYS,
       lastUpdated: new Date(),

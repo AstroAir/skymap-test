@@ -8,6 +8,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isTauri } from '@/lib/storage/platform';
 import { tauriApi } from './api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('tauri-hooks');
 import type {
   EquipmentData,
   LocationsData,
@@ -239,7 +242,7 @@ export function useWindowState() {
       setSaving(true);
       await tauriApi.appSettings.saveWindowState();
     } catch (e) {
-      console.error('Failed to save window state:', e);
+      logger.error('Failed to save window state', e);
     } finally {
       setSaving(false);
     }
@@ -251,7 +254,7 @@ export function useWindowState() {
     try {
       await tauriApi.appSettings.restoreWindowState();
     } catch (e) {
-      console.error('Failed to restore window state:', e);
+      logger.error('Failed to restore window state', e);
     }
   }, []);
 
@@ -261,7 +264,7 @@ export function useWindowState() {
 
     const handleBeforeUnload = () => {
       // Can't await in beforeunload, but we try anyway
-      tauriApi.appSettings.saveWindowState().catch(console.error);
+      tauriApi.appSettings.saveWindowState().catch(err => logger.error('Failed to auto-save window state', err));
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -812,7 +815,7 @@ export function useGeolocation() {
   useEffect(() => {
     return () => {
       if (watchId !== null) {
-        geolocationApi.clearWatch(watchId).catch(console.error);
+        geolocationApi.clearWatch(watchId).catch(err => logger.error('Failed to clear geolocation watch', err));
       }
     };
   }, [watchId]);

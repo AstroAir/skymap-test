@@ -4,6 +4,9 @@
  */
 
 import { smartFetch } from './http-fetch';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('hips-service');
 
 export interface HiPSSurvey {
   id: string;
@@ -207,7 +210,7 @@ class HiPSService {
 
       return surveys;
     } catch (error) {
-      console.error('Error fetching HiPS surveys:', error);
+      logger.error('Error fetching HiPS surveys', error);
       // Return cached surveys as fallback
       return this.cachedSurveys;
     }

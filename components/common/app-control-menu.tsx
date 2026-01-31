@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { createLogger } from "@/lib/logger";
 import {
   closeWindow,
   minimizeWindow,
@@ -47,6 +48,8 @@ import {
   saveWindowState,
   centerWindow,
 } from "@/lib/tauri/app-control-api";
+
+const logger = createLogger('app-control-menu');
 
 interface AppControlMenuProps {
   className?: string;
@@ -70,7 +73,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
           const pinned = await isAlwaysOnTop();
           setIsPinned(pinned);
         } catch (error) {
-          console.error("Failed to get window state:", error);
+          logger.error('Failed to get window state', error);
         }
       }
     };
@@ -97,7 +100,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
         const maximized = await isWindowMaximized();
         setIsMaximized(maximized);
       } catch (error) {
-        console.error("Failed to check maximized state:", error);
+        logger.error('Failed to check maximized state', error);
       }
     };
 
@@ -109,7 +112,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
     try {
       await minimizeWindow();
     } catch (error) {
-      console.error("Failed to minimize:", error);
+      logger.error('Failed to minimize', error);
     }
   }, []);
 
@@ -118,7 +121,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
       await toggleMaximizeWindow();
       setIsMaximized((prev) => !prev);
     } catch (error) {
-      console.error("Failed to toggle maximize:", error);
+      logger.error('Failed to toggle maximize', error);
     }
   }, []);
 
@@ -128,7 +131,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
       await saveWindowState();
       await closeWindow();
     } catch (error) {
-      console.error("Failed to close:", error);
+      logger.error('Failed to close', error);
     }
   }, []);
 
@@ -136,7 +139,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
     try {
       await restartApp();
     } catch (error) {
-      console.error("Failed to restart:", error);
+      logger.error('Failed to restart', error);
     }
   }, []);
 
@@ -146,7 +149,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
       await saveWindowState();
       await quitApp();
     } catch (error) {
-      console.error("Failed to quit:", error);
+      logger.error('Failed to quit', error);
     }
   }, []);
 
@@ -156,7 +159,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
       await setAlwaysOnTop(newPinned);
       setIsPinned(newPinned);
     } catch (error) {
-      console.error("Failed to toggle always on top:", error);
+      logger.error('Failed to toggle always on top', error);
     }
   }, [isPinned]);
 
@@ -164,7 +167,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
     try {
       await centerWindow();
     } catch (error) {
-      console.error("Failed to center window:", error);
+      logger.error('Failed to center window', error);
     }
   }, []);
 
@@ -172,7 +175,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
     try {
       await reloadWebview();
     } catch (error) {
-      console.error("Failed to reload:", error);
+      logger.error('Failed to reload', error);
     }
   }, []);
 
@@ -181,7 +184,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
       await toggleFullscreen();
       setIsFullscreen((prev) => !prev);
     } catch (error) {
-      console.error("Failed to toggle fullscreen:", error);
+      logger.error('Failed to toggle fullscreen', error);
     }
   }, []);
 

@@ -39,7 +39,6 @@ import { StellariumCredits } from './stellarium-credits';
 const APP_INFO = {
   name: 'SkyMap',
   version: '0.1.0',
-  description: 'A modern web-based astronomy application powered by Stellarium Web Engine',
   repository: 'https://github.com/AstroAir/skymap-test',
   author: 'AstroAir Team',
 };
@@ -261,7 +260,7 @@ export function AboutDialog() {
                   <div className="text-center sm:text-left">
                     <h2 className="text-xl font-bold">{APP_INFO.name}</h2>
                     <p className="text-sm text-muted-foreground">v{APP_INFO.version}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{APP_INFO.description}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{t('about.appDescription')}</p>
                   </div>
                 </div>
 

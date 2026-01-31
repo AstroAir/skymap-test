@@ -4,6 +4,9 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('use-animation-frame');
 
 export interface AnimationFrameOptions {
   /** Target FPS (default: 60) */
@@ -150,7 +153,7 @@ export class AnimationLoopManager {
       try {
         callback(deltaTime, timestamp);
       } catch (error) {
-        console.error('Animation loop error:', error);
+        logger.error('Animation loop error', error);
       }
     });
 

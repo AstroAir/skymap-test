@@ -349,7 +349,11 @@ export function AstroSessionPanel({
               <div className="flex items-center gap-1.5 text-xs">
                 <AlertTriangle className="h-3 w-3 text-yellow-400" />
                 <span className="text-yellow-400">
-                  {astroData.moonInterference > 60 ? 'High' : astroData.moonInterference > 30 ? 'Moderate' : 'Low'} moon interference
+                  {astroData.moonInterference > 60 
+                    ? t('session.highMoonInterference') 
+                    : astroData.moonInterference > 30 
+                      ? t('session.moderateMoonInterference') 
+                      : t('session.lowMoonInterference')}
                 </span>
               </div>
             )}
@@ -443,7 +447,7 @@ export function AstroSessionPanel({
 
                 {targetData.isCircumpolar && (
                   <Badge variant="outline" className="text-xs border-primary text-primary">
-                    Circumpolar
+                    {t('session.circumpolar')}
                   </Badge>
                 )}
 

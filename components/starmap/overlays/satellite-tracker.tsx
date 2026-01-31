@@ -47,6 +47,9 @@ import {
 import { cn } from '@/lib/utils';
 import { useMountStore, useStellariumStore, useSatelliteStore, type TrackedSatellite } from '@/lib/stores';
 import { parseTLE, calculatePosition, type ObserverLocation } from '@/lib/services/satellite-propagator';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('satellite-tracker');
 
 // ============================================================================
 // Types
@@ -183,7 +186,7 @@ async function fetchSatellitesFromCelesTrak(
       };
     });
   } catch (error) {
-    console.warn('Failed to fetch from CelesTrak:', error);
+    logger.warn('Failed to fetch from CelesTrak', error);
     return [];
   }
 }
@@ -594,7 +597,7 @@ export function SatelliteTracker() {
           setIsOnline(false);
         }
       } catch (error) {
-        console.error('Failed to fetch satellites:', error);
+        logger.error('Failed to fetch satellites', error);
         setIsOnline(false);
         setSatellites(SAMPLE_SATELLITES);
       } finally {
@@ -671,7 +674,7 @@ export function SatelliteTracker() {
       setOpen(false);
     } else {
       // If no coordinates, just close the dialog
-      console.warn('Satellite has no RA/Dec coordinates:', satellite.name);
+      logger.warn('Satellite has no RA/Dec coordinates', { name: satellite.name });
       setOpen(false);
     }
   }, [setViewDirection, addTrackedSatellite, showSatellitesOnMap, setShowSatellitesOnMap]);

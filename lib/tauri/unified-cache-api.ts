@@ -140,6 +140,15 @@ export const unifiedCacheApi = {
     return invoke('prefetch_urls', { urls, ttl });
   },
 
+  /**
+   * Flush any pending cache index changes to disk
+   * Call this before app shutdown to ensure data is persisted
+   */
+  async flush(): Promise<void> {
+    const invoke = await getInvoke();
+    return invoke('flush_unified_cache');
+  },
+
   /** Check if unified cache API is available */
   isAvailable: isTauri,
 };

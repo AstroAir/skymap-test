@@ -132,7 +132,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
     if (solver.solver_type === 'astrometry_net_online') {
       return (
         <Badge variant="secondary" className="text-xs">
-          {t('plateSolving.online') || 'Online'}
+          {t('plateSolving.online')}
         </Badge>
       );
     }
@@ -140,14 +140,14 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
       return (
         <Badge variant="default" className="text-xs bg-green-600">
           <CheckCircle className="h-3 w-3 mr-1" />
-          {t('plateSolving.installed') || 'Installed'}
+          {t('plateSolving.installed')}
         </Badge>
       );
     }
     return (
       <Badge variant="destructive" className="text-xs">
         <XCircle className="h-3 w-3 mr-1" />
-        {t('plateSolving.notInstalled') || 'Not Installed'}
+        {t('plateSolving.notInstalled')}
       </Badge>
     );
   };
@@ -159,7 +159,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            {t('plateSolving.solverSelection') || 'Solver Selection'}
+            {t('plateSolving.solverSelection')}
           </CardTitle>
           <CardDescription>
             {t('plateSolving.solverSelectionDesc') ||
@@ -180,7 +180,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              {t('plateSolving.detectSolvers') || 'Detect Solvers'}
+              {t('plateSolving.detectSolvers')}
             </Button>
           </div>
 
@@ -195,7 +195,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
           <div className="space-y-2">
             {detectedSolvers.length === 0 && !isDetecting && !detectionError && (
               <div className="text-sm text-muted-foreground text-center py-6">
-                {t('plateSolving.noSolversDetected') || 'No solvers detected. Click "Detect Solvers" to scan.'}
+                {t('plateSolving.noSolversDetected')}
               </div>
             )}
             {detectedSolvers.map((solver) => (
@@ -245,7 +245,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
               <Separator />
               <div className="space-y-2">
                 <Label>
-                  {t('plateSolving.customPath') || 'Custom Executable Path'}
+                  {t('plateSolving.customPath')}
                 </Label>
                 <div className="flex gap-2">
                   <Input
@@ -256,7 +256,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                     }}
                     placeholder={
                       activeSolver?.executable_path ||
-                      (t('plateSolving.pathPlaceholder') || 'Path to solver executable')
+                      t('plateSolving.pathPlaceholder')
                     }
                     className="flex-1"
                   />
@@ -272,13 +272,13 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                     ) : pathValid === false ? (
                       <XCircle className="h-4 w-4 text-red-500" />
                     ) : (
-                      t('plateSolving.validate') || 'Validate'
+                      t('plateSolving.validate')
                     )}
                   </Button>
                 </div>
                 {pathValid === false && (
                   <p className="text-xs text-red-500">
-                    {t('plateSolving.invalidPath') || 'Invalid solver path'}
+                    {t('plateSolving.invalidPath')}
                   </p>
                 )}
               </div>
@@ -291,7 +291,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
               <Separator />
               <div className="space-y-2">
                 <Label htmlFor="apiKey">
-                  {t('plateSolving.apiKey') || 'Astrometry.net API Key'}
+                  {t('plateSolving.apiKey')}
                 </Label>
                 <Input
                   id="apiKey"
@@ -299,7 +299,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                   value={onlineApiKey}
                   onChange={(e) => setOnlineApiKey(e.target.value)}
                   placeholder={
-                    t('plateSolving.apiKeyPlaceholder') || 'Enter your API key'
+                    t('plateSolving.apiKeyPlaceholder')
                   }
                 />
                 <p className="text-xs text-muted-foreground">
@@ -316,7 +316,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            {t('plateSolving.solverOptions') || 'Solver Options'}
+            {t('plateSolving.solverOptions')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -324,7 +324,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>
-                {t('plateSolving.timeout') || 'Timeout'}
+                {t('plateSolving.timeout')}
               </Label>
               <span className="text-sm text-muted-foreground">
                 {config.timeout_seconds}s
@@ -343,11 +343,11 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>
-                {t('plateSolving.downsample') || 'Downsample Factor'}
+                {t('plateSolving.downsample')}
               </Label>
               <span className="text-sm text-muted-foreground">
                 {config.downsample === 0
-                  ? t('plateSolving.auto') || 'Auto'
+                  ? t('plateSolving.auto')
                   : `${config.downsample}x`}
               </span>
             </div>
@@ -364,7 +364,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>
-                {t('plateSolving.searchRadius') || 'Search Radius'}
+                {t('plateSolving.searchRadius')}
               </Label>
               <span className="text-sm text-muted-foreground">
                 {config.search_radius}°
@@ -384,7 +384,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>
-                  {t('plateSolving.useSip') || 'Use SIP Coefficients'}
+                  {t('plateSolving.useSip')}
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   {t('plateSolving.useSipDesc') ||
@@ -405,14 +405,14 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
               <div className="space-y-4">
                 <h4 className="text-sm font-medium flex items-center gap-2">
                   <Cpu className="h-4 w-4" />
-                  {t('plateSolving.astapOptions') || 'ASTAP Options'}
+                  {t('plateSolving.astapOptions')}
                 </h4>
 
                 {/* Max Stars */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>
-                      {t('plateSolving.maxStars') || 'Max Stars'}
+                      {t('plateSolving.maxStars')}
                     </Label>
                     <span className="text-sm text-muted-foreground">
                       {config.astap_max_stars}
@@ -431,7 +431,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>
-                      {t('plateSolving.tolerance') || 'Tolerance'}
+                      {t('plateSolving.tolerance')}
                     </Label>
                     <span className="text-sm text-muted-foreground">
                       {config.astap_tolerance.toFixed(4)}
@@ -450,7 +450,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>
-                      {t('plateSolving.minStarSize') || 'Min Star Size'}
+                      {t('plateSolving.minStarSize')}
                     </Label>
                     <span className="text-sm text-muted-foreground">
                       {config.astap_min_star_size.toFixed(1)}&quot;
@@ -469,7 +469,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>
-                      {t('plateSolving.equaliseBackground') || 'Equalise Background'}
+                      {t('plateSolving.equaliseBackground')}
                     </Label>
                     <p className="text-xs text-muted-foreground">
                       {t('plateSolving.equaliseBackgroundDesc') ||

@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
 import { isTauri } from '@/lib/storage/platform';
 import { markersApi } from '@/lib/tauri/markers-api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('marker-store');
 
 /**
  * Sky marker for annotating positions on the celestial sphere
@@ -162,7 +165,7 @@ export const useMarkerStore = create<MarkerState>()(
             color: newMarker.color,
             icon: newMarker.icon,
             group: newMarker.group,
-          }).catch(console.error);
+          }).catch(err => logger.error('Failed to add marker to Tauri', err));
         }
         
         return id;
@@ -175,7 +178,7 @@ export const useMarkerStore = create<MarkerState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.removeMarker(id).catch(console.error);
+          markersApi.removeMarker(id).catch(err => logger.error('Failed to remove marker from Tauri', err));
         }
       },
       
@@ -210,7 +213,7 @@ export const useMarkerStore = create<MarkerState>()(
           if (updates.icon !== undefined) tauriUpdates.icon = updates.icon;
           if (updates.group !== undefined) tauriUpdates.group = updates.group;
           if (updates.visible !== undefined) tauriUpdates.visible = updates.visible;
-          markersApi.updateMarker(id, tauriUpdates).catch(console.error);
+          markersApi.updateMarker(id, tauriUpdates).catch(err => logger.error('Failed to update marker in Tauri', err));
         }
       },
       
@@ -226,7 +229,7 @@ export const useMarkerStore = create<MarkerState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.removeMarkersByGroup(group).catch(console.error);
+          markersApi.removeMarkersByGroup(group).catch(err => logger.error('Failed to remove markers by group in Tauri', err));
         }
       },
       
@@ -234,7 +237,7 @@ export const useMarkerStore = create<MarkerState>()(
         set({ markers: [], activeMarkerId: null });
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.clearAll().catch(console.error);
+          markersApi.clearAll().catch(err => logger.error('Failed to clear all markers in Tauri', err));
         }
       },
       
@@ -247,7 +250,7 @@ export const useMarkerStore = create<MarkerState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.toggleVisibility(id).catch(console.error);
+          markersApi.toggleVisibility(id).catch(err => logger.error('Failed to toggle marker visibility in Tauri', err));
         }
       },
       
@@ -259,7 +262,7 @@ export const useMarkerStore = create<MarkerState>()(
         set({ showMarkers: show });
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.setShowMarkers(show).catch(console.error);
+          markersApi.setShowMarkers(show).catch(err => logger.error('Failed to set show markers in Tauri', err));
         }
       },
       
@@ -270,7 +273,7 @@ export const useMarkerStore = create<MarkerState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.addGroup(group).catch(console.error);
+          markersApi.addGroup(group).catch(err => logger.error('Failed to add group in Tauri', err));
         }
       },
       
@@ -284,7 +287,7 @@ export const useMarkerStore = create<MarkerState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.removeGroup(group).catch(console.error);
+          markersApi.removeGroup(group).catch(err => logger.error('Failed to remove group in Tauri', err));
         }
       },
       
@@ -297,7 +300,7 @@ export const useMarkerStore = create<MarkerState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          markersApi.renameGroup(oldName, newName).catch(console.error);
+          markersApi.renameGroup(oldName, newName).catch(err => logger.error('Failed to rename group in Tauri', err));
         }
       },
       
@@ -324,7 +327,7 @@ export const useMarkerStore = create<MarkerState>()(
             });
           }
         } catch (error) {
-          console.error('Failed to sync markers with Tauri:', error);
+          logger.error('Failed to sync markers with Tauri', error);
         }
       },
       

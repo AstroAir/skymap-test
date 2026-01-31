@@ -18,6 +18,8 @@ export class LRUCache<K, V> {
   private cache: Map<K, CacheEntry<V>> = new Map();
   private readonly maxSize: number;
   private readonly ttl?: number;
+  private hits = 0;
+  private misses = 0;
 
   constructor(options: LRUCacheOptions) {
     this.maxSize = options.maxSize;
@@ -28,18 +30,21 @@ export class LRUCache<K, V> {
     const entry = this.cache.get(key);
     
     if (!entry) {
+      this.misses++;
       return undefined;
     }
 
     // Check if expired
     if (entry.expiresAt && Date.now() > entry.expiresAt) {
       this.cache.delete(key);
+      this.misses++;
       return undefined;
     }
 
     // Move to end (most recently used)
     this.cache.delete(key);
     this.cache.set(key, entry);
+    this.hits++;
     
     return entry.value;
   }
@@ -87,6 +92,8 @@ export class LRUCache<K, V> {
 
   clear(): void {
     this.cache.clear();
+    this.hits = 0;
+    this.misses = 0;
   }
 
   get size(): number {
@@ -132,12 +139,26 @@ export class LRUCache<K, V> {
   getStats(): {
     size: number;
     maxSize: number;
-    hitRate?: number;
+    hits: number;
+    misses: number;
+    hitRate: number | undefined;
   } {
+    const total = this.hits + this.misses;
     return {
       size: this.cache.size,
       maxSize: this.maxSize,
+      hits: this.hits,
+      misses: this.misses,
+      hitRate: total > 0 ? this.hits / total : undefined,
     };
+  }
+
+  /**
+   * Reset statistics counters
+   */
+  resetStats(): void {
+    this.hits = 0;
+    this.misses = 0;
   }
 }
 

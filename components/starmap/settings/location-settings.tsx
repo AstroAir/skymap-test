@@ -208,7 +208,7 @@ export function LocationSettings() {
                     },
                   });
                 }}
-                placeholder="0.0000"
+                placeholder={t('settings.latitudePlaceholder')}
                 className="h-8 text-sm font-mono"
               />
             </div>
@@ -230,7 +230,7 @@ export function LocationSettings() {
                     },
                   });
                 }}
-                placeholder="0.0000"
+                placeholder={t('settings.longitudePlaceholder')}
                 className="h-8 text-sm font-mono"
               />
             </div>
@@ -248,7 +248,7 @@ export function LocationSettings() {
                   Elevation: parseFloat(e.target.value) || 0,
                 },
               })}
-              placeholder="0"
+              placeholder={t('settings.elevationPlaceholder')}
               className="h-8 text-sm font-mono"
             />
           </div>

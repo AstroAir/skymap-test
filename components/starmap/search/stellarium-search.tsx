@@ -26,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { createLogger } from '@/lib/logger';
 import {
   Search,
   Star,
@@ -50,6 +51,8 @@ import {
   CornerDownLeft,
 } from 'lucide-react';
 import { AdvancedSearchDialog } from './advanced-search-dialog';
+
+const logger = createLogger('stellarium-search');
 
 // ============================================================================
 // Types
@@ -263,7 +266,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         addRecentSearch(item.Name);
         onSelect?.(item);
       } catch (error) {
-        console.error('Error selecting target:', error);
+        logger.error('Error selecting target', error);
       }
     }, [stel, onSelect, addRecentSearch]);
 

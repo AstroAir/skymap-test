@@ -19,6 +19,9 @@ export {
 
 import { getConstellationTranslation } from './constellations';
 import { getStarTranslation } from './stars';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('translations');
 
 /**
  * DSO type translations
@@ -131,7 +134,7 @@ export function updateStellariumTranslation(language: SkyCultureLanguage): void 
   }}).Module;
 
   if (!Module || !Module._sys_set_translate_function || !Module.addFunction) {
-    console.warn('Stellarium Module not available for translation update');
+    logger.warn('Stellarium Module not available for translation update');
     return;
   }
 
@@ -162,8 +165,8 @@ export function updateStellariumTranslation(language: SkyCultureLanguage): void 
     
     // Set the new translation function
     Module._sys_set_translate_function(callback);
-    console.log('Stellarium translation updated to:', language);
+    logger.info(`Stellarium translation updated to: ${language}`);
   } catch (error) {
-    console.error('Failed to update Stellarium translation:', error);
+    logger.error('Failed to update Stellarium translation', error);
   }
 }

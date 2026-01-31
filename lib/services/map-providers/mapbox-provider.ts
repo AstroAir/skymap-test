@@ -12,6 +12,9 @@ import {
   type MapProviderConfig,
   type MapProviderCapabilities,
 } from './base-map-provider';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('mapbox-provider');
 
 interface MapboxGeocodingResponse {
   type: 'FeatureCollection';
@@ -115,7 +118,7 @@ export class MapboxProvider extends BaseMapProvider {
       
       return data.features.map(feature => this.transformGeocodingResult(feature));
     } catch (error) {
-      console.error('Mapbox geocoding error:', error);
+      logger.error('Mapbox geocoding error', error);
       throw error;
     }
   }
@@ -149,7 +152,7 @@ export class MapboxProvider extends BaseMapProvider {
 
       return this.transformReverseGeocodingResult(data.features[0]);
     } catch (error) {
-      console.error('Mapbox reverse geocoding error:', error);
+      logger.error('Mapbox reverse geocoding error', error);
       throw error;
     }
   }
@@ -428,7 +431,7 @@ export class MapboxProvider extends BaseMapProvider {
       
       return await response.json();
     } catch (error) {
-      console.error('Mapbox directions error:', error);
+      logger.error('Mapbox directions error', error);
       throw error;
     }
   }

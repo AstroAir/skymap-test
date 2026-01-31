@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import type { StellariumEngine, StellariumSettings } from '@/lib/core/types';
 import { SKY_SURVEYS } from '@/lib/core/constants';
 import { updateStellariumTranslation } from '@/lib/translations';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('stellarium-store');
 
 interface StellariumState {
   // Engine instance
@@ -56,7 +59,7 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
   updateStellariumCore: (settings) => {
     const { stel, baseUrl } = get();
     if (!stel) {
-      console.warn('Stellarium engine not ready, settings update skipped');
+      logger.warn('Stellarium engine not ready, settings update skipped');
       return;
     }
     
@@ -103,7 +106,7 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
           });
           core.landscapes.visible = true;
         } catch (landscapeError) {
-          console.warn('Failed to update landscape:', landscapeError);
+          logger.warn('Failed to update landscape', landscapeError);
         }
       }
       
@@ -122,9 +125,9 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
             // Set visibility first, then URL using direct property assignment
             core.hips.visible = true;
             core.hips.url = surveyUrl;
-            console.log('HiPS survey set to:', surveyUrl);
+            logger.info('HiPS survey set to', { url: surveyUrl });
           } catch (hipsError) {
-            console.warn('Failed to update HiPS survey:', hipsError);
+            logger.warn('Failed to update HiPS survey', hipsError);
           }
         } else {
           core.hips.visible = false;
@@ -136,9 +139,9 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
         updateStellariumTranslation(settings.skyCultureLanguage);
       }
       
-      console.log('Stellarium settings updated successfully');
+      logger.debug('Stellarium settings updated successfully');
     } catch (error) {
-      console.error('Error updating Stellarium settings:', error);
+      logger.error('Error updating Stellarium settings', error);
     }
   },
 }));

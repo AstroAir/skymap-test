@@ -13,6 +13,9 @@ import {
   parseCatalogId,
   jaroWinklerSimilarity,
 } from '@/lib/catalogs';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('use-object-search');
 
 // ============================================================================
 // Data Sources
@@ -665,7 +668,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
             }
           }
         } catch (error) {
-          console.log('Comet search error:', error);
+          logger.debug('Comet search error', error);
         }
       }
     } else {

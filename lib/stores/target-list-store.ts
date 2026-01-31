@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
 import { isTauri } from '@/lib/storage/platform';
 import { targetListApi } from '@/lib/tauri/target-list-api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('target-list-store');
 
 /**
  * Observable window for a target
@@ -179,7 +182,7 @@ export const useTargetListStore = create<TargetListState>()(
             sensor_height: newTarget.sensorHeight,
             focal_length: newTarget.focalLength,
             rotation_angle: newTarget.rotationAngle,
-          }).catch(console.error);
+          }).catch(err => logger.error('Failed to add target to Tauri', err));
         }
       },
       
@@ -195,7 +198,7 @@ export const useTargetListStore = create<TargetListState>()(
         });
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.removeTarget(id).catch(console.error);
+          targetListApi.removeTarget(id).catch(err => logger.error('Failed to remove target from Tauri', err));
         }
       },
       
@@ -219,7 +222,7 @@ export const useTargetListStore = create<TargetListState>()(
           if (updates.tags !== undefined) tauriUpdates.tags = updates.tags;
           if (updates.isFavorite !== undefined) tauriUpdates.is_favorite = updates.isFavorite;
           if (updates.isArchived !== undefined) tauriUpdates.is_archived = updates.isArchived;
-          targetListApi.updateTarget(id, tauriUpdates).catch(console.error);
+          targetListApi.updateTarget(id, tauriUpdates).catch(err => logger.error('Failed to update target in Tauri', err));
         }
       },
       
@@ -227,7 +230,7 @@ export const useTargetListStore = create<TargetListState>()(
         set({ activeTargetId: id });
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.setActiveTarget(id).catch(console.error);
+          targetListApi.setActiveTarget(id).catch(err => logger.error('Failed to set active target in Tauri', err));
         }
       },
       
@@ -267,7 +270,7 @@ export const useTargetListStore = create<TargetListState>()(
             batchTargets,
             defaultSettings.priority || 'medium',
             defaultSettings.tags
-          ).catch(console.error);
+          ).catch(err => logger.error('Failed to add batch targets to Tauri', err));
         }
       },
       
@@ -284,7 +287,7 @@ export const useTargetListStore = create<TargetListState>()(
         });
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.removeTargetsBatch(ids).catch(console.error);
+          targetListApi.removeTargetsBatch(ids).catch(err => logger.error('Failed to remove batch targets from Tauri', err));
         }
       },
       
@@ -386,7 +389,7 @@ export const useTargetListStore = create<TargetListState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.toggleFavorite(id).catch(console.error);
+          targetListApi.toggleFavorite(id).catch(err => logger.error('Failed to toggle favorite in Tauri', err));
         }
       },
       
@@ -398,7 +401,7 @@ export const useTargetListStore = create<TargetListState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.toggleArchive(id).catch(console.error);
+          targetListApi.toggleArchive(id).catch(err => logger.error('Failed to toggle archive in Tauri', err));
         }
       },
       
@@ -410,7 +413,7 @@ export const useTargetListStore = create<TargetListState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.archiveCompleted().catch(console.error);
+          targetListApi.archiveCompleted().catch(err => logger.error('Failed to archive completed in Tauri', err));
         }
       },
       
@@ -424,7 +427,7 @@ export const useTargetListStore = create<TargetListState>()(
         }));
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.clearCompleted().catch(console.error);
+          targetListApi.clearCompleted().catch(err => logger.error('Failed to clear completed in Tauri', err));
         }
       },
       
@@ -432,7 +435,7 @@ export const useTargetListStore = create<TargetListState>()(
         set({ targets: [], activeTargetId: null, selectedIds: new Set() });
         // Sync to Tauri
         if (isTauri()) {
-          targetListApi.clearAll().catch(console.error);
+          targetListApi.clearAll().catch(err => logger.error('Failed to clear all targets in Tauri', err));
         }
       },
       
@@ -484,7 +487,7 @@ export const useTargetListStore = create<TargetListState>()(
             });
           }
         } catch (error) {
-          console.error('Failed to sync with Tauri:', error);
+          logger.error('Failed to sync with Tauri', error);
         }
       },
       

@@ -887,7 +887,7 @@ function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
           </div>
           
           {/* Reuse existing AltitudeChart component */}
-          <AltitudeChart ra={ra} dec={dec} name={targetName || 'Target'} hoursAhead={12} />
+          <AltitudeChart ra={ra} dec={dec} name={targetName} hoursAhead={12} />
         </div>
       )}
       
@@ -976,7 +976,7 @@ function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisTabProps
       {/* Controls */}
       <div className="grid grid-cols-5 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">RA (°)</Label>
+          <Label className="text-xs">{t('astroCalc.raLabel')}</Label>
           <Input
             value={targetRA}
             onChange={(e) => setTargetRA(e.target.value)}
@@ -985,7 +985,7 @@ function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisTabProps
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Dec (°)</Label>
+          <Label className="text-xs">{t('astroCalc.decLabel')}</Label>
           <Input
             value={targetDec}
             onChange={(e) => setTargetDec(e.target.value)}
@@ -1009,11 +1009,11 @@ function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisTabProps
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="1">1 hour</SelectItem>
-              <SelectItem value="2">2 hours</SelectItem>
-              <SelectItem value="6">6 hours</SelectItem>
-              <SelectItem value="12">12 hours</SelectItem>
-              <SelectItem value="24">1 day</SelectItem>
+              <SelectItem value="1">{t('astroCalc.hourIntervals.1h')}</SelectItem>
+              <SelectItem value="2">{t('astroCalc.hourIntervals.2h')}</SelectItem>
+              <SelectItem value="6">{t('astroCalc.hourIntervals.6h')}</SelectItem>
+              <SelectItem value="12">{t('astroCalc.hourIntervals.12h')}</SelectItem>
+              <SelectItem value="24">{t('astroCalc.hourIntervals.1d')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1027,7 +1027,7 @@ function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisTabProps
               <SelectItem value="12">12</SelectItem>
               <SelectItem value="24">24</SelectItem>
               <SelectItem value="48">48</SelectItem>
-              <SelectItem value="168">168 (1 week)</SelectItem>
+              <SelectItem value="168">{t('astroCalc.oneWeek')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1039,8 +1039,8 @@ function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisTabProps
           <TableHeader className="sticky top-0 bg-background">
             <TableRow>
               <TableHead>{t('astroCalc.dateTime')}</TableHead>
-              <TableHead>RA</TableHead>
-              <TableHead>Dec</TableHead>
+              <TableHead>{t('astroCalc.tableRA')}</TableHead>
+              <TableHead>{t('astroCalc.tableDec')}</TableHead>
               <TableHead>{t('astroCalc.altitude')}</TableHead>
               <TableHead>{t('astroCalc.azimuth')}</TableHead>
             </TableRow>
@@ -1145,7 +1145,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
             type: 'conjunction',
             object1: 'Moon',
             object2: 'Sun',
-            details: 'New Moon',
+            details: t('astroCalc.newMoon'),
             importance: 'high',
           });
         }
@@ -1155,7 +1155,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
             date,
             type: 'opposition',
             object1: 'Moon',
-            details: 'Full Moon',
+            details: t('astroCalc.fullMoon'),
             importance: 'high',
           });
         }
@@ -1166,7 +1166,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
             type: 'elongation',
             object1: 'Moon',
             separation: 90,
-            details: 'First Quarter',
+            details: t('astroCalc.firstQuarter'),
             importance: 'medium',
           });
         }
@@ -1177,7 +1177,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
             type: 'elongation',
             object1: 'Moon',
             separation: 90,
-            details: 'Last Quarter',
+            details: t('astroCalc.lastQuarter'),
             importance: 'medium',
           });
         }
@@ -1195,7 +1195,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
             object1: 'Moon',
             object2: planetName,
             separation: sep,
-            details: `Moon ${sep.toFixed(1)}° from ${planetName}`,
+            details: t('astroCalc.moonFrom', { sep: sep.toFixed(1), planet: planetName }),
             importance: sep < 2 ? 'high' : 'medium',
           });
         }
@@ -1216,7 +1216,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
               object1: planetNames[i],
               object2: planetNames[j],
               separation: sep,
-              details: `${planetNames[i]} ${sep.toFixed(1)}° from ${planetNames[j]}`,
+              details: t('astroCalc.planetFrom', { planet1: planetNames[i], sep: sep.toFixed(1), planet2: planetNames[j] }),
               importance: sep < 1 ? 'high' : 'medium',
             });
           }
@@ -1227,7 +1227,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
     // Filter and sort
     const filtered = showMinor ? events : events.filter(e => e.importance !== 'low');
     return filtered.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [daysAhead, showMinor]);
+  }, [daysAhead, showMinor, t]);
   
   const getEventIcon = (type: PhenomenaEvent['type']) => {
     switch (type) {
@@ -1258,11 +1258,11 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">7 days</SelectItem>
-                <SelectItem value="14">14 days</SelectItem>
-                <SelectItem value="30">30 days</SelectItem>
-                <SelectItem value="60">60 days</SelectItem>
-                <SelectItem value="90">90 days</SelectItem>
+                <SelectItem value="7">{t('astroCalc.daysRange.7d')}</SelectItem>
+                <SelectItem value="14">{t('astroCalc.daysRange.14d')}</SelectItem>
+                <SelectItem value="30">{t('astroCalc.daysRange.30d')}</SelectItem>
+                <SelectItem value="60">60 {t('astroCalc.events')}</SelectItem>
+                <SelectItem value="90">{t('astroCalc.daysRange.90d')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1273,19 +1273,19 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
               checked={showMinor}
               onCheckedChange={setShowMinor}
             />
-            <Label htmlFor="showMinor" className="text-xs">Show minor events</Label>
+            <Label htmlFor="showMinor" className="text-xs">{t('astroCalc.showMinorEvents')}</Label>
           </div>
         </div>
         
         <Badge variant="outline">
-          {phenomena.length} events
+          {phenomena.length} {t('astroCalc.events')}
         </Badge>
       </div>
       
       <ScrollArea className="h-[420px] border rounded-lg">
         {phenomena.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
-            No significant phenomena in the selected period
+            {t('astroCalc.noPhenomena')}
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -1308,7 +1308,7 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
                         month: 'short',
                         day: 'numeric',
                       })}
-                      {event.separation && ` • ${event.separation.toFixed(1)}° separation`}
+                      {event.separation && ` • ${event.separation.toFixed(1)}° ${t('astroCalc.separation')}`}
                     </div>
                   </div>
                 </div>
@@ -1320,10 +1320,10 @@ function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaT
       
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>☌ Conjunction</span>
-        <span>☍ Opposition</span>
-        <span>◐ Elongation</span>
-        <span>↔ Close Approach</span>
+        <span>☌ {t('astroCalc.conjunction')}</span>
+        <span>☍ {t('astroCalc.opposition')}</span>
+        <span>◐ {t('astroCalc.elongation')}</span>
+        <span>↔ {t('astroCalc.closeApproach')}</span>
       </div>
     </div>
   );
@@ -1364,7 +1364,7 @@ function AlmanacTab({ latitude, longitude }: AlmanacTabProps) {
           />
         </div>
         <div className="text-xs text-muted-foreground">
-          <span>Sun Alt: {sunAltAz.altitude.toFixed(1)}°</span>
+          <span>{t('astroCalc.sunAlt')}: {sunAltAz.altitude.toFixed(1)}°</span>
         </div>
       </div>
       

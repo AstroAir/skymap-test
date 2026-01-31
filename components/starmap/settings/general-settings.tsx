@@ -69,8 +69,8 @@ export function GeneralSettings() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="en">English</SelectItem>
-              <SelectItem value="zh">中文</SelectItem>
+              <SelectItem value="en">{t('settingsNew.general.languageEnglish')}</SelectItem>
+              <SelectItem value="zh">{t('settingsNew.general.languageChinese')}</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
@@ -118,9 +118,9 @@ export function GeneralSettings() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="iso">ISO (2024-01-15)</SelectItem>
-                <SelectItem value="us">US (01/15/2024)</SelectItem>
-                <SelectItem value="eu">EU (15/01/2024)</SelectItem>
+                <SelectItem value="iso">{t('settingsNew.general.dateFormatIso')}</SelectItem>
+                <SelectItem value="us">{t('settingsNew.general.dateFormatUs')}</SelectItem>
+                <SelectItem value="eu">{t('settingsNew.general.dateFormatEu')}</SelectItem>
               </SelectContent>
             </Select>
           </div>

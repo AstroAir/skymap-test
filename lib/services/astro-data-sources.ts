@@ -4,6 +4,9 @@
  */
 
 import { smartFetch } from './http-fetch';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('astro-data-sources');
 
 // ============================================================================
 // Types
@@ -198,7 +201,7 @@ export async function fetchLunarPhases(year: number, month: number): Promise<Ast
     
     return events;
   } catch (error) {
-    console.warn('Failed to fetch lunar phases from USNO:', error);
+    logger.warn('Failed to fetch lunar phases from USNO', error);
     return [];
   }
 }
@@ -374,7 +377,7 @@ export async function fetchComets(): Promise<AstroEvent[]> {
     
     return events;
   } catch (error) {
-    console.warn('Failed to fetch comets from MPC:', error);
+    logger.warn('Failed to fetch comets from MPC', error);
     return [];
   }
 }
@@ -430,7 +433,7 @@ export async function fetchSatelliteTLE(category: string = 'stations'): Promise<
     
     return satellites;
   } catch (error) {
-    console.warn('Failed to fetch TLE from CelesTrak:', error);
+    logger.warn('Failed to fetch TLE from CelesTrak', error);
     return [];
   }
 }
@@ -448,7 +451,7 @@ export async function fetchSatellitePasses(
   apiKey?: string
 ): Promise<SatellitePass[]> {
   if (!apiKey) {
-    console.warn('N2YO API key not provided');
+    logger.warn('N2YO API key not provided');
     return [];
   }
   
@@ -511,7 +514,7 @@ export async function fetchSatellitePasses(
     
     return passes;
   } catch (error) {
-    console.warn('Failed to fetch passes from N2YO:', error);
+    logger.warn('Failed to fetch passes from N2YO', error);
     return [];
   }
 }
@@ -537,7 +540,7 @@ export async function fetchISSPosition(): Promise<{ lat: number; lng: number; al
       velocity: 7.66, // Approximate
     };
   } catch (error) {
-    console.warn('Failed to fetch ISS position:', error);
+    logger.warn('Failed to fetch ISS position', error);
     return null;
   }
 }

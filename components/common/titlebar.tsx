@@ -4,6 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 import { Minus, Square, X, Maximize2, RotateCw, Power, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('titlebar');
+
 import {
   ContextMenu,
   ContextMenuContent,
@@ -42,7 +46,7 @@ export function TitleBar({ className }: TitleBarProps) {
           const maximized = await isWindowMaximized();
           setIsMaximized(maximized);
         } catch (error) {
-          console.error("Failed to get window state:", error);
+          logger.error('Failed to get window state', error);
         }
       }
     };
@@ -58,7 +62,7 @@ export function TitleBar({ className }: TitleBarProps) {
         const maximized = await isWindowMaximized();
         setIsMaximized(maximized);
       } catch (error) {
-        console.error("Failed to check maximized state:", error);
+        logger.error('Failed to check maximized state', error);
       }
     };
 
@@ -71,7 +75,7 @@ export function TitleBar({ className }: TitleBarProps) {
     try {
       await minimizeWindow();
     } catch (error) {
-      console.error("Failed to minimize:", error);
+      logger.error('Failed to minimize', error);
     }
   }, []);
 
@@ -80,7 +84,7 @@ export function TitleBar({ className }: TitleBarProps) {
       await toggleMaximizeWindow();
       setIsMaximized((prev) => !prev);
     } catch (error) {
-      console.error("Failed to toggle maximize:", error);
+      logger.error('Failed to toggle maximize', error);
     }
   }, []);
 
@@ -88,7 +92,7 @@ export function TitleBar({ className }: TitleBarProps) {
     try {
       await closeWindow();
     } catch (error) {
-      console.error("Failed to close:", error);
+      logger.error('Failed to close', error);
     }
   }, []);
 
@@ -96,7 +100,7 @@ export function TitleBar({ className }: TitleBarProps) {
     try {
       await quitApp();
     } catch (error) {
-      console.error("Failed to quit:", error);
+      logger.error('Failed to quit', error);
     }
   }, []);
 
@@ -104,7 +108,7 @@ export function TitleBar({ className }: TitleBarProps) {
     try {
       await restartApp();
     } catch (error) {
-      console.error("Failed to restart:", error);
+      logger.error('Failed to restart', error);
     }
   }, []);
 
@@ -112,7 +116,7 @@ export function TitleBar({ className }: TitleBarProps) {
     try {
       await reloadWebview();
     } catch (error) {
-      console.error("Failed to reload:", error);
+      logger.error('Failed to reload', error);
     }
   }, []);
 
@@ -187,7 +191,7 @@ export function TitleBar({ className }: TitleBarProps) {
               onClick={handleMinimize}
               className="titlebar-button flex h-full w-12 items-center justify-center transition-colors hover:bg-muted"
               title={t("minimize")}
-              aria-label="Minimize"
+              aria-label={t("minimize")}
             >
               <Minus className="h-4 w-4 text-foreground/70" />
             </button>
@@ -197,7 +201,7 @@ export function TitleBar({ className }: TitleBarProps) {
               onClick={handleMaximize}
               className="titlebar-button flex h-full w-12 items-center justify-center transition-colors hover:bg-muted"
               title={isMaximized ? t("restore") : t("maximize")}
-              aria-label={isMaximized ? "Restore" : "Maximize"}
+              aria-label={isMaximized ? t("restore") : t("maximize")}
             >
               {isMaximized ? (
                 <Square className="h-3.5 w-3.5 text-foreground/70" />
@@ -211,7 +215,7 @@ export function TitleBar({ className }: TitleBarProps) {
               onClick={handleClose}
               className="titlebar-button flex h-full w-12 items-center justify-center transition-colors hover:bg-destructive hover:text-destructive-foreground"
               title={t("close")}
-              aria-label="Close"
+              aria-label={t("close")}
             >
               <X className="h-4 w-4" />
             </button>

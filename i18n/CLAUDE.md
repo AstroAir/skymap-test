@@ -2,7 +2,7 @@
 
 [Root](../CLAUDE.md) > **i18n**
 
-> **Last Updated:** 2025-01-31
+> **Last Updated:** 2026-02-01
 > **Module Type:** JSON
 
 ---
@@ -26,7 +26,9 @@ i18n/
 ├── messages/
 │   ├── en.json    # English translations
 │   └── zh.json    # Chinese translations
-└── config.ts      # i18n configuration
+├── config.ts      # i18n configuration
+├── request.ts     # Next.js i18n request configuration
+└── index.ts       # Module exports
 ```
 
 ---
@@ -116,4 +118,5 @@ User locale preference is stored in `skymap-locale` and managed by `lib/i18n/loc
 
 - [`messages/en.json`](./messages/en.json) - English translations
 - [`messages/zh.json`](./messages/zh.json) - Chinese translations
+- [`config.ts`](./config.ts) - i18n configuration
 - [Root CLAUDE.md](../CLAUDE.md) - Project documentation

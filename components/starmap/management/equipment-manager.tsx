@@ -432,10 +432,10 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="refractor">Refractor</SelectItem>
-                          <SelectItem value="reflector">Reflector</SelectItem>
-                          <SelectItem value="catadioptric">Catadioptric</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="refractor">{t('equipment.telescopeTypes.refractor')}</SelectItem>
+                          <SelectItem value="reflector">{t('equipment.telescopeTypes.reflector')}</SelectItem>
+                          <SelectItem value="catadioptric">{t('equipment.telescopeTypes.catadioptric')}</SelectItem>
+                          <SelectItem value="other">{t('equipment.telescopeTypes.other')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -546,11 +546,11 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="cmos">CMOS</SelectItem>
-                          <SelectItem value="ccd">CCD</SelectItem>
-                          <SelectItem value="dslr">DSLR</SelectItem>
-                          <SelectItem value="mirrorless">Mirrorless</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="cmos">{t('equipment.cameraTypes.cmos')}</SelectItem>
+                          <SelectItem value="ccd">{t('equipment.cameraTypes.ccd')}</SelectItem>
+                          <SelectItem value="dslr">{t('equipment.cameraTypes.dslr')}</SelectItem>
+                          <SelectItem value="mirrorless">{t('equipment.cameraTypes.mirrorless')}</SelectItem>
+                          <SelectItem value="other">{t('equipment.cameraTypes.other')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

@@ -4,6 +4,9 @@
  */
 
 import { isTauri, isMobile } from '@/lib/storage/platform';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('geolocation-api');
 
 export interface Position {
   coords: {
@@ -103,7 +106,7 @@ export const geolocationApi = {
    */
   async getPositionWithPermission(options?: PositionOptions): Promise<Position | null> {
     if (!this.isAvailable()) {
-      console.warn('Geolocation not available on this platform');
+      logger.warn('Geolocation not available on this platform');
       return null;
     }
 
@@ -118,10 +121,10 @@ export const geolocationApi = {
         return await this.getCurrentPosition(options);
       }
 
-      console.warn('Location permission denied');
+      logger.warn('Location permission denied');
       return null;
     } catch (error) {
-      console.error('Geolocation error:', error);
+      logger.error('Geolocation error', error);
       return null;
     }
   },

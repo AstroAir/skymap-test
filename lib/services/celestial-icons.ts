@@ -3,6 +3,10 @@
  * Fetches and caches icons for celestial objects from various sources
  */
 
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('celestial-icons');
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -314,7 +318,7 @@ export function calculateSatellitePosition(
   // This would require a proper SGP4 implementation (e.g., satellite.js library)
   // Log parameters for debugging purposes
   if (process.env.NODE_ENV === 'development') {
-    console.debug('calculateSatellitePosition called with:', {
+    logger.debug('calculateSatellitePosition called with', {
       tle: tle.line1.substring(0, 20) + '...',
       observer: { lat: observerLat, lng: observerLng, alt: observerAlt },
       time: timestamp.toISOString(),

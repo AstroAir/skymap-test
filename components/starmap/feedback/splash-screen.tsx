@@ -320,8 +320,7 @@ export function SplashScreen({
         )}
       >
         <p className="text-[11px] sm:text-xs text-slate-600">
-          Powered by{' '}
-          <span className="text-slate-500">Stellarium Web Engine</span>
+          {t('splash.poweredBy', { defaultValue: 'Powered by Stellarium Web Engine' })}
         </p>
       </div>
     </div>

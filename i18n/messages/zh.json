@@ -29,13 +29,17 @@
     "copy": "复制",
     "copied": "已复制",
     "share": "分享",
-    "refresh": "刷新"
+    "refresh": "刷新",
+    "percent": "%",
+    "pixels": "像素",
+    "unknown": "未知"
   },
   "splash": {
     "tagline": "探索宇宙",
     "loading": "正在加载星图...",
     "loadingStars": "正在加载星表数据...",
-    "loadingEngine": "正在初始化引擎..."
+    "loadingEngine": "正在初始化引擎...",
+    "poweredBy": "由 Stellarium Web Engine 提供支持"
   },
   "about": {
     "title": "关于",
@@ -49,7 +53,8 @@
     "poweredBy": "由 Stellarium Web Engine 提供支持",
     "licensesDescription": "本应用程序使用以下开源库：",
     "depsDescription": "项目中使用的主要依赖：",
-    "totalDeps": "共 {count} 个包"
+    "totalDeps": "共 {count} 个包",
+    "appDescription": "基于 Stellarium Web Engine 的现代化网页版天文应用"
   },
   "home": {
     "title": "开始使用，编辑 page.tsx 文件。",
@@ -253,7 +258,12 @@
     "preserveAlignment": "保持对齐",
     "preserveAlignmentDesc": "旋转时补偿场曲",
     "dragToPosition": "拖拽定位",
-    "dragToPositionDesc": "启用拖拽来重新定位视场"
+    "dragToPositionDesc": "启用拖拽来重新定位视场",
+    "label": "视场",
+    "sensorWidthPlaceholder": "23.5",
+    "sensorHeightPlaceholder": "15.6",
+    "pixelSizePlaceholder": "3.76",
+    "focalLengthPlaceholder": "1000"
   },
   "time": {
     "timeControls": "时间控制",
@@ -269,7 +279,11 @@
     "rise": "升起",
     "transit": "中天",
     "set": "落下",
-    "jumpTo": "跳转至"
+    "jumpTo": "跳转至",
+    "minus1Day": "-1天",
+    "minus1Hour": "-1时",
+    "plus1Hour": "+1时",
+    "plus1Day": "+1天"
   },
   "settings": {
     "displaySettings": "显示设置",
@@ -336,6 +350,13 @@
     "ipAddress": "IP 地址",
     "port": "端口",
     "connectionDescription": "远程控制的后端服务器连接设置",
+    "protocolHttp": "HTTP",
+    "protocolHttps": "HTTPS",
+    "ipAddressPlaceholder": "localhost",
+    "portPlaceholder": "1888",
+    "latitudePlaceholder": "0.0000",
+    "longitudePlaceholder": "0.0000",
+    "elevationPlaceholder": "0",
     "manualLocation": "手动输入位置",
     "autoSaveHint": "此标签页的更改会自动保存",
     "instantEffectHint": "更改立即生效",
@@ -383,6 +404,10 @@
     "transit": "中天",
     "rise": "升起",
     "set": "落下",
+    "window": "窗口",
+    "altitude": "高度",
+    "altitudeTarget": "高度（目标）",
+    "darkImagingAvailable": "暗夜拍摄可用",
     "zoomHint": "滚动缩放，滑动调整范围",
     "timeRange": "时间",
     "darkImagingWindow": "{hours}小时暗夜拍摄窗口",
@@ -975,7 +1000,34 @@
     "builtInPresets": "内置预设",
     "customPresets": "自定义预设",
     "addCameraDescription": "添加您的相机传感器规格",
-    "addTelescopeDescription": "添加您的望远镜光学规格"
+    "addTelescopeDescription": "添加您的望远镜光学规格",
+    "cameraNamePlaceholder": "例如 ASI294MC Pro",
+    "telescopeNamePlaceholder": "例如 Newton 200/1000",
+    "aperturePlaceholder": "200",
+    "telescopeTypes": {
+      "refractor": "折射式",
+      "reflector": "反射式",
+      "catadioptric": "折反式",
+      "other": "其他"
+    },
+    "cameraTypes": {
+      "cmos": "CMOS",
+      "ccd": "CCD",
+      "dslr": "单反",
+      "mirrorless": "微单",
+      "other": "其他"
+    },
+    "bortleDescriptions": {
+      "1": "1 - 极佳暗空",
+      "2": "2 - 典型暗场",
+      "3": "3 - 乡村天空",
+      "4": "4 - 乡村/郊区过渡",
+      "5": "5 - 郊区天空",
+      "6": "6 - 明亮郊区",
+      "7": "7 - 郊区/城市过渡",
+      "8": "8 - 城市天空",
+      "9": "9 - 市中心天空"
+    }
   },
   "locations": {
     "title": "观测地点",
@@ -1093,7 +1145,34 @@
     "keyDeleted": "API 密钥已删除",
     "deleteKeyFailed": "删除 API 密钥失败",
     "keySetDefault": "API 密钥已设为默认",
-    "setDefaultFailed": "设置默认失败"
+    "setDefaultFailed": "设置默认失败",
+    "providerNames": {
+      "openstreetmap": "OpenStreetMap",
+      "google": "Google 地图",
+      "mapbox": "Mapbox"
+    },
+    "providerDescriptions": {
+      "openstreetmap": "免费开源地图数据，无需 API 密钥。",
+      "google": "高质量地图，覆盖范围广，需要 API 密钥。",
+      "mapbox": "可定制地图，支持卫星影像，需要 API 密钥。"
+    },
+    "tileLayers": {
+      "openstreetmap": "OpenStreetMap",
+      "cartodbLight": "CartoDB 浅色",
+      "cartodbDark": "CartoDB 深色",
+      "satellite": "卫星影像",
+      "topographic": "地形图"
+    },
+    "fallbackStrategies": {
+      "priority": "优先级顺序",
+      "priorityDesc": "按优先级顺序使用提供商",
+      "fastest": "最快响应",
+      "fastestDesc": "使用延迟最低的提供商",
+      "random": "随机",
+      "randomDesc": "从健康的提供商中随机选择",
+      "roundRobin": "轮询",
+      "roundRobinDesc": "在提供商之间轮流切换"
+    }
   },
   "locationSearch": {
     "locationPlaceholder": "搜索位置...",
@@ -1499,7 +1578,11 @@
     "keepWcs": "保留 WCS 文件",
     "keepWcsDesc": "保存 WCS 输出以供后续使用",
     "retryOnFailure": "失败时重试",
-    "retryOnFailureDesc": "使用不同设置重试"
+    "retryOnFailureDesc": "使用不同设置重试",
+    "failedToLoadIndexes": "加载索引失败",
+    "downloadFailed": "下载失败",
+    "failedToDeleteIndex": "删除索引失败",
+    "unknownError": "未知错误"
   },
   "geolocation": {
     "title": "设备定位",
@@ -1537,11 +1620,16 @@
       "language": "语言",
       "appLanguage": "应用程序语言",
       "languageDescription": "更改用户界面的语言",
+      "languageEnglish": "English",
+      "languageChinese": "中文",
       "timeDate": "时间和日期",
       "timeFormat": "时间格式",
       "time24h": "24小时制 (14:30)",
       "time12h": "12小时制 (下午2:30)",
       "dateFormat": "日期格式",
+      "dateFormatIso": "ISO (2024-01-15)",
+      "dateFormatUs": "US (01/15/2024)",
+      "dateFormatEu": "EU (15/01/2024)",
       "coordinates": "坐标",
       "coordinateFormat": "坐标格式",
       "formatDMS": "度分秒 (12° 30' 45\")",
@@ -1825,6 +1913,33 @@
     "elongation": "大距",
     "closeApproach": "接近",
     "noPhenomena": "选定时间段内没有重要天象",
+    "separation": "角距",
+    "moonFrom": "月球距 {planet} {sep}°",
+    "planetFrom": "{planet1} 距 {planet2} {sep}°",
+    "newMoon": "新月",
+    "fullMoon": "满月",
+    "firstQuarter": "上弦月",
+    "lastQuarter": "下弦月",
+    "sunAlt": "太阳高度",
+    "defaultTarget": "目标",
+    "raLabel": "赤经 (°)",
+    "decLabel": "赤纬 (°)",
+    "tableRA": "赤经",
+    "tableDec": "赤纬",
+    "oneWeek": "168（1周）",
+    "hourIntervals": {
+      "1h": "1小时",
+      "2h": "2小时",
+      "6h": "6小时",
+      "12h": "12小时",
+      "1d": "1天"
+    },
+    "daysRange": {
+      "7d": "7天",
+      "14d": "14天",
+      "30d": "30天",
+      "90d": "90天"
+    },
     "advancedFilters": "高级筛选",
     "minSize": "最小大小",
     "any": "任意"
@@ -1933,5 +2048,36 @@
     "speedUpTime": "加速时间",
     "slowDownTime": "减速时间",
     "resetTime": "重置为当前时间"
+  },
+  "canvas": {
+    "initializing": "初始化中...",
+    "preparingResources": "准备资源...",
+    "loadingScript": "加载引擎脚本...",
+    "initializingStarmap": "初始化星图...",
+    "retrying": "重试中 ({current}/{max})...",
+    "retry": "重试",
+    "loadFailed": "加载星图失败"
+  },
+  "logViewer": {
+    "title": "应用日志",
+    "description": "查看应用日志和诊断信息",
+    "searchPlaceholder": "搜索日志...",
+    "allLevels": "所有级别",
+    "allModules": "所有模块",
+    "settings": "设置",
+    "refresh": "刷新",
+    "export": "导出",
+    "exportText": "导出为文本",
+    "exportJson": "导出为JSON",
+    "clear": "清除日志",
+    "autoScroll": "自动滚动到最新",
+    "clearFilters": "清除筛选",
+    "showing": "显示 {count} / {total}",
+    "noLogs": "暂无日志",
+    "errors": "个错误",
+    "debug": "调试",
+    "info": "信息",
+    "warn": "警告",
+    "error": "错误"
   }
 }

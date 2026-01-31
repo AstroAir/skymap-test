@@ -6,6 +6,9 @@
 
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { isTauri, isServer } from './platform';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('zustand-storage');
 
 // Memory cache for Tauri storage
 const tauriCache = new Map<string, StorageValue<unknown>>();
@@ -51,7 +54,7 @@ async function initializeTauriCache(): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Failed to initialize Tauri storage cache:', error);
+    logger.error('Failed to initialize Tauri storage cache', error);
   } finally {
     tauriInitialized = true;
     tauriInitializing = false;
@@ -81,7 +84,7 @@ function saveToTauri(name: string, value: StorageValue<unknown>): void {
       });
       pendingSaves.delete(name);
     } catch (error) {
-      console.error(`Failed to save ${name} to Tauri:`, error);
+      logger.error(`Failed to save ${name} to Tauri`, error);
     }
   }, SAVE_DELAY);
   
@@ -105,7 +108,7 @@ async function deleteFromTauri(name: string): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('delete_store_data', { storeName: name });
   } catch (error) {
-    console.error(`Failed to delete ${name} from Tauri:`, error);
+    logger.error(`Failed to delete ${name} from Tauri`, error);
   }
 }
 
@@ -180,7 +183,7 @@ export function createZustandStorage<T>(): PersistStorage<T> {
       try {
         localStorage.setItem(name, JSON.stringify(value));
       } catch (error) {
-        console.error('Failed to save to localStorage:', error);
+        logger.error('Failed to save to localStorage', error);
       }
     },
     
@@ -188,7 +191,7 @@ export function createZustandStorage<T>(): PersistStorage<T> {
       try {
         localStorage.removeItem(name);
       } catch (error) {
-        console.error('Failed to remove from localStorage:', error);
+        logger.error('Failed to remove from localStorage', error);
       }
     },
   };

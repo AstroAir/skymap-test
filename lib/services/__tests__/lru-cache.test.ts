@@ -187,6 +187,99 @@ describe('LRUCache', () => {
       expect(stats.size).toBe(2);
       expect(stats.maxSize).toBe(10);
     });
+
+    it('should track hits and misses', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('key1', 1);
+      
+      // Hit
+      cache.get('key1');
+      cache.get('key1');
+      
+      // Miss
+      cache.get('nonexistent');
+      
+      const stats = cache.getStats();
+      expect(stats.hits).toBe(2);
+      expect(stats.misses).toBe(1);
+    });
+
+    it('should calculate hit rate correctly', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('key1', 1);
+      
+      // 3 hits
+      cache.get('key1');
+      cache.get('key1');
+      cache.get('key1');
+      
+      // 1 miss
+      cache.get('nonexistent');
+      
+      const stats = cache.getStats();
+      expect(stats.hitRate).toBe(0.75); // 3 hits / 4 total = 0.75
+    });
+
+    it('should return undefined hit rate when no requests', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('key1', 1);
+      
+      const stats = cache.getStats();
+      expect(stats.hitRate).toBeUndefined();
+    });
+
+    it('should count expired entry access as miss', async () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10, ttl: 50 });
+      cache.set('key1', 1);
+      
+      // Hit before expiration
+      cache.get('key1');
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Miss after expiration
+      cache.get('key1');
+      
+      const stats = cache.getStats();
+      expect(stats.hits).toBe(1);
+      expect(stats.misses).toBe(1);
+    });
+  });
+
+  describe('resetStats', () => {
+    it('should reset hits and misses counters', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('key1', 1);
+      cache.get('key1');
+      cache.get('nonexistent');
+      
+      let stats = cache.getStats();
+      expect(stats.hits).toBe(1);
+      expect(stats.misses).toBe(1);
+      
+      cache.resetStats();
+      
+      stats = cache.getStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+      expect(stats.hitRate).toBeUndefined();
+    });
+  });
+
+  describe('clear with stats', () => {
+    it('should reset stats when clearing cache', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('key1', 1);
+      cache.get('key1');
+      cache.get('nonexistent');
+      
+      cache.clear();
+      
+      const stats = cache.getStats();
+      expect(stats.size).toBe(0);
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+    });
   });
 });
 

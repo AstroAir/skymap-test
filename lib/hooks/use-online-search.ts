@@ -23,6 +23,9 @@ import {
   parseCatalogId,
   jaroWinklerSimilarity,
 } from '@/lib/catalogs';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('use-online-search');
 
 // ============================================================================
 // Types
@@ -458,7 +461,7 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
       
       return response.results.map(onlineResultToSearchItem);
     } catch (error) {
-      console.warn('Online search error:', error);
+      logger.warn('Online search error', error);
       return [];
     }
   }, [getEnabledSources, searchSettings.timeout]);
@@ -564,7 +567,7 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
         }
         
       } catch (error) {
-        console.warn('Online search failed:', error);
+        logger.warn('Online search failed', error);
         setState(prev => ({ ...prev, isOnlineSearching: false }));
       }
     } else {

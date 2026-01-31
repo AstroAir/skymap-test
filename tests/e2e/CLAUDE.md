@@ -2,14 +2,14 @@
 
 [Root](../CLAUDE.md) > **tests/e2e**
 
-> **Last Updated:** 2025-01-31
+> **Last Updated:** 2026-02-01
 > **Module Type:** TypeScript (Playwright)
 
 ---
 
 ## Breadcrumb
 
-`[Root](../CLAUDE.md) > **tests/e2e**`
+`[Root](../CLAUDE.md) > **tests** > **e2e**`
 
 ---
 
@@ -29,10 +29,18 @@ tests/e2e/
 │   ├── page-objects/    # Page Object Model classes
 │   ├── test-data.ts      # Test data constants
 │   └── test-helpers.ts   # Test utility functions
-├── starmap/              # Star map feature tests
+├── starmap/              # Star map feature tests (60+ tests)
 │   ├── info-panel.spec.ts
 │   ├── session-panel.spec.ts
-│   └── zoom-controls.spec.ts
+│   ├── zoom-controls.spec.ts
+│   └── ...
+├── home.spec.ts          # Home page tests
+├── navigation.spec.ts    # Navigation tests
+├── i18n.spec.ts          # Internationalization tests
+├── theme.spec.ts         # Theme tests
+├── accessibility.spec.ts # Accessibility tests
+├── keyboard.spec.ts      # Keyboard shortcuts tests
+├── performance.spec.ts   # Performance tests
 ├── global-setup.ts       # Global test setup
 └── ...
 ```
@@ -43,7 +51,9 @@ tests/e2e/
 
 | Class | File | Purpose |
 |-------|------|---------|
+| `BasePage` | `page-objects/base.page.ts` | Base page object with common methods |
 | `StarmapPage` | `page-objects/starmap.page.ts` | Star map page interactions |
+| `HomePage` | `page-objects/home.page.ts` | Home page interactions |
 
 ### Usage
 

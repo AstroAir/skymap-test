@@ -1,4 +1,6 @@
 export { LanguageSwitcher } from './language-switcher';
+export { LogViewer } from './log-viewer';
+export { LogPanel, LogPanelTrigger } from './log-panel';
 export { NightModeToggle } from './night-mode-toggle';
 export { SensorControlToggle } from './sensor-control-toggle';
 export { Spinner } from './spinner';

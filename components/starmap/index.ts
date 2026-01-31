@@ -1,8 +1,12 @@
 // Canvas - Core Stellarium engine
 export { StellariumCanvas, type StellariumCanvasRef } from './canvas/stellarium-canvas';
 
-// View - Main view component
+// View - Main view component and layout sub-components
 export { StellariumView } from './view/stellarium-view';
+export { TopToolbar } from './view/top-toolbar';
+export { RightControlPanel } from './view/right-control-panel';
+export { MobileLayout } from './view/mobile-layout';
+export { BottomStatusBar, ViewCenterDisplay, LocationTimeDisplay } from './view/bottom-status-bar';
 
 // Search - Search functionality
 export { StellariumSearch } from './search/stellarium-search';

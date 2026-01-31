@@ -4,6 +4,9 @@
  */
 
 import { smartFetch } from './http-fetch';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('online-search-service');
 
 // ============================================================================
 // Types
@@ -570,8 +573,8 @@ async function searchVizierCatalogs(
     
     const response = await smartFetch(url, { timeout });
     
-    if (!response.ok) {
-      throw new Error(`VizieR search error: ${response.status}`);
+    if (!response || !response.ok) {
+      throw new Error(`VizieR search error: ${response?.status ?? 'no response'}`);
     }
     
     // VizieR JSON response parsing
@@ -607,7 +610,7 @@ async function searchVizierCatalogs(
       }
     } catch {
       // Fallback: parse as VOTable or plain text
-      console.warn('VizieR JSON parse failed, trying VOTable format');
+      logger.warn('VizieR JSON parse failed, trying VOTable format');
     }
     
     return results;

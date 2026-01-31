@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useStellariumStore, useSettingsStore, useMountStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import { createStellariumTranslator } from '@/lib/translations';
 import { Spinner } from '@/components/common/spinner';
 import { unifiedCache } from '@/lib/offline';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('stellarium-canvas');
 import type { StellariumEngine, SelectedObjectData } from '@/lib/core/types';
 
 // ============================================================================
@@ -71,6 +75,7 @@ interface StellariumCanvasProps {
 
 export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvasProps>(
   function StellariumCanvas({ onSelectionChange, onFovChange, onContextMenu }, ref) {
+  const t = useTranslations('canvas');
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializingRef = useRef(false);
@@ -80,7 +85,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
   const retryCountRef = useRef(0);
   
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingStatus, setLoadingStatus] = useState('Initializing...');
+  const [loadingStatus, setLoadingStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const setStel = useStellariumStore((state) => state.setStel);
@@ -150,7 +155,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
         decStr: degreesToDMS(decDeg),
       };
     } catch (error) {
-      console.error('Error calculating click coordinates:', error);
+      logger.error('Error calculating click coordinates', error);
       return null;
     }
   }, []);
@@ -167,7 +172,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
 
   // Initialize Stellarium
   const initStellarium = useCallback((stel: StellariumEngine) => {
-    console.log('Stellarium is ready!');
+    logger.info('Stellarium is ready!');
     stelRef.current = stel;
     setStel(stel);
 
@@ -228,7 +233,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
         stel.core.selection = targetCircle;
         stel.pointAndLock(targetCircle);
       } catch (error) {
-        console.error('Error setting view direction:', error);
+        logger.error('Error setting view direction', error);
       }
     };
 
@@ -444,13 +449,13 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       canvas.height = rect.height * window.devicePixelRatio;
 
       // Step 2: Prefetch WASM into cache (non-blocking)
-      setLoadingStatus('Preparing resources...');
+      setLoadingStatus(t('preparingResources'));
       prefetchWasm().catch(() => {
         // Ignore prefetch errors - will try direct load
       });
 
       // Step 3: Load script
-      setLoadingStatus('Loading engine script...');
+      setLoadingStatus(t('loadingScript'));
       await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, 'Engine script timed out');
 
       // Check if aborted
@@ -459,7 +464,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       }
 
       // Step 4: Initialize WASM engine
-      setLoadingStatus('Initializing star map...');
+      setLoadingStatus(t('initializingStarmap'));
       await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, 'Star map initialization timed out');
 
       // Check if aborted
@@ -473,7 +478,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       retryCountRef.current = 0;
 
     } catch (err) {
-      console.error('Error loading star map:', err);
+      logger.error('Error loading star map', err);
       
       // Check if aborted (component unmounted)
       if (abortControllerRef.current?.signal.aborted) {
@@ -485,7 +490,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       // Auto-retry if under limit
       if (retryCountRef.current < MAX_RETRY_COUNT) {
         retryCountRef.current++;
-        setLoadingStatus(`Retrying (${retryCountRef.current}/${MAX_RETRY_COUNT})...`);
+        setLoadingStatus(t('retrying', { current: retryCountRef.current, max: MAX_RETRY_COUNT }));
         initializingRef.current = false;
         
         // Wait a bit before retry
@@ -503,7 +508,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     } finally {
       initializingRef.current = false;
     }
-  }, [loadScript, initializeEngine]);
+  }, [loadScript, initializeEngine, t]);
 
   /** Retry loading (user-triggered) */
   const handleRetry = useCallback(() => {
@@ -514,7 +519,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
 
   /** Debug: Force reload the engine (clears current engine and restarts) */
   const reloadEngine = useCallback(() => {
-    console.log('[Debug] Reloading Stellarium engine...');
+    logger.debug('Reloading Stellarium engine...');
     
     // Abort any ongoing loading
     abortControllerRef.current?.abort();
@@ -847,7 +852,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
                 className="px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors"
                 onClick={handleRetry}
               >
-                Retry
+                {t('retry')}
               </button>
             </>
           )}

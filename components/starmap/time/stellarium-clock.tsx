@@ -19,6 +19,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('stellarium-clock');
 
 export function StellariumClock() {
   const t = useTranslations();
@@ -103,7 +106,7 @@ export function StellariumClock() {
       // Use Object.assign to avoid eslint react-compiler issue
       Object.assign(stel.core.observer, { utc: mjd });
     } catch (error) {
-      console.error('Error setting date/time:', error);
+      logger.error('Error setting date/time', error);
     }
   }, [stel, dateValue, timeValue]);
 
@@ -231,7 +234,7 @@ export function StellariumClock() {
                 }}
               >
                 <SkipBack className="h-3 w-3 mr-0.5" />
-                -1d
+                {t('time.minus1Day')}
               </Button>
               <Button
                 variant="outline"
@@ -244,7 +247,7 @@ export function StellariumClock() {
                 }}
               >
                 <ChevronLeft className="h-3 w-3" />
-                -1h
+                {t('time.minus1Hour')}
               </Button>
               <Button
                 variant="outline"
@@ -256,7 +259,7 @@ export function StellariumClock() {
                   Object.assign(stel.core.observer, { utc: mjd + 1/24 });
                 }}
               >
-                +1h
+                {t('time.plus1Hour')}
                 <ChevronRight className="h-3 w-3" />
               </Button>
               <Button
@@ -269,7 +272,7 @@ export function StellariumClock() {
                   Object.assign(stel.core.observer, { utc: mjd + 1 });
                 }}
               >
-                +1d
+                {t('time.plus1Day')}
                 <SkipForward className="h-3 w-3 ml-0.5" />
               </Button>
             </div>

@@ -6,6 +6,10 @@
 
 import { isTauri } from '@/lib/storage/platform';
 import { validateUrl, SecurityError } from '../security/url-validator';
+import { CACHE_CONFIG, CACHEABLE_URL_PATTERNS } from '@/lib/cache/config';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('unified-cache');
 
 // ============================================================================
 // Types
@@ -57,24 +61,10 @@ export type CacheStrategy =
 // ============================================================================
 
 const DEFAULT_CONFIG: CacheConfig = {
-  name: 'skymap-unified-cache',
-  maxSize: 500 * 1024 * 1024, // 500MB
-  defaultTTL: 7 * 24 * 60 * 60 * 1000, // 7 days
-  urlPatterns: [
-    // Stellarium data
-    '/stellarium-data/',
-    '/stellarium-js/',
-    // HiPS surveys
-    'alasky.cds.unistra.fr',
-    'alaskybis.cds.unistra.fr',
-    // CelesTrak satellite data
-    'celestrak.org',
-    'celestrak.com',
-    // NASA/JPL data
-    'ssd.jpl.nasa.gov',
-    // Minor planet center
-    'minorplanetcenter.net',
-  ],
+  name: CACHE_CONFIG.unified.cacheName,
+  maxSize: CACHE_CONFIG.unified.maxSize,
+  defaultTTL: CACHE_CONFIG.unified.defaultTTL,
+  urlPatterns: [...CACHEABLE_URL_PATTERNS],
   cacheFailures: false,
 };
 
@@ -121,7 +111,7 @@ class WebCacheProvider {
       
       return null;
     } catch (error) {
-      console.warn('WebCache get error:', error);
+      logger.warn('WebCache get error', error);
       return null;
     }
   }
@@ -145,7 +135,7 @@ class WebCacheProvider {
       
       await cache.put(url, cachedResponse);
     } catch (error) {
-      console.warn('WebCache put error:', error);
+      logger.warn('WebCache put error', error);
     }
   }
 
@@ -166,7 +156,7 @@ class WebCacheProvider {
     try {
       await caches.delete(this.cacheName);
     } catch (error) {
-      console.warn('WebCache clear error:', error);
+      logger.warn('WebCache clear error', error);
     }
   }
 
@@ -254,7 +244,7 @@ class TauriCacheProvider {
         },
       });
     } catch (error) {
-      console.warn('TauriCache get error:', error);
+      logger.warn('TauriCache get error', error);
       return null;
     }
   }
@@ -276,7 +266,7 @@ class TauriCacheProvider {
         ttl: ttl || this.config.defaultTTL || 0,
       });
     } catch (error) {
-      console.warn('TauriCache put error:', error);
+      logger.warn('TauriCache put error', error);
     }
   }
 
@@ -300,7 +290,7 @@ class TauriCacheProvider {
       const invoke = await this.getInvoke();
       await invoke('clear_unified_cache');
     } catch (error) {
-      console.warn('TauriCache clear error:', error);
+      logger.warn('TauriCache clear error', error);
     }
   }
 
@@ -336,25 +326,100 @@ class UnifiedCacheManager {
   private tauriCache: TauriCacheProvider;
   private config: CacheConfig;
   private pendingRequests: Map<string, Promise<Response>> = new Map();
-  private urlPatternRegexes: RegExp[] = [];
+  private domainPatterns: Set<string> = new Set();
+  private pathPatterns: string[] = [];
+  private cacheStats = { hits: 0, misses: 0, errors: 0 };
 
   constructor(config: CacheConfig = DEFAULT_CONFIG) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.webCache = new WebCacheProvider(this.config);
     this.tauriCache = new TauriCacheProvider(this.config);
     
-    // Compile URL patterns
-    this.urlPatternRegexes = (this.config.urlPatterns || []).map(
-      pattern => new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    );
+    // Separate domain patterns from path patterns for faster matching
+    this.compilePatterns(this.config.urlPatterns || []);
   }
 
   /**
-   * Check if a URL should be cached
+   * Compile URL patterns into optimized data structures
+   * Separates domain patterns (for Set lookup) from path patterns (for string matching)
+   */
+  private compilePatterns(patterns: string[]): void {
+    this.domainPatterns.clear();
+    this.pathPatterns = [];
+    
+    for (const pattern of patterns) {
+      // Path patterns start with /
+      if (pattern.startsWith('/')) {
+        this.pathPatterns.push(pattern);
+      } else {
+        // Domain patterns - extract just the domain part
+        this.domainPatterns.add(pattern.toLowerCase());
+      }
+    }
+  }
+
+  /**
+   * Check if a URL should be cached (optimized matching)
    */
   shouldCache(url: string): boolean {
-    if (this.urlPatternRegexes.length === 0) return true;
-    return this.urlPatternRegexes.some(regex => regex.test(url));
+    // If no patterns configured, cache everything
+    if (this.domainPatterns.size === 0 && this.pathPatterns.length === 0) {
+      return true;
+    }
+    
+    // Check path patterns first (for relative URLs)
+    for (const pattern of this.pathPatterns) {
+      if (url.includes(pattern)) {
+        return true;
+      }
+    }
+    
+    // Check domain patterns (for absolute URLs)
+    try {
+      const urlObj = new URL(url, 'http://localhost');
+      const hostname = urlObj.hostname.toLowerCase();
+      
+      // Direct domain match
+      if (this.domainPatterns.has(hostname)) {
+        return true;
+      }
+      
+      // Subdomain match (e.g., 'alasky.u-strasbg.fr' matches 'cds.unistra.fr')
+      for (const domain of this.domainPatterns) {
+        if (hostname.endsWith(domain) || hostname.includes(domain)) {
+          return true;
+        }
+      }
+    } catch {
+      // Invalid URL, check if any pattern appears in the string
+      const lowerUrl = url.toLowerCase();
+      for (const domain of this.domainPatterns) {
+        if (lowerUrl.includes(domain)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats() {
+    const total = this.cacheStats.hits + this.cacheStats.misses;
+    return {
+      ...this.cacheStats,
+      hitRate: total > 0 ? this.cacheStats.hits / total : undefined,
+      pendingRequests: this.pendingRequests.size,
+    };
+  }
+
+  /**
+   * Reset cache statistics
+   */
+  resetCacheStats(): void {
+    this.cacheStats = { hits: 0, misses: 0, errors: 0 };
   }
 
   /**
@@ -383,7 +448,7 @@ class UnifiedCacheManager {
         validateUrl(url, { allowHttp: false });
       } catch (error) {
         if (error instanceof SecurityError) {
-          console.error('[Security] URL validation failed:', error.message);
+          logger.error('URL validation failed', { message: error.message });
           throw new Error(`URL validation failed: ${error.message}`);
         }
         throw error;
@@ -426,8 +491,10 @@ class UnifiedCacheManager {
     if (!options.forceNetwork) {
       const cached = await provider.get(cacheKey);
       if (cached) {
+        this.cacheStats.hits++;
         return cached;
       }
+      this.cacheStats.misses++;
     }
 
     // Fetch from network
@@ -449,8 +516,10 @@ class UnifiedCacheManager {
       // Network failed, try cache
       const cached = await provider.get(cacheKey);
       if (cached) {
+        this.cacheStats.hits++;
         return cached;
       }
+      this.cacheStats.errors++;
       throw error;
     }
   }
@@ -464,8 +533,10 @@ class UnifiedCacheManager {
   ): Promise<Response> {
     const cached = await provider.get(cacheKey);
     if (cached) {
+      this.cacheStats.hits++;
       return cached;
     }
+    this.cacheStats.misses++;
     throw new Error(`Cache miss for ${cacheKey}`);
   }
 
@@ -493,16 +564,17 @@ class UnifiedCacheManager {
   ): Promise<Response> {
     const cached = await provider.get(cacheKey);
     
-    // Start background revalidation
-    this.fetchAndCache(url, cacheKey, options, provider).catch(() => {
-      // Ignore background fetch errors
-    });
-
     if (cached) {
+      // Return stale cache immediately, revalidate in background
+      this.fetchAndCache(url, cacheKey, options, provider).catch(() => {
+        // Ignore background fetch errors
+      });
+      this.cacheStats.hits++;
       return cached;
     }
 
-    // No cache, wait for network
+    // No cache, wait for network (single request, no background fetch)
+    this.cacheStats.misses++;
     return this.fetchAndCache(url, cacheKey, options, provider);
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Key,
@@ -56,6 +56,9 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { mapConfig, type MapApiKey } from '@/lib/services/map-config';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('map-api-key-manager');
 
 interface MapApiKeyManagerProps {
   trigger?: React.ReactNode;
@@ -64,19 +67,16 @@ interface MapApiKeyManagerProps {
 
 type ProviderType = 'openstreetmap' | 'google' | 'mapbox';
 
-const PROVIDER_INFO: Record<ProviderType, { name: string; keyFormat: string; docsUrl: string }> = {
+const PROVIDER_STATIC_INFO: Record<ProviderType, { keyFormat: string; docsUrl: string }> = {
   openstreetmap: {
-    name: 'OpenStreetMap',
     keyFormat: 'No API key required',
     docsUrl: 'https://wiki.openstreetmap.org/wiki/API',
   },
   google: {
-    name: 'Google Maps',
     keyFormat: 'AIza...',
     docsUrl: 'https://developers.google.com/maps/documentation/javascript/get-api-key',
   },
   mapbox: {
-    name: 'Mapbox',
     keyFormat: 'pk.eyJ1...',
     docsUrl: 'https://docs.mapbox.com/help/getting-started/access-tokens/',
   },
@@ -84,6 +84,22 @@ const PROVIDER_INFO: Record<ProviderType, { name: string; keyFormat: string; doc
 
 export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProps) {
   const t = useTranslations();
+
+  // Dynamic provider info with i18n names
+  const PROVIDER_INFO = useMemo(() => ({
+    openstreetmap: {
+      name: t('map.providerNames.openstreetmap'),
+      ...PROVIDER_STATIC_INFO.openstreetmap,
+    },
+    google: {
+      name: t('map.providerNames.google'),
+      ...PROVIDER_STATIC_INFO.google,
+    },
+    mapbox: {
+      name: t('map.providerNames.mapbox'),
+      ...PROVIDER_STATIC_INFO.mapbox,
+    },
+  }), [t]);
   const [open, setOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
@@ -152,7 +168,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
       onKeysChange?.();
     } catch (error) {
       toast.error(t('map.addKeyFailed') || 'Failed to add API key');
-      console.error('Failed to add API key:', error);
+      logger.error('Failed to add API key', error);
     }
   }, [newKey, t, onKeysChange]);
 
@@ -163,7 +179,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
       onKeysChange?.();
     } catch (error) {
       toast.error(t('map.deleteKeyFailed') || 'Failed to delete API key');
-      console.error('Failed to delete API key:', error);
+      logger.error('Failed to delete API key', error);
     }
   }, [t, onKeysChange]);
 
@@ -174,7 +190,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
       onKeysChange?.();
     } catch (error) {
       toast.error(t('map.setDefaultFailed') || 'Failed to set default');
-      console.error('Failed to set default API key:', error);
+      logger.error('Failed to set default API key', error);
     }
   }, [t, onKeysChange]);
 

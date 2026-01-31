@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { createLogger } from '@/lib/logger';
 import {
   Search,
   Star,
@@ -51,6 +52,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { SearchResultItemRow, getResultId } from './search-result-item';
+
+const logger = createLogger('advanced-search-dialog');
 
 // ============================================================================
 // Types
@@ -273,7 +276,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
       addRecentSearch(item.Name);
       onSelect?.(item);
     } catch (error) {
-      console.error('Error selecting target:', error);
+      logger.error('Error selecting target', error);
     }
   }, [stel, onSelect, addRecentSearch]);
 

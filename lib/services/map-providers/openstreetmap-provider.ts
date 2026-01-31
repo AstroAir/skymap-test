@@ -12,6 +12,9 @@ import {
   type MapProviderConfig,
   type MapProviderCapabilities,
 } from './base-map-provider';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('openstreetmap-provider');
 
 interface NominatimGeocodingResponse {
   place_id: number;
@@ -148,7 +151,7 @@ export class OpenStreetMapProvider extends BaseMapProvider {
       
       return data.map(item => this.transformGeocodingResult(item));
     } catch (error) {
-      console.error('OpenStreetMap geocoding error:', error);
+      logger.error('OpenStreetMap geocoding error', error);
       throw error;
     }
   }
@@ -181,7 +184,7 @@ export class OpenStreetMapProvider extends BaseMapProvider {
       
       return this.transformReverseGeocodingResult(data);
     } catch (error) {
-      console.error('OpenStreetMap reverse geocoding error:', error);
+      logger.error('OpenStreetMap reverse geocoding error', error);
       throw error;
     }
   }

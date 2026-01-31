@@ -42,6 +42,9 @@ import {
   Save,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ocular-simulator');
 
 // ============================================================================
 // Types
@@ -123,7 +126,7 @@ function loadFromStorage<T extends { id: string }>(key: string, defaultValue: T[
       return [...defaultValue, ...customItems];
     }
   } catch (e) {
-    console.warn(`Failed to load ${key} from localStorage:`, e);
+    logger.warn(`Failed to load ${key} from localStorage`, e);
   }
   return defaultValue;
 }
@@ -136,7 +139,7 @@ function saveToStorage<T extends { id: string }>(key: string, items: T[], defaul
     const customItems = items.filter(item => !defaultIds.has(item.id));
     localStorage.setItem(key, JSON.stringify(customItems));
   } catch (e) {
-    console.warn(`Failed to save ${key} to localStorage:`, e);
+    logger.warn(`Failed to save ${key} to localStorage`, e);
   }
 }
 

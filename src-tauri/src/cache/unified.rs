@@ -1,15 +1,53 @@
 //! Unified cache module for Tauri
 //! Provides file-system based caching for network resources
+//!
+//! Performance optimization: Uses in-memory cache index with lazy disk writes
+//! to reduce I/O overhead for frequent cache operations.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager};
 
 use crate::data::StorageError;
 use crate::network::{http_client, security};
+
+// ============================================================================
+// In-Memory Cache Index (Performance Optimization)
+// ============================================================================
+
+/// Global in-memory cache index for faster access
+/// Uses OnceLock for lazy initialization and Mutex for thread safety
+static CACHE_INDEX: OnceLock<Mutex<Option<CacheIndexState>>> = OnceLock::new();
+
+/// Tracks the state of the in-memory cache index
+#[derive(Debug, Clone)]
+struct CacheIndexState {
+    index: CacheIndex,
+    dirty: bool,
+    last_persist: i64,
+}
+
+impl CacheIndexState {
+    fn new(index: CacheIndex) -> Self {
+        Self {
+            index,
+            dirty: false,
+            last_persist: Utc::now().timestamp_millis(),
+        }
+    }
+}
+
+/// Minimum interval between disk writes (5 seconds)
+const PERSIST_INTERVAL_MS: i64 = 5000;
+
+/// Get or initialize the global cache index mutex
+fn get_cache_index_mutex() -> &'static Mutex<Option<CacheIndexState>> {
+    CACHE_INDEX.get_or_init(|| Mutex::new(None))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheEntryMeta {
@@ -75,22 +113,95 @@ fn key_to_filename(key: &str) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn load_cache_index(app: &AppHandle) -> Result<CacheIndex, StorageError> {
+/// Load cache index from disk (internal use only)
+fn load_cache_index_from_disk(app: &AppHandle) -> Result<CacheIndex, StorageError> {
     let path = get_cache_index_path(app)?;
     if !path.exists() { return Ok(CacheIndex::default()); }
     Ok(serde_json::from_str(&fs::read_to_string(&path)?)?)
 }
 
-fn save_cache_index(app: &AppHandle, index: &CacheIndex) -> Result<(), StorageError> {
+/// Save cache index to disk (internal use only)
+fn save_cache_index_to_disk(app: &AppHandle, index: &CacheIndex) -> Result<(), StorageError> {
     fs::write(&get_cache_index_path(app)?, serde_json::to_string_pretty(index)?)?;
     Ok(())
 }
 
+/// Get or load the cache index (uses in-memory cache)
+fn get_cache_index(app: &AppHandle) -> Result<CacheIndex, StorageError> {
+    let mutex = get_cache_index_mutex();
+    let mut guard = mutex.lock().map_err(|e| StorageError::Other(format!("Lock error: {}", e)))?;
+    
+    match &*guard {
+        Some(state) => Ok(state.index.clone()),
+        None => {
+            let index = load_cache_index_from_disk(app)?;
+            *guard = Some(CacheIndexState::new(index.clone()));
+            Ok(index)
+        }
+    }
+}
+
+/// Update the cache index (marks as dirty, persists if interval exceeded)
+fn update_cache_index(app: &AppHandle, index: CacheIndex, force_persist: bool) -> Result<(), StorageError> {
+    let mutex = get_cache_index_mutex();
+    let mut guard = mutex.lock().map_err(|e| StorageError::Other(format!("Lock error: {}", e)))?;
+    
+    let now = Utc::now().timestamp_millis();
+    let should_persist = force_persist || match &*guard {
+        Some(state) => now - state.last_persist > PERSIST_INTERVAL_MS,
+        None => true,
+    };
+    
+    if should_persist {
+        save_cache_index_to_disk(app, &index)?;
+        *guard = Some(CacheIndexState {
+            index,
+            dirty: false,
+            last_persist: now,
+        });
+    } else {
+        *guard = Some(CacheIndexState {
+            index,
+            dirty: true,
+            last_persist: guard.as_ref().map(|s| s.last_persist).unwrap_or(now),
+        });
+    }
+    
+    Ok(())
+}
+
+/// Force persist any dirty cache index to disk
+fn flush_cache_index(app: &AppHandle) -> Result<(), StorageError> {
+    let mutex = get_cache_index_mutex();
+    let mut guard = mutex.lock().map_err(|e| StorageError::Other(format!("Lock error: {}", e)))?;
+    
+    if let Some(state) = &*guard {
+        if state.dirty {
+            save_cache_index_to_disk(app, &state.index)?;
+            *guard = Some(CacheIndexState {
+                index: state.index.clone(),
+                dirty: false,
+                last_persist: Utc::now().timestamp_millis(),
+            });
+        }
+    }
+    
+    Ok(())
+}
+
+/// Invalidate the in-memory cache (forces reload from disk on next access)
+#[allow(dead_code)]
+fn invalidate_cache_index() {
+    if let Ok(mut guard) = get_cache_index_mutex().lock() {
+        *guard = None;
+    }
+}
+
 #[tauri::command]
 pub async fn get_unified_cache_entry(app: AppHandle, key: String) -> Result<Option<UnifiedCacheResponse>, StorageError> {
-    let index = load_cache_index(&app)?;
+    let index = get_cache_index(&app)?;
     let meta = match index.entries.get(&key) {
-        Some(m) => m,
+        Some(m) => m.clone(),
         None => return Ok(None),
     };
 
@@ -103,11 +214,15 @@ pub async fn get_unified_cache_entry(app: AppHandle, key: String) -> Result<Opti
     }
 
     let data_path = get_cache_data_dir(&app)?.join(key_to_filename(&key));
-    if !data_path.exists() { return Ok(None); }
+    if !data_path.exists() {
+        // Clean up orphaned index entry
+        delete_unified_cache_entry(app, key).await?;
+        return Ok(None);
+    }
 
     Ok(Some(UnifiedCacheResponse {
         data: fs::read(&data_path)?,
-        content_type: meta.content_type.clone(),
+        content_type: meta.content_type,
         timestamp: meta.timestamp,
         ttl: meta.ttl,
     }))
@@ -115,7 +230,7 @@ pub async fn get_unified_cache_entry(app: AppHandle, key: String) -> Result<Opti
 
 #[tauri::command]
 pub async fn put_unified_cache_entry(app: AppHandle, key: String, data: Vec<u8>, content_type: String, ttl: i64) -> Result<(), StorageError> {
-    let mut index = load_cache_index(&app)?;
+    let mut index = get_cache_index(&app)?;
 
     if index.entries.len() >= security::limits::MAX_CACHE_ENTRIES {
         let _ = cleanup_expired_entries_internal(&app, &mut index);
@@ -143,18 +258,18 @@ pub async fn put_unified_cache_entry(app: AppHandle, key: String, data: Vec<u8>,
         key, content_type, size_bytes, timestamp: Utc::now().timestamp_millis(), ttl, etag: None,
     });
     index.total_size += size_bytes;
-    save_cache_index(&app, &index)?;
+    update_cache_index(&app, index, false)?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_unified_cache_entry(app: AppHandle, key: String) -> Result<bool, StorageError> {
-    let mut index = load_cache_index(&app)?;
+    let mut index = get_cache_index(&app)?;
     if let Some(meta) = index.entries.remove(&key) {
         index.total_size = index.total_size.saturating_sub(meta.size_bytes);
         let data_path = get_cache_data_dir(&app)?.join(key_to_filename(&key));
         if data_path.exists() { fs::remove_file(&data_path)?; }
-        save_cache_index(&app, &index)?;
+        update_cache_index(&app, index, false)?;
         return Ok(true);
     }
     Ok(false)
@@ -162,30 +277,30 @@ pub async fn delete_unified_cache_entry(app: AppHandle, key: String) -> Result<b
 
 #[tauri::command]
 pub async fn clear_unified_cache(app: AppHandle) -> Result<u64, StorageError> {
-    let index = load_cache_index(&app)?;
+    let index = get_cache_index(&app)?;
     let deleted_count = index.entries.len() as u64;
     let data_dir = get_cache_data_dir(&app)?;
     if data_dir.exists() {
         fs::remove_dir_all(&data_dir)?;
         fs::create_dir_all(&data_dir)?;
     }
-    save_cache_index(&app, &CacheIndex::default())?;
+    update_cache_index(&app, CacheIndex::default(), true)?;
     Ok(deleted_count)
 }
 
 #[tauri::command]
 pub async fn get_unified_cache_size(app: AppHandle) -> Result<u64, StorageError> {
-    Ok(load_cache_index(&app)?.total_size)
+    Ok(get_cache_index(&app)?.total_size)
 }
 
 #[tauri::command]
 pub async fn list_unified_cache_keys(app: AppHandle) -> Result<Vec<String>, StorageError> {
-    Ok(load_cache_index(&app)?.entries.keys().cloned().collect())
+    Ok(get_cache_index(&app)?.entries.keys().cloned().collect())
 }
 
 #[tauri::command]
 pub async fn get_unified_cache_stats(app: AppHandle) -> Result<UnifiedCacheStats, StorageError> {
-    let index = load_cache_index(&app)?;
+    let index = get_cache_index(&app)?;
     let now = Utc::now().timestamp_millis();
     let mut expired_count = 0;
     let mut expired_size = 0u64;
@@ -219,11 +334,18 @@ fn cleanup_expired_entries_internal(app: &AppHandle, index: &mut CacheIndex) -> 
 
 #[tauri::command]
 pub async fn cleanup_unified_cache(app: AppHandle) -> Result<u64, StorageError> {
-    let mut index = load_cache_index(&app)?;
+    let mut index = get_cache_index(&app)?;
     let deleted_count = cleanup_expired_entries_internal(&app, &mut index)?;
     index.last_cleanup = Some(Utc::now());
-    save_cache_index(&app, &index)?;
+    update_cache_index(&app, index, true)?; // Force persist after cleanup
     Ok(deleted_count)
+}
+
+/// Flush any pending cache index changes to disk
+/// Call this before app shutdown to ensure data is persisted
+#[tauri::command]
+pub async fn flush_unified_cache(app: AppHandle) -> Result<(), StorageError> {
+    flush_cache_index(&app)
 }
 
 #[tauri::command]

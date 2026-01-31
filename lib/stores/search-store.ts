@@ -6,6 +6,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
+import { LRUCache } from '@/lib/services/lru-cache';
+import { CACHE_CONFIG } from '@/lib/cache/config';
 import type { OnlineSearchSource, OnlineSearchResult, ObjectCategory } from '@/lib/services/online-search-service';
 
 // ============================================================================
@@ -75,10 +77,6 @@ interface SearchState {
   recentSearches: RecentSearch[];
   maxRecentSearches: number;
   
-  // Cache
-  searchCache: Map<string, SearchCache>;
-  maxCacheSize: number;
-  
   // Online status
   onlineStatus: Record<OnlineSearchSource, boolean>;
   lastStatusCheck: number;
@@ -87,6 +85,12 @@ interface SearchState {
   isOnlineSearchEnabled: boolean;
   currentSearchMode: SearchMode;
 }
+
+// Runtime cache (not persisted) - using LRUCache for efficient eviction
+const searchResultsCache = new LRUCache<string, SearchCache>({
+  maxSize: CACHE_CONFIG.search.maxSize,
+  ttl: CACHE_CONFIG.search.defaultTTL,
+});
 
 interface SearchActions {
   // Settings
@@ -168,8 +172,6 @@ export const useSearchStore = create<SearchStore>()(
       favorites: [],
       recentSearches: [],
       maxRecentSearches: 20,
-      searchCache: new Map(),
-      maxCacheSize: 100,
       onlineStatus: DEFAULT_ONLINE_STATUS,
       lastStatusCheck: 0,
       isOnlineSearchEnabled: true,
@@ -299,7 +301,7 @@ export const useSearchStore = create<SearchStore>()(
         return get().recentSearches.slice(0, limit);
       },
       
-      // Cache actions
+      // Cache actions (using external LRUCache for efficient management)
       cacheSearchResults: (query, results, source) => {
         const state = get();
         if (!state.settings.cacheResults) return;
@@ -312,21 +314,8 @@ export const useSearchStore = create<SearchStore>()(
           source,
         };
         
-        set((state) => {
-          const newCache = new Map(state.searchCache);
-          
-          // Remove oldest entries if cache is full
-          if (newCache.size >= state.maxCacheSize) {
-            const oldestKey = Array.from(newCache.entries())
-              .sort((a, b) => a[1].timestamp - b[1].timestamp)[0]?.[0];
-            if (oldestKey) {
-              newCache.delete(oldestKey);
-            }
-          }
-          
-          newCache.set(normalizedQuery, cache);
-          return { searchCache: newCache };
-        });
+        // LRUCache handles TTL and size limits automatically
+        searchResultsCache.set(normalizedQuery, cache);
       },
       
       getCachedResults: (query) => {
@@ -334,27 +323,12 @@ export const useSearchStore = create<SearchStore>()(
         if (!state.settings.cacheResults) return null;
         
         const normalizedQuery = query.toLowerCase().trim();
-        const cached = state.searchCache.get(normalizedQuery);
-        
-        if (!cached) return null;
-        
-        // Check if cache is expired
-        const cacheDurationMs = state.settings.cacheDuration * 60 * 60 * 1000;
-        if (Date.now() - cached.timestamp > cacheDurationMs) {
-          // Remove expired cache
-          set((state) => {
-            const newCache = new Map(state.searchCache);
-            newCache.delete(normalizedQuery);
-            return { searchCache: newCache };
-          });
-          return null;
-        }
-        
-        return cached;
+        // LRUCache.get() automatically handles TTL expiration
+        return searchResultsCache.get(normalizedQuery) ?? null;
       },
       
       clearCache: () => {
-        set({ searchCache: new Map() });
+        searchResultsCache.clear();
       },
       
       // Online status actions

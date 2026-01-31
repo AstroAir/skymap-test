@@ -12,6 +12,9 @@ import {
   type MapProviderConfig,
   type MapProviderCapabilities,
 } from './base-map-provider';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('google-maps-provider');
 
 interface GoogleGeocodingResponse {
   results: Array<{
@@ -124,7 +127,7 @@ export class GoogleMapsProvider extends BaseMapProvider {
       
       return results;
     } catch (error) {
-      console.error('Google Maps geocoding error:', error);
+      logger.error('Google Maps geocoding error', error);
       throw error;
     }
   }
@@ -159,7 +162,7 @@ export class GoogleMapsProvider extends BaseMapProvider {
 
       return this.transformReverseGeocodingResult(data.results[0]);
     } catch (error) {
-      console.error('Google Maps reverse geocoding error:', error);
+      logger.error('Google Maps reverse geocoding error', error);
       throw error;
     }
   }
@@ -418,7 +421,7 @@ export class GoogleMapsProvider extends BaseMapProvider {
         types: prediction.types,
       }));
     } catch (error) {
-      console.error('Google Places autocomplete error:', error);
+      logger.error('Google Places autocomplete error', error);
       throw error;
     }
   }

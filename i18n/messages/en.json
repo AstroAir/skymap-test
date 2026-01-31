@@ -29,13 +29,17 @@
     "copy": "Copy",
     "copied": "Copied",
     "share": "Share",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "percent": "%",
+    "pixels": "px",
+    "unknown": "Unknown"
   },
   "splash": {
     "tagline": "Explore the Universe",
     "loading": "Loading star map...",
     "loadingStars": "Loading star catalogs...",
-    "loadingEngine": "Initializing engine..."
+    "loadingEngine": "Initializing engine...",
+    "poweredBy": "Powered by Stellarium Web Engine"
   },
   "about": {
     "title": "About",
@@ -49,7 +53,8 @@
     "poweredBy": "Powered by Stellarium Web Engine",
     "licensesDescription": "This application uses the following open source libraries:",
     "depsDescription": "Key dependencies used in this project:",
-    "totalDeps": "{count} packages"
+    "totalDeps": "{count} packages",
+    "appDescription": "A modern web-based astronomy application powered by Stellarium Web Engine"
   },
   "home": {
     "title": "To get started, edit the page.tsx file.",
@@ -253,7 +258,12 @@
     "preserveAlignment": "Preserve Alignment",
     "preserveAlignmentDesc": "Compensate for field curvature when rotating",
     "dragToPosition": "Drag to Position",
-    "dragToPositionDesc": "Enable dragging to reposition the FOV"
+    "dragToPositionDesc": "Enable dragging to reposition the FOV",
+    "label": "FOV",
+    "sensorWidthPlaceholder": "23.5",
+    "sensorHeightPlaceholder": "15.6",
+    "pixelSizePlaceholder": "3.76",
+    "focalLengthPlaceholder": "1000"
   },
   "time": {
     "timeControls": "Time Controls",
@@ -269,7 +279,11 @@
     "rise": "Rise",
     "transit": "Transit",
     "set": "Set",
-    "jumpTo": "Jump To"
+    "jumpTo": "Jump To",
+    "minus1Day": "-1d",
+    "minus1Hour": "-1h",
+    "plus1Hour": "+1h",
+    "plus1Day": "+1d"
   },
   "settings": {
     "displaySettings": "Display Settings",
@@ -336,6 +350,13 @@
     "ipAddress": "IP Address",
     "port": "Port",
     "connectionDescription": "Backend server connection settings for remote control",
+    "protocolHttp": "HTTP",
+    "protocolHttps": "HTTPS",
+    "ipAddressPlaceholder": "localhost",
+    "portPlaceholder": "1888",
+    "latitudePlaceholder": "0.0000",
+    "longitudePlaceholder": "0.0000",
+    "elevationPlaceholder": "0",
     "manualLocation": "Manual Location Input",
     "autoSaveHint": "Changes in this tab are saved automatically",
     "instantEffectHint": "Changes take effect immediately",
@@ -383,6 +404,10 @@
     "transit": "Transit",
     "rise": "Rise",
     "set": "Set",
+    "window": "Window",
+    "altitude": "Altitude",
+    "altitudeTarget": "Altitude (Target)",
+    "darkImagingAvailable": "dark imaging available",
     "zoomHint": "Scroll to zoom, swipe to adjust range",
     "timeRange": "Time",
     "darkImagingWindow": "{hours}h dark imaging window",
@@ -975,7 +1000,34 @@
     "builtInPresets": "Built-in Presets",
     "customPresets": "Custom Presets",
     "addCameraDescription": "Add a custom camera with your sensor specifications",
-    "addTelescopeDescription": "Add a custom telescope with your optics specifications"
+    "addTelescopeDescription": "Add a custom telescope with your optics specifications",
+    "cameraNamePlaceholder": "e.g. ASI294MC Pro",
+    "telescopeNamePlaceholder": "e.g. Newton 200/1000",
+    "aperturePlaceholder": "200",
+    "telescopeTypes": {
+      "refractor": "Refractor",
+      "reflector": "Reflector",
+      "catadioptric": "Catadioptric",
+      "other": "Other"
+    },
+    "cameraTypes": {
+      "cmos": "CMOS",
+      "ccd": "CCD",
+      "dslr": "DSLR",
+      "mirrorless": "Mirrorless",
+      "other": "Other"
+    },
+    "bortleDescriptions": {
+      "1": "1 - Excellent dark sky",
+      "2": "2 - Typical dark site",
+      "3": "3 - Rural sky",
+      "4": "4 - Rural/suburban transition",
+      "5": "5 - Suburban sky",
+      "6": "6 - Bright suburban sky",
+      "7": "7 - Suburban/urban transition",
+      "8": "8 - City sky",
+      "9": "9 - Inner city sky"
+    }
   },
   "locations": {
     "title": "Observation Locations",
@@ -1093,7 +1145,34 @@
     "keyDeleted": "API key deleted",
     "deleteKeyFailed": "Failed to delete API key",
     "keySetDefault": "API key set as default",
-    "setDefaultFailed": "Failed to set default"
+    "setDefaultFailed": "Failed to set default",
+    "providerNames": {
+      "openstreetmap": "OpenStreetMap",
+      "google": "Google Maps",
+      "mapbox": "Mapbox"
+    },
+    "providerDescriptions": {
+      "openstreetmap": "Free, open-source map data. No API key required.",
+      "google": "High-quality maps with extensive coverage. Requires API key.",
+      "mapbox": "Customizable maps with satellite imagery. Requires API key."
+    },
+    "tileLayers": {
+      "openstreetmap": "OpenStreetMap",
+      "cartodbLight": "CartoDB Light",
+      "cartodbDark": "CartoDB Dark",
+      "satellite": "Satellite",
+      "topographic": "Topographic"
+    },
+    "fallbackStrategies": {
+      "priority": "Priority Order",
+      "priorityDesc": "Use providers in priority order",
+      "fastest": "Fastest Response",
+      "fastestDesc": "Use the provider with lowest latency",
+      "random": "Random",
+      "randomDesc": "Randomly select from healthy providers",
+      "roundRobin": "Round Robin",
+      "roundRobinDesc": "Rotate between providers"
+    }
   },
   "locationSearch": {
     "locationPlaceholder": "Search for a location...",
@@ -1499,7 +1578,11 @@
     "keepWcs": "Keep WCS File",
     "keepWcsDesc": "Save WCS output for later use",
     "retryOnFailure": "Retry on Failure",
-    "retryOnFailureDesc": "Retry with different settings"
+    "retryOnFailureDesc": "Retry with different settings",
+    "failedToLoadIndexes": "Failed to load indexes",
+    "downloadFailed": "Download failed",
+    "failedToDeleteIndex": "Failed to delete index",
+    "unknownError": "Unknown error"
   },
   "geolocation": {
     "title": "Device Location",
@@ -1537,11 +1620,16 @@
       "language": "Language",
       "appLanguage": "Application Language",
       "languageDescription": "Changes the language of the user interface",
+      "languageEnglish": "English",
+      "languageChinese": "中文",
       "timeDate": "Time & Date",
       "timeFormat": "Time Format",
       "time24h": "24-hour (14:30)",
       "time12h": "12-hour (2:30 PM)",
       "dateFormat": "Date Format",
+      "dateFormatIso": "ISO (2024-01-15)",
+      "dateFormatUs": "US (01/15/2024)",
+      "dateFormatEu": "EU (15/01/2024)",
       "coordinates": "Coordinates",
       "coordinateFormat": "Coordinate Format",
       "formatDMS": "DMS (12° 30' 45\")",
@@ -1825,6 +1913,33 @@
     "elongation": "Elongation",
     "closeApproach": "Close Approach",
     "noPhenomena": "No significant phenomena in the selected period",
+    "separation": "separation",
+    "moonFrom": "Moon {sep}° from {planet}",
+    "planetFrom": "{planet1} {sep}° from {planet2}",
+    "newMoon": "New Moon",
+    "fullMoon": "Full Moon",
+    "firstQuarter": "First Quarter",
+    "lastQuarter": "Last Quarter",
+    "sunAlt": "Sun Alt",
+    "defaultTarget": "Target",
+    "raLabel": "RA (°)",
+    "decLabel": "Dec (°)",
+    "tableRA": "RA",
+    "tableDec": "Dec",
+    "oneWeek": "168 (1 week)",
+    "hourIntervals": {
+      "1h": "1 hour",
+      "2h": "2 hours",
+      "6h": "6 hours",
+      "12h": "12 hours",
+      "1d": "1 day"
+    },
+    "daysRange": {
+      "7d": "7 days",
+      "14d": "14 days",
+      "30d": "30 days",
+      "90d": "90 days"
+    },
     "advancedFilters": "Advanced Filters",
     "minSize": "Min Size",
     "any": "Any"
@@ -1933,5 +2048,36 @@
     "speedUpTime": "Speed up time",
     "slowDownTime": "Slow down time",
     "resetTime": "Reset to current time"
+  },
+  "canvas": {
+    "initializing": "Initializing...",
+    "preparingResources": "Preparing resources...",
+    "loadingScript": "Loading engine script...",
+    "initializingStarmap": "Initializing star map...",
+    "retrying": "Retrying ({current}/{max})...",
+    "retry": "Retry",
+    "loadFailed": "Failed to load star map"
+  },
+  "logViewer": {
+    "title": "Application Logs",
+    "description": "View application logs and diagnostics",
+    "searchPlaceholder": "Search logs...",
+    "allLevels": "All Levels",
+    "allModules": "All Modules",
+    "settings": "Settings",
+    "refresh": "Refresh",
+    "export": "Export",
+    "exportText": "Export as Text",
+    "exportJson": "Export as JSON",
+    "clear": "Clear Logs",
+    "autoScroll": "Auto-scroll to latest",
+    "clearFilters": "Clear Filters",
+    "showing": "Showing {count} of {total}",
+    "noLogs": "No logs yet",
+    "errors": "errors",
+    "debug": "Debug",
+    "info": "Info",
+    "warn": "Warning",
+    "error": "Error"
   }
 }

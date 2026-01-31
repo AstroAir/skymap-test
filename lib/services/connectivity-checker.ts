@@ -5,6 +5,9 @@
 
 import type { BaseMapProvider, ConnectivityStatus } from './map-providers/base-map-provider';
 import { mapConfig } from './map-config';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('connectivity-checker');
 
 export interface ProviderHealthStatus {
   provider: 'openstreetmap' | 'google' | 'mapbox' | 'other';
@@ -485,7 +488,7 @@ class ConnectivityChecker {
       try {
         listener(status);
       } catch (error) {
-        console.error('Error in health status listener:', error);
+        logger.error('Error in health status listener', error);
       }
     });
   }

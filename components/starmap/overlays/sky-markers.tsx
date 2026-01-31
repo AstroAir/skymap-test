@@ -32,6 +32,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('sky-markers');
 
 interface MarkerPosition {
   marker: SkyMarker;
@@ -147,7 +150,7 @@ export function SkyMarkers({
 
         return { x: screenX, y: screenY, visible: true };
       } catch (error) {
-        console.error('Error converting coordinates:', error);
+        logger.error('Error converting coordinates', error);
         return null;
       }
     },

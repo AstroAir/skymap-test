@@ -4,6 +4,8 @@
  */
 
 import type { NighttimeData, RiseAndSet, MoonPhase } from './types';
+import { LRUCache } from '@/lib/services/lru-cache';
+import { CACHE_CONFIG } from '@/lib/cache/config';
 
 // ============================================================================
 // Constants
@@ -15,19 +17,30 @@ const SYNODIC_MONTH = 29.53058867;
 const KNOWN_NEW_MOON_JD = 2451550.1; // Jan 6, 2000
 
 // ============================================================================
-// Calculation Caches for Performance
+// Calculation Caches for Performance (using LRUCache for proper eviction)
 // ============================================================================
 
+const { nighttime: nighttimeConfig } = CACHE_CONFIG;
+
 // Cache for nighttime data (keyed by lat_lon_dateKey)
-const nighttimeCache = new Map<string, { data: NighttimeData; timestamp: number }>();
-const NIGHTTIME_CACHE_TTL = 60000; // 1 minute TTL
+const nighttimeCache = new LRUCache<string, NighttimeData>({
+  maxSize: nighttimeConfig.maxSize,
+  ttl: nighttimeConfig.ttl,
+});
 
 // Cache for sun/moon positions (keyed by JD rounded to 0.01)
-const sunPositionCache = new Map<string, { ra: number; dec: number }>();
-const moonPositionCache = new Map<string, { ra: number; dec: number; distance: number }>();
+const sunPositionCache = new LRUCache<string, { ra: number; dec: number }>({
+  maxSize: nighttimeConfig.positionCacheMaxSize,
+});
+
+const moonPositionCache = new LRUCache<string, { ra: number; dec: number; distance: number }>({
+  maxSize: nighttimeConfig.positionCacheMaxSize,
+});
 
 // Cache for hour angle calculations
-const hourAngleCache = new Map<string, number | null>();
+const hourAngleCache = new LRUCache<string, number | null>({
+  maxSize: nighttimeConfig.hourAngleCacheMaxSize,
+});
 
 /**
  * Generate cache key for nighttime data
@@ -38,19 +51,25 @@ function getNighttimeCacheKey(lat: number, lon: number, date: Date): string {
 }
 
 /**
- * Clear expired cache entries
+ * Get cache statistics for monitoring
  */
-function clearExpiredCache(): void {
-  const now = Date.now();
-  for (const [key, value] of nighttimeCache.entries()) {
-    if (now - value.timestamp > NIGHTTIME_CACHE_TTL) {
-      nighttimeCache.delete(key);
-    }
-  }
-  // Limit cache sizes
-  if (sunPositionCache.size > 1000) sunPositionCache.clear();
-  if (moonPositionCache.size > 1000) moonPositionCache.clear();
-  if (hourAngleCache.size > 1000) hourAngleCache.clear();
+export function getNighttimeCacheStats() {
+  return {
+    nighttime: nighttimeCache.getStats(),
+    sunPosition: sunPositionCache.getStats(),
+    moonPosition: moonPositionCache.getStats(),
+    hourAngle: hourAngleCache.getStats(),
+  };
+}
+
+/**
+ * Clear all nighttime caches
+ */
+export function clearNighttimeCaches(): void {
+  nighttimeCache.clear();
+  sunPositionCache.clear();
+  moonPositionCache.clear();
+  hourAngleCache.clear();
 }
 
 // Sun altitude thresholds
@@ -157,7 +176,7 @@ export function getSunPosition(jd: number): { ra: number; dec: number } {
   // Check cache first
   const cacheKey = jd.toFixed(2);
   const cached = sunPositionCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) return { ...cached }; // Return copy to prevent mutation
   
   const T = (jd - 2451545.0) / 36525;
   
@@ -175,7 +194,7 @@ export function getSunPosition(jd: number): { ra: number; dec: number } {
   
   const result = { ra: ((ra % 360) + 360) % 360, dec };
   sunPositionCache.set(cacheKey, result);
-  return result;
+  return { ...result };
 }
 
 // ============================================================================
@@ -189,7 +208,7 @@ export function getMoonPosition(jd: number): { ra: number; dec: number; distance
   // Check cache first
   const cacheKey = jd.toFixed(2);
   const cached = moonPositionCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) return { ...cached }; // Return copy to prevent mutation
   
   const T = (jd - 2451545.0) / 36525;
   
@@ -249,7 +268,7 @@ export function getMoonPosition(jd: number): { ra: number; dec: number; distance
   
   const result = { ra: ((ra % 360) + 360) % 360, dec, distance };
   moonPositionCache.set(cacheKey, result);
-  return result;
+  return { ...result };
 }
 
 /**
@@ -319,6 +338,12 @@ export function lstToHours(lstDegrees: number): number {
  * Calculate hour angle for a given altitude threshold
  */
 function calculateHourAngle(dec: number, lat: number, altThreshold: number): number | null {
+  // Check cache first
+  const cacheKey = `${dec.toFixed(4)}_${lat.toFixed(4)}_${altThreshold.toFixed(2)}`;
+  if (hourAngleCache.has(cacheKey)) {
+    return hourAngleCache.get(cacheKey) ?? null;
+  }
+  
   const latRad = lat * DEG_TO_RAD;
   const decRad = dec * DEG_TO_RAD;
   const altRad = altThreshold * DEG_TO_RAD;
@@ -326,10 +351,17 @@ function calculateHourAngle(dec: number, lat: number, altThreshold: number): num
   const cosH = (Math.sin(altRad) - Math.sin(latRad) * Math.sin(decRad)) /
                (Math.cos(latRad) * Math.cos(decRad));
   
-  if (cosH > 1) return null;  // Never rises above threshold
-  if (cosH < -1) return 180;  // Always above threshold (circumpolar)
+  let result: number | null;
+  if (cosH > 1) {
+    result = null;  // Never rises above threshold
+  } else if (cosH < -1) {
+    result = 180;  // Always above threshold (circumpolar)
+  } else {
+    result = Math.acos(cosH) * RAD_TO_DEG;
+  }
   
-  return Math.acos(cosH) * RAD_TO_DEG;
+  hourAngleCache.set(cacheKey, result);
+  return result;
 }
 
 /**
@@ -478,15 +510,12 @@ export function calculateNighttimeData(
   longitude: number,
   date: Date = new Date()
 ): NighttimeData {
-  // Check cache first
+  // Check cache first (LRUCache handles TTL automatically)
   const cacheKey = getNighttimeCacheKey(latitude, longitude, date);
   const cached = nighttimeCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < NIGHTTIME_CACHE_TTL) {
-    return cached.data;
+  if (cached) {
+    return cached;
   }
-  
-  // Clear expired entries periodically
-  clearExpiredCache();
   
   const referenceDate = getReferenceDate(date);
   const jd = dateToJulianDate(referenceDate);
@@ -527,8 +556,8 @@ export function calculateNighttimeData(
     moonIllumination,
   };
   
-  // Store in cache
-  nighttimeCache.set(cacheKey, { data: result, timestamp: Date.now() });
+  // Store in cache (LRUCache handles eviction automatically)
+  nighttimeCache.set(cacheKey, result);
   
   return result;
 }

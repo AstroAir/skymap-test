@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > [lib](../) > **stores**
 
-> **Last Updated:** 2025-01-31
+> **Last Updated:** 2026-02-01
 > **Module Type:** TypeScript (Zustand Stores)
 
 ---
@@ -34,6 +34,12 @@ The `stores` module contains Zustand stores for client-side state management. Ea
 | `useMountStore` | `mount-store.ts` | Telescope mount state | (session only) |
 | `useFramingStore` | `framing-store.ts` | Camera framing state | (session only) |
 | `usePlateSolverStore` | `plate-solver-store.ts` | Plate solving state | (session only) |
+| `useStellariumStore` | `stellarium-store.ts` | Stellarium settings | (session only) |
+| `useSatelliteStore` | `satellite-store.ts` | Satellite tracking state | (session only) |
+| `useSearchStore` | `search-store.ts` | Search state | (session only) |
+| `useThemeStore` | `theme-store.ts` | Theme preference | persisted |
+| `useFavoritesStore` | `favorites-store.ts` | Favorite objects | persisted |
+| `useSetupWizardStore` | `setup-wizard-store.ts` | Setup wizard state | (session only) |
 
 ---
 
@@ -235,5 +241,5 @@ const syncWithBackend = async () => {
 
 - [`settings-store.ts`](./settings-store.ts) - Settings store implementation
 - [`index.ts`](./index.ts) - Module exports
-- [lib/storage/CLAUDE.md](../storage/CLAUDE.md) - Storage adapter
+- [lib/tauri/CLAUDE.md](../tauri/CLAUDE.md) - Tauri API wrappers
 - [Root CLAUDE.md](../../CLAUDE.md) - Project documentation

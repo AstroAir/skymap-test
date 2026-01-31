@@ -33,6 +33,9 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('survey-selector');
 
 interface StellariumSurveySelectorProps {
   surveyEnabled: boolean;
@@ -126,7 +129,7 @@ export function StellariumSurveySelector({
       const results = await hipsService.searchSurveys(searchQuery, 30);
       setOnlineSurveys(results);
     } catch (error) {
-      console.error('Error searching surveys:', error);
+      logger.error('Error searching surveys', error);
       toast.error(t('survey.searchFailed'));
     } finally {
       setIsSearching(false);
@@ -142,7 +145,7 @@ export function StellariumSurveySelector({
           const recommended = await hipsService.getRecommendedSurveys();
           setOnlineSurveys(recommended);
         } catch (error) {
-          console.error('Error loading recommended surveys:', error);
+          logger.error('Error loading recommended surveys', error);
         } finally {
           setIsSearching(false);
         }
@@ -187,7 +190,7 @@ export function StellariumSurveySelector({
     } catch (error) {
       toast.dismiss(`download-${survey.id}`);
       toast.error(t('survey.downloadFailed'));
-      console.error('Error downloading survey:', error);
+      logger.error('Error downloading survey', error);
     } finally {
       setDownloadingIds(prev => prev.filter(id => id !== survey.id));
     }

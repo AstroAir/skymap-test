@@ -4,6 +4,9 @@
  */
 
 import type { MapProviderConfig } from './map-providers/base-map-provider';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('map-config');
 
 export interface MapApiKey {
   id: string;
@@ -118,7 +121,7 @@ class MapConfigurationService {
         this.config = { ...this.config, ...parsed };
       }
     } catch (error) {
-      console.warn('Failed to load map configuration:', error);
+      logger.warn('Failed to load map configuration', error);
     }
   }
 
@@ -129,7 +132,7 @@ class MapConfigurationService {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.config));
       this.notifyListeners();
     } catch (error) {
-      console.error('Failed to save map configuration:', error);
+      logger.error('Failed to save map configuration', error);
     }
   }
 
@@ -138,7 +141,7 @@ class MapConfigurationService {
       try {
         listener(this.config);
       } catch (error) {
-        console.error('Error in configuration listener:', error);
+        logger.error('Error in configuration listener', error);
       }
     });
   }

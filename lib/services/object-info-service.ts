@@ -10,6 +10,9 @@ import {
   getActiveDataSources,
   generateImageUrl,
 } from './object-info-config';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('object-info-service');
 
 // ============================================================================
 // Types
@@ -325,7 +328,7 @@ export async function fetchSimbadInfo(objectName: string): Promise<Partial<Objec
       sources: ['SIMBAD'],
     };
   } catch (error) {
-    console.warn('Failed to fetch SIMBAD info:', error);
+    logger.warn('Failed to fetch SIMBAD info', error);
     // Update source status to offline
     useObjectInfoConfigStore.getState().setDataSourceStatus(simbadSource.id, 'error');
     return null;
@@ -464,7 +467,7 @@ export async function enhanceObjectInfo(info: ObjectDetailedInfo): Promise<Objec
       };
     }
   } catch (error) {
-    console.warn('Failed to enhance object info:', error);
+    logger.warn('Failed to enhance object info', error);
   }
   
   return info;

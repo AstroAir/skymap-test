@@ -6,6 +6,9 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('app-control-api');
 
 /**
  * Check if running in Tauri environment
@@ -22,7 +25,7 @@ export function isTauri(): boolean {
  */
 export async function restartApp(): Promise<void> {
   if (!isTauri()) {
-    console.warn('restartApp is only available in Tauri environment');
+    logger.warn('restartApp is only available in Tauri environment');
     return;
   }
   await invoke('restart_app');
@@ -37,7 +40,7 @@ export async function restartApp(): Promise<void> {
  */
 export async function quitApp(exitCode?: number): Promise<void> {
   if (!isTauri()) {
-    console.warn('quitApp is only available in Tauri environment');
+    logger.warn('quitApp is only available in Tauri environment');
     return;
   }
   await invoke('quit_app', { exitCode });
@@ -75,7 +78,7 @@ export async function isDevMode(): Promise<boolean> {
  */
 export async function closeWindow(): Promise<void> {
   if (!isTauri()) {
-    console.warn('closeWindow is only available in Tauri environment');
+    logger.warn('closeWindow is only available in Tauri environment');
     return;
   }
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -88,7 +91,7 @@ export async function closeWindow(): Promise<void> {
  */
 export async function minimizeWindow(): Promise<void> {
   if (!isTauri()) {
-    console.warn('minimizeWindow is only available in Tauri environment');
+    logger.warn('minimizeWindow is only available in Tauri environment');
     return;
   }
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -101,7 +104,7 @@ export async function minimizeWindow(): Promise<void> {
  */
 export async function toggleMaximizeWindow(): Promise<void> {
   if (!isTauri()) {
-    console.warn('toggleMaximizeWindow is only available in Tauri environment');
+    logger.warn('toggleMaximizeWindow is only available in Tauri environment');
     return;
   }
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -156,7 +159,7 @@ export async function isWindowFullscreen(): Promise<boolean> {
  */
 export async function setAlwaysOnTop(alwaysOnTop: boolean): Promise<void> {
   if (!isTauri()) {
-    console.warn('setAlwaysOnTop is only available in Tauri environment');
+    logger.warn('setAlwaysOnTop is only available in Tauri environment');
     return;
   }
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -181,7 +184,7 @@ export async function isAlwaysOnTop(): Promise<boolean> {
  */
 export async function setWindowSize(width: number, height: number): Promise<void> {
   if (!isTauri()) {
-    console.warn('setWindowSize is only available in Tauri environment');
+    logger.warn('setWindowSize is only available in Tauri environment');
     return;
   }
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -221,7 +224,7 @@ export async function getWindowPosition(): Promise<{ x: number; y: number }> {
  */
 export async function setWindowPosition(x: number, y: number): Promise<void> {
   if (!isTauri()) {
-    console.warn('setWindowPosition is only available in Tauri environment');
+    logger.warn('setWindowPosition is only available in Tauri environment');
     return;
   }
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -235,7 +238,7 @@ export async function setWindowPosition(x: number, y: number): Promise<void> {
  */
 export async function centerWindow(): Promise<void> {
   if (!isTauri()) {
-    console.warn('centerWindow is only available in Tauri environment');
+    logger.warn('centerWindow is only available in Tauri environment');
     return;
   }
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -285,7 +288,7 @@ export async function saveWindowState(): Promise<void> {
     const state = await getWindowState();
     localStorage.setItem('skymap-window-state', JSON.stringify(state));
   } catch (error) {
-    console.error('Failed to save window state:', error);
+    logger.error('Failed to save window state', error);
   }
 }
 
@@ -319,7 +322,7 @@ export async function restoreWindowState(): Promise<void> {
       await setAlwaysOnTop(true);
     }
   } catch (error) {
-    console.error('Failed to restore window state:', error);
+    logger.error('Failed to restore window state', error);
   }
 }
 
@@ -332,7 +335,7 @@ export async function setWindowOpacity(opacity: number): Promise<void> {
     return;
   }
   // Note: Window opacity requires platform-specific support
-  console.warn('Window opacity is not fully supported on all platforms');
+  logger.warn('Window opacity is not fully supported on all platforms');
 }
 
 /**

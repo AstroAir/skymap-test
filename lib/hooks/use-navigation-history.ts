@@ -144,11 +144,19 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>()(
       storage: getZustandStorage(),
       partialize: (state) => {
         const persistedHistory = state.history.slice(-20);
-        // Ensure currentIndex is valid for the persisted history length
-        const persistedIndex = Math.min(
-          Math.max(state.currentIndex - (state.history.length - persistedHistory.length), -1),
-          persistedHistory.length - 1
-        );
+        const offset = state.history.length - persistedHistory.length;
+        // If currentIndex points to an item that will be persisted, adjust it
+        // Otherwise, reset to the end of persisted history (most recent valid position)
+        let persistedIndex: number;
+        if (state.currentIndex >= offset) {
+          // Current position is within persisted range
+          persistedIndex = state.currentIndex - offset;
+        } else {
+          // Current position is outside persisted range, reset to start (oldest persisted item)
+          persistedIndex = 0;
+        }
+        // Clamp to valid range
+        persistedIndex = Math.max(-1, Math.min(persistedIndex, persistedHistory.length - 1));
         return {
           history: persistedHistory,
           currentIndex: persistedIndex,

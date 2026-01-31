@@ -1,0 +1,242 @@
+/**
+ * Log Store
+ * 
+ * Zustand store for accessing logs in React components.
+ * Provides reactive access to the logging system.
+ */
+
+import { create } from 'zustand';
+import {
+  LogLevel,
+  LogEntry,
+  LogFilter,
+  getLogs,
+  getFilteredLogs,
+  clearLogs as clearAllLogs,
+  setLogLevel,
+  getLogLevel,
+  onLogsChanged,
+  getUniqueModules,
+  getLogStats,
+  exportLogsAsText,
+  exportLogsAsJson,
+} from '@/lib/logger';
+
+export interface LogStoreState {
+  /** Current logs (may be filtered) */
+  logs: LogEntry[];
+  /** Total log count (unfiltered) */
+  totalCount: number;
+  /** Current filter settings */
+  filter: LogFilter;
+  /** Current log level */
+  level: LogLevel;
+  /** Available modules (for filter dropdown) */
+  modules: string[];
+  /** Log statistics */
+  stats: {
+    total: number;
+    byLevel: Record<string, number>;
+    byModule: Record<string, number>;
+  };
+  /** Whether the log panel is open */
+  isPanelOpen: boolean;
+  /** Whether auto-scroll is enabled */
+  autoScroll: boolean;
+}
+
+export interface LogStoreActions {
+  /** Refresh logs from the log manager */
+  refresh: () => void;
+  /** Set filter options */
+  setFilter: (filter: Partial<LogFilter>) => void;
+  /** Clear filter */
+  clearFilter: () => void;
+  /** Set log level */
+  setLevel: (level: LogLevel) => void;
+  /** Clear all logs */
+  clearLogs: () => void;
+  /** Export logs as text */
+  exportAsText: () => string;
+  /** Export logs as JSON */
+  exportAsJson: () => string;
+  /** Download logs as file */
+  downloadLogs: (format: 'text' | 'json') => void;
+  /** Open log panel */
+  openPanel: () => void;
+  /** Close log panel */
+  closePanel: () => void;
+  /** Toggle log panel */
+  togglePanel: () => void;
+  /** Set auto-scroll */
+  setAutoScroll: (enabled: boolean) => void;
+}
+
+export type LogStore = LogStoreState & LogStoreActions;
+
+const initialFilter: LogFilter = {
+  level: undefined,
+  module: undefined,
+  search: undefined,
+  limit: 500,
+};
+
+export const useLogStore = create<LogStore>((set, get) => {
+  // Subscribe to log changes
+  let unsubscribe: (() => void) | null = null;
+  
+  const setupSubscription = () => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+    
+    unsubscribe = onLogsChanged(() => {
+      get().refresh();
+    });
+  };
+  
+  // Setup subscription on store creation
+  if (typeof window !== 'undefined') {
+    setTimeout(setupSubscription, 0);
+  }
+  
+  return {
+    // State
+    logs: [],
+    totalCount: 0,
+    filter: initialFilter,
+    level: getLogLevel(),
+    modules: [],
+    stats: {
+      total: 0,
+      byLevel: { debug: 0, info: 0, warn: 0, error: 0 },
+      byModule: {},
+    },
+    isPanelOpen: false,
+    autoScroll: true,
+    
+    // Actions
+    refresh: () => {
+      const allLogs = getLogs();
+      const { filter } = get();
+      
+      // Apply filters
+      const filteredLogs = Object.keys(filter).some(k => filter[k as keyof LogFilter] !== undefined)
+        ? getFilteredLogs(filter)
+        : allLogs;
+      
+      // Get modules and stats from all logs (not filtered)
+      const modules = getUniqueModules(allLogs);
+      const stats = getLogStats(allLogs);
+      
+      set({
+        logs: filteredLogs,
+        totalCount: allLogs.length,
+        modules,
+        stats,
+      });
+    },
+    
+    setFilter: (newFilter) => {
+      const { filter } = get();
+      set({ filter: { ...filter, ...newFilter } });
+      get().refresh();
+    },
+    
+    clearFilter: () => {
+      set({ filter: initialFilter });
+      get().refresh();
+    },
+    
+    setLevel: (level) => {
+      setLogLevel(level);
+      set({ level });
+    },
+    
+    clearLogs: () => {
+      clearAllLogs();
+      set({
+        logs: [],
+        totalCount: 0,
+        modules: [],
+        stats: {
+          total: 0,
+          byLevel: { debug: 0, info: 0, warn: 0, error: 0 },
+          byModule: {},
+        },
+      });
+    },
+    
+    exportAsText: () => {
+      const allLogs = getLogs();
+      return exportLogsAsText(allLogs);
+    },
+    
+    exportAsJson: () => {
+      const allLogs = getLogs();
+      return exportLogsAsJson(allLogs);
+    },
+    
+    downloadLogs: (format) => {
+      const { exportAsText, exportAsJson } = get();
+      const content = format === 'text' ? exportAsText() : exportAsJson();
+      const mimeType = format === 'text' ? 'text/plain' : 'application/json';
+      const extension = format === 'text' ? 'txt' : 'json';
+      const filename = `skymap-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
+      
+      // Create download link
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    
+    openPanel: () => {
+      set({ isPanelOpen: true });
+      get().refresh();
+    },
+    
+    closePanel: () => {
+      set({ isPanelOpen: false });
+    },
+    
+    togglePanel: () => {
+      const { isPanelOpen, refresh } = get();
+      set({ isPanelOpen: !isPanelOpen });
+      if (!isPanelOpen) {
+        refresh();
+      }
+    },
+    
+    setAutoScroll: (enabled) => {
+      set({ autoScroll: enabled });
+    },
+  };
+});
+
+/**
+ * Hook to get log panel state
+ */
+export function useLogPanel() {
+  return useLogStore((state) => ({
+    isOpen: state.isPanelOpen,
+    open: state.openPanel,
+    close: state.closePanel,
+    toggle: state.togglePanel,
+  }));
+}
+
+/**
+ * Hook to get log statistics
+ */
+export function useLogStats() {
+  return useLogStore((state) => ({
+    stats: state.stats,
+    totalCount: state.totalCount,
+  }));
+}

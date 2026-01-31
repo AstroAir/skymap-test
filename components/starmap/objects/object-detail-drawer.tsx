@@ -61,6 +61,9 @@ import {
 import type { SelectedObjectData } from '@/lib/core/types';
 import { cn } from '@/lib/utils';
 import { getObjectTypeIcon, getObjectTypeColor } from '@/lib/astronomy/object-type-utils';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('object-detail-drawer');
 
 interface ObjectDetailDrawerProps {
   open: boolean;
@@ -144,7 +147,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
           }
         }
       } catch (error) {
-        console.error('Failed to load object info:', error);
+        logger.error('Failed to load object info', error);
         if (!cancelled) {
           setIsLoading(false);
           setIsEnhancing(false);
@@ -228,7 +231,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.warn('Failed to copy coordinates:', error);
+      logger.warn('Failed to copy coordinates', error);
     }
   }, [selectedObject]);
 

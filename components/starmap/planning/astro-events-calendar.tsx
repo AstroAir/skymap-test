@@ -63,6 +63,9 @@ import {
 } from '@/lib/services/astro-data-sources';
 import { useAstroEvents } from '@/lib/tauri/hooks';
 import { isTauri } from '@/lib/storage/platform';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('astro-events-calendar');
 
 
 // ============================================================================
@@ -290,7 +293,7 @@ export function AstroEventsCalendar() {
         setEvents(allEvents);
         setIsOnline(true);
       } catch (error) {
-        console.error('Failed to fetch events:', error);
+        logger.error('Failed to fetch events', error);
         // If web fetch fails but we have Tauri events, use those
         if (isTauri() && tauriEvents.events.length > 0) {
           const mapEventType = (t: string): EventType => {

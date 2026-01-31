@@ -38,14 +38,6 @@ interface MapLocationPickerProps {
   tileLayer?: TileLayerType;
 }
 
-const TILE_LAYER_OPTIONS: { value: TileLayerType; label: string }[] = [
-  { value: 'openstreetmap', label: 'OpenStreetMap' },
-  { value: 'cartodb_light', label: 'CartoDB Light' },
-  { value: 'cartodb_dark', label: 'CartoDB Dark' },
-  { value: 'esri_satellite', label: 'Satellite' },
-  { value: 'esri_topo', label: 'Topographic' },
-];
-
 function MapLocationPickerComponent({
   initialLocation = { latitude: 39.9042, longitude: 116.4074 },
   onLocationChange,
@@ -58,6 +50,16 @@ function MapLocationPickerComponent({
   tileLayer: initialTileLayer = 'openstreetmap',
 }: MapLocationPickerProps) {
   const t = useTranslations();
+
+  // Dynamic tile layer options with i18n
+  const TILE_LAYER_OPTIONS = useMemo(() => [
+    { value: 'openstreetmap' as TileLayerType, label: t('map.tileLayers.openstreetmap') },
+    { value: 'cartodb_light' as TileLayerType, label: t('map.tileLayers.cartodbLight') },
+    { value: 'cartodb_dark' as TileLayerType, label: t('map.tileLayers.cartodbDark') },
+    { value: 'esri_satellite' as TileLayerType, label: t('map.tileLayers.satellite') },
+    { value: 'esri_topo' as TileLayerType, label: t('map.tileLayers.topographic') },
+  ], [t]);
+
   const [currentLocation, setCurrentLocation] = useState<Coordinates>(initialLocation);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

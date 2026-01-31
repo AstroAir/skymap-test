@@ -45,8 +45,8 @@ export function ConnectionSettings({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="http">HTTP</SelectItem>
-              <SelectItem value="https">HTTPS</SelectItem>
+              <SelectItem value="http">{t('settings.protocolHttp')}</SelectItem>
+              <SelectItem value="https">{t('settings.protocolHttps')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -57,7 +57,7 @@ export function ConnectionSettings({
               value={localConnection.ip}
               onChange={(e) => onConnectionChange({ ...localConnection, ip: e.target.value })}
               onBlur={(e) => onConnectionChange({ ...localConnection, ip: e.target.value.trim() })}
-              placeholder="localhost"
+              placeholder={t('settings.ipAddressPlaceholder')}
               className="h-8 text-sm font-mono"
             />
           </div>
@@ -78,7 +78,7 @@ export function ConnectionSettings({
                 const validPort = isNaN(port) ? 1888 : Math.max(1, Math.min(65535, port));
                 onConnectionChange({ ...localConnection, port: String(validPort) });
               }}
-              placeholder="1888"
+              placeholder={t('settings.portPlaceholder')}
               className="h-8 text-sm font-mono"
             />
           </div>

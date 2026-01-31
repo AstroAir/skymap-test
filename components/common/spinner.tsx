@@ -2,11 +2,16 @@ import { Loader2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+interface SpinnerProps extends React.ComponentProps<"svg"> {
+  /** Accessible label for screen readers. Defaults to "Loading" */
+  label?: string;
+}
+
+function Spinner({ className, label = "Loading", ...props }: SpinnerProps) {
   return (
     <Loader2Icon
       role="status"
-      aria-label="Loading"
+      aria-label={label}
       className={cn("size-4 animate-spin", className)}
       {...props}
     />

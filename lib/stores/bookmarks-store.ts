@@ -94,6 +94,11 @@ export const useBookmarksStore = create<BookmarksState>()(
       reorderBookmarks: (fromIndex, toIndex) => {
         set((state) => {
           const bookmarks = [...state.bookmarks];
+          // Bounds validation
+          if (fromIndex < 0 || fromIndex >= bookmarks.length ||
+              toIndex < 0 || toIndex >= bookmarks.length) {
+            return state;
+          }
           const [removed] = bookmarks.splice(fromIndex, 1);
           bookmarks.splice(toIndex, 0, removed);
           return { bookmarks };

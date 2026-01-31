@@ -109,11 +109,11 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
       setInstalledIndexes(installed);
       setAvailableIndexes(available);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load indexes');
+      setError(err instanceof Error ? err.message : t('plateSolving.failedToLoadIndexes'));
     } finally {
       setIsLoading(false);
     }
-  }, [currentSolverType, config.index_path]);
+  }, [currentSolverType, config.index_path, t]);
 
   useEffect(() => {
     if (!open || !isDesktop) return;
@@ -204,7 +204,7 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
       await loadIndexes();
       await detectSolvers();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Download failed';
+      const message = err instanceof Error ? err.message : t('plateSolving.downloadFailed');
       setDownloads((prev) => {
         const next = new Map(prev);
         next.set(index.name, {
@@ -217,7 +217,7 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
       });
       setError(message);
     }
-  }, [isDesktop, config.index_path, currentSolverType, loadIndexes, detectSolvers]);
+  }, [isDesktop, config.index_path, currentSolverType, loadIndexes, detectSolvers, t]);
 
   // Load on open
   useEffect(() => {
@@ -235,9 +235,9 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
       await detectSolvers();
       setDeleteConfirm(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete index');
+      setError(err instanceof Error ? err.message : t('plateSolving.failedToDeleteIndex'));
     }
-  }, [loadIndexes, detectSolvers]);
+  }, [loadIndexes, detectSolvers, t]);
 
   // Check if an index is installed
   const isIndexInstalled = useCallback(

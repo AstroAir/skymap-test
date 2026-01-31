@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-> **Last Updated:** 2025-01-31
-> **Documentation Version:** 1.0.0
+> **Last Updated:** 2026-02-01
+> **Documentation Version:** 1.1.0
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-02-01 | 1.1.0 | Added tauri-api module documentation; updated scan coverage |
 | 2025-01-31 | 1.0.0 | Initial comprehensive documentation with module structure diagram |
 
 ---
@@ -46,6 +47,7 @@ graph TD
     C --> C3["services"];
     C --> C4["core"];
     C --> C5["catalogs"];
+    C --> C6["tauri"];
 
     D --> D1["astronomy"];
     D --> D2["data"];
@@ -59,6 +61,7 @@ graph TD
     click B1 "./components/starmap/CLAUDE.md" "View starmap module documentation"
     click C1 "./lib/astronomy/CLAUDE.md" "View astronomy module documentation"
     click C2 "./lib/stores/CLAUDE.md" "View stores module documentation"
+    click C6 "./lib/tauri/CLAUDE.md" "View tauri-api module documentation"
     click D1 "./src-tauri/src/astronomy/CLAUDE.md" "View Rust astronomy module documentation"
     click D2 "./src-tauri/src/data/CLAUDE.md" "View Rust data module documentation"
 ```
@@ -70,16 +73,17 @@ graph TD
 | Module | Path | Language | Description | Documentation |
 |--------|------|----------|-------------|---------------|
 | **starmap-ui** | `components/starmap/` | TSX | Star map UI components (core, overlays, planning, objects, management) | [CLAUDE.md](./components/starmap/CLAUDE.md) |
+| **tauri-api** | `lib/tauri/` | TS | TypeScript wrappers for Tauri IPC commands | [CLAUDE.md](./lib/tauri/CLAUDE.md) |
 | **astronomy-calculations** | `lib/astronomy/` | TS | Pure astronomical calculations | [CLAUDE.md](./lib/astronomy/CLAUDE.md) |
 | **state-management** | `lib/stores/` | TS | Zustand stores (settings, equipment, targets, markers) | [CLAUDE.md](./lib/stores/CLAUDE.md) |
+| **frontend-services** | `lib/services/` | TS | Service layer for external APIs | [CLAUDE.md](./lib/services/CLAUDE.md) |
+| **catalogs** | `lib/catalogs/` | TS | Astronomical catalog data and types | [CLAUDE.md](./lib/catalogs/CLAUDE.md) |
 | **rust-backend** | `src-tauri/src/` | Rust | Tauri backend entry point and module orchestration | [CLAUDE.md](./src-tauri/src/CLAUDE.md) |
 | **rust-astronomy** | `src-tauri/src/astronomy/` | Rust | Astronomical calculations in Rust | [CLAUDE.md](./src-tauri/src/astronomy/CLAUDE.md) |
 | **rust-storage** | `src-tauri/src/data/` | Rust | JSON storage for equipment, locations, targets, markers | [CLAUDE.md](./src-tauri/src/data/CLAUDE.md) |
 | **rust-network** | `src-tauri/src/network/` | Rust | HTTP client with security and rate limiting | [CLAUDE.md](./src-tauri/src/network/CLAUDE.md) |
 | **rust-cache** | `src-tauri/src/cache/` | Rust | Offline tile caching and unified cache | [CLAUDE.md](./src-tauri/src/cache/CLAUDE.md) |
 | **rust-platform** | `src-tauri/src/platform/` | Rust | Desktop-only features (settings, updater, plate solver) | [CLAUDE.md](./src-tauri/src/platform/CLAUDE.md) |
-| **frontend-services** | `lib/services/` | TS | Service layer for external APIs | [CLAUDE.md](./lib/services/CLAUDE.md) |
-| **catalogs** | `lib/catalogs/` | TS | Astronomical catalog data and types | [CLAUDE.md](./lib/catalogs/CLAUDE.md) |
 | **internationalization** | `i18n/` | JSON | English/Chinese translations | [CLAUDE.md](./i18n/CLAUDE.md) |
 | **e2e-tests** | `tests/e2e/` | TS | Playwright end-to-end tests | [CLAUDE.md](./tests/e2e/CLAUDE.md) |
 
@@ -130,10 +134,24 @@ The app uses Tauri's IPC for frontend-backend communication:
 3. **Zustand stores** in `lib/stores/` manage client state and sync with Rust backend
 
 ```
-React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → Rust command
+React Component --> Zustand Store --> lib/tauri/*-api.ts --> Tauri invoke() --> Rust command
 ```
 
 ### Key Directories
+
+**`lib/tauri/`** - Tauri IPC wrappers:
+- `api.ts` - Generic invoke wrapper
+- `storage-api.ts` - Storage operations
+- `astronomy-api.ts` - Astronomy calculations
+- `events-api.ts` - Astro events
+- `target-list-api.ts` - Target list management
+- `markers-api.ts` - Sky markers
+- `http-api.ts` - HTTP client
+- `cache-api.ts`, `unified-cache-api.ts` - Cache management
+- `updater-api.ts` - Auto-update
+- `app-control-api.ts` - App control
+- `plate-solver-api.ts` - Plate solving
+- `TauriSyncProvider.tsx` - Zustand sync provider
 
 **`lib/astronomy/`** - Pure astronomical calculations (no side effects):
 - `coordinates/` - RA/Dec, Alt/Az, Galactic coordinate conversions
@@ -149,6 +167,16 @@ React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → 
 - `target-list-store` - Observation targets
 - `marker-store` - Custom sky markers
 - `onboarding-store` - First-run experience state
+- `bookmarks-store` - View bookmarks
+- `mount-store` - Telescope mount state
+- `framing-store` - Camera framing state
+- `plate-solver-store` - Plate solving state
+- `stellarium-store` - Stellarium settings
+- `satellite-store` - Satellite tracking state
+- `search-store` - Search state
+- `theme-store` - Theme preference
+- `favorites-store` - Favorite objects
+- `setup-wizard-store` - Setup wizard state
 
 **`components/starmap/`** - Star map UI components:
 - `canvas/` - Stellarium Web Engine canvas wrapper
@@ -205,11 +233,11 @@ React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → 
 ## Path Aliases
 
 ```typescript
-@/components  → components/
-@/lib         → lib/
-@/ui          → components/ui/
-@/hooks       → hooks/
-@/utils       → lib/utils.ts
+@/components  --> components/
+@/lib         --> lib/
+@/ui          --> components/ui/
+@/hooks       --> hooks/
+@/utils       --> lib/utils.ts
 ```
 
 ---
@@ -273,9 +301,9 @@ See `src-tauri/src/network/security.rs` for implementation details.
 
 ## Scan Coverage
 
-- **Total Files:** ~450
-- **Scanned Files:** ~420
-- **Coverage:** 93%
+- **Total Files:** ~480
+- **Scanned Files:** ~460
+- **Coverage:** 96%
 - **Ignored:** node_modules, .git, build artifacts
 
 ### Known Gaps

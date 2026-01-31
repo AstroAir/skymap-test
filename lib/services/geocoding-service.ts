@@ -14,6 +14,9 @@ import { createMapProvider } from './map-providers';
 import { mapConfig } from './map-config';
 import { connectivityChecker } from './connectivity-checker';
 import { LRUCache, RequestDeduplicator } from './lru-cache';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('geocoding-service');
 
 export interface GeocodingOptions {
   limit?: number;
@@ -106,7 +109,7 @@ class GeocodingService {
         // Start monitoring provider health
         connectivityChecker.startMonitoring(provider);
       } catch (error) {
-        console.warn(`Failed to initialize provider ${providerConfig.provider}:`, error);
+        logger.warn(`Failed to initialize provider ${providerConfig.provider}`, error);
       }
     }
   }
@@ -215,7 +218,7 @@ class GeocodingService {
         
         return results;
       } catch (error) {
-        console.warn(`Geocoding failed with ${currentProvider.getProviderType()}:`, error);
+        logger.warn(`Geocoding failed with ${currentProvider.getProviderType()}`, error);
         throw error;
       }
     };
@@ -247,7 +250,7 @@ class GeocodingService {
           try {
             return await attemptGeocode(fallbackProvider);
           } catch (fallbackError) {
-            console.warn(`Fallback geocoding failed with ${providerConfig.provider}:`, fallbackError);
+            logger.warn(`Fallback geocoding failed with ${providerConfig.provider}`, fallbackError);
             continue;
           }
         }
@@ -326,7 +329,7 @@ class GeocodingService {
           
           return result;
         } catch (error) {
-          console.warn(`Reverse geocoding failed with ${currentProvider.getProviderType()}:`, error);
+          logger.warn(`Reverse geocoding failed with ${currentProvider.getProviderType()}`, error);
           throw error;
         }
       };
@@ -358,7 +361,7 @@ class GeocodingService {
           try {
             return await attemptReverseGeocode(fallbackProvider);
           } catch (fallbackError) {
-            console.warn(`Fallback reverse geocoding failed with ${providerConfig.provider}:`, fallbackError);
+            logger.warn(`Fallback reverse geocoding failed with ${providerConfig.provider}`, fallbackError);
             continue;
           }
         }
@@ -402,7 +405,7 @@ class GeocodingService {
           coordinates: result.coordinates,
         }));
       } catch (error) {
-        console.warn('Autocomplete failed:', error);
+        logger.warn('Autocomplete failed', error);
         return [];
       }
     }
@@ -415,7 +418,7 @@ class GeocodingService {
         coordinates: result.coordinates,
       }));
     } catch (error) {
-      console.warn('Autocomplete fallback failed:', error);
+      logger.warn('Autocomplete fallback failed', error);
       return [];
     }
   }

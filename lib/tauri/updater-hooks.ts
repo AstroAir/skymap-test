@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createLogger } from '@/lib/logger';
 import {
   UpdateStatus,
   UpdateInfo,
@@ -15,6 +16,8 @@ import {
   isUpdateDownloading,
   isUpdateError,
 } from './updater-api';
+
+const logger = createLogger('updater-hooks');
 
 export interface UseUpdaterOptions {
   autoCheck?: boolean;
@@ -71,7 +74,7 @@ export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
   useEffect(() => {
     getCurrentVersion()
       .then(setCurrentVersion)
-      .catch(console.error);
+      .catch(err => logger.error('Failed to get current version', err));
 
     const setupListener = async () => {
       unlistenRef.current = await onUpdateProgress((newStatus) => {

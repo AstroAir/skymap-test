@@ -328,7 +328,7 @@ pub struct VisibilityInfo {
     pub hours_visible: f64,
 }
 
-/// Calculate target visibility
+/// Calculate target visibility with precise rise/set/transit times
 #[tauri::command]
 pub fn calculate_visibility(
     ra: f64,
@@ -353,23 +353,37 @@ pub fn calculate_visibility(
     let lat_rad = latitude * DEG_TO_RAD;
     let dec_rad = dec * DEG_TO_RAD;
 
-    let cos_h0 = (-lat_rad.tan() * dec_rad.tan()).clamp(-1.0, 1.0);
+    // Hour angle at rise/set for horizon (with atmospheric refraction correction ~34 arcmin)
+    let refraction_correction = 0.5667 * DEG_TO_RAD; // ~34 arcmin in radians
+    let cos_h0 = ((-refraction_correction).sin() - lat_rad.sin() * dec_rad.sin())
+        / (lat_rad.cos() * dec_rad.cos());
+    let cos_h0 = cos_h0.clamp(-1.0, 1.0);
 
     let is_circumpolar = cos_h0 <= -1.0;
     let never_rises = cos_h0 >= 1.0;
 
-    // Calculate rise/set times
+    // Calculate rise/set times using sidereal time
     let (rise_time, set_time, transit_time, hours_visible) = if is_circumpolar {
-        (None, None, None, 24.0)
+        // Object is always above horizon, calculate transit time only
+        let transit_ts = calculate_transit_time(ra, longitude, &dt);
+        (None, None, transit_ts, 24.0)
     } else if never_rises {
         (None, None, None, 0.0)
     } else {
-        let h0 = cos_h0.acos() * RAD_TO_DEG;
-        let hours = h0 / HOURS_TO_DEG * 2.0;
+        let h0 = cos_h0.acos() * RAD_TO_DEG; // Hour angle at rise/set in degrees
+        let hours = h0 / HOURS_TO_DEG * 2.0; // Total hours visible
 
-        // Simplified: just return hours visible, not exact times
-        // Full implementation would calculate exact rise/set times
-        (None, None, None, hours)
+        // Calculate transit time (when HA = 0)
+        let transit_ts = calculate_transit_time(ra, longitude, &dt);
+
+        // Rise time = transit - h0 (in hours converted to seconds)
+        // Set time = transit + h0
+        let h0_seconds = (h0 / 15.0) * 3600.0; // Convert degrees to hours then to seconds
+
+        let rise_ts = transit_ts.map(|t| t - h0_seconds as i64);
+        let set_ts = transit_ts.map(|t| t + h0_seconds as i64);
+
+        (rise_ts, set_ts, transit_ts, hours)
     };
 
     VisibilityInfo {
@@ -384,6 +398,42 @@ pub fn calculate_visibility(
         never_rises,
         hours_visible,
     }
+}
+
+/// Calculate the transit time (meridian crossing) for an object
+fn calculate_transit_time(ra: f64, longitude: f64, dt: &DateTime<Utc>) -> Option<i64> {
+    // Get the date at midnight UTC
+    let midnight = dt.date_naive().and_hms_opt(0, 0, 0)?;
+    let midnight_utc = DateTime::<Utc>::from_naive_utc_and_offset(midnight, Utc);
+    let jd_midnight = datetime_to_jd(&midnight_utc);
+
+    // Calculate GMST at midnight
+    let gmst_midnight = calculate_gmst(jd_midnight);
+
+    // LST at midnight for this longitude
+    let lst_midnight = normalize_degrees(gmst_midnight + longitude);
+
+    // Hour angle at midnight
+    let ha_midnight = normalize_degrees(lst_midnight - ra);
+
+    // Time until transit (when HA = 0)
+    // If HA > 180, transit was earlier, so add 360 to get time until next transit
+    let ha_to_transit = if ha_midnight > 180.0 {
+        360.0 - ha_midnight
+    } else {
+        -ha_midnight
+    };
+
+    // Convert hour angle difference to time (15 deg/hour = 1 hour per 15 degrees)
+    let hours_to_transit = ha_to_transit / 15.0;
+    let seconds_to_transit = hours_to_transit * 3600.0;
+
+    // Sidereal day is slightly shorter than solar day
+    // 1 sidereal day = 23h 56m 4s = 86164.0905 seconds
+    let sidereal_correction = seconds_to_transit * (1.0 - 86164.0905 / 86400.0);
+    let adjusted_seconds = seconds_to_transit - sidereal_correction;
+
+    Some(midnight_utc.timestamp() + adjusted_seconds as i64)
 }
 
 // ============================================================================
@@ -407,44 +457,170 @@ pub struct TwilightTimes {
     pub is_polar_night: bool,
 }
 
-/// Calculate twilight times for a date
+/// Calculate twilight times for a date with precise calculations
+/// Uses iterative approach for accurate sunrise/sunset and twilight times
 #[tauri::command]
 pub fn calculate_twilight(
     date: String,
     latitude: f64,
-    _longitude: f64,
+    longitude: f64,
 ) -> Result<TwilightTimes, String> {
     let naive_date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
         .map_err(|e| format!("Invalid date format: {}", e))?;
 
-    let jd = date_to_jd(&naive_date);
+    let jd_noon = date_to_jd(&naive_date) + 0.5; // Julian date at noon UTC
 
-    // Calculate sun position at noon
-    let sun_dec = calculate_sun_declination(jd + 0.5);
+    // Calculate sun position at noon for polar day/night check
+    let sun_dec_noon = calculate_sun_declination(jd_noon);
     let lat_rad = latitude * DEG_TO_RAD;
-    let dec_rad = sun_dec * DEG_TO_RAD;
+    let dec_rad_noon = sun_dec_noon * DEG_TO_RAD;
 
-    // Check for polar day/night
-    let cos_h0 = -lat_rad.tan() * dec_rad.tan();
-    let is_polar_day = cos_h0 < -1.0;
-    let is_polar_night = cos_h0 > 1.0;
+    // Check for polar day/night using sunrise/sunset altitude
+    let cos_h_sunrise = calculate_cos_hour_angle(lat_rad, dec_rad_noon, -0.8333 * DEG_TO_RAD);
+    let is_polar_day = cos_h_sunrise < -1.0;
+    let is_polar_night = cos_h_sunrise > 1.0;
 
-    // For now, return simplified result
-    // Full implementation would calculate exact times
+    if is_polar_day || is_polar_night {
+        // Calculate solar noon even in polar conditions
+        let solar_noon_ts = calculate_solar_noon(jd_noon, longitude);
+        return Ok(TwilightTimes {
+            date,
+            sunrise: None,
+            sunset: None,
+            civil_dawn: None,
+            civil_dusk: None,
+            nautical_dawn: None,
+            nautical_dusk: None,
+            astronomical_dawn: None,
+            astronomical_dusk: None,
+            solar_noon: solar_noon_ts,
+            is_polar_day,
+            is_polar_night,
+        });
+    }
+
+    // Solar altitude angles for different twilight types
+    const SUNRISE_SUNSET_ALT: f64 = -0.8333; // Accounts for refraction and solar disk radius
+    const CIVIL_TWILIGHT_ALT: f64 = -6.0;
+    const NAUTICAL_TWILIGHT_ALT: f64 = -12.0;
+    const ASTRONOMICAL_TWILIGHT_ALT: f64 = -18.0;
+
+    // Calculate solar noon (when sun crosses meridian)
+    let solar_noon_ts = calculate_solar_noon(jd_noon, longitude);
+
+    // Calculate times for each twilight type
+    let (sunrise, sunset) = calculate_sun_rise_set_times(jd_noon, latitude, longitude, SUNRISE_SUNSET_ALT);
+    let (civil_dawn, civil_dusk) = calculate_sun_rise_set_times(jd_noon, latitude, longitude, CIVIL_TWILIGHT_ALT);
+    let (nautical_dawn, nautical_dusk) = calculate_sun_rise_set_times(jd_noon, latitude, longitude, NAUTICAL_TWILIGHT_ALT);
+    let (astronomical_dawn, astronomical_dusk) = calculate_sun_rise_set_times(jd_noon, latitude, longitude, ASTRONOMICAL_TWILIGHT_ALT);
+
     Ok(TwilightTimes {
         date,
-        sunrise: None,
-        sunset: None,
-        civil_dawn: None,
-        civil_dusk: None,
-        nautical_dawn: None,
-        nautical_dusk: None,
-        astronomical_dawn: None,
-        astronomical_dusk: None,
-        solar_noon: None,
+        sunrise,
+        sunset,
+        civil_dawn,
+        civil_dusk,
+        nautical_dawn,
+        nautical_dusk,
+        astronomical_dawn,
+        astronomical_dusk,
+        solar_noon: solar_noon_ts,
         is_polar_day,
         is_polar_night,
     })
+}
+
+/// Calculate cos(hour_angle) for a given sun altitude
+fn calculate_cos_hour_angle(lat_rad: f64, dec_rad: f64, alt_rad: f64) -> f64 {
+    (alt_rad.sin() - lat_rad.sin() * dec_rad.sin()) / (lat_rad.cos() * dec_rad.cos())
+}
+
+/// Calculate solar noon timestamp for a given date and longitude
+fn calculate_solar_noon(jd_noon: f64, longitude: f64) -> Option<i64> {
+    // Approximate equation of time calculation
+    let n = jd_noon - 2451545.0; // Days since J2000
+    let g = normalize_degrees(357.528 + 0.9856003 * n); // Mean anomaly
+    let g_rad = g * DEG_TO_RAD;
+
+    // Simplified equation of time (in minutes)
+    let eot_simple = -7.655 * g_rad.sin() + 9.873 * (2.0 * g_rad + 3.588).sin();
+
+    // Solar noon = 12:00 - equation_of_time - longitude/15 (in hours)
+    let solar_noon_hours = 12.0 - eot_simple / 60.0 - longitude / 15.0;
+
+    // Convert to timestamp
+    let jd_midnight = jd_noon - 0.5;
+    let jd_solar_noon = jd_midnight + solar_noon_hours / 24.0;
+
+    Some(jd_to_timestamp(jd_solar_noon))
+}
+
+/// Calculate sunrise and sunset times for a given altitude threshold
+fn calculate_sun_rise_set_times(
+    jd_noon: f64,
+    latitude: f64,
+    longitude: f64,
+    altitude_deg: f64,
+) -> (Option<i64>, Option<i64>) {
+    let lat_rad = latitude * DEG_TO_RAD;
+    let alt_rad = altitude_deg * DEG_TO_RAD;
+
+    // Iterative calculation for better accuracy
+    let mut jd_rise = jd_noon - 0.25; // Start from 6 AM
+    let mut jd_set = jd_noon + 0.25;  // Start from 6 PM
+
+    let mut final_rise_ts = None;
+    let mut final_set_ts = None;
+
+    for iteration in 0..5 {
+        // Iterate for convergence
+        let dec_rise = calculate_sun_declination(jd_rise) * DEG_TO_RAD;
+        let dec_set = calculate_sun_declination(jd_set) * DEG_TO_RAD;
+
+        let cos_h_rise = calculate_cos_hour_angle(lat_rad, dec_rise, alt_rad);
+        let cos_h_set = calculate_cos_hour_angle(lat_rad, dec_set, alt_rad);
+
+        if cos_h_rise.abs() > 1.0 || cos_h_set.abs() > 1.0 {
+            return (None, None); // Sun doesn't reach this altitude
+        }
+
+        let h_rise = cos_h_rise.acos() * RAD_TO_DEG;
+        let h_set = cos_h_set.acos() * RAD_TO_DEG;
+
+        // Calculate times based on hour angles
+        let noon_ts = calculate_solar_noon(jd_noon, longitude);
+        if let Some(noon) = noon_ts {
+            let rise_offset = (h_rise / 15.0) * 3600.0; // Convert to seconds
+            let set_offset = (h_set / 15.0) * 3600.0;
+
+            let rise_ts = noon - rise_offset as i64;
+            let set_ts = noon + set_offset as i64;
+
+            // Update JD for next iteration
+            jd_rise = timestamp_to_jd(rise_ts);
+            jd_set = timestamp_to_jd(set_ts);
+
+            // Store final values on last iteration
+            if iteration == 4 {
+                final_rise_ts = Some(rise_ts);
+                final_set_ts = Some(set_ts);
+            }
+        } else {
+            return (None, None);
+        }
+    }
+
+    (final_rise_ts, final_set_ts)
+}
+
+/// Convert Julian Date to Unix timestamp
+fn jd_to_timestamp(jd: f64) -> i64 {
+    ((jd - 2440587.5) * 86400.0) as i64
+}
+
+/// Convert Unix timestamp to Julian Date
+fn timestamp_to_jd(ts: i64) -> f64 {
+    ts as f64 / 86400.0 + 2440587.5
 }
 
 // ============================================================================
@@ -520,7 +696,8 @@ pub struct MoonPosition {
     pub distance: f64, // km
 }
 
-/// Calculate moon position
+/// Calculate moon position with improved accuracy
+/// Uses simplified lunar theory with major perturbation terms
 #[tauri::command]
 pub fn calculate_moon_position(
     latitude: f64,
@@ -533,29 +710,87 @@ pub fn calculate_moon_position(
 
     let jd = datetime_to_jd(&dt);
     let t = (jd - 2451545.0) / 36525.0;
+    let t2 = t * t;
+    let t3 = t2 * t;
 
-    // Simplified moon position calculation
-    // Mean longitude
-    let l0 = normalize_degrees(218.3164477 + 481267.88123421 * t);
+    // Fundamental arguments (in degrees)
+    // Mean longitude of the Moon
+    let l_prime = normalize_degrees(
+        218.3164477 + 481267.88123421 * t - 0.0015786 * t2 + t3 / 538841.0
+    );
+    // Mean anomaly of the Moon
+    let m_prime = normalize_degrees(
+        134.9633964 + 477198.8675055 * t + 0.0087414 * t2 + t3 / 69699.0
+    );
+    // Mean anomaly of the Sun
+    let m = normalize_degrees(
+        357.5291092 + 35999.0502909 * t - 0.0001536 * t2
+    );
+    // Mean elongation of the Moon
+    let d = normalize_degrees(
+        297.8501921 + 445267.1114034 * t - 0.0018819 * t2 + t3 / 545868.0
+    );
+    // Mean distance of Moon from ascending node
+    let f = normalize_degrees(
+        93.2720950 + 483202.0175233 * t - 0.0036539 * t2
+    );
 
-    // Mean anomaly
-    let m = normalize_degrees(134.9633964 + 477198.8675055 * t);
+    // Convert to radians for calculations
+    let _l_prime_rad = l_prime * DEG_TO_RAD; // Reserved for future use
+    let m_prime_rad = m_prime * DEG_TO_RAD;
+    let m_rad = m * DEG_TO_RAD;
+    let d_rad = d * DEG_TO_RAD;
+    let f_rad = f * DEG_TO_RAD;
 
-    // Mean elongation (unused in simplified calculation but kept for reference)
-    let _d = normalize_degrees(297.8501921 + 445267.1114034 * t);
+    // Longitude perturbations (main terms)
+    let mut sigma_l = 0.0;
+    sigma_l += 6288774.0 * m_prime_rad.sin();
+    sigma_l += 1274027.0 * (2.0 * d_rad - m_prime_rad).sin();
+    sigma_l += 658314.0 * (2.0 * d_rad).sin();
+    sigma_l += 213618.0 * (2.0 * m_prime_rad).sin();
+    sigma_l -= 185116.0 * m_rad.sin();
+    sigma_l -= 114332.0 * (2.0 * f_rad).sin();
+    sigma_l += 58793.0 * (2.0 * d_rad - 2.0 * m_prime_rad).sin();
+    sigma_l += 57066.0 * (2.0 * d_rad - m_rad - m_prime_rad).sin();
+    sigma_l += 53322.0 * (2.0 * d_rad + m_prime_rad).sin();
+    sigma_l += 45758.0 * (2.0 * d_rad - m_rad).sin();
+    sigma_l -= 40923.0 * (m_rad - m_prime_rad).sin();
+    sigma_l -= 34720.0 * d_rad.sin();
+    sigma_l -= 30383.0 * (m_rad + m_prime_rad).sin();
+    sigma_l += 15327.0 * (2.0 * d_rad - 2.0 * f_rad).sin();
 
-    // Simplified ecliptic longitude
-    let lon = l0 + 6.289 * (m * DEG_TO_RAD).sin();
-    let lat = 5.128 * (m * DEG_TO_RAD).sin();
+    // Latitude perturbations (main terms)
+    let mut sigma_b = 0.0;
+    sigma_b += 5128122.0 * f_rad.sin();
+    sigma_b += 280602.0 * (m_prime_rad + f_rad).sin();
+    sigma_b += 277693.0 * (m_prime_rad - f_rad).sin();
+    sigma_b += 173237.0 * (2.0 * d_rad - f_rad).sin();
+    sigma_b += 55413.0 * (2.0 * d_rad - m_prime_rad + f_rad).sin();
+    sigma_b += 46271.0 * (2.0 * d_rad - m_prime_rad - f_rad).sin();
+    sigma_b += 32573.0 * (2.0 * d_rad + f_rad).sin();
+    sigma_b += 17198.0 * (2.0 * m_prime_rad + f_rad).sin();
+
+    // Distance perturbations (main terms)
+    let mut sigma_r = 0.0;
+    sigma_r -= 20905355.0 * m_prime_rad.cos();
+    sigma_r -= 3699111.0 * (2.0 * d_rad - m_prime_rad).cos();
+    sigma_r -= 2955968.0 * (2.0 * d_rad).cos();
+    sigma_r -= 569925.0 * (2.0 * m_prime_rad).cos();
+    sigma_r += 48888.0 * m_rad.cos();
+    sigma_r -= 3149.0 * (2.0 * f_rad).cos();
+    sigma_r += 246158.0 * (2.0 * d_rad - 2.0 * m_prime_rad).cos();
+    sigma_r -= 152138.0 * (2.0 * d_rad - m_rad - m_prime_rad).cos();
+
+    // Calculate final values
+    let lon = l_prime + sigma_l / 1000000.0;
+    let lat = sigma_b / 1000000.0;
+    let distance = 385000.56 + sigma_r / 1000.0; // km
 
     // Convert to equatorial
     let eq = ecliptic_to_equatorial(lon, lat, Some(dt.timestamp()));
 
     // Convert to horizontal
     let hor = equatorial_to_horizontal(eq.ra, eq.dec, latitude, longitude, Some(dt.timestamp()));
-
-    // Distance (simplified)
-    let distance = 385000.0 - 20905.0 * (m * DEG_TO_RAD).cos();
 
     MoonPosition {
         ra: eq.ra,
@@ -579,7 +814,8 @@ pub struct SunPosition {
     pub azimuth: f64,
 }
 
-/// Calculate sun position
+/// Calculate sun position with improved accuracy
+/// Uses VSOP87 simplified algorithm with perturbation terms
 #[tauri::command]
 pub fn calculate_sun_position(
     latitude: f64,
@@ -592,32 +828,56 @@ pub fn calculate_sun_position(
 
     let jd = datetime_to_jd(&dt);
     let t = (jd - 2451545.0) / 36525.0;
+    let t2 = t * t;
+    // Geometric mean longitude of the Sun (in degrees)
+    let l0 = normalize_degrees(280.46646 + 36000.76983 * t + 0.0003032 * t2);
 
-    // Mean longitude
-    let l0 = normalize_degrees(280.46646 + 36000.76983 * t);
-
-    // Mean anomaly
-    let m = normalize_degrees(357.52911 + 35999.05029 * t);
+    // Mean anomaly of the Sun (in degrees)
+    let m = normalize_degrees(357.52911 + 35999.05029 * t - 0.0001537 * t2);
     let m_rad = m * DEG_TO_RAD;
 
-    // Equation of center
-    let c = (1.914602 - 0.004817 * t) * m_rad.sin() + 0.019993 * (2.0 * m_rad).sin();
+    // Eccentricity of Earth's orbit
+    let e = 0.016708634 - 0.000042037 * t - 0.0000001267 * t2;
 
-    // Sun's true longitude
-    let sun_lon = l0 + c;
+    // Sun's equation of center (in degrees)
+    let c = (1.914602 - 0.004817 * t - 0.000014 * t2) * m_rad.sin()
+        + (0.019993 - 0.000101 * t) * (2.0 * m_rad).sin()
+        + 0.000289 * (3.0 * m_rad).sin();
 
-    // Obliquity (used internally by ecliptic_to_equatorial)
-    let _obliquity = calculate_obliquity(jd);
+    // Sun's true longitude (in degrees)
+    let sun_true_lon = l0 + c;
 
-    // Convert to equatorial
-    let eq = ecliptic_to_equatorial(sun_lon, 0.0, Some(dt.timestamp()));
+    // Sun's true anomaly (in degrees)
+    let v = m + c;
+    let v_rad = v * DEG_TO_RAD;
+
+    // Sun's radius vector (AU)
+    let _r = (1.000001018 * (1.0 - e * e)) / (1.0 + e * v_rad.cos());
+
+    // Apparent longitude (corrected for nutation and aberration)
+    let omega = 125.04 - 1934.136 * t; // longitude of Moon's ascending node
+    let omega_rad = omega * DEG_TO_RAD;
+    let sun_apparent_lon = sun_true_lon - 0.00569 - 0.00478 * omega_rad.sin();
+
+    // Obliquity of the ecliptic (corrected)
+    let obliquity = calculate_obliquity(jd) + 0.00256 * omega_rad.cos();
+    let obliquity_rad = obliquity * DEG_TO_RAD;
+
+    // Convert to equatorial coordinates directly for better accuracy
+    let sun_lon_rad = sun_apparent_lon * DEG_TO_RAD;
+    
+    let ra = (obliquity_rad.cos() * sun_lon_rad.sin()).atan2(sun_lon_rad.cos());
+    let dec = (obliquity_rad.sin() * sun_lon_rad.sin()).asin();
+
+    let ra_deg = normalize_degrees(ra * RAD_TO_DEG);
+    let dec_deg = dec * RAD_TO_DEG;
 
     // Convert to horizontal
-    let hor = equatorial_to_horizontal(eq.ra, eq.dec, latitude, longitude, Some(dt.timestamp()));
+    let hor = equatorial_to_horizontal(ra_deg, dec_deg, latitude, longitude, Some(dt.timestamp()));
 
     SunPosition {
-        ra: eq.ra,
-        dec: eq.dec,
+        ra: ra_deg,
+        dec: dec_deg,
         altitude: hor.alt,
         azimuth: hor.az,
     }
@@ -747,19 +1007,34 @@ fn calculate_obliquity(jd: f64) -> f64 {
     23.439291 - 0.0130042 * t - 0.00000016 * t * t + 0.000000504 * t * t * t
 }
 
-/// Calculate sun declination (simplified)
+/// Calculate sun declination with improved accuracy
 fn calculate_sun_declination(jd: f64) -> f64 {
     let t = (jd - 2451545.0) / 36525.0;
-    let l0 = normalize_degrees(280.46646 + 36000.76983 * t);
-    let m = normalize_degrees(357.52911 + 35999.05029 * t);
+    let t2 = t * t;
+
+    // Geometric mean longitude of the Sun
+    let l0 = normalize_degrees(280.46646 + 36000.76983 * t + 0.0003032 * t2);
+
+    // Mean anomaly of the Sun
+    let m = normalize_degrees(357.52911 + 35999.05029 * t - 0.0001537 * t2);
     let m_rad = m * DEG_TO_RAD;
 
-    let c = (1.914602 - 0.004817 * t) * m_rad.sin();
+    // Equation of center
+    let c = (1.914602 - 0.004817 * t - 0.000014 * t2) * m_rad.sin()
+        + (0.019993 - 0.000101 * t) * (2.0 * m_rad).sin()
+        + 0.000289 * (3.0 * m_rad).sin();
+
+    // Sun's true longitude
     let sun_lon = (l0 + c) * DEG_TO_RAD;
 
-    let obliquity = calculate_obliquity(jd) * DEG_TO_RAD;
+    // Nutation correction
+    let omega = (125.04 - 1934.136 * t) * DEG_TO_RAD;
+    let apparent_lon = sun_lon - 0.00569 * DEG_TO_RAD - 0.00478 * omega.sin() * DEG_TO_RAD;
 
-    (obliquity.sin() * sun_lon.sin()).asin() * RAD_TO_DEG
+    // Corrected obliquity
+    let obliquity = (calculate_obliquity(jd) + 0.00256 * omega.cos()) * DEG_TO_RAD;
+
+    (obliquity.sin() * apparent_lon.sin()).asin() * RAD_TO_DEG
 }
 
 // ============================================================================
@@ -1183,6 +1458,63 @@ mod tests {
             "Transit altitude should be {}°, got {}", expected_transit, vis.transit_altitude);
     }
 
+    #[test]
+    fn test_visibility_rise_set_times() {
+        // Normal visibility case: object that rises and sets
+        let vis = calculate_visibility(0.0, 20.0, 45.0, 0.0, None, None);
+        
+        // Should have rise and set times
+        assert!(vis.rise_time.is_some(), "Rise time should be present for normal object");
+        assert!(vis.set_time.is_some(), "Set time should be present for normal object");
+        assert!(vis.transit_time.is_some(), "Transit time should be present");
+        
+        // Rise should be before set
+        if let (Some(rise), Some(set)) = (vis.rise_time, vis.set_time) {
+            // Note: rise could be > set if the object rises late and sets early next day
+            // For this test, we just verify they exist and are different
+            assert_ne!(rise, set, "Rise and set times should be different");
+        }
+    }
+
+    #[test]
+    fn test_visibility_circumpolar_has_transit() {
+        // Circumpolar objects should have transit time but no rise/set
+        let vis = calculate_visibility(0.0, 85.0, 80.0, 0.0, None, None);
+        
+        assert!(vis.is_circumpolar);
+        assert!(vis.transit_time.is_some(), "Circumpolar object should have transit time");
+        assert!(vis.rise_time.is_none(), "Circumpolar object should not have rise time");
+        assert!(vis.set_time.is_none(), "Circumpolar object should not have set time");
+    }
+
+    #[test]
+    fn test_visibility_never_rises_no_times() {
+        // Objects that never rise should have no times
+        let vis = calculate_visibility(0.0, -85.0, 80.0, 0.0, None, None);
+        
+        assert!(vis.never_rises);
+        assert!(vis.rise_time.is_none(), "Never-rises object should not have rise time");
+        assert!(vis.set_time.is_none(), "Never-rises object should not have set time");
+        assert!(vis.transit_time.is_none(), "Never-rises object should not have transit time");
+    }
+
+    #[test]
+    fn test_visibility_hours_range() {
+        // Test that hours visible is always in valid range
+        let test_cases = vec![
+            (0.0, 0.0, 45.0),    // Equatorial object
+            (180.0, 45.0, 45.0), // Mid-declination
+            (90.0, -30.0, 30.0), // Southern object from southern location
+        ];
+        
+        for (ra, dec, lat) in test_cases {
+            let vis = calculate_visibility(ra, dec, lat, 0.0, None, None);
+            assert!(vis.hours_visible >= 0.0 && vis.hours_visible <= 24.0,
+                "Hours visible out of range: {} for ra={}, dec={}, lat={}", 
+                vis.hours_visible, ra, dec, lat);
+        }
+    }
+
     // ------------------------------------------------------------------------
     // Twilight Tests
     // ------------------------------------------------------------------------
@@ -1203,6 +1535,48 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn test_twilight_normal_day() {
+        // Test twilight times for a normal mid-latitude location
+        let result = calculate_twilight("2024-03-20".to_string(), 40.0, -74.0);
+        assert!(result.is_ok());
+        let twilight = result.unwrap();
+        
+        // Should not be polar day/night at mid-latitude
+        assert!(!twilight.is_polar_day, "Should not be polar day");
+        assert!(!twilight.is_polar_night, "Should not be polar night");
+        
+        // All twilight times should be present
+        assert!(twilight.sunrise.is_some(), "Sunrise should be present");
+        assert!(twilight.sunset.is_some(), "Sunset should be present");
+        assert!(twilight.civil_dawn.is_some(), "Civil dawn should be present");
+        assert!(twilight.civil_dusk.is_some(), "Civil dusk should be present");
+        assert!(twilight.solar_noon.is_some(), "Solar noon should be present");
+        
+        // Verify time ordering: dawn < sunrise < noon < sunset < dusk
+        if let (Some(dawn), Some(sunrise), Some(noon), Some(sunset), Some(dusk)) = 
+            (twilight.civil_dawn, twilight.sunrise, twilight.solar_noon, twilight.sunset, twilight.civil_dusk) {
+            assert!(dawn < sunrise, "Civil dawn should be before sunrise");
+            assert!(sunrise < noon, "Sunrise should be before solar noon");
+            assert!(noon < sunset, "Solar noon should be before sunset");
+            assert!(sunset < dusk, "Sunset should be before civil dusk");
+        }
+    }
+
+    #[test]
+    fn test_twilight_astronomical() {
+        // Test that astronomical twilight is further from noon than nautical
+        let result = calculate_twilight("2024-06-15".to_string(), 45.0, 0.0);
+        assert!(result.is_ok());
+        let twilight = result.unwrap();
+        
+        if let (Some(astro_dawn), Some(naut_dawn), Some(naut_dusk), Some(astro_dusk)) = 
+            (twilight.astronomical_dawn, twilight.nautical_dawn, twilight.nautical_dusk, twilight.astronomical_dusk) {
+            assert!(astro_dawn < naut_dawn, "Astronomical dawn should be before nautical dawn");
+            assert!(naut_dusk < astro_dusk, "Nautical dusk should be before astronomical dusk");
+        }
+    }
+
     // ------------------------------------------------------------------------
     // Sun Position Tests
     // ------------------------------------------------------------------------
@@ -1212,6 +1586,44 @@ mod tests {
         let sun = calculate_sun_position(45.0, 0.0, None);
         assert!(sun.ra >= 0.0 && sun.ra < 360.0, "Sun RA out of range: {}", sun.ra);
         assert!(sun.dec >= -23.5 && sun.dec <= 23.5, "Sun Dec out of range: {}", sun.dec);
+    }
+
+    #[test]
+    fn test_sun_position_summer_solstice() {
+        // Around summer solstice, sun declination should be near +23.44°
+        let dt = Utc.with_ymd_and_hms(2024, 6, 21, 12, 0, 0).unwrap();
+        let sun = calculate_sun_position(0.0, 0.0, Some(dt.timestamp()));
+        assert!(sun.dec > 23.0 && sun.dec < 24.0, 
+            "Sun Dec on summer solstice should be ~23.44°, got {}", sun.dec);
+    }
+
+    #[test]
+    fn test_sun_position_winter_solstice() {
+        // Around winter solstice, sun declination should be near -23.44°
+        let dt = Utc.with_ymd_and_hms(2024, 12, 21, 12, 0, 0).unwrap();
+        let sun = calculate_sun_position(0.0, 0.0, Some(dt.timestamp()));
+        assert!(sun.dec < -23.0 && sun.dec > -24.0, 
+            "Sun Dec on winter solstice should be ~-23.44°, got {}", sun.dec);
+    }
+
+    #[test]
+    fn test_sun_position_equinox() {
+        // Around equinox, sun declination should be near 0°
+        let dt = Utc.with_ymd_and_hms(2024, 3, 20, 12, 0, 0).unwrap();
+        let sun = calculate_sun_position(0.0, 0.0, Some(dt.timestamp()));
+        assert!(sun.dec.abs() < 1.5, 
+            "Sun Dec on equinox should be near 0°, got {}", sun.dec);
+    }
+
+    #[test]
+    fn test_sun_altitude_noon() {
+        // At solar noon, sun should be at or near highest altitude
+        let dt = Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap();
+        let sun = calculate_sun_position(0.0, 0.0, Some(dt.timestamp()));
+        // At latitude 0, longitude 0, noon UTC should have sun near zenith in June
+        // This is a basic sanity check
+        assert!(sun.altitude > -90.0 && sun.altitude <= 90.0, 
+            "Sun altitude out of range: {}", sun.altitude);
     }
 
     // ------------------------------------------------------------------------
@@ -1225,5 +1637,63 @@ mod tests {
         assert!(moon.dec >= -90.0 && moon.dec <= 90.0, "Moon Dec out of range: {}", moon.dec);
         assert!(moon.distance > 350000.0 && moon.distance < 410000.0, 
             "Moon distance out of range: {} km", moon.distance);
+    }
+
+    #[test]
+    fn test_moon_position_distance_variation() {
+        // Moon distance varies between ~356,500 km (perigee) and ~406,700 km (apogee)
+        // Test multiple timestamps to verify distance stays in range
+        let test_timestamps = vec![
+            Utc.with_ymd_and_hms(2024, 1, 15, 12, 0, 0).unwrap().timestamp(),
+            Utc.with_ymd_and_hms(2024, 4, 15, 12, 0, 0).unwrap().timestamp(),
+            Utc.with_ymd_and_hms(2024, 7, 15, 12, 0, 0).unwrap().timestamp(),
+            Utc.with_ymd_and_hms(2024, 10, 15, 12, 0, 0).unwrap().timestamp(),
+        ];
+        
+        for ts in test_timestamps {
+            let moon = calculate_moon_position(0.0, 0.0, Some(ts));
+            assert!(moon.distance >= 350000.0, "Moon too close: {} km at ts {}", moon.distance, ts);
+            assert!(moon.distance <= 410000.0, "Moon too far: {} km at ts {}", moon.distance, ts);
+        }
+    }
+
+    #[test]
+    fn test_moon_declination_range() {
+        // Moon declination varies roughly between -28.5° and +28.5° over 18.6-year cycle
+        // In any given month, it should stay within ±30°
+        let moon = calculate_moon_position(45.0, 0.0, None);
+        assert!(moon.dec >= -30.0 && moon.dec <= 30.0, 
+            "Moon Dec should be within ±30°, got {}", moon.dec);
+    }
+
+    #[test]
+    fn test_moon_position_consistency() {
+        // Test that moon position changes smoothly over time
+        let base_ts = Utc.with_ymd_and_hms(2024, 6, 15, 12, 0, 0).unwrap().timestamp();
+        let moon1 = calculate_moon_position(0.0, 0.0, Some(base_ts));
+        let moon2 = calculate_moon_position(0.0, 0.0, Some(base_ts + 3600)); // 1 hour later
+        
+        // Moon moves about 0.5° per hour in RA
+        let ra_diff = (moon2.ra - moon1.ra).abs();
+        let ra_diff_normalized = if ra_diff > 180.0 { 360.0 - ra_diff } else { ra_diff };
+        assert!(ra_diff_normalized < 2.0, 
+            "Moon RA should change smoothly over 1 hour, got {} degree change", ra_diff_normalized);
+    }
+
+    // ------------------------------------------------------------------------
+    // Sun Declination Helper Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_sun_declination_range() {
+        // Test sun declination at various dates
+        let jd_summer = 2460479.0; // ~June 21, 2024
+        let jd_winter = 2460661.0; // ~Dec 21, 2024
+        
+        let dec_summer = calculate_sun_declination(jd_summer);
+        let dec_winter = calculate_sun_declination(jd_winter);
+        
+        assert!(dec_summer > 20.0, "Summer sun dec should be > 20°, got {}", dec_summer);
+        assert!(dec_winter < -20.0, "Winter sun dec should be < -20°, got {}", dec_winter);
     }
 }

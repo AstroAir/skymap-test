@@ -28,6 +28,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { useLocations, tauriApi } from '@/lib/tauri';
 import { MapLocationPicker } from '@/components/starmap/map';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('location-manager');
 
 // Web location storage key
 const WEB_LOCATIONS_KEY = 'starmap-web-locations';
@@ -82,7 +85,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       localStorage.setItem(WEB_LOCATIONS_KEY, JSON.stringify(locs));
       setWebLocations(locs);
     } catch (e) {
-      console.error('Failed to save web locations:', e);
+      logger.error('Failed to save web locations', e);
     }
   }, []);
 

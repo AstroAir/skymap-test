@@ -38,6 +38,9 @@ import {
 } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('map-provider-settings');
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { mapConfig, type MapConfiguration } from '@/lib/services/map-config';
@@ -50,34 +53,42 @@ interface MapProviderSettingsProps {
 
 type ProviderType = 'openstreetmap' | 'google' | 'mapbox';
 
-const PROVIDER_INFO: Record<ProviderType, { name: string; description: string; requiresKey: boolean }> = {
-  openstreetmap: {
-    name: 'OpenStreetMap',
-    description: 'Free, open-source map data. No API key required.',
-    requiresKey: false,
-  },
-  google: {
-    name: 'Google Maps',
-    description: 'High-quality maps with extensive coverage. Requires API key.',
-    requiresKey: true,
-  },
-  mapbox: {
-    name: 'Mapbox',
-    description: 'Customizable maps with satellite imagery. Requires API key.',
-    requiresKey: true,
-  },
+const PROVIDER_REQUIRES_KEY: Record<ProviderType, boolean> = {
+  openstreetmap: false,
+  google: true,
+  mapbox: true,
 };
-
-const FALLBACK_STRATEGIES = [
-  { value: 'priority', label: 'Priority Order', description: 'Use providers in priority order' },
-  { value: 'fastest', label: 'Fastest Response', description: 'Use the provider with lowest latency' },
-  { value: 'random', label: 'Random', description: 'Randomly select from healthy providers' },
-  { value: 'round-robin', label: 'Round Robin', description: 'Rotate between providers' },
-];
 
 export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSettingsProps) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
+
+  // Dynamic provider info with i18n
+  const PROVIDER_INFO = useMemo(() => ({
+    openstreetmap: {
+      name: t('map.providerNames.openstreetmap'),
+      description: t('map.providerDescriptions.openstreetmap'),
+      requiresKey: PROVIDER_REQUIRES_KEY.openstreetmap,
+    },
+    google: {
+      name: t('map.providerNames.google'),
+      description: t('map.providerDescriptions.google'),
+      requiresKey: PROVIDER_REQUIRES_KEY.google,
+    },
+    mapbox: {
+      name: t('map.providerNames.mapbox'),
+      description: t('map.providerDescriptions.mapbox'),
+      requiresKey: PROVIDER_REQUIRES_KEY.mapbox,
+    },
+  }), [t]);
+
+  // Dynamic fallback strategies with i18n
+  const FALLBACK_STRATEGIES = useMemo(() => [
+    { value: 'priority', label: t('map.fallbackStrategies.priority'), description: t('map.fallbackStrategies.priorityDesc') },
+    { value: 'fastest', label: t('map.fallbackStrategies.fastest'), description: t('map.fallbackStrategies.fastestDesc') },
+    { value: 'random', label: t('map.fallbackStrategies.random'), description: t('map.fallbackStrategies.randomDesc') },
+    { value: 'round-robin', label: t('map.fallbackStrategies.roundRobin'), description: t('map.fallbackStrategies.roundRobinDesc') },
+  ], [t]);
   const [config, setConfig] = useState<MapConfiguration>(mapConfig.getConfiguration());
   const [hasChanges, setHasChanges] = useState(false);
   const [providerHealth, setProviderHealth] = useState<Record<string, { healthy: boolean; responseTime: number }>>({});
@@ -203,7 +214,7 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
       onSettingsChange?.(config);
     } catch (error) {
       toast.error(t('map.settingsSaveFailed') || 'Failed to save settings');
-      console.error('Failed to save map settings:', error);
+      logger.error('Failed to save map settings', error);
     }
   }, [config, t, onSettingsChange]);
 

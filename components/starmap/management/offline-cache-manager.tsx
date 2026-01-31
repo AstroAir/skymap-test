@@ -48,6 +48,9 @@ import { AlertTriangle, CheckCircle2, Wrench } from 'lucide-react';
 import { useCache } from '@/lib/tauri/hooks';
 import { unifiedCacheApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('offline-cache-manager');
 
 // Convert SKY_SURVEYS to HiPSSurvey format for cache operations
 function convertToHiPSSurvey(survey: typeof SKY_SURVEYS[0]) {
@@ -119,7 +122,7 @@ export function OfflineCacheManager() {
       const info = await offlineCacheManager.getStorageInfo();
       setStorageInfo(info);
     } catch (error) {
-      console.error('Failed to refresh storage info:', error);
+      logger.error('Failed to refresh storage info', error);
       toast.error(t('cache.loadFailed'));
     }
   }, [tauriCache, t]);
@@ -157,7 +160,7 @@ export function OfflineCacheManager() {
     } catch (error) {
       toast.dismiss(`repair-${layerId}`);
       toast.error(t('cache.repairFailed'));
-      console.error('Error repairing layer:', error);
+      logger.error('Error repairing layer', error);
     } finally {
       setRepairingLayers(prev => prev.filter(id => id !== layerId));
     }
@@ -174,7 +177,7 @@ export function OfflineCacheManager() {
       }
       setSurveyStatuses(statuses);
     } catch (error) {
-      console.error('Failed to refresh survey statuses:', error);
+      logger.error('Failed to refresh survey statuses', error);
       toast.error(t('cache.loadFailed'));
     }
   }, [t]);
@@ -217,7 +220,7 @@ export function OfflineCacheManager() {
     } catch (error) {
       toast.dismiss(`survey-${surveyId}`);
       toast.error(t('survey.downloadFailed'));
-      console.error('Error downloading survey:', error);
+      logger.error('Error downloading survey', error);
     } finally {
       setDownloadingSurveys(prev => prev.filter(id => id !== surveyId));
     }
@@ -254,7 +257,7 @@ export function OfflineCacheManager() {
       setUnifiedCacheStats(stats);
       setUnifiedCacheKeys(keys);
     } catch (error) {
-      console.error('Failed to load unified cache:', error);
+      logger.error('Failed to load unified cache', error);
       toast.error(t('cache.loadFailed'));
     } finally {
       setLoadingUnified(false);
@@ -272,7 +275,7 @@ export function OfflineCacheManager() {
       await refreshUnifiedCache();
     } catch (error) {
       toast.error(t('cache.clearFailed'));
-      console.error('Failed to clear unified cache:', error);
+      logger.error('Failed to clear unified cache', error);
     }
   }, [t, refreshUnifiedCache]);
 
@@ -287,7 +290,7 @@ export function OfflineCacheManager() {
       await refreshUnifiedCache();
     } catch (error) {
       toast.error(t('cache.cleanupFailed'));
-      console.error('Failed to cleanup unified cache:', error);
+      logger.error('Failed to cleanup unified cache', error);
     }
   }, [t, refreshUnifiedCache]);
 

@@ -4,6 +4,9 @@
  */
 
 import * as satellite from 'satellite.js';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('satellite-propagator');
 
 // ============================================================================
 // Types
@@ -74,7 +77,7 @@ export function parseTLE(tle: TLEData): satellite.SatRec | null {
     const satrec = satellite.twoline2satrec(tle.line1, tle.line2);
     return satrec;
   } catch (error) {
-    console.error('Failed to parse TLE:', error);
+    logger.error('Failed to parse TLE', error);
     return null;
   }
 }
@@ -158,7 +161,7 @@ export function calculatePosition(
       isSunlit,
     };
   } catch (error) {
-    console.error('Failed to calculate position:', error);
+    logger.error('Failed to calculate position', error);
     return null;
   }
 }

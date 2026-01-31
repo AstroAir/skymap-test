@@ -10,6 +10,9 @@ import {
   saveWindowState,
   restoreWindowState,
 } from '@/lib/tauri/app-control-api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('use-window-state');
 
 /**
  * Hook to manage window state persistence
@@ -23,18 +26,18 @@ export function useWindowState() {
     if (!isTauri()) return;
 
     // Restore window state on mount
-    restoreWindowState().catch(console.error);
+    restoreWindowState().catch(err => logger.error('Failed to restore window state', err));
 
     // Save state periodically (every 30 seconds)
     const interval = setInterval(() => {
-      saveWindowState().catch(console.error);
+      saveWindowState().catch(err => logger.error('Failed to save window state', err));
     }, 30000);
 
     // Save state before unload
     const handleBeforeUnload = () => {
       if (!savedRef.current) {
         savedRef.current = true;
-        saveWindowState().catch(console.error);
+        saveWindowState().catch(err => logger.error('Failed to save window state', err));
       }
     };
 
@@ -46,7 +49,7 @@ export function useWindowState() {
       // Save on unmount
       if (!savedRef.current) {
         savedRef.current = true;
-        saveWindowState().catch(console.error);
+        saveWindowState().catch(err => logger.error('Failed to save window state', err));
       }
     };
   }, []);

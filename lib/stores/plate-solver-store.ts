@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { createLogger } from '@/lib/logger';
 import type {
   SolverType,
   SolverInfo,
@@ -21,6 +22,8 @@ import {
   getInstalledIndexes,
   DEFAULT_SOLVER_CONFIG,
 } from '@/lib/tauri/plate-solver-api';
+
+const logger = createLogger('plate-solver-store');
 
 // ============================================================================
 // Types
@@ -120,7 +123,7 @@ export const usePlateSolverStore = create<PlateSolverState>()(
         try {
           await saveSolverConfig(config);
         } catch (error) {
-          console.error('Failed to save solver config:', error);
+          logger.error('Failed to save solver config', error);
         }
       },
 
@@ -129,7 +132,7 @@ export const usePlateSolverStore = create<PlateSolverState>()(
           const config = await loadSolverConfig();
           set({ config });
         } catch (error) {
-          console.error('Failed to load solver config:', error);
+          logger.error('Failed to load solver config', error);
           // Use default config
           set({ config: DEFAULT_SOLVER_CONFIG });
         }
@@ -153,7 +156,7 @@ export const usePlateSolverStore = create<PlateSolverState>()(
           const indexes = await getAvailableIndexes(solverType);
           set({ availableIndexes: indexes, isLoadingIndexes: false });
         } catch (error) {
-          console.error('Failed to load available indexes:', error);
+          logger.error('Failed to load available indexes', error);
           set({ isLoadingIndexes: false });
         }
       },
@@ -164,7 +167,7 @@ export const usePlateSolverStore = create<PlateSolverState>()(
           const indexes = await getInstalledIndexes(solverType, indexPath);
           set({ installedIndexes: indexes, isLoadingIndexes: false });
         } catch (error) {
-          console.error('Failed to load installed indexes:', error);
+          logger.error('Failed to load installed indexes', error);
           set({ isLoadingIndexes: false });
         }
       },
