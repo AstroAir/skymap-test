@@ -172,6 +172,65 @@ function createBrowserResponse(response: Response): FetchResponse {
   };
 }
 
+function isNativeResponse(value: unknown): value is Response {
+  const v = value as Response | null;
+  return !!v && typeof (v as Response).arrayBuffer === 'function' && !!(v as Response).headers;
+}
+
+function isFetchResponseLike(value: unknown): value is Partial<FetchResponse> {
+  const v = value as Partial<FetchResponse> | null;
+  return (
+    !!v &&
+    typeof v.ok === 'boolean' &&
+    (typeof v.json === 'function' || typeof v.text === 'function')
+  );
+}
+
+function createFetchResponseFromLike(value: Partial<FetchResponse>, requestUrl: string): FetchResponse {
+  const ok = Boolean(value.ok);
+  const status = typeof value.status === 'number' ? value.status : ok ? 200 : 500;
+  const statusText = typeof value.statusText === 'string' ? value.statusText : ok ? 'OK' : 'Error';
+  const headers = (value.headers as Record<string, string> | undefined) ?? {};
+  const url = typeof value.url === 'string' ? value.url : requestUrl;
+
+  const text =
+    typeof value.text === 'function'
+      ? value.text.bind(value)
+      : async () => '';
+
+  const json =
+    typeof value.json === 'function'
+      ? value.json.bind(value)
+      : (async <T = unknown>() => JSON.parse(await text()) as T);
+
+  const bytes =
+    typeof value.bytes === 'function'
+      ? value.bytes.bind(value)
+      : async () => new Uint8Array();
+
+  const blob =
+    typeof value.blob === 'function'
+      ? value.blob.bind(value)
+      : async () => {
+        const b = await bytes();
+        const ab = new ArrayBuffer(b.byteLength);
+        new Uint8Array(ab).set(b);
+        return new Blob([ab], { type: 'application/octet-stream' });
+      };
+
+  return {
+    ok,
+    status,
+    statusText,
+    headers,
+    url,
+    text,
+    json,
+    bytes,
+    blob,
+  };
+}
+
 /**
  * Smart fetch function that uses Tauri HTTP client when available
  */
@@ -303,7 +362,15 @@ async function fetchWithBrowser(
       signal,
     });
 
-    return createBrowserResponse(response);
+    if (isNativeResponse(response)) {
+      return createBrowserResponse(response);
+    }
+
+    if (isFetchResponseLike(response)) {
+      return createFetchResponseFromLike(response, url);
+    }
+
+    throw new Error('Invalid fetch response');
   } finally {
     if (timeoutId) {
       clearTimeout(timeoutId);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useStellariumStore, useSatelliteStore } from '@/lib/stores';
+import { useThrottledUpdate } from '@/lib/hooks';
 import { getSatelliteColor } from '@/lib/services/celestial-icons';
 import {
   Tooltip,
@@ -179,73 +180,56 @@ export function SatelliteOverlay({
     isVisible: sat.isVisible,
   }));
   const [positions, setPositions] = useState<SatellitePosition[]>([]);
-  const animationRef = useRef<number | null>(null);
   
-  // Convert RA/Dec to screen coordinates
+  // Convert RA/Dec to screen coordinates using Stellarium's coordinate system
+  // Unified with sky-markers.tsx for consistency
   const convertToScreen = useCallback(
     (ra: number, dec: number): { x: number; y: number; visible: boolean } | null => {
       if (!stel) return null;
 
       try {
-        // Get current view direction
-        const core = stel.core;
-        if (!core) return null;
+        // Convert degrees to radians
+        const raRad = ra * stel.D2R;
+        const decRad = dec * stel.D2R;
 
-        // Get view direction - use core's getViewRaDecJ2000 method
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const coreAny = core as any;
-        const viewRaDec = coreAny.getViewRaDecJ2000 ? coreAny.getViewRaDecJ2000() : [0, 0];
-        const fov = core.fov || 60;
+        // Convert spherical to cartesian (ICRF frame)
+        const icrfVec = stel.s2c(raRad, decRad);
 
-        // Calculate angular distance from view center
-        const viewRa = viewRaDec[0] * (180 / Math.PI);
-        const viewDec = viewRaDec[1] * (180 / Math.PI);
+        // Convert ICRF to VIEW frame
+        const viewVec = stel.convertFrame(stel.observer, 'ICRF', 'VIEW', icrfVec);
 
-        // Convert to radians for calculation
-        const ra1 = (viewRa * Math.PI) / 180;
-        const dec1 = (viewDec * Math.PI) / 180;
-        const ra2 = (ra * Math.PI) / 180;
-        const dec2 = (dec * Math.PI) / 180;
-
-        // Calculate angular separation
-        const cosAngle =
-          Math.sin(dec1) * Math.sin(dec2) +
-          Math.cos(dec1) * Math.cos(dec2) * Math.cos(ra2 - ra1);
-        const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
-        const angleDeg = (angle * 180) / Math.PI;
-
-        // Check if within FOV (with some margin)
-        if (angleDeg > fov * 0.7) {
+        // Check if the point is behind the viewer (z > 0 in VIEW frame means behind)
+        if (viewVec[2] > 0) {
           return { x: 0, y: 0, visible: false };
         }
 
-        // Gnomonic projection
-        const cosc = cosAngle;
-        if (cosc <= 0) {
+        // Get current FOV and aspect ratio
+        const fov = stel.core.fov; // FOV in radians
+        const aspect = containerWidth / containerHeight;
+
+        // Gnomonic projection:
+        // projX = viewX / (-viewZ), projY = viewY / (-viewZ)
+        // Then scale by 1/tan(fov/2) and account for aspect ratio
+        const scale = 1 / Math.tan(fov / 2);
+
+        // Project onto the viewing plane
+        const projX = viewVec[0] / (-viewVec[2]);
+        const projY = viewVec[1] / (-viewVec[2]);
+
+        // Convert to normalized device coordinates
+        const ndcX = projX * scale / aspect;
+        const ndcY = projY * scale;
+
+        // Check if within visible area (with some margin)
+        if (Math.abs(ndcX) > 1.2 || Math.abs(ndcY) > 1.2) {
           return { x: 0, y: 0, visible: false };
         }
 
-        const x_proj =
-          (Math.cos(dec2) * Math.sin(ra2 - ra1)) / cosc;
-        const y_proj =
-          (Math.cos(dec1) * Math.sin(dec2) -
-            Math.sin(dec1) * Math.cos(dec2) * Math.cos(ra2 - ra1)) /
-          cosc;
+        // Convert to screen coordinates
+        const screenX = (ndcX + 1) * 0.5 * containerWidth;
+        const screenY = (1 - ndcY) * 0.5 * containerHeight;
 
-        // Scale to screen coordinates
-        const scale = Math.min(containerWidth, containerHeight) / (fov * (Math.PI / 180));
-        const screenX = containerWidth / 2 + x_proj * scale;
-        const screenY = containerHeight / 2 - y_proj * scale;
-
-        // Check bounds
-        const margin = 50;
-        const visible =
-          screenX >= -margin &&
-          screenX <= containerWidth + margin &&
-          screenY >= -margin &&
-          screenY <= containerHeight + margin;
-
-        return { x: screenX, y: screenY, visible };
+        return { x: screenX, y: screenY, visible: true };
       } catch {
         return null;
       }
@@ -253,16 +237,25 @@ export function SatelliteOverlay({
     [stel, containerWidth, containerHeight]
   );
 
-  // Update satellite positions
+  // Ref to store satellites for the throttled callback
+  const satellitesRef = useRef(satellites);
+  
+  // Update ref when satellites change
+  useEffect(() => {
+    satellitesRef.current = satellites;
+  }, [satellites]);
+
+  // Optimized position update callback using RAF-based throttling
   const updatePositions = useCallback(() => {
     if (!showSatellites || !stel) {
       setPositions([]);
       return;
     }
 
+    const currentSatellites = satellitesRef.current;
     const newPositions: SatellitePosition[] = [];
 
-    satellites.forEach((satellite) => {
+    for (const satellite of currentSatellites) {
       if (satellite.ra !== undefined && satellite.dec !== undefined) {
         const screenPos = convertToScreen(satellite.ra, satellite.dec);
         if (screenPos && screenPos.visible) {
@@ -274,36 +267,13 @@ export function SatelliteOverlay({
           });
         }
       }
-    });
+    }
 
     setPositions(newPositions);
-  }, [satellites, showSatellites, stel, convertToScreen]);
+  }, [showSatellites, stel, convertToScreen]);
 
-  // Animation loop for real-time updates
-  useEffect(() => {
-    if (!showSatellites) return;
-
-    const animate = () => {
-      updatePositions();
-      animationRef.current = requestAnimationFrame(animate);
-    };
-
-    // Start animation
-    animationRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [showSatellites, updatePositions]);
-
-  // Initial position update
-  useEffect(() => {
-    // Use a timeout to avoid synchronous setState in effect
-    const timer = setTimeout(updatePositions, 0);
-    return () => clearTimeout(timer);
-  }, [updatePositions]);
+  // Use RAF-based throttled update for smooth 30fps tracking (same as sky-markers)
+  useThrottledUpdate(updatePositions, 33, !!stel && showSatellites);
 
   if (!showSatellites || positions.length === 0) {
     return null;

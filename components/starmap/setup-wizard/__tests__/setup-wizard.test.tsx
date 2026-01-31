@@ -37,7 +37,9 @@ const messages = {
         detectLocation: 'Detect Location',
         detecting: 'Detecting...',
         latitude: 'Latitude',
+        latitudePlaceholder: '-90 to 90',
         longitude: 'Longitude',
+        longitudePlaceholder: '-180 to 180',
         setLocation: 'Set Location',
         locationSet: 'Location Set',
         skipNote: 'You can skip this step.',
@@ -54,6 +56,11 @@ const messages = {
         telescope: 'Telescope',
         camera: 'Camera',
         manualInput: 'Manual Input',
+        focalLengthPlaceholder: 'e.g. 1000',
+        aperturePlaceholder: 'e.g. 200',
+        sensorWidthPlaceholder: 'e.g. 36',
+        sensorHeightPlaceholder: 'e.g. 24',
+        pixelSizePlaceholder: 'e.g. 3.76',
         configured: 'Configured',
         sensor: 'Sensor',
         skipNote: 'You can skip this step.',
@@ -117,9 +124,29 @@ const renderWithIntl = (component: React.ReactNode) => {
 
 describe('SetupWizard', () => {
   beforeEach(() => {
+    jest.useRealTimers();
+    jest.clearAllTimers();
+
+    // Other test files in this suite may replace window.localStorage with custom mocks.
+    // Ensure we start each test with a clean, predictable localStorage mock state.
+    try {
+      (window.localStorage?.clear as unknown as (() => void) | undefined)?.();
+      (window.localStorage?.getItem as unknown as { mockReset?: () => void } | undefined)?.mockReset?.();
+      (window.localStorage?.setItem as unknown as { mockReset?: () => void } | undefined)?.mockReset?.();
+      (window.localStorage?.removeItem as unknown as { mockReset?: () => void } | undefined)?.mockReset?.();
+      (window.localStorage?.clear as unknown as { mockReset?: () => void } | undefined)?.mockReset?.();
+    } catch {
+      // Ignore; localStorage may be a non-mock in some environments.
+    }
+
     // Reset store state
     const store = useSetupWizardStore.getState();
     store.resetSetup();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
   });
 
   describe('rendering', () => {

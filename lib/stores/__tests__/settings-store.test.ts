@@ -42,6 +42,7 @@ const DEFAULT_PREFERENCES = {
   coordinateFormat: 'dms' as const,
   distanceUnit: 'metric' as const,
   temperatureUnit: 'celsius' as const,
+  skipCloseConfirmation: false,
 };
 
 const DEFAULT_PERFORMANCE = {

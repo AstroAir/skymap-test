@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useStellariumStore, useFramingStore, useMountStore, useEquipmentStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import { cn } from '@/lib/utils';
-import { Search, X, Crosshair, RotateCcw, Menu, ZoomIn, ZoomOut, Camera, Copy, MapPin, RotateCw, PanelLeftClose, PanelLeft, Plus, Settings, Target, Navigation, Grid3X3 } from 'lucide-react';
+import { Search, X, Crosshair, RotateCcw, Menu, ZoomIn, ZoomOut, Camera, Copy, MapPin, RotateCw, PanelLeftClose, PanelLeft, Plus, Settings, Target, Navigation, Grid3X3, LogOut } from 'lucide-react';
 import type { SelectedObjectData } from '@/lib/core/types';
 
 import { Button } from '@/components/ui/button';
@@ -38,10 +38,12 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -97,6 +99,7 @@ import { KeyboardShortcutsManager } from '../controls/keyboard-shortcuts-manager
 import { KeyboardShortcutsDialog } from '../dialogs/keyboard-shortcuts-dialog';
 import { NavigationHistory } from '../controls/navigation-history';
 import { ViewBookmarks } from '../controls/view-bookmarks';
+import { QuickActionsPanel } from '../controls/quick-actions-panel';
 import { useNavigationHistoryStore } from '@/lib/hooks';
 
 // Context menu click coordinates type
@@ -264,13 +267,24 @@ export function StellariumView() {
   // Object detail drawer state
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   
+  // Close starmap confirmation dialog state
+  const [closeConfirmDialogOpen, setCloseConfirmDialogOpen] = useState(false);
+  const [dontShowAgainChecked, setDontShowAgainChecked] = useState(false);
+  const skipCloseConfirmation = useSettingsStore((state) => state.preferences.skipCloseConfirmation);
+  const setPreference = useSettingsStore((state) => state.setPreference);
+  
   const canvasRef = useRef<StellariumCanvasRef>(null);
   const searchRef = useRef<StellariumSearchRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const stel = useStellariumStore((state) => state.stel);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
+  const getCurrentViewDirection = useStellariumStore((state) => state.getCurrentViewDirection);
+  
+  // Track current view center for bookmarks (updated periodically)
+  const [viewCenterRaDec, setViewCenterRaDec] = useState<{ ra: number; dec: number }>({ ra: 0, dec: 0 });
   const mountConnected = useMountStore((state) => state.mountInfo.Connected);
+  const setProfileInfo = useMountStore((state) => state.setProfileInfo);
   const setShowFramingModal = useFramingStore((state) => state.setShowFramingModal);
   const setCoordinates = useFramingStore((state) => state.setCoordinates);
   const setSelectedItem = useFramingStore((state) => state.setSelectedItem);
@@ -288,6 +302,27 @@ export function StellariumView() {
   
   // Navigation history store
   const pushNavigationHistory = useNavigationHistoryStore((state) => state.push);
+
+  // Update view center for bookmarks periodically
+  useEffect(() => {
+    const updateViewCenter = () => {
+      if (getCurrentViewDirection) {
+        try {
+          const dir = getCurrentViewDirection();
+          setViewCenterRaDec({
+            ra: rad2deg(dir.ra),
+            dec: rad2deg(dir.dec),
+          });
+        } catch {
+          // Engine not ready yet
+        }
+      }
+    };
+    
+    updateViewCenter();
+    const interval = setInterval(updateViewCenter, 500);
+    return () => clearInterval(interval);
+  }, [getCurrentViewDirection]);
 
   // Track container bounds on resize
   useEffect(() => {
@@ -342,9 +377,20 @@ export function StellariumView() {
     setSelectedObject(selection);
   }, [currentFov, pushNavigationHistory]);
 
-  // Handle FOV change
+  // Handle FOV change with throttling to avoid excessive re-renders during wheel zoom
+  const fovChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFovRef = useRef(currentFov);
+  
   const handleFovChange = useCallback((fov: number) => {
-    setCurrentFov(fov);
+    lastFovRef.current = fov;
+    
+    // Throttle state updates to avoid excessive re-renders
+    if (fovChangeTimeoutRef.current) return;
+    
+    fovChangeTimeoutRef.current = setTimeout(() => {
+      setCurrentFov(lastFovRef.current);
+      fovChangeTimeoutRef.current = null;
+    }, 16); // ~60fps
   }, []);
 
   // Handle framing coordinates
@@ -516,6 +562,31 @@ export function StellariumView() {
   const openGoToDialog = useCallback(() => {
     setContextMenuOpen(false);
     setGoToDialogOpen(true);
+  }, []);
+
+  // Handle close starmap button click
+  const handleCloseStarmapClick = useCallback(() => {
+    if (skipCloseConfirmation) {
+      // Skip confirmation, navigate directly
+      window.location.href = '/';
+    } else {
+      setCloseConfirmDialogOpen(true);
+    }
+  }, [skipCloseConfirmation]);
+
+  // Confirm close starmap
+  const handleConfirmClose = useCallback(() => {
+    if (dontShowAgainChecked) {
+      setPreference('skipCloseConfirmation', true);
+    }
+    setCloseConfirmDialogOpen(false);
+    window.location.href = '/';
+  }, [dontShowAgainChecked, setPreference]);
+
+  // Cancel close starmap
+  const handleCancelClose = useCallback(() => {
+    setCloseConfirmDialogOpen(false);
+    setDontShowAgainChecked(false);
   }, []);
 
   return (
@@ -1166,8 +1237,12 @@ export function StellariumView() {
               </ToolbarGroup>
             </div>
             
-            {/* Navigation History & Bookmarks */}
+            {/* Quick Actions & Navigation */}
             <ToolbarGroup gap="none" className="p-0.5 bg-card/60 backdrop-blur-md border border-border/50 rounded-lg">
+              <QuickActionsPanel
+                onZoomToFov={(fov) => canvasRef.current?.setFov(fov)}
+                onResetView={handleResetView}
+              />
               <NavigationHistory 
                 onNavigate={(ra, dec, fov) => {
                   if (setViewDirection) {
@@ -1177,8 +1252,8 @@ export function StellariumView() {
                 }}
               />
               <ViewBookmarks
-                currentRa={selectedObject?.raDeg ?? 0}
-                currentDec={selectedObject?.decDeg ?? 0}
+                currentRa={viewCenterRaDec.ra}
+                currentDec={viewCenterRaDec.dec}
                 currentFov={currentFov}
                 onNavigate={(ra, dec, fov) => {
                   if (setViewDirection) {
@@ -1228,6 +1303,23 @@ export function StellariumView() {
               </TooltipContent>
             </Tooltip>
 
+            {/* Close Starmap */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground/80 hover:text-destructive hover:bg-destructive/10 touch-target toolbar-btn"
+                  onClick={handleCloseStarmapClick}
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>{t('starmap.closeStarmap')}</p>
+              </TooltipContent>
+            </Tooltip>
+
             {/* Object Type Legend */}
             <ToolbarGroup gap="none" className="p-0.5">
               <ObjectTypeLegend variant="popover" />
@@ -1268,8 +1360,8 @@ export function StellariumView() {
         )}
 
 
-        {/* Right Side Controls - Desktop Only */}
-        <div className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto animate-slide-in-right">
+        {/* Right Side Controls - Desktop Only - Vertically Centered */}
+        <div className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto animate-slide-in-right max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-hide py-2 overscroll-contain">
           {/* Zoom Controls */}
           <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-[72px]" data-tour-id="zoom-controls">
             <ZoomControls
@@ -1296,6 +1388,17 @@ export function StellariumView() {
                         <MapPin className="h-4 w-4" />
                       </Button>
                     }
+                    onLocationChange={(lat: number, lon: number, alt: number) => {
+                      const currentProfile = useMountStore.getState().profileInfo;
+                      setProfileInfo({
+                        AstrometrySettings: {
+                          ...currentProfile.AstrometrySettings,
+                          Latitude: lat,
+                          Longitude: lon,
+                          Elevation: alt,
+                        },
+                      });
+                    }}
                   />
                 </TooltipTrigger>
                 <TooltipContent side="left">
@@ -1350,18 +1453,20 @@ export function StellariumView() {
               <StellariumMount />
             </div>
           )}
+        </div>
 
-          {/* Astro Session Panel - Show conditions for selected object */}
-          {selectedObject && (
-            <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-2 max-w-[280px]">
+        {/* Floating Astro Session Panel - Show conditions for selected object */}
+        {selectedObject && showSessionPanel && (
+          <div className="hidden sm:block absolute right-[90px] top-20 pointer-events-auto animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="bg-card/90 backdrop-blur-md rounded-lg border border-border/50 p-3 w-[300px] max-h-[calc(100vh-180px)] overflow-y-auto scrollbar-hide shadow-lg">
               <AstroSessionPanel
                 selectedRa={selectedObject.raDeg}
                 selectedDec={selectedObject.decDeg}
                 selectedName={selectedObject.names[0]}
               />
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Mobile Controls - Bottom Right Corner */}
         <div className="sm:hidden absolute right-2 bottom-16 flex flex-col items-center gap-1 pointer-events-auto animate-slide-in-right">
@@ -1376,74 +1481,100 @@ export function StellariumView() {
           </div>
         </div>
 
-        {/* Mobile Bottom Tools Bar - Horizontal */}
-        <div className="sm:hidden absolute bottom-16 left-2 right-16 flex items-center gap-1 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-1 pointer-events-auto overflow-x-auto scrollbar-hide animate-slide-in-left">
-          <MarkerManager initialCoords={contextMenuCoords} />
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <LocationManager
-                  trigger={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-foreground/80 hover:text-foreground hover:bg-accent h-9 w-9 shrink-0"
-                    >
-                      <MapPin className="h-4 w-4" />
-                    </Button>
-                  }
-                />
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{t('locations.title') || 'Observation Locations'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <FOVSimulator
-            enabled={fovSimEnabled}
-            onEnabledChange={setFovSimEnabled}
-            sensorWidth={sensorWidth}
-            sensorHeight={sensorHeight}
-            focalLength={focalLength}
-            onSensorWidthChange={setSensorWidth}
-            onSensorHeightChange={setSensorHeight}
-            onFocalLengthChange={setFocalLength}
-            mosaic={mosaic}
-            onMosaicChange={setMosaic}
-            gridType={gridType}
-            onGridTypeChange={setGridType}
-          />
-          <ExposureCalculator focalLength={focalLength} />
-          <ShotList
-            currentSelection={selectedObject ? {
-              name: selectedObject.names[0] || 'Unknown',
-              ra: selectedObject.raDeg,
-              dec: selectedObject.decDeg,
-              raString: selectedObject.ra,
-              decString: selectedObject.dec,
-            } : null}
-          />
-          <ObservationLog
-            currentSelection={selectedObject ? {
-              name: selectedObject.names[0] || 'Unknown',
-              ra: selectedObject.raDeg,
-              dec: selectedObject.decDeg,
-              raString: selectedObject.ra,
-              decString: selectedObject.dec,
-              type: selectedObject.type,
-              constellation: selectedObject.constellation,
-            } : null}
-          />
-          {stel && <StellariumMount />}
-          <PlateSolver 
-            onGoToCoordinates={(ra, dec) => {
-              if (setViewDirection) {
-                setViewDirection(ra, dec);
+        {/* Mobile Bottom Tools Bar - Simplified and organized */}
+        <div className="sm:hidden absolute bottom-16 left-2 right-16 flex items-center gap-0.5 bg-card/90 backdrop-blur-md rounded-lg border border-border/50 p-1 pointer-events-auto overflow-x-auto scrollbar-hide animate-slide-in-left">
+          {/* Primary Tools */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <MarkerManager initialCoords={contextMenuCoords} />
+            <LocationManager
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-foreground/80 hover:text-foreground hover:bg-accent h-9 w-9"
+                >
+                  <MapPin className="h-4 w-4" />
+                </Button>
               }
-            }}
-          />
-          <SkyAtlasPanel />
-          <EquipmentManager />
+              onLocationChange={(lat: number, lon: number, alt: number) => {
+                const currentProfile = useMountStore.getState().profileInfo;
+                setProfileInfo({
+                  AstrometrySettings: {
+                    ...currentProfile.AstrometrySettings,
+                    Latitude: lat,
+                    Longitude: lon,
+                    Elevation: alt,
+                  },
+                });
+              }}
+            />
+          </div>
+          
+          {/* Divider */}
+          <div className="w-px h-6 bg-border/50 mx-0.5 shrink-0" />
+          
+          {/* Imaging Tools */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <FOVSimulator
+              enabled={fovSimEnabled}
+              onEnabledChange={setFovSimEnabled}
+              sensorWidth={sensorWidth}
+              sensorHeight={sensorHeight}
+              focalLength={focalLength}
+              onSensorWidthChange={setSensorWidth}
+              onSensorHeightChange={setSensorHeight}
+              onFocalLengthChange={setFocalLength}
+              mosaic={mosaic}
+              onMosaicChange={setMosaic}
+              gridType={gridType}
+              onGridTypeChange={setGridType}
+            />
+            <ExposureCalculator focalLength={focalLength} />
+          </div>
+          
+          {/* Divider */}
+          <div className="w-px h-6 bg-border/50 mx-0.5 shrink-0" />
+          
+          {/* Planning Tools */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <ShotList
+              currentSelection={selectedObject ? {
+                name: selectedObject.names[0] || 'Unknown',
+                ra: selectedObject.raDeg,
+                dec: selectedObject.decDeg,
+                raString: selectedObject.ra,
+                decString: selectedObject.dec,
+              } : null}
+            />
+            <ObservationLog
+              currentSelection={selectedObject ? {
+                name: selectedObject.names[0] || 'Unknown',
+                ra: selectedObject.raDeg,
+                dec: selectedObject.decDeg,
+                raString: selectedObject.ra,
+                decString: selectedObject.dec,
+                type: selectedObject.type,
+                constellation: selectedObject.constellation,
+              } : null}
+            />
+          </div>
+          
+          {/* Divider */}
+          <div className="w-px h-6 bg-border/50 mx-0.5 shrink-0" />
+          
+          {/* Mount & Advanced */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            {stel && <StellariumMount />}
+            <PlateSolver 
+              onGoToCoordinates={(ra, dec) => {
+                if (setViewDirection) {
+                  setViewDirection(ra, dec);
+                }
+              }}
+            />
+            <SkyAtlasPanel />
+            <EquipmentManager />
+          </div>
         </div>
 
         {/* Info Panel - only show when object is selected */}
@@ -1466,6 +1597,36 @@ export function StellariumView() {
           selectedObject={selectedObject}
           onSetFramingCoordinates={handleSetFramingCoordinates}
         />
+
+        {/* Close Starmap Confirmation Dialog */}
+        <Dialog open={closeConfirmDialogOpen} onOpenChange={setCloseConfirmDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>{t('starmap.closeConfirmTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('starmap.closeConfirmMessage')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center space-x-2 py-4">
+              <Checkbox
+                id="dontShowAgain"
+                checked={dontShowAgainChecked}
+                onCheckedChange={(checked) => setDontShowAgainChecked(checked === true)}
+              />
+              <Label htmlFor="dontShowAgain" className="text-sm text-muted-foreground cursor-pointer">
+                {t('starmap.dontShowAgain')}
+              </Label>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancelClose}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmClose}>
+                {t('starmap.confirmClose')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Bottom Status Bar */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none safe-area-bottom">

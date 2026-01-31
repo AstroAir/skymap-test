@@ -29,7 +29,7 @@ SkyMap 采用多层安全防护架构：
 所有频繁调用的命令都应该添加速率限制：
 
 ```rust
-use crate::rate_limiter::{self, RateLimitConfig, RATE_LIMITER};
+use crate::network::rate_limiter::{self, RateLimitConfig, RATE_LIMITER};
 
 #[tauri::command]
 pub async fn my_sensitive_command(params: MyParams) -> Result<MyResult, String> {
@@ -55,7 +55,7 @@ pub async fn my_sensitive_command(params: MyParams) -> Result<MyResult, String> 
 所有接受用户输入的命令都应验证大小：
 
 ```rust
-use crate::security::{self, limits};
+use crate::network::security::{self, limits};
 
 #[tauri::command]
 pub async fn save_data(data: String) -> Result<(), String> {
@@ -73,7 +73,7 @@ pub async fn save_data(data: String) -> Result<(), String> {
 所有接受 URL 的命令都应验证 URL 安全性：
 
 ```rust
-use crate::security;
+use crate::network::security;
 
 #[tauri::command]
 pub async fn fetch_resource(url: String) -> Result<Vec<u8>, String> {
@@ -159,7 +159,7 @@ function validateInput(input: string, maxLength: number): boolean {
 
 ### 速率限制配置
 
-编辑 `src-tauri/src/rate_limiter.rs`：
+编辑 `src-tauri/src/network/rate_limiter.rs`：
 
 ```rust
 pub fn get_command_rate_limit(command: &str) -> RateLimitConfig {
@@ -193,7 +193,7 @@ pub fn get_command_rate_limit(command: &str) -> RateLimitConfig {
 
 ### 大小限制配置
 
-编辑 `src-tauri/src/security.rs`：
+编辑 `src-tauri/src/network/security.rs`：
 
 ```rust
 pub mod limits {
@@ -223,7 +223,7 @@ cargo test security_tests
 
 ### 添加新的安全测试
 
-在 `src-tauri/src/security_tests.rs` 添加测试：
+在 `src-tauri/src/network/security.rs` 或 `src-tauri/src/network/rate_limiter.rs` 的 `#[cfg(test)]` 模块中添加测试：
 
 ```rust
 #[test]

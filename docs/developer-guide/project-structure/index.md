@@ -107,9 +107,11 @@ skymap-test/
 **职责**: 桌面应用功能
 
 **主要模块**:
-- `storage.rs`: 数据存储
-- `astronomy.rs`: 天文计算
-- `offline_cache.rs`: 缓存管理
+- `data/`: 数据持久化（storage, equipment, locations, targets, markers, observation_log）
+- `astronomy/`: 天文计算和事件（calculations, events）
+- `cache/`: 缓存系统（offline, unified）
+- `network/`: 网络通信和安全（http_client, security, rate_limiter）
+- `platform/`: 桌面特定功能（app_settings, app_control, updater, plate_solver）
 
 ## 模块交互
 
@@ -142,8 +144,8 @@ sequenceDiagram
 
 ### 后端
 
-- **Rust 模块**: 12
-- **Tauri 命令**: 100+
+- **Rust 模块**: 5 个主要模块（22 个子模块文件）
+- **Tauri 命令**: 130+
 - **代码行数**: ~5000 行
 
 ## 开发工作流

@@ -40,6 +40,7 @@ graph TD
 | `useThemeStore` | `theme-store.ts` | 主题颜色定制 |
 | `useFavoritesStore` | `favorites-store.ts` | 收藏天体对象 |
 | `useBookmarksStore` | `bookmarks-store.ts` | 视图书签 |
+| `usePlateSolverStore` | `plate-solver-store.ts` | 天文定位求解状态 |
 
 ## Stellarium Store
 
@@ -1033,10 +1034,126 @@ const duplicateBookmark = useBookmarksStore(state => state.duplicateBookmark);
 const newId = duplicateBookmark(bookmarkId);
 ```
 
+## Plate Solver Store
+
+管理天文定位求解状态（仅桌面端）。
+
+**文件**: `lib/stores/plate-solver-store.ts`
+
+### 主要功能
+
+```typescript
+type SolveStatus = 'idle' | 'preparing' | 'solving' | 'success' | 'failed';
+
+interface PlateSolverState {
+  // 检测到的求解器
+  detectedSolvers: SolverInfo[];
+  isDetecting: boolean;
+  detectionError: string | null;
+
+  // 当前配置
+  config: SolverConfig;
+
+  // 在线 API 密钥
+  onlineApiKey: string;
+
+  // 求解状态
+  solveStatus: SolveStatus;
+  solveProgress: number;
+  solveMessage: string;
+  lastResult: SolveResult | null;
+
+  // 索引管理
+  availableIndexes: DownloadableIndex[];
+  installedIndexes: IndexInfo[];
+  isLoadingIndexes: boolean;
+
+  // 下载状态
+  downloadingIndexes: Map<string, { progress: number; status: string }>;
+
+  // Actions
+  detectSolvers: () => Promise<void>;
+  setConfig: (config: Partial<SolverConfig>) => void;
+  saveConfig: () => Promise<void>;
+  loadConfig: () => Promise<void>;
+  setOnlineApiKey: (key: string) => void;
+  setSolveStatus: (status: SolveStatus, message?: string, progress?: number) => void;
+  setLastResult: (result: SolveResult | null) => void;
+  loadAvailableIndexes: (solverType: SolverType) => Promise<void>;
+  loadInstalledIndexes: (solverType: SolverType, indexPath?: string) => Promise<void>;
+  setDownloadProgress: (fileName: string, progress: number, status: string) => void;
+  clearDownloadProgress: (fileName: string) => void;
+  reset: () => void;
+}
+```
+
+### 选择器
+
+```typescript
+// 获取当前激活的求解器
+selectActiveSolver: (state) => SolverInfo | undefined
+
+// 检查本地求解器是否可用
+selectIsLocalSolverAvailable: (state) => boolean
+
+// 检查是否已安装索引
+selectHasInstalledIndexes: (state) => boolean
+
+// 检查是否可以执行求解
+selectCanSolve: (state) => boolean
+```
+
+### 使用示例
+
+```typescript
+import { usePlateSolverStore } from '@/lib/stores';
+
+function PlateSolverPanel() {
+  const {
+    detectedSolvers,
+    config,
+    solveStatus,
+    solveProgress,
+    lastResult,
+    detectSolvers,
+    setConfig,
+    saveConfig
+  } = usePlateSolverStore();
+
+  // 检测求解器
+  useEffect(() => {
+    detectSolvers();
+  }, []);
+
+  // 更新配置
+  const updateConfig = async (key: string, value: any) => {
+    setConfig({ [key]: value });
+    await saveConfig();
+  };
+
+  return (
+    <div>
+      <h3>天文定位求解</h3>
+      <p>状态: {solveStatus}</p>
+      {solveStatus === 'solving' && (
+        <ProgressBar value={solveProgress} />
+      )}
+      {lastResult && lastResult.success && (
+        <div>
+          <p>RA: {lastResult.ra_hms}</p>
+          <p>Dec: {lastResult.dec_dms}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
 ## 相关文档
 
 - [数据流设计](../../architecture/data-flow.md)
 - [组件开发](../../frontend-development/react-components.md)
+- [Tauri 命令 API: Plate Solver](../backend-apis/tauri-commands.md#天文定位-api)
 
 ---
 

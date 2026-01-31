@@ -231,7 +231,7 @@ describe('EquipmentManager', () => {
   });
 
   describe('Rendering', () => {
-    it('renders nothing when not available (non-Tauri environment)', () => {
+    it('renders web fallback when not available (non-Tauri environment)', () => {
       mockUseEquipment.mockReturnValue({
         equipment: null,
         loading: false,
@@ -240,7 +240,8 @@ describe('EquipmentManager', () => {
       });
 
       const { container } = render(<EquipmentManager />);
-      expect(container.firstChild).toBeNull();
+      expect(container.firstChild).not.toBeNull();
+      expect(screen.getAllByText(/equipment\.title/).length).toBeGreaterThanOrEqual(1);
     });
 
     it('renders default trigger button when available', () => {
@@ -492,14 +493,8 @@ describe('EquipmentManager', () => {
 
       render(<EquipmentManager />);
 
-      // Find delete button (ghost variant with Trash2 icon)
-      const deleteButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-      expect(deleteButtons.length).toBeGreaterThan(0);
-
       await act(async () => {
-        fireEvent.click(deleteButtons[0]);
+        fireEvent.click(screen.getByLabelText('equipment.delete'));
       });
 
       await waitFor(() => {
@@ -693,13 +688,8 @@ describe('EquipmentManager', () => {
 
       render(<EquipmentManager />);
 
-      const deleteButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-      expect(deleteButtons.length).toBeGreaterThan(0);
-
       await act(async () => {
-        fireEvent.click(deleteButtons[0]);
+        fireEvent.click(screen.getByLabelText('equipment.delete'));
       });
 
       await waitFor(() => {
@@ -738,12 +728,8 @@ describe('EquipmentManager', () => {
 
       render(<EquipmentManager />);
 
-      const deleteButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-
       await act(async () => {
-        fireEvent.click(deleteButtons[0]);
+        fireEvent.click(screen.getByLabelText('equipment.delete'));
       });
 
       await waitFor(() => {

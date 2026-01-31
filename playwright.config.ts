@@ -9,6 +9,9 @@ const port = process.env.PLAYWRIGHT_PORT ?? '3001';
 export default defineConfig({
   testDir: './tests/e2e',
   
+  /* Global setup to pre-warm WASM cache */
+  globalSetup: './tests/e2e/global-setup.ts',
+  
   /* Run tests in files in parallel */
   fullyParallel: true,
   
@@ -86,11 +89,11 @@ export default defineConfig({
     timeout: 120 * 1000,
   },
   
-  /* Global timeout for each test */
-  timeout: 60 * 1000,
+  /* Global timeout for each test - extended for WASM initialization */
+  timeout: 120 * 1000,
   
   /* Expect timeout */
   expect: {
-    timeout: 5 * 1000,
+    timeout: 10 * 1000,
   },
 });

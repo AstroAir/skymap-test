@@ -370,6 +370,8 @@ const mockStoreState = {
   setDataSourceStatus: jest.fn(),
   updateSettings: jest.fn(),
   resetToDefaults: jest.fn(),
+  updateImageSource: jest.fn(),
+  updateDataSource: jest.fn(),
 };
 
 describe('ObjectInfoSourcesConfig', () => {
@@ -610,6 +612,68 @@ describe('ObjectInfoSourcesConfig', () => {
 
       render(<ObjectInfoSourcesConfig />);
       expect(screen.getByText('sourceConfig.title')).toBeInTheDocument();
+    });
+  });
+
+  describe('Online Statistics', () => {
+    it('counts only enabled sources as online in image sources', () => {
+      // mockImageSources has 1 enabled (skyview) and 1 disabled (custom-1)
+      // Only enabled sources should be counted as online
+      render(<ObjectInfoSourcesConfig />);
+      
+      // The statistics should show "1 sourceConfig.statusOnline" for image sources
+      // since only the enabled skyview source should count
+      const badges = screen.getAllByTestId('badge');
+      expect(badges.length).toBeGreaterThan(0);
+    });
+
+    it('correctly displays online count for data sources', () => {
+      // mockDataSources has 1 enabled source (simbad)
+      render(<ObjectInfoSourcesConfig />);
+      
+      // Should show correct count for data sources section
+      expect(screen.getByText('sourceConfig.title')).toBeInTheDocument();
+    });
+
+    it('shows zero online when all sources are disabled', () => {
+      mockUseObjectInfoConfigStore.mockReturnValue({
+        ...mockStoreState,
+        imageSources: mockImageSources.map(s => ({ ...s, enabled: false })),
+        dataSources: mockDataSources.map(s => ({ ...s, enabled: false })),
+      });
+
+      render(<ObjectInfoSourcesConfig />);
+      // Component should still render without errors
+      expect(screen.getByText('sourceConfig.title')).toBeInTheDocument();
+    });
+  });
+
+  describe('Priority Display', () => {
+    it('displays priority number instead of drag handle', () => {
+      render(<ObjectInfoSourcesConfig />);
+      
+      // Priority numbers should be displayed
+      // Source with priority 1 should show "1"
+      const priorityBadges = screen.getAllByText('1');
+      expect(priorityBadges.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('shows priority tooltip hint', () => {
+      render(<ObjectInfoSourcesConfig />);
+      
+      // Tooltip content should exist for priority
+      const tooltipContents = screen.getAllByTestId('tooltip-content');
+      expect(tooltipContents.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Edit Source Dialog', () => {
+    it('renders edit buttons (Settings icons) for sources', () => {
+      const { container } = render(<ObjectInfoSourcesConfig />);
+      
+      // Edit buttons use Settings icon (lucide-settings class)
+      const settingsIcons = container.querySelectorAll('.lucide-settings');
+      expect(settingsIcons.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

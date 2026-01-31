@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   Camera, 
@@ -346,6 +346,14 @@ export function ImageCapture({
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
     }
+  }, [cameraStream]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, [cameraStream]);
 
   const resetState = useCallback(() => {

@@ -4,21 +4,38 @@
 
 ## API 概览
 
-SkyMap Test 后端使用 Rust + Tauri 提供100+命令，分为以下模块：
+SkyMap Test 后端使用 Rust + Tauri 提供100+命令，按以下模块组织：
 
 ```mermaid
 graph TD
-    A[Tauri Commands] --> B[存储模块]
-    A --> C[设备模块]
-    A --> D[天文计算模块]
-    A --> E[缓存模块]
-    A --> F[事件模块]
-    A --> G[目标列表模块]
-    A --> H[标记模块]
-    A --> I[HTTP客户端模块]
-    A --> J[应用控制模块]
-    A --> K[自动更新模块]
-    A --> L[地理定位模块]
+    A[Tauri Commands] --> B[platform::*<br/>平台模块]
+    A --> C[network::*<br/>网络模块]
+    A --> D[cache::*<br/>缓存模块]
+    A --> E[astronomy::*<br/>天文计算模块]
+    A --> F[data::*<br/>数据管理模块]
+
+    B --> B1[app_settings]
+    B --> B2[app_control]
+    B --> B3[updater]
+    B --> B4[plate_solver]
+
+    C --> C1[http_client]
+    C --> C2[security]
+    C --> C3[rate_limiter]
+
+    D --> D1[offline cache]
+    D --> D2[unified cache]
+
+    E --> E1[calculations]
+    E --> E2[events]
+
+    F --> F1[storage]
+    F --> F2[equipment]
+    F --> F3[locations]
+    F --> F4[targets]
+    F --> F5[markers]
+    F --> F6[observation_log]
+    F --> F7[target_io]
 ```
 
 ## 存储模块 API
@@ -777,13 +794,75 @@ const imported = await targetListApi.importTargets('/path/to/bookmarks.json');
 
 ### 按模块分类
 
-#### 存储模块 (9 个命令)
+#### platform::app_settings (9 个命令)
+
+- `load_app_settings`, `save_app_settings`
+- `save_window_state`, `restore_window_state`
+- `add_recent_file`, `clear_recent_files`
+- `get_system_info`, `open_path`, `reveal_in_file_manager`
+
+#### platform::app_control (4 个命令)
+
+- `restart_app`, `quit_app`, `reload_webview`, `is_dev_mode`
+
+#### platform::updater (7 个命令)
+
+- `check_for_update`, `download_update`, `install_update`, `download_and_install_update`
+- `get_current_version`, `has_pending_update`, `clear_pending_update`
+
+#### platform::plate_solver (14 个命令)
+
+- `detect_plate_solvers`, `get_solver_info`, `validate_solver_path`
+- `solve_image_local`, `plate_solve`
+- `get_available_indexes`, `get_installed_indexes`, `get_solver_indexes`
+- `get_downloadable_indexes`, `get_recommended_indexes`
+- `download_index`, `delete_index`, `get_default_index_path`
+- `save_solver_config`, `load_solver_config`
+
+#### network::http_client (11 个命令)
+
+- `get_http_config`, `set_http_config`
+- `http_request`, `http_get`, `http_post`, `http_head`
+- `http_download`, `http_batch_download`
+- `cancel_request`, `http_cancel_all_requests`, `get_active_requests`
+- `http_check_url`
+
+#### cache::offline (10 个命令)
+
+- `get_cache_stats`, `list_cache_regions`
+- `create_cache_region`, `update_cache_region`, `delete_cache_region`
+- `save_cached_tile`, `load_cached_tile`, `is_tile_cached`
+- `clear_survey_cache`, `clear_all_cache`, `get_cache_directory`
+
+#### cache::unified (10 个命令)
+
+- `get_unified_cache_entry`, `put_unified_cache_entry`, `delete_unified_cache_entry`
+- `clear_unified_cache`, `get_unified_cache_size`, `list_unified_cache_keys`
+- `get_unified_cache_stats`, `cleanup_unified_cache`
+- `prefetch_url`, `prefetch_urls`
+
+#### astronomy::calculations (14 个命令)
+
+- `equatorial_to_horizontal`, `horizontal_to_equatorial`
+- `equatorial_to_galactic`, `galactic_to_equatorial`
+- `equatorial_to_ecliptic`, `ecliptic_to_equatorial`
+- `calculate_visibility`, `calculate_twilight`
+- `calculate_moon_phase`, `calculate_moon_position`, `calculate_sun_position`
+- `calculate_fov`, `calculate_mosaic_coverage`, `angular_separation`
+- `format_ra_hms`, `format_dec_dms`, `parse_ra_hms`, `parse_dec_dms`
+
+#### astronomy::events (5 个命令)
+
+- `get_moon_phases_for_month`, `get_meteor_showers`
+- `get_seasonal_events`, `get_astro_events`, `get_tonight_highlights`
+
+#### data::storage (9 个命令)
 
 - `save_store_data`, `load_store_data`, `delete_store_data`
 - `list_stores`, `export_all_data`, `import_all_data`
 - `get_data_directory`, `get_storage_stats`, `clear_all_data`
 
-#### 设备模块 (14 个命令)
+#### data::equipment (14 个命令)
 
 - `load_equipment`, `save_equipment`
 - `add_telescope`, `update_telescope`, `delete_equipment`
@@ -794,49 +873,13 @@ const imported = await targetListApi.importTargets('/path/to/bookmarks.json');
 - `set_default_telescope`, `set_default_camera`
 - `get_default_telescope`, `get_default_camera`
 
-#### 位置模块 (7 个命令)
+#### data::locations (7 个命令)
 
 - `load_locations`, `save_locations`
 - `add_location`, `update_location`, `delete_location`
 - `set_current_location`, `get_current_location`
 
-#### 观测日志模块 (9 个命令)
-
-- `load_observation_log`, `save_observation_log`
-- `create_session`, `add_observation`, `update_session`
-- `end_session`, `delete_session`
-- `get_observation_stats`, `search_observations`
-
-#### 天文计算模块 (14 个命令)
-
-- `equatorial_to_horizontal`, `horizontal_to_equatorial`
-- `equatorial_to_galactic`, `galactic_to_equatorial`
-- `equatorial_to_ecliptic`, `ecliptic_to_equatorial`
-- `calculate_visibility`, `calculate_twilight`
-- `calculate_moon_phase`, `calculate_moon_position`, `calculate_sun_position`
-- `calculate_fov`, `calculate_mosaic_coverage`, `angular_separation`
-- `format_ra_hms`, `format_dec_dms`, `parse_ra_hms`, `parse_dec_dms`
-
-#### 离线缓存模块 (10 个命令)
-
-- `get_cache_stats`, `list_cache_regions`
-- `create_cache_region`, `update_cache_region`, `delete_cache_region`
-- `save_cached_tile`, `load_cached_tile`, `is_tile_cached`
-- `clear_survey_cache`, `clear_all_cache`, `get_cache_directory`
-
-#### 统一缓存模块 (10 个命令)
-
-- `get_unified_cache_entry`, `put_unified_cache_entry`, `delete_unified_cache_entry`
-- `clear_unified_cache`, `get_unified_cache_size`, `list_unified_cache_keys`
-- `get_unified_cache_stats`, `cleanup_unified_cache`
-- `prefetch_url`, `prefetch_urls`
-
-#### 天文事件模块 (5 个命令)
-
-- `get_moon_phases_for_month`, `get_meteor_showers`
-- `get_seasonal_events`, `get_astro_events`, `get_tonight_highlights`
-
-#### 目标列表模块 (17 个命令)
+#### data::targets (17 个命令)
 
 - `load_target_list`, `save_target_list`
 - `add_target`, `add_targets_batch`, `update_target`
@@ -847,7 +890,7 @@ const imported = await targetListApi.importTargets('/path/to/bookmarks.json');
 - `archive_completed_targets`, `clear_completed_targets`, `clear_all_targets`
 - `search_targets`, `get_target_stats`
 
-#### 标记模块 (13 个命令)
+#### data::markers (13 个命令)
 
 - `load_markers`, `save_markers`
 - `add_marker`, `update_marker`, `remove_marker`
@@ -856,32 +899,16 @@ const imported = await targetListApi.importTargets('/path/to/bookmarks.json');
 - `add_marker_group`, `remove_marker_group`, `rename_marker_group`
 - `get_visible_markers`
 
-#### HTTP 客户端模块 (10 个命令)
+#### data::observation_log (9 个命令)
 
-- `get_http_config`, `set_http_config`
-- `http_request`, `http_get`, `http_post`, `http_head`
-- `http_download`, `http_batch_download`
-- `http_cancel_request`, `http_cancel_all_requests`, `http_check_url`
+- `load_observation_log`, `save_observation_log`
+- `create_session`, `add_observation`, `update_session`
+- `end_session`, `delete_session`
+- `get_observation_stats`, `search_observations`
 
-#### 应用设置模块 (9 个命令)
-
-- `load_app_settings`, `save_app_settings`
-- `save_window_state`, `restore_window_state`
-- `add_recent_file`, `clear_recent_files`
-- `get_system_info`, `open_path`, `reveal_in_file_manager`
-
-#### 导入导出模块 (2 个命令)
+#### data::target_io (2 个命令)
 
 - `export_targets`, `import_targets`
-
-#### 应用控制模块 (4 个命令)
-
-- `restart_app`, `quit_app`, `reload_webview`, `is_dev_mode`
-
-#### 自动更新模块 (7 个命令)
-
-- `check_for_update`, `download_update`, `install_update`, `download_and_install_update`
-- `get_current_version`, `has_pending_update`, `clear_pending_update`
 
 **总计: 130+ 个 Tauri 命令**
 
@@ -1158,10 +1185,48 @@ await geolocationApi.clearWatch(watchId);
 
 ## 相关文档
 
-- [前端API: Stores](../frontend-apis/stores.md)
-- [前端API: Hooks](../frontend-apis/hooks.md)
+- [前端API: Stores](../frontend-apis/stores.md) - 状态管理
+- [前端API: Hooks](../frontend-apis/hooks.md) - React Hooks
+- [后端模块架构](../../../src-tauri/src/CLAUDE.md) - Rust 模块结构
 - [后端开发](../../backend-development/index.md)
 - [数据存储](../../data-management/storage.md)
+
+## 前端 API 封装文件
+
+所有 Tauri 命令都有对应的 TypeScript API 封装，位于 `lib/tauri/` 目录：
+
+| 模块 | 封装文件 | 说明 |
+|------|---------|------|
+| `platform::*` | `app-control-api.ts`, `updater-api.ts` | 应用控制和更新 |
+| `platform::plate_solver` | `plate-solver-api.ts` | 天文定位求解 |
+| `network::*` | `http-fetch.ts` | HTTP 客户端 |
+| `cache::*` | (集成在各功能模块) | 缓存管理 |
+| `astronomy::*` | `astronomy-api.ts` | 天文计算 |
+| `data::storage` | `storage-api.ts` | 通用存储 |
+| `data::equipment` | `equipment-api.ts` | 设备管理 |
+| `data::locations` | `locations-api.ts` | 位置管理 |
+| `data::targets` | `target-list-api.ts` | 目标列表 |
+| `data::markers` | `markers-api.ts` | 标记管理 |
+| `data::observation_log` | (待添加) | 观测日志 |
+
+### 使用示例
+
+```typescript
+// 平台命令
+import { restartApp, quitApp } from '@/lib/tauri/app-control-api';
+
+// 天文定位
+import { plateSolverApi } from '@/lib/tauri/plate-solver-api';
+const solvers = await plateSolverApi.detectPlateSolvers();
+
+// HTTP 请求
+import { httpGet } from '@/lib/tauri/http-fetch';
+const response = await httpGet('https://api.example.com/data');
+
+// 存储
+import { storageApi } from '@/lib/tauri/storage-api';
+await storageApi.saveStoreData('my-store', JSON.stringify(data));
+```
 
 ---
 

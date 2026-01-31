@@ -207,6 +207,7 @@ describe('useOnboardingStore', () => {
       expect(result.current.isTourActive).toBe(false);
       expect(result.current.hasCompletedOnboarding).toBe(true);
       expect(result.current.hasSeenWelcome).toBe(true);
+      expect(result.current.showOnNextVisit).toBe(false);
     });
   });
 

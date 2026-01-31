@@ -25,6 +25,12 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -91,7 +97,7 @@ export function FavoritesQuickAccess({
     }
   }, [addTag, newTag]);
 
-  const renderObjectItem = (object: FavoriteObject, showActions: boolean = true) => (
+  const renderObjectItem = (object: FavoriteObject, showActions: boolean = true, isFavorite: boolean = true) => (
     <div
       key={object.id}
       className="group flex items-center gap-2 px-2 py-1.5 hover:bg-accent rounded-md transition-colors cursor-pointer"
@@ -99,7 +105,7 @@ export function FavoritesQuickAccess({
     >
       <Star className={cn(
         'h-4 w-4 shrink-0',
-        favorites.some(f => f.name === object.name)
+        isFavorite
           ? 'text-yellow-500 fill-yellow-500'
           : 'text-muted-foreground'
       )} />
@@ -264,89 +270,79 @@ export function FavoritesQuickAccess({
               </div>
             ) : (
               <div className="space-y-0.5">
-                {recentlyViewed.map(item => renderObjectItem(item, false))}
+                {recentlyViewed.map(item => renderObjectItem(item, false, favorites.some(f => f.id === item.id)))}
               </div>
             )}
           </ScrollArea>
         </TabsContent>
       </Tabs>
 
-      {/* Tag Editor Modal */}
-      {editingTags && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border rounded-lg shadow-lg w-full max-w-sm p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium">{t('favorites.manageTags')}</h3>
+      {/* Tag Editor Dialog */}
+      <Dialog open={!!editingTags} onOpenChange={(open) => !open && setEditingTags(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('favorites.manageTags')}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Current tags */}
+            <div className="flex flex-wrap gap-1">
+              {editingTags && favorites.find(f => f.id === editingTags)?.tags.map(tag => (
+                <Badge key={tag} variant="secondary" className="gap-1">
+                  {tag}
+                  <button
+                    className="hover:text-destructive"
+                    onClick={() => removeTag(editingTags, tag)}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+
+            {/* Quick tags */}
+            <Separator />
+            <p className="text-xs text-muted-foreground">{t('favorites.quickTags')}</p>
+            <div className="flex flex-wrap gap-1">
+              {FAVORITE_TAGS.map(tag => (
+                <Badge
+                  key={tag}
+                  variant="outline"
+                  className="cursor-pointer hover:bg-accent"
+                  onClick={() => editingTags && addTag(editingTags, tag)}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+
+            {/* Custom tag input */}
+            <Separator />
+            <div className="flex gap-2">
+              <Input
+                placeholder={t('favorites.customTag')}
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                className="h-8 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && editingTags) {
+                    handleAddTag(editingTags);
+                  }
+                }}
+              />
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => setEditingTags(null)}
+                size="sm"
+                className="h-8"
+                onClick={() => editingTags && handleAddTag(editingTags)}
+                disabled={!newTag.trim()}
               >
-                <X className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
-
-            <div className="space-y-2">
-              {/* Current tags */}
-              <div className="flex flex-wrap gap-1">
-                {favorites.find(f => f.id === editingTags)?.tags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="gap-1">
-                    {tag}
-                    <button
-                      className="hover:text-destructive"
-                      onClick={() => removeTag(editingTags, tag)}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-
-              {/* Quick tags */}
-              <Separator />
-              <p className="text-xs text-muted-foreground">{t('favorites.quickTags')}</p>
-              <div className="flex flex-wrap gap-1">
-                {FAVORITE_TAGS.map(tag => (
-                  <Badge
-                    key={tag}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-accent"
-                    onClick={() => addTag(editingTags, tag)}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-
-              {/* Custom tag input */}
-              <Separator />
-              <div className="flex gap-2">
-                <Input
-                  placeholder={t('favorites.customTag')}
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  className="h-8 text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddTag(editingTags);
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  className="h-8"
-                  onClick={() => handleAddTag(editingTags)}
-                  disabled={!newTag.trim()}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

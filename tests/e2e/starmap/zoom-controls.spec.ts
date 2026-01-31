@@ -1,12 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Zoom Controls', () => {
-  let starmapPage: StarmapPage;
-
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    await waitForStarmapReady(page);
   });
 
   test.describe('Zoom Buttons', () => {
@@ -96,7 +93,7 @@ test.describe('Zoom Controls', () => {
 
   test.describe('Mouse Wheel Zoom', () => {
     test('should zoom in with mouse wheel up', async ({ page }) => {
-      const canvas = starmapPage.canvas;
+      const canvas = page.locator('canvas').first();
       const box = await canvas.boundingBox();
       
       if (box) {
@@ -107,7 +104,7 @@ test.describe('Zoom Controls', () => {
     });
 
     test('should zoom out with mouse wheel down', async ({ page }) => {
-      const canvas = starmapPage.canvas;
+      const canvas = page.locator('canvas').first();
       const box = await canvas.boundingBox();
       
       if (box) {
@@ -118,7 +115,7 @@ test.describe('Zoom Controls', () => {
     });
 
     test('should handle rapid wheel scrolling', async ({ page }) => {
-      const canvas = starmapPage.canvas;
+      const canvas = page.locator('canvas').first();
       const box = await canvas.boundingBox();
       
       if (box) {
@@ -133,7 +130,8 @@ test.describe('Zoom Controls', () => {
         }
       }
       
-      await expect(starmapPage.canvas).toBeVisible();
+      const canvasCheck = page.locator('canvas').first();
+      await expect(canvasCheck).toBeVisible();
     });
   });
 
@@ -174,7 +172,8 @@ test.describe('Zoom Controls', () => {
         }
         
         // Should not crash and button should still be visible
-        await expect(starmapPage.canvas).toBeVisible();
+        const canvasCheck = page.locator('canvas').first();
+        await expect(canvasCheck).toBeVisible();
       }
     });
 
@@ -189,31 +188,35 @@ test.describe('Zoom Controls', () => {
         }
         
         // Should not crash and button should still be visible
-        await expect(starmapPage.canvas).toBeVisible();
+        const canvasCheck = page.locator('canvas').first();
+        await expect(canvasCheck).toBeVisible();
       }
     });
   });
 
   test.describe('Keyboard Zoom', () => {
     test('should zoom with + key', async ({ page }) => {
-      await starmapPage.clickCanvas();
+      const canvas = page.locator('canvas').first();
+      await canvas.click({ position: { x: 100, y: 100 } });
       await page.keyboard.press('+');
       await page.waitForTimeout(300);
-      await expect(starmapPage.canvas).toBeVisible();
+      await expect(canvas).toBeVisible();
     });
 
     test('should zoom with - key', async ({ page }) => {
-      await starmapPage.clickCanvas();
+      const canvas = page.locator('canvas').first();
+      await canvas.click({ position: { x: 100, y: 100 } });
       await page.keyboard.press('-');
       await page.waitForTimeout(300);
-      await expect(starmapPage.canvas).toBeVisible();
+      await expect(canvas).toBeVisible();
     });
 
     test('should zoom with = key (plus without shift)', async ({ page }) => {
-      await starmapPage.clickCanvas();
+      const canvas = page.locator('canvas').first();
+      await canvas.click({ position: { x: 100, y: 100 } });
       await page.keyboard.press('=');
       await page.waitForTimeout(300);
-      await expect(starmapPage.canvas).toBeVisible();
+      await expect(canvas).toBeVisible();
     });
   });
 
@@ -221,7 +224,7 @@ test.describe('Zoom Controls', () => {
     test('should support pinch zoom gesture', async ({ page }) => {
       // Pinch zoom is primarily for touch devices
       // This test verifies the canvas handles mouse wheel zoom as fallback
-      const canvas = starmapPage.canvas;
+      const canvas = page.locator('canvas').first();
       const box = await canvas.boundingBox();
       
       if (box) {
@@ -231,7 +234,7 @@ test.describe('Zoom Controls', () => {
         await page.waitForTimeout(300);
       }
       
-      await expect(starmapPage.canvas).toBeVisible();
+      await expect(canvas).toBeVisible();
     });
   });
 });

@@ -39,27 +39,31 @@ export const TARGET_TYPE_OPTIONS = [
 export const BINNING_OPTIONS: BinningType[] = ['1x1', '2x2', '3x3', '4x4'];
 
 export const FILTER_OPTIONS = [
-  { id: 'L', name: 'Luminance' },
-  { id: 'R', name: 'Red' },
-  { id: 'G', name: 'Green' },
-  { id: 'B', name: 'Blue' },
-  { id: 'Ha', name: 'H-Alpha' },
-  { id: 'OIII', name: 'OIII' },
-  { id: 'SII', name: 'SII' },
-  { id: 'NoFilter', name: 'No Filter' },
+  { id: 'L', nameKey: 'exposure.filterLuminance' },
+  { id: 'R', nameKey: 'exposure.filterRed' },
+  { id: 'G', nameKey: 'exposure.filterGreen' },
+  { id: 'B', nameKey: 'exposure.filterBlue' },
+  { id: 'Ha', nameKey: 'exposure.filterHAlpha' },
+  { id: 'OIII', nameKey: 'exposure.filterOiii' },
+  { id: 'SII', nameKey: 'exposure.filterSii' },
+  { id: 'NoFilter', nameKey: 'exposure.filterNoFilter' },
 ];
 
 // ============================================================================
 // FOV Settings Configuration
 // ============================================================================
 
-export const GRID_TYPE_OPTIONS: { value: GridType; label: string; icon: string }[] = [
-  { value: 'none', label: 'None', icon: '○' },
-  { value: 'crosshair', label: 'Crosshair', icon: '┼' },
-  { value: 'thirds', label: 'Thirds', icon: '▦' },
-  { value: 'golden', label: 'Golden', icon: '◫' },
-  { value: 'diagonal', label: 'Diagonal', icon: '╳' },
+export const GRID_TYPE_OPTIONS: { value: GridType; labelKey: string; icon: string }[] = [
+  { value: 'none', labelKey: 'fov.gridNone', icon: '○' },
+  { value: 'crosshair', labelKey: 'fov.gridCrosshair', icon: '┼' },
+  { value: 'thirds', labelKey: 'fov.gridThirds', icon: '▦' },
+  { value: 'golden', labelKey: 'fov.gridGolden', icon: '◫' },
+  { value: 'diagonal', labelKey: 'fov.gridDiagonal', icon: '╳' },
 ];
+
+// Mosaic configuration limits
+export const MAX_MOSAIC_ROWS = 10;
+export const MAX_MOSAIC_COLS = 10;
 
 export const FRAME_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e', 

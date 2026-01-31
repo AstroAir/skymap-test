@@ -6,6 +6,23 @@ import { act, renderHook } from '@testing-library/react';
 import { useThemeStore, themePresets } from '../theme-store';
 
 describe('useThemeStore', () => {
+  // Mock requestAnimationFrame to execute callbacks synchronously
+  const originalRAF = global.requestAnimationFrame;
+  const originalCAF = global.cancelAnimationFrame;
+
+  beforeAll(() => {
+    global.requestAnimationFrame = (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    };
+    global.cancelAnimationFrame = jest.fn();
+  });
+
+  afterAll(() => {
+    global.requestAnimationFrame = originalRAF;
+    global.cancelAnimationFrame = originalCAF;
+  });
+
   beforeEach(() => {
     // Reset store to defaults before each test
     act(() => {

@@ -111,13 +111,18 @@ export function OfflineCacheManager() {
 
   // Fetch storage info - use Tauri stats when available
   const refreshStorageInfo = useCallback(async () => {
-    // If Tauri is available, also refresh Tauri cache
-    if (tauriCache.isAvailable) {
-      await tauriCache.refresh();
+    try {
+      // If Tauri is available, also refresh Tauri cache
+      if (tauriCache.isAvailable) {
+        await tauriCache.refresh();
+      }
+      const info = await offlineCacheManager.getStorageInfo();
+      setStorageInfo(info);
+    } catch (error) {
+      console.error('Failed to refresh storage info:', error);
+      toast.error(t('cache.loadFailed'));
     }
-    const info = await offlineCacheManager.getStorageInfo();
-    setStorageInfo(info);
-  }, [tauriCache]);
+  }, [tauriCache, t]);
 
   // Refresh storage info on mount and after operations
   useEffect(() => {
@@ -138,12 +143,12 @@ export function OfflineCacheManager() {
       if (result.verified) {
         toast.success(t('cache.repairComplete'), {
           description: result.repaired > 0 
-            ? `${result.repaired} files recovered` 
-            : 'Cache is complete',
+            ? t('cache.filesRecovered', { count: result.repaired })
+            : t('cache.cacheComplete'),
         });
       } else {
         toast.error(t('cache.repairFailed'), {
-          description: `${result.failed} files could not be recovered`,
+          description: t('cache.filesNotRecovered', { count: result.failed }),
         });
       }
       
@@ -160,14 +165,19 @@ export function OfflineCacheManager() {
 
   // Fetch survey cache statuses
   const refreshSurveyStatuses = useCallback(async () => {
-    const statuses: Record<string, HiPSCacheStatus> = {};
-    for (const survey of SKY_SURVEYS) {
-      const hipsSurvey = convertToHiPSSurvey(survey);
-      const status = await offlineCacheManager.getHiPSCacheStatus(hipsSurvey);
-      statuses[survey.id] = status;
+    try {
+      const statuses: Record<string, HiPSCacheStatus> = {};
+      for (const survey of SKY_SURVEYS) {
+        const hipsSurvey = convertToHiPSSurvey(survey);
+        const status = await offlineCacheManager.getHiPSCacheStatus(hipsSurvey);
+        statuses[survey.id] = status;
+      }
+      setSurveyStatuses(statuses);
+    } catch (error) {
+      console.error('Failed to refresh survey statuses:', error);
+      toast.error(t('cache.loadFailed'));
     }
-    setSurveyStatuses(statuses);
-  }, []);
+  }, [t]);
 
   // Refresh survey statuses on mount and when tab changes
   useEffect(() => {
@@ -245,22 +255,23 @@ export function OfflineCacheManager() {
       setUnifiedCacheKeys(keys);
     } catch (error) {
       console.error('Failed to load unified cache:', error);
+      toast.error(t('cache.loadFailed'));
     } finally {
       setLoadingUnified(false);
     }
-  }, []);
+  }, [t]);
 
   const handleClearUnifiedCache = useCallback(async () => {
     if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
     
     try {
       const deletedCount = await unifiedCacheApi.clearCache();
-      toast.success(t('cache.cleared') || 'Cache cleared', {
-        description: `${deletedCount} entries removed`
+      toast.success(t('cache.cleared'), {
+        description: t('cache.entriesRemoved', { count: deletedCount })
       });
       await refreshUnifiedCache();
     } catch (error) {
-      toast.error(t('cache.clearFailed') || 'Failed to clear cache');
+      toast.error(t('cache.clearFailed'));
       console.error('Failed to clear unified cache:', error);
     }
   }, [t, refreshUnifiedCache]);
@@ -270,12 +281,12 @@ export function OfflineCacheManager() {
     
     try {
       const deletedCount = await unifiedCacheApi.cleanup();
-      toast.success(t('cache.cleanupComplete') || 'Cleanup complete', {
-        description: `${deletedCount} expired entries removed`
+      toast.success(t('cache.cleanupComplete'), {
+        description: t('cache.expiredEntriesRemoved', { count: deletedCount })
       });
       await refreshUnifiedCache();
     } catch (error) {
-      toast.error(t('cache.cleanupFailed') || 'Failed to cleanup cache');
+      toast.error(t('cache.cleanupFailed'));
       console.error('Failed to cleanup unified cache:', error);
     }
   }, [t, refreshUnifiedCache]);
@@ -347,7 +358,11 @@ export function OfflineCacheManager() {
             </div>
           </div>
           <CardDescription className="text-xs">
-            {cachedLayers}/{totalLayers} layers cached ({formatBytes(cachedSize)})
+            {t('cache.layersCached', {
+              cached: cachedLayers,
+              total: totalLayers,
+              size: formatBytes(cachedSize),
+            })}
           </CardDescription>
         </CardHeader>
         
@@ -376,17 +391,17 @@ export function OfflineCacheManager() {
                   <HardDrive className="h-3 w-3" />
                   {t('cache.desktopCache')}
                 </span>
-                <Badge variant="outline" className="text-[10px] h-4">Desktop</Badge>
+                <Badge variant="outline" className="text-[10px] h-4">{t('cache.desktopBadge')}</Badge>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">{tauriCache.stats.total_tiles} tiles</span>
+                <span className="text-muted-foreground">{tauriCache.stats.total_tiles} {t('cache.tiles')}</span>
                 <span className="text-foreground font-mono">
                   {formatBytes(tauriCache.stats.total_size_bytes)}
                 </span>
               </div>
               {tauriCache.regions.length > 0 && (
                 <div className="text-xs text-muted-foreground">
-                  {tauriCache.regions.length} cached regions
+                  {t('cache.cachedRegions', { count: tauriCache.regions.length })}
                 </div>
               )}
             </div>
@@ -421,7 +436,7 @@ export function OfflineCacheManager() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Download all layers for offline use ({formatBytes(totalSize)})</p>
+                <p>{t('cache.downloadAllDescription', { size: formatBytes(totalSize) })}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -440,14 +455,13 @@ export function OfflineCacheManager() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>{t('cache.clearAllCache')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will remove all cached data ({formatBytes(cachedSize)}). 
-                    You will need to re-download for offline use.
+                    {t('cache.clearAllCacheDescription', { size: formatBytes(cachedSize) })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={() => clearAllCache()}>
-                    {t('shotList.clearAll')}
+                    {t('cache.clearAll')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -480,7 +494,7 @@ export function OfflineCacheManager() {
               {isTauri() && (
                 <TabsTrigger value="unified" className="text-xs">
                   <HardDrive className="h-3.5 w-3.5 mr-1" />
-                  {t('cache.unifiedCache') || 'Unified'}
+                  {t('cache.unifiedCache')}
                 </TabsTrigger>
               )}
             </TabsList>
@@ -532,7 +546,7 @@ export function OfflineCacheManager() {
                                     <AlertTriangle className="h-3 w-3 text-yellow-500" />
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>{t('cache.incomplete')}: {status?.cachedFiles}/{status?.totalFiles} files</p>
+                                    <p>{t('cache.incompleteDetails', { cached: status?.cachedFiles ?? 0, total: status?.totalFiles ?? 0 })}</p>
                                   </TooltipContent>
                                 </Tooltip>
                               ) : null}
@@ -634,7 +648,7 @@ export function OfflineCacheManager() {
               {selectedLayers.size > 0 && (
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
                   <span className="text-xs text-muted-foreground">
-                    {selectedLayers.size} selected
+                    {t('cache.selected', { count: selectedLayers.size })}
                   </span>
                   <div className="flex gap-2">
                     <Button
@@ -642,7 +656,7 @@ export function OfflineCacheManager() {
                       size="sm"
                       onClick={() => setSelectedLayers(new Set())}
                     >
-                      Clear
+                      {t('common.clear')}
                     </Button>
                     <Button
                       variant="default"
@@ -651,7 +665,7 @@ export function OfflineCacheManager() {
                       disabled={!isOnline || isDownloading}
                     >
                       <Download className="h-3 w-3 mr-1" />
-                      Download
+                      {t('common.download')}
                     </Button>
                   </div>
                 </div>
@@ -662,7 +676,10 @@ export function OfflineCacheManager() {
             <TabsContent value="surveys" className="mt-2">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-muted-foreground">
-                  {Object.values(surveyStatuses).filter(s => s.cached).length}/{SKY_SURVEYS.length} surveys cached
+                  {t('survey.surveysCached', {
+                    cached: Object.values(surveyStatuses).filter(s => s.cached).length,
+                    total: SKY_SURVEYS.length,
+                  })}
                 </span>
                 <div className="flex gap-1">
                   <Button
@@ -686,15 +703,15 @@ export function OfflineCacheManager() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>{t('survey.clearCache')}</AlertDialogTitle>
+                          <AlertDialogTitle>{t('survey.clearAllCacheTitle')}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This will remove all cached survey tiles.
+                            {t('survey.clearAllCacheDescription')}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                           <AlertDialogAction onClick={handleClearAllSurveyCaches}>
-                            {t('shotList.clearAll')}
+                            {t('cache.clearAll')}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -736,7 +753,10 @@ export function OfflineCacheManager() {
                             </p>
                             {status && status.cachedTiles > 0 && (
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                {status.cachedTiles} tiles (~{formatBytes(status.cachedBytes)})
+                                {t('survey.tilesCachedWithSize', {
+                                  count: status.cachedTiles,
+                                  size: formatBytes(status.cachedBytes),
+                                })}
                               </p>
                             )}
                           </div>
@@ -791,7 +811,7 @@ export function OfflineCacheManager() {
                   {loadingUnified ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin" />
-                      <span className="ml-2 text-sm text-muted-foreground">Loading unified cache...</span>
+                      <span className="ml-2 text-sm text-muted-foreground">{t('cache.loadingUnifiedCache')}</span>
                     </div>
                   ) : unifiedCacheStats ? (
                     <>
@@ -799,15 +819,15 @@ export function OfflineCacheManager() {
                       <div className="grid grid-cols-3 gap-3 text-sm">
                         <div className="text-center p-2 bg-muted/30 rounded">
                           <div className="font-medium">{unifiedCacheStats.total_entries}</div>
-                          <div className="text-xs text-muted-foreground">Entries</div>
+                          <div className="text-xs text-muted-foreground">{t('cache.entries')}</div>
                         </div>
                         <div className="text-center p-2 bg-muted/30 rounded">
                           <div className="font-medium">{formatBytes(unifiedCacheStats.total_size)}</div>
-                          <div className="text-xs text-muted-foreground">Size</div>
+                          <div className="text-xs text-muted-foreground">{t('cache.size')}</div>
                         </div>
                         <div className="text-center p-2 bg-muted/30 rounded">
                           <div className="font-medium">{(unifiedCacheStats.hit_rate * 100).toFixed(1)}%</div>
-                          <div className="text-xs text-muted-foreground">Hit Rate</div>
+                          <div className="text-xs text-muted-foreground">{t('cache.hitRate')}</div>
                         </div>
                       </div>
 
@@ -820,7 +840,7 @@ export function OfflineCacheManager() {
                           className="flex-1"
                         >
                           <RefreshCw className="h-4 w-4 mr-1" />
-                          {t('cache.cleanup') || 'Cleanup'}
+                          {t('cache.cleanup')}
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -831,14 +851,17 @@ export function OfflineCacheManager() {
                               disabled={unifiedCacheStats.total_entries === 0}
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
-                              {t('cache.clearAll') || 'Clear All'}
+                              {t('cache.clearAll')}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>{t('cache.clearUnifiedCache') || 'Clear Unified Cache'}</AlertDialogTitle>
+                              <AlertDialogTitle>{t('cache.clearUnifiedCache')}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will remove all {unifiedCacheStats.total_entries} cached entries ({formatBytes(unifiedCacheStats.total_size)}).
+                                {t('cache.clearUnifiedCacheDescription', {
+                                  count: unifiedCacheStats.total_entries,
+                                  size: formatBytes(unifiedCacheStats.total_size),
+                                })}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -855,7 +878,7 @@ export function OfflineCacheManager() {
                       {unifiedCacheKeys.length > 0 && (
                         <div>
                           <h4 className="text-sm font-medium mb-2">
-                            {t('cache.cachedItems') || 'Cached Items'} ({unifiedCacheKeys.length})
+                            {t('cache.cachedItems')} ({unifiedCacheKeys.length})
                           </h4>
                           <ScrollArea className="h-[160px]">
                             <div className="space-y-1 pr-2">
@@ -870,7 +893,7 @@ export function OfflineCacheManager() {
                               ))}
                               {unifiedCacheKeys.length > 20 && (
                                 <div className="text-xs text-muted-foreground text-center py-2">
-                                  ... and {unifiedCacheKeys.length - 20} more items
+                                  {t('cache.moreItems', { count: unifiedCacheKeys.length - 20 })}
                                 </div>
                               )}
                             </div>
@@ -882,7 +905,7 @@ export function OfflineCacheManager() {
                     <div className="text-center py-8">
                       <HardDrive className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                       <p className="text-sm text-muted-foreground">
-                        {t('cache.unifiedCacheEmpty') || 'Unified cache is empty'}
+                        {t('cache.unifiedCacheEmpty')}
                       </p>
                     </div>
                   )}

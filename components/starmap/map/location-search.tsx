@@ -46,6 +46,7 @@ function LocationSearchComponent({
   initialValue = '',
 }: LocationSearchProps) {
   const t = useTranslations();
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const [query, setQuery] = useState(initialValue);
@@ -274,8 +275,9 @@ function LocationSearchComponent({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setSelectedIndex(-1);
       }
     };
 
@@ -308,7 +310,7 @@ function LocationSearchComponent({
   );
 
   return (
-    <div className={cn('relative w-full', className)}>
+    <div ref={rootRef} className={cn('relative w-full', className)}>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input

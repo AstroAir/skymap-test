@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock stores
 const mockUseSettingsStore = jest.fn((selector) => {
@@ -132,7 +132,22 @@ jest.mock('@/components/starmap/settings/location-settings', () => ({
 }));
 
 jest.mock('@/components/starmap/settings/connection-settings', () => ({
-  ConnectionSettings: () => <div data-testid="connection-settings">ConnectionSettings</div>,
+  ConnectionSettings: ({ onConnectionChange, onProtocolChange }: { onConnectionChange: (c: { ip: string; port: string }) => void; onProtocolChange: (p: 'http' | 'https') => void }) => (
+    <div data-testid="connection-settings">
+      <button
+        data-testid="change-connection"
+        onClick={() => onConnectionChange({ ip: '1.2.3.4', port: '1234' })}
+      >
+        change-connection
+      </button>
+      <button
+        data-testid="change-protocol"
+        onClick={() => onProtocolChange('https')}
+      >
+        change-protocol
+      </button>
+    </div>
+  ),
 }));
 
 jest.mock('@/components/starmap/settings/general-settings', () => ({
@@ -309,6 +324,30 @@ describe('UnifiedSettings Integration', () => {
       render(<UnifiedSettings />);
       const separators = screen.getAllByTestId('separator');
       expect(separators.length).toBeGreaterThan(0);
+    });
+
+    it('enables Save when connection settings change', () => {
+      render(<UnifiedSettings />);
+
+      const saveButton = screen.getByText('common.save').closest('button');
+      expect(saveButton).toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('change-connection'));
+
+      const saveButtonAfter = screen.getByText('common.save').closest('button');
+      expect(saveButtonAfter).not.toBeDisabled();
+    });
+
+    it('enables Save when protocol changes', () => {
+      render(<UnifiedSettings />);
+
+      const saveButton = screen.getByText('common.save').closest('button');
+      expect(saveButton).toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('change-protocol'));
+
+      const saveButtonAfter = screen.getByText('common.save').closest('button');
+      expect(saveButtonAfter).not.toBeDisabled();
     });
   });
 

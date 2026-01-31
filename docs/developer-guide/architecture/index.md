@@ -35,7 +35,9 @@ graph LR
     B --> C[React组件]
     C --> D[Zustand状态]
     D --> E[Tauri IPC]
-    E --> F[Rust后端]
+    E --> S[安全层]
+    S --> N[网络层]
+    N --> F[Rust模块]
     F --> G[JSON Stores]
     F --> H[文件缓存]
 ```

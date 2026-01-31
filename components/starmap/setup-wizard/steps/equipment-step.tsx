@@ -46,12 +46,12 @@ export function EquipmentStep() {
   const [manualSensorHeight, setManualSensorHeight] = useState(sensorHeight.toString());
   const [manualPixelSize, setManualPixelSize] = useState(pixelSize.toString());
 
-  const hasEquipment = (activeCameraId || activeTelescopeId || focalLength > 0);
+  const telescopeConfigured = activeTelescopeId !== null || focalLength !== 400 || aperture !== 80;
+  const cameraConfigured = activeCameraId !== null || sensorWidth !== 23.5 || sensorHeight !== 15.6 || pixelSize !== 3.76;
+  const hasEquipment = telescopeConfigured || cameraConfigured;
 
   useEffect(() => {
-    if (hasEquipment) {
-      updateSetupData({ equipmentConfigured: true });
-    }
+    updateSetupData({ equipmentConfigured: hasEquipment });
   }, [hasEquipment, updateSetupData]);
 
   const allCameras = [...BUILTIN_CAMERA_PRESETS, ...customCameras];
@@ -110,7 +110,7 @@ export function EquipmentStep() {
                 <Telescope className="w-4 h-4 text-primary" />
               </div>
               <span className="font-medium">{t('setupWizard.steps.equipment.telescope')}</span>
-              {activeTelescopeId && (
+              {telescopeConfigured && (
                 <Check className="w-4 h-4 text-green-500" />
               )}
             </div>
@@ -129,6 +129,7 @@ export function EquipmentStep() {
                   key={telescope.id}
                   type="button"
                   onClick={() => handleSelectTelescope(telescope)}
+                  aria-pressed={activeTelescopeId === telescope.id}
                   className={cn(
                     'p-2 rounded-lg border text-left transition-all text-sm',
                     activeTelescopeId === telescope.id
@@ -159,21 +160,23 @@ export function EquipmentStep() {
             <div className="space-y-3 p-3 rounded-lg bg-muted/30">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('fov.focalLength')} (mm)</Label>
+                  <Label className="text-xs" htmlFor="setup-wizard-manual-focal-length">{t('fov.focalLength')} (mm)</Label>
                   <Input
+                    id="setup-wizard-manual-focal-length"
                     type="number"
                     value={manualFocalLength}
                     onChange={(e) => setManualFocalLength(e.target.value)}
-                    placeholder="e.g. 1000"
+                    placeholder={t('setupWizard.steps.equipment.focalLengthPlaceholder')}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('equipment.aperture')} (mm)</Label>
+                  <Label className="text-xs" htmlFor="setup-wizard-manual-aperture">{t('equipment.aperture')} (mm)</Label>
                   <Input
+                    id="setup-wizard-manual-aperture"
                     type="number"
                     value={manualAperture}
                     onChange={(e) => setManualAperture(e.target.value)}
-                    placeholder="e.g. 200"
+                    placeholder={t('setupWizard.steps.equipment.aperturePlaceholder')}
                   />
                 </div>
               </div>
@@ -197,7 +200,7 @@ export function EquipmentStep() {
                 <Camera className="w-4 h-4 text-primary" />
               </div>
               <span className="font-medium">{t('setupWizard.steps.equipment.camera')}</span>
-              {activeCameraId && (
+              {cameraConfigured && (
                 <Check className="w-4 h-4 text-green-500" />
               )}
             </div>
@@ -216,6 +219,7 @@ export function EquipmentStep() {
                   key={camera.id}
                   type="button"
                   onClick={() => handleSelectCamera(camera)}
+                  aria-pressed={activeCameraId === camera.id}
                   className={cn(
                     'p-2 rounded-lg border text-left transition-all text-sm',
                     activeCameraId === camera.id
@@ -246,30 +250,33 @@ export function EquipmentStep() {
             <div className="space-y-3 p-3 rounded-lg bg-muted/30">
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('fov.sensorWidth')} (mm)</Label>
+                  <Label className="text-xs" htmlFor="setup-wizard-manual-sensor-width">{t('fov.sensorWidth')} (mm)</Label>
                   <Input
+                    id="setup-wizard-manual-sensor-width"
                     type="number"
                     value={manualSensorWidth}
                     onChange={(e) => setManualSensorWidth(e.target.value)}
-                    placeholder="e.g. 36"
+                    placeholder={t('setupWizard.steps.equipment.sensorWidthPlaceholder')}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('fov.sensorHeight')} (mm)</Label>
+                  <Label className="text-xs" htmlFor="setup-wizard-manual-sensor-height">{t('fov.sensorHeight')} (mm)</Label>
                   <Input
+                    id="setup-wizard-manual-sensor-height"
                     type="number"
                     value={manualSensorHeight}
                     onChange={(e) => setManualSensorHeight(e.target.value)}
-                    placeholder="e.g. 24"
+                    placeholder={t('setupWizard.steps.equipment.sensorHeightPlaceholder')}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">{t('fov.pixelSize')} (μm)</Label>
+                  <Label className="text-xs" htmlFor="setup-wizard-manual-pixel-size">{t('fov.pixelSize')} (μm)</Label>
                   <Input
+                    id="setup-wizard-manual-pixel-size"
                     type="number"
                     value={manualPixelSize}
                     onChange={(e) => setManualPixelSize(e.target.value)}
-                    placeholder="e.g. 3.76"
+                    placeholder={t('setupWizard.steps.equipment.pixelSizePlaceholder')}
                   />
                 </div>
               </div>
@@ -289,10 +296,10 @@ export function EquipmentStep() {
             <span className="text-sm font-medium">{t('setupWizard.steps.equipment.configured')}</span>
           </div>
           <div className="text-xs text-muted-foreground space-y-1">
-            {focalLength > 0 && (
+            {telescopeConfigured && (
               <p>{t('fov.focalLength')}: {focalLength}mm</p>
             )}
-            {sensorWidth > 0 && (
+            {cameraConfigured && (
               <p>{t('setupWizard.steps.equipment.sensor')}: {sensorWidth}×{sensorHeight}mm</p>
             )}
           </div>

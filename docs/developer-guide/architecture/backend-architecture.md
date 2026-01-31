@@ -21,26 +21,43 @@
 src-tauri/
 ├── src/
 │   ├── main.rs              # 主入口
-│   ├── lib.rs               # 库入口，命令注册
-│   ├── storage.rs           # 数据存储 (JSON)
-│   ├── equipment.rs         # 设备管理
-│   ├── locations.rs         # 位置管理
-│   ├── astronomy.rs         # 天文计算
-│   ├── astro_events.rs      # 天文事件
-│   ├── target_list.rs       # 目标列表
-│   ├── target_io.rs         # 目标导入/导出
-│   ├── markers.rs           # 标记管理
-│   ├── observation_log.rs   # 观测日志
-│   ├── offline_cache.rs     # 离线缓存
-│   ├── unified_cache.rs     # 统一缓存
-│   ├── http_client.rs       # HTTP 客户端
-│   ├── security.rs          # 安全模块
-│   ├── rate_limiter.rs      # 速率限制
-│   ├── security_tests.rs    # 安全测试
-│   ├── updater.rs           # 自动更新
-│   ├── app_control.rs       # 应用控制
-│   ├── app_settings.rs      # 应用设置
+│   ├── lib.rs               # 库入口，模块导出和命令注册
+│   │
+│   ├── astronomy/           # 天文计算模块
+│   │   ├── mod.rs           # 模块导出
+│   │   ├── calculations.rs  # 坐标转换、可见性计算
+│   │   └── events.rs        # 天文事件（月相、流星雨）
+│   │
+│   ├── data/                # 数据持久化模块
+│   │   ├── mod.rs           # 模块导出
+│   │   ├── storage.rs       # 通用 JSON 存储系统
+│   │   ├── equipment.rs     # 设备管理（望远镜、相机等）
+│   │   ├── locations.rs     # 观测位置管理
+│   │   ├── targets.rs       # 目标列表管理
+│   │   ├── target_io.rs     # 目标导入/导出
+│   │   ├── markers.rs       # 天空标记持久化
+│   │   └── observation_log.rs # 观测日志
+│   │
+│   ├── cache/               # 缓存模块
+│   │   ├── mod.rs           # 模块导出
+│   │   ├── offline.rs       # 离线瓦片缓存
+│   │   └── unified.rs       # 统一网络资源缓存
+│   │
+│   ├── network/             # 网络通信模块
+│   │   ├── mod.rs           # 模块导出
+│   │   ├── http_client.rs   # HTTP 客户端（重试、进度）
+│   │   ├── security.rs      # URL 验证和 SSRF 防护
+│   │   └── rate_limiter.rs  # 请求速率限制
+│   │
+│   ├── platform/            # 桌面特定功能（仅桌面）
+│   │   ├── mod.rs           # 模块导出
+│   │   ├── app_settings.rs  # 应用设置和窗口状态
+│   │   ├── app_control.rs   # 应用生命周期控制
+│   │   ├── updater.rs       # 自动更新
+│   │   └── plate_solver.rs  # 天文定位解算
+│   │
 │   └── utils.rs             # 工具函数
+│
 ├── Cargo.toml               # Rust 依赖
 └── tauri.conf.json          # Tauri 配置
 ```
@@ -51,19 +68,28 @@ src-tauri/
 
 ```rust
 // src-tauri/src/lib.rs
-mod storage;
-mod equipment;
-mod astronomy;
-mod security;
-mod rate_limiter;
+pub mod astronomy;  // 天文计算和事件
+pub mod data;       // 数据持久化
+pub mod cache;      // 缓存系统
+pub mod network;    // HTTP 客户端、安全、速率限制
+pub mod utils;      // 工具函数
+
+#[cfg(desktop)]
+pub mod platform;   // 桌面特定功能
+
+// 重新导出以保持向后兼容
+use data::{ /* ... */ };
+use astronomy::{ /* ... */ };
+// ...
 
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            storage::save_store_data,
-            storage::load_store_data,
-            equipment::load_equipment,
-            astronomy::equatorial_to_horizontal,
+            // 所有模块的命令在此注册
+            save_store_data,
+            load_equipment,
+            equatorial_to_horizontal,
+            // ...
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -72,15 +98,27 @@ pub fn run() {
 
 ## 核心模块
 
-### 存储模块
+### 模块组织概览
+
+后端按功能域组织为五个主要模块：
+
+| 模块 | 职责 | 文件 |
+|------|------|------|
+| `astronomy/` | 天文计算和事件 | `calculations.rs`, `events.rs` |
+| `data/` | 数据持久化 | `storage.rs`, `equipment.rs`, `locations.rs`, `targets.rs`, `markers.rs`, `observation_log.rs`, `target_io.rs` |
+| `cache/` | 缓存系统 | `offline.rs`, `unified.rs` |
+| `network/` | 网络通信和安全 | `http_client.rs`, `security.rs`, `rate_limiter.rs` |
+| `platform/` | 桌面特定功能 | `app_settings.rs`, `app_control.rs`, `updater.rs`, `plate_solver.rs` |
+
+### 数据模块 (data/)
 
 所有数据以 JSON 格式存储在应用程序数据目录中：
 
 ```rust
-// src-tauri/src/storage.rs
+// src-tauri/src/data/storage.rs
 use std::fs;
 use serde_json;
-use crate::security;
+use crate::network::security;
 
 #[tauri::command]
 pub async fn save_store_data(
@@ -112,10 +150,12 @@ pub async fn load_store_data(
 }
 ```
 
-### 安全模块
+### 网络模块 (network/)
+
+#### 安全模块
 
 ```rust
-// src-tauri/src/security.rs
+// src-tauri/src/network/security.rs
 pub mod limits {
     pub const MAX_JSON_SIZE: usize = 10 * 1024 * 1024;  // 10 MB
     pub const MAX_CSV_SIZE: usize = 50 * 1024 * 1024;   // 50 MB
@@ -137,10 +177,10 @@ pub fn validate_url(url: &str, allow_http: bool, allowlist: Option<&[&str]>)
 }
 ```
 
-### 速率限制模块
+#### 速率限制模块
 
 ```rust
-// src-tauri/src/rate_limiter.rs
+// src-tauri/src/network/rate_limiter.rs
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -156,10 +196,10 @@ impl RateLimiter {
 }
 ```
 
-### 天文计算模块
+### 天文计算模块 (astronomy/)
 
 ```rust
-// src-tauri/src/astronomy.rs
+// src-tauri/src/astronomy/calculations.rs
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -175,10 +215,10 @@ pub async fn equatorial_to_horizontal(
     // 坐标转换计算
     let lst = calculate_lst(lon);
     let ha = lst - ra;
-    
+
     let alt = (dec.sin() * lat.sin() + dec.cos() * lat.cos() * ha.cos()).asin();
     let az = (dec.sin() - alt.sin() * lat.sin()) / (alt.cos() * lat.cos());
-    
+
     Ok(AltAz { alt: alt.to_degrees(), az: az.to_degrees() })
 }
 ```
@@ -186,7 +226,7 @@ pub async fn equatorial_to_horizontal(
 ### 设备管理模块
 
 ```rust
-// src-tauri/src/equipment.rs
+// src-tauri/src/data/equipment.rs
 #[derive(Serialize, Deserialize)]
 pub struct Telescope {
     pub id: String,

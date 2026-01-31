@@ -117,6 +117,8 @@ export const TEST_TIMEOUTS = {
   medium: 10000,
   long: 30000,
   splash: 15000,
+  /** Extra long timeout for WASM engine initialization */
+  wasmInit: 120000,
 };
 
 export const VIEWPORT_SIZES = {

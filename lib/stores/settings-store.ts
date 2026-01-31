@@ -22,6 +22,7 @@ export interface AppPreferences {
   coordinateFormat: CoordinateFormat;
   distanceUnit: DistanceUnit;
   temperatureUnit: TemperatureUnit;
+  skipCloseConfirmation: boolean;
 }
 
 export interface PerformanceSettings {
@@ -128,6 +129,7 @@ const DEFAULT_PREFERENCES: AppPreferences = {
   coordinateFormat: 'dms',
   distanceUnit: 'metric',
   temperatureUnit: 'celsius',
+  skipCloseConfirmation: false,
 };
 
 const DEFAULT_PERFORMANCE: PerformanceSettings = {

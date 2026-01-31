@@ -1,13 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { StarmapPage } from '../fixtures/page-objects';
 import { TEST_OBJECTS } from '../fixtures/test-data';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Info Panel', () => {
-  let starmapPage: StarmapPage;
-
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    await waitForStarmapReady(page);
   });
 
   test.describe('Object Selection', () => {
@@ -321,7 +318,8 @@ test.describe('Info Panel', () => {
           await page.waitForTimeout(500);
           
           // Click on canvas to deselect
-          await starmapPage.clickCanvas();
+          const canvas = page.locator('canvas').first();
+          await canvas.click({ position: { x: 100, y: 100 } });
           await page.waitForTimeout(500);
           
           // Info panel may be hidden

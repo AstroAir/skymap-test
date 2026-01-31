@@ -17,11 +17,11 @@ graph TD
     end
 
     subgraph 后端模块
-        E --> F[storage.rs]
-        E --> G[equipment.rs]
-        E --> H[astronomy.rs]
-        E --> I[unified_cache.rs]
-        E --> J[http_client.rs]
+        E --> F[data/storage.rs]
+        E --> G[data/equipment.rs]
+        E --> H[astronomy/calculations.rs]
+        E --> I[cache/unified.rs]
+        E --> J[network/http_client.rs]
     end
 
     subgraph 数据层
@@ -34,21 +34,24 @@ graph TD
 
 | 模块 | 文件 | 命令数 | 说明 |
 |------|------|--------|------|
-| **存储** | `storage.rs` | 9 | 通用数据存储 |
-| **设备** | `equipment.rs` | 14 | 望远镜、相机等设备管理 |
-| **位置** | `locations.rs` | 7 | 观测位置管理 |
-| **观测日志** | `observation_log.rs` | 9 | 观测记录管理 |
-| **天文计算** | `astronomy.rs` | 14 | 坐标转换、可见性等 |
-| **离线缓存** | `offline_cache.rs` | 10 | HiPS 瓦片缓存 |
-| **统一缓存** | `unified_cache.rs` | 10 | 通用缓存系统 |
-| **天文事件** | `astro_events.rs` | 5 | 月相、流星雨等 |
-| **目标列表** | `target_list.rs` | 17 | 观测目标管理 |
-| **标记** | `markers.rs` | 13 | 天空标记管理 |
-| **HTTP客户端** | `http_client.rs` | 10 | 安全HTTP请求 |
-| **应用设置** | `app_settings.rs` | 9 | 窗口状态、偏好设置 |
-| **导入导出** | `target_io.rs` | 2 | 目标列表导入导出 |
+| **数据存储** | `data/storage.rs` | 9 | 通用数据存储 |
+| **设备管理** | `data/equipment.rs` | 14 | 望远镜、相机等设备管理 |
+| **位置管理** | `data/locations.rs` | 7 | 观测位置管理 |
+| **观测日志** | `data/observation_log.rs` | 9 | 观测记录管理 |
+| **天文计算** | `astronomy/calculations.rs` | 14 | 坐标转换、可见性等 |
+| **天文事件** | `astronomy/events.rs` | 5 | 月相、流星雨等 |
+| **离线缓存** | `cache/offline.rs` | 10 | HiPS 瓦片缓存 |
+| **统一缓存** | `cache/unified.rs` | 10 | 通用缓存系统 |
+| **目标列表** | `data/targets.rs` | 17 | 观测目标管理 |
+| **标记管理** | `data/markers.rs` | 13 | 天空标记管理 |
+| **导入导出** | `data/target_io.rs` | 2 | 目标列表导入导出 |
+| **HTTP客户端** | `network/http_client.rs` | 10 | 安全HTTP请求 |
+| **应用设置** | `platform/app_settings.rs` | 9 | 窗口状态、偏好设置 |
+| **应用控制** | `platform/app_control.rs` | 4 | 应用重启、退出等 |
+| **自动更新** | `platform/updater.rs` | 8 | 应用更新管理 |
+| **板求解** | `platform/plate_solver.rs` | 10 | 天文板求解 |
 
-**总计: 120+ 个 Tauri 命令**
+**总计: 130+ 个 Tauri 命令**
 
 ## API 分类
 

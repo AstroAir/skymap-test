@@ -347,12 +347,25 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
                 <p>{t('objectDetail.imageLoadError')}</p>
               </div>
             ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={currentImage.url}
-                alt={currentImage.title || objectName}
-                className="max-w-full max-h-full object-contain"
-              />
+              <>
+                {/* Show loading spinner until image loads in fullscreen */}
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="h-12 w-12 text-white/70 animate-spin" />
+                  </div>
+                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={currentImage.url}
+                  alt={currentImage.title || objectName}
+                  className={cn(
+                    "max-w-full max-h-full object-contain transition-opacity",
+                    isLoading ? "opacity-0" : "opacity-100"
+                  )}
+                  onLoad={() => handleImageLoad(currentIndex)}
+                  onError={() => handleImageError(currentIndex)}
+                />
+              </>
             )}
 
             {/* Info Bar */}

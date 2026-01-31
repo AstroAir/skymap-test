@@ -40,6 +40,7 @@ class ConnectivityChecker {
   private listeners: Array<(status: ProviderHealthStatus) => void> = [];
   private lastCheckTime: Map<string, number> = new Map();
   private isPageVisible = true;
+  private providers: Map<string, BaseMapProvider> = new Map();
   
   private readonly MAX_HISTORY_SIZE = 50;
   private readonly ERROR_THRESHOLD = 0.7; // Consider unhealthy if success rate < 70%
@@ -90,6 +91,8 @@ class ConnectivityChecker {
     
     // Stop existing monitoring if any
     this.stopMonitoring(providerType);
+
+    this.providers.set(providerType, provider);
     
     // Initialize health status
     this.healthStatuses.set(providerType, {
@@ -125,6 +128,8 @@ class ConnectivityChecker {
       clearInterval(intervalId);
       this.intervalIds.delete(providerType);
     }
+
+    this.providers.delete(providerType);
   }
 
   /**
@@ -143,11 +148,12 @@ class ConnectivityChecker {
   /**
    * Check health of a specific provider
    */
-  async checkProviderHealth(provider: BaseMapProvider): Promise<ProviderHealthStatus> {
+  async checkProviderHealth(provider: BaseMapProvider, options: { force?: boolean } = {}): Promise<ProviderHealthStatus> {
     const providerType = provider.getProviderType();
+    const force = options.force === true;
     
     // Skip if checked too recently (unless forced)
-    if (this.shouldSkipCheck(providerType)) {
+    if (!force && this.shouldSkipCheck(providerType)) {
       const existingStatus = this.healthStatuses.get(providerType);
       if (existingStatus) {
         return existingStatus;
@@ -211,9 +217,16 @@ class ConnectivityChecker {
    * Check health of all enabled providers
    */
   async checkAllProvidersHealth(): Promise<ProviderHealthStatus[]> {
-    // This would need to be implemented with actual provider instances
-    // For now, return empty array as placeholder
-    return [];
+    const providers = Array.from(this.providers.values());
+    if (providers.length === 0) return [];
+
+    const results = await Promise.allSettled(
+      providers.map((p) => this.checkProviderHealth(p, { force: true }))
+    );
+
+    return results
+      .filter((r): r is PromiseFulfilledResult<ProviderHealthStatus> => r.status === 'fulfilled')
+      .map((r) => r.value);
   }
 
   private recordTestResult(providerType: string, result: ConnectivityTestResult): void {
@@ -488,6 +501,7 @@ class ConnectivityChecker {
     // Clear data
     this.healthStatuses.clear();
     this.testHistory.clear();
+    this.providers.clear();
   }
 
   /**

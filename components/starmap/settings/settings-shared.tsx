@@ -58,12 +58,14 @@ export interface ToggleItemProps {
   id: string;
   label: string;
   checked: boolean;
-  onCheckedChange: ((checked: boolean) => void) | (() => void);
+  onCheckedChange: (checked: boolean) => void;
   icon?: string;
   description?: string;
 }
 
 export function ToggleItem({ id, label, checked, onCheckedChange, icon, description }: ToggleItemProps) {
+  const descriptionId = description ? `${id}-description` : undefined;
+  
   return (
     <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
       <div className="flex-1 min-w-0 mr-2">
@@ -72,13 +74,14 @@ export function ToggleItem({ id, label, checked, onCheckedChange, icon, descript
           {label}
         </Label>
         {description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          <p id={descriptionId} className="text-xs text-muted-foreground mt-0.5">{description}</p>
         )}
       </div>
       <Switch
         id={id}
         checked={checked}
         onCheckedChange={onCheckedChange}
+        aria-describedby={descriptionId}
       />
     </div>
   );

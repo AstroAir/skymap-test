@@ -21,6 +21,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useSetupWizardStore, SETUP_WIZARD_STEPS, type SetupWizardStep } from '@/lib/stores/setup-wizard-store';
+import { useMountStore } from '@/lib/stores/mount-store';
 import { LocationStep } from './steps/location-step';
 import { EquipmentStep } from './steps/equipment-step';
 import { PreferencesStep } from './steps/preferences-step';
@@ -53,6 +54,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const isLastStep = useSetupWizardStore((state) => state.isLastStep);
   const getCurrentStepIndex = useSetupWizardStore((state) => state.getCurrentStepIndex);
 
+  const setProfileInfo = useMountStore((state) => state.setProfileInfo);
+
   // Use a ref for client-side mounting detection to avoid lint warning
   const [mounted, setMounted] = useState(() => {
     // This will be false during SSR and true after hydration
@@ -79,6 +82,31 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }, 800);
     return () => clearTimeout(timer);
   }, [mounted, hasCompletedSetup, showOnNextVisit, openWizard]);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    try {
+      const stored = localStorage.getItem('skymap-observer-location');
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as { latitude?: number; longitude?: number; altitude?: number };
+      if (!Number.isFinite(parsed.latitude) || !Number.isFinite(parsed.longitude)) return;
+      if (parsed.latitude! < -90 || parsed.latitude! > 90) return;
+      if (parsed.longitude! < -180 || parsed.longitude! > 180) return;
+
+      const currentProfile = useMountStore.getState().profileInfo;
+      setProfileInfo({
+        AstrometrySettings: {
+          ...currentProfile.AstrometrySettings,
+          Latitude: parsed.latitude!,
+          Longitude: parsed.longitude!,
+          Elevation: parsed.altitude ?? currentProfile.AstrometrySettings.Elevation ?? 0,
+        },
+      });
+    } catch (e) {
+      void e;
+    }
+  }, [mounted, setProfileInfo]);
 
   const handleNext = () => {
     if (isLastStep()) {
@@ -337,10 +365,10 @@ function CompleteStepContent() {
         <h4 className="text-sm font-medium text-foreground">
           {t('setupWizard.steps.complete.quickTips')}
         </h4>
-        <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• {t('setupWizard.steps.complete.tip1')}</li>
-          <li>• {t('setupWizard.steps.complete.tip2')}</li>
-          <li>• {t('setupWizard.steps.complete.tip3')}</li>
+        <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+          <li>{t('setupWizard.steps.complete.tip1')}</li>
+          <li>{t('setupWizard.steps.complete.tip2')}</li>
+          <li>{t('setupWizard.steps.complete.tip3')}</li>
         </ul>
       </div>
     </div>

@@ -133,6 +133,10 @@ export function DisplaySettings({
         icon={<Satellite className="h-4 w-4" />}
         defaultOpen={false}
       >
+        {/* Instant effect hint for satellite settings */}
+        <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded mb-2">
+          {t('settings.instantEffectHint')}
+        </p>
         <ToggleItem
           id="show-satellites"
           label={t('satellites.showOnMap')}

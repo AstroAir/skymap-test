@@ -200,9 +200,13 @@ class MapConfigurationService {
   }
 
   getActiveApiKey(provider: 'openstreetmap' | 'google' | 'mapbox'): MapApiKey | undefined {
-    return this.config.apiKeys.find(key => 
-      key.provider === provider && key.isActive
-    );
+    const active = this.config.apiKeys.find(key => key.provider === provider && key.isActive);
+    if (active) return active;
+
+    const def = this.config.apiKeys.find(key => key.provider === provider && key.isDefault);
+    if (def) return def;
+
+    return this.config.apiKeys.find(key => key.provider === provider);
   }
 
   addApiKey(apiKey: Omit<MapApiKey, 'id' | 'createdAt'>): string {
@@ -217,6 +221,7 @@ class MapConfigurationService {
     const existingKeys = this.getApiKeys(apiKey.provider);
     if (existingKeys.length === 0) {
       newKey.isActive = true;
+      newKey.isDefault = true;
     }
 
     this.config.apiKeys.push(newKey);
@@ -236,7 +241,27 @@ class MapConfigurationService {
   }
 
   removeApiKey(id: string): void {
+    const removed = this.config.apiKeys.find(key => key.id === id);
     this.config.apiKeys = this.config.apiKeys.filter(key => key.id !== id);
+
+    if (removed) {
+      const remaining = this.getApiKeys(removed.provider);
+      const hasActive = remaining.some(k => k.isActive);
+      const hasDefault = remaining.some(k => k.isDefault);
+
+      if (remaining.length > 0 && !hasDefault) {
+        remaining[0].isDefault = true;
+      }
+
+      if (remaining.length > 0 && !hasActive) {
+        remaining.forEach(k => {
+          k.isActive = false;
+        });
+        remaining[0].isActive = true;
+        remaining[0].lastUsed = new Date().toISOString();
+      }
+    }
+
     this.saveConfiguration();
   }
 
@@ -247,9 +272,12 @@ class MapConfigurationService {
       this.config.apiKeys.forEach(k => {
         if (k.provider === key.provider) {
           k.isDefault = false;
+          k.isActive = false;
         }
       });
       key.isDefault = true;
+      key.isActive = true;
+      key.lastUsed = new Date().toISOString();
       this.saveConfiguration();
     }
   }

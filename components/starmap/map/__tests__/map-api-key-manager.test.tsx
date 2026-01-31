@@ -227,9 +227,15 @@ jest.mock('@/components/ui/separator', () => ({
 import { MapApiKeyManager } from '@/components/starmap/map/map-api-key-manager';
 
 describe('MapApiKeyManager', () => {
+  const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockMapConfig.getApiKeys.mockReturnValue([]);
+  });
+
+  afterAll(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   describe('Rendering', () => {

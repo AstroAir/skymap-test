@@ -865,5 +865,45 @@ describe('ObjectDetailDrawer', () => {
       expect(screen.getByTestId('drawer')).toBeInTheDocument();
       expect(screen.getByText('Unknown')).toBeInTheDocument();
     });
+
+    it('auto-closes drawer when open and selectedObject becomes null', async () => {
+      const { rerender } = render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      // Initial render with valid object - should not close
+      expect(mockOnOpenChange).not.toHaveBeenCalledWith(false);
+
+      // Re-render with null selectedObject while still open
+      rerender(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={null}
+        />
+      );
+
+      // Should trigger auto-close
+      await waitFor(() => {
+        expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+      });
+    });
+
+    it('does not trigger close when drawer is already closed', () => {
+      render(
+        <ObjectDetailDrawer
+          open={false}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={null}
+        />
+      );
+
+      // Should not call onOpenChange when drawer is already closed
+      expect(mockOnOpenChange).not.toHaveBeenCalled();
+    });
   });
 });

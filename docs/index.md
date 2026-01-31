@@ -87,10 +87,13 @@ graph TB
 
     subgraph 后端层
         F[Tauri 2.9 + Rust]
-        G[天文计算库]
-        H[存储管理器]
-        I[缓存系统]
-        S[安全层 Rate Limiter/Validator]
+        S1[安全层 Rate Limiter]
+        S2[安全层 Validator]
+        N[网络层 HTTP Client]
+        P1[platform 模块]
+        P2[cache 模块]
+        P3[astronomy 模块]
+        P4[data 模块]
     end
 
     subgraph 数据层
@@ -104,12 +107,16 @@ graph TB
     A --> D
     D --> E
     D --> F
-    F --> S
-    S --> G
-    S --> H
-    S --> I
-    H --> J
-    I --> K
+    F --> S1
+    F --> S2
+    S1 --> N
+    S2 --> N
+    N --> P1
+    N --> P2
+    N --> P3
+    N --> P4
+    P4 --> J
+    P2 --> K
     B --> L
 ```
 
@@ -158,6 +165,8 @@ pnpm tauri build
 - **[开发指南](developer-guide/index.md)** - 开发文档
 - **[API 参考](developer-guide/apis/index.md)** - API 文档
 - **[架构设计](developer-guide/architecture/index.md)** - 系统架构
+- **[数据管理](developer-guide/data-management/index.md)** - 数据管理系统
+- **[安全开发](developer-guide/security/index.md)** - 安全开发指南
 
 ### 部署指南
 

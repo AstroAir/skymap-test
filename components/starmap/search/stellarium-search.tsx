@@ -110,6 +110,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+    const keyboardHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     // Get sky culture language for name translation
     const skyCultureLanguage = useSkyCultureLanguage();
@@ -163,6 +164,10 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
+        // Clean up keyboard hint timer on unmount
+        if (keyboardHintTimerRef.current) {
+          clearTimeout(keyboardHintTimerRef.current);
+        }
       };
     }, [advancedSearchOpen, onFocusChange]);
 
@@ -177,8 +182,12 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       setIsFocused(true);
       onFocusChange?.(true);
       setShowKeyboardHints(true);
+      // Clear previous timer if exists
+      if (keyboardHintTimerRef.current) {
+        clearTimeout(keyboardHintTimerRef.current);
+      }
       // Hide keyboard hints after 3 seconds
-      setTimeout(() => setShowKeyboardHints(false), 3000);
+      keyboardHintTimerRef.current = setTimeout(() => setShowKeyboardHints(false), 3000);
     }, [onFocusChange]);
 
 
@@ -419,7 +428,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>{t('search.filterByType')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {(['DSO', 'Planet', 'Star', 'Moon', 'Comet'] as ObjectType[]).map((type) => (
+              {(['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'] as ObjectType[]).map((type) => (
                 <DropdownMenuCheckboxItem
                   key={type}
                   checked={filters.types.includes(type)}

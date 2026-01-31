@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { StellariumCredits } from './stellarium-credits';
 
 // ============================================================================
 // Data
@@ -37,7 +38,7 @@ import { cn } from '@/lib/utils';
 
 const APP_INFO = {
   name: 'SkyMap',
-  version: '1.0.0',
+  version: '0.1.0',
   description: 'A modern web-based astronomy application powered by Stellarium Web Engine',
   repository: 'https://github.com/AstroAir/skymap-test',
   author: 'AstroAir Team',
@@ -95,21 +96,21 @@ const LICENSES = [
 ];
 
 const DEPENDENCIES = [
-  { name: 'next', version: '^15.0.0', type: 'core' },
-  { name: 'react', version: '^19.0.0', type: 'core' },
-  { name: 'react-dom', version: '^19.0.0', type: 'core' },
-  { name: 'typescript', version: '^5.0.0', type: 'dev' },
-  { name: 'tailwindcss', version: '^4.0.0', type: 'style' },
-  { name: 'zustand', version: '^5.0.0', type: 'state' },
-  { name: 'next-intl', version: '^3.0.0', type: 'i18n' },
-  { name: 'lucide-react', version: '^0.400.0', type: 'ui' },
-  { name: 'clsx', version: '^2.0.0', type: 'util' },
-  { name: 'tailwind-merge', version: '^2.0.0', type: 'util' },
-  { name: '@radix-ui/react-dialog', version: '^1.0.0', type: 'ui' },
-  { name: '@radix-ui/react-dropdown-menu', version: '^2.0.0', type: 'ui' },
-  { name: '@radix-ui/react-tabs', version: '^1.0.0', type: 'ui' },
-  { name: '@radix-ui/react-tooltip', version: '^1.0.0', type: 'ui' },
-  { name: '@radix-ui/react-scroll-area', version: '^1.0.0', type: 'ui' },
+  { name: 'next', version: '16.0.0', type: 'core' },
+  { name: 'react', version: '19.2.0', type: 'core' },
+  { name: 'react-dom', version: '19.2.0', type: 'core' },
+  { name: 'typescript', version: '^5', type: 'dev' },
+  { name: 'tailwindcss', version: '^4', type: 'style' },
+  { name: 'zustand', version: '^5.0.8', type: 'state' },
+  { name: 'next-intl', version: '^4.5.7', type: 'i18n' },
+  { name: 'lucide-react', version: '^0.546.0', type: 'ui' },
+  { name: 'clsx', version: '^2.1.1', type: 'util' },
+  { name: 'tailwind-merge', version: '^3.3.1', type: 'util' },
+  { name: '@radix-ui/react-dialog', version: '^1.1.15', type: 'ui' },
+  { name: '@radix-ui/react-dropdown-menu', version: '^2.1.16', type: 'ui' },
+  { name: '@radix-ui/react-tabs', version: '^1.1.13', type: 'ui' },
+  { name: '@radix-ui/react-tooltip', version: '^1.2.8', type: 'ui' },
+  { name: '@radix-ui/react-scroll-area', version: '^1.2.10', type: 'ui' },
 ];
 
 const DATA_CREDITS = [
@@ -209,7 +210,12 @@ export function AboutDialog() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-10 w-10"
+              aria-label={t('about.title')}
+            >
               <Info className="h-5 w-5" />
             </Button>
           </DialogTrigger>
@@ -291,6 +297,9 @@ export function AboutDialog() {
                     {DATA_CREDITS.map((item) => (
                       <DataCreditRow key={item.name} item={item} />
                     ))}
+                  </div>
+                  <div className="mt-3">
+                    <StellariumCredits />
                   </div>
                 </div>
 

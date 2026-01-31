@@ -58,8 +58,9 @@ export function ExposureSettings() {
           <Label className="text-xs">{t('exposure.gain')}</Label>
           <Input
             type="number"
+            min={0}
             value={exposureDefaults.gain}
-            onChange={(e) => setExposureDefaults({ gain: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setExposureDefaults({ gain: Math.max(0, parseInt(e.target.value) || 0) })}
             className="h-8"
           />
         </div>
@@ -67,8 +68,9 @@ export function ExposureSettings() {
           <Label className="text-xs">{t('exposure.offset')}</Label>
           <Input
             type="number"
+            min={0}
             value={exposureDefaults.offset}
-            onChange={(e) => setExposureDefaults({ offset: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setExposureDefaults({ offset: Math.max(0, parseInt(e.target.value) || 0) })}
             className="h-8"
           />
         </div>
@@ -104,7 +106,7 @@ export function ExposureSettings() {
           </SelectTrigger>
           <SelectContent>
             {FILTER_OPTIONS.map((f) => (
-              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+              <SelectItem key={f.id} value={f.id}>{t(f.nameKey)}</SelectItem>
             ))}
           </SelectContent>
         </Select>

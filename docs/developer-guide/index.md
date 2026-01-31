@@ -42,8 +42,21 @@
 查看API文档：
 
 - **[API概览](apis/index.md)** - API文档导航
-- **[前端API](apis/frontend-apis/stores.md)** - Zustand Stores API
-- **[后端API](apis/backend-apis/tauri-commands.md)** - Tauri命令API
+- **[前端API](apis/frontend-apis/index.md)** - 前端API文档
+  - **[Stores](apis/frontend-apis/stores.md)** - Zustand Stores API
+  - **[Hooks](apis/frontend-apis/hooks.md)** - React Hooks API
+- **[后端API](apis/backend-apis/index.md)** - 后端API文档
+  - **[Tauri Commands](apis/backend-apis/tauri-commands.md)** - Tauri命令API
+  - **[Storage API](apis/backend-apis/storage.md)** - 存储API
+
+### 安全开发
+
+- **[安全开发指南](security/index.md)** - 安全最佳实践
+
+### 数据管理
+
+- **[数据管理概览](data-management/index.md)** - 数据管理系统
+  - **[数据模块架构](data-management/data-module.md)** - 数据模块组织结构
 
 ## 技术栈
 

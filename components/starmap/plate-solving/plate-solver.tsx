@@ -11,6 +11,7 @@ import {
   Settings,
   MapPin,
   RotateCw,
+  ChevronDown,
   Ruler,
   Eye
 } from 'lucide-react';
@@ -40,6 +41,7 @@ import {
   type UploadOptions 
 } from '@/lib/plate-solving';
 import type { PlateSolveResult } from '@/lib/plate-solving';
+import { usePlateSolverStore } from '@/lib/stores/plate-solver-store';
 
 export interface PlateSolverProps {
   onSolveComplete?: (result: PlateSolveResult) => void;
@@ -55,8 +57,8 @@ export function PlateSolver({
   className 
 }: PlateSolverProps) {
   const t = useTranslations();
+  const { onlineApiKey, setOnlineApiKey } = usePlateSolverStore();
   const [open, setOpen] = useState(false);
-  const [apiKey, setApiKey] = useState('');
   const [solving, setSolving] = useState(false);
   const [progress, setProgress] = useState<SolveProgress | null>(null);
   const [result, setResult] = useState<PlateSolveResult | null>(null);
@@ -67,7 +69,7 @@ export function PlateSolver({
   });
 
   const handleImageCapture = useCallback(async (file: File) => {
-    if (!apiKey) {
+    if (!onlineApiKey) {
       return;
     }
 
@@ -76,7 +78,7 @@ export function PlateSolver({
     setProgress({ stage: 'uploading', progress: 0 });
 
     try {
-      const client = new AstrometryApiClient({ apiKey });
+      const client = new AstrometryApiClient({ apiKey: onlineApiKey });
       const solveResult = await client.solve(file, options, setProgress);
       setResult(solveResult);
       onSolveComplete?.(solveResult);
@@ -95,7 +97,7 @@ export function PlateSolver({
     } finally {
       setSolving(false);
     }
-  }, [apiKey, options, onSolveComplete]);
+  }, [onlineApiKey, options, onSolveComplete]);
 
   const handleGoTo = useCallback(() => {
     if (result?.success && result.coordinates) {
@@ -160,8 +162,8 @@ export function PlateSolver({
             <Input
               id="apiKey"
               type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              value={onlineApiKey}
+              onChange={(e) => setOnlineApiKey(e.target.value)}
               placeholder={t('plateSolving.apiKeyPlaceholder') || 'Enter your API key'}
             />
             <p className="text-xs text-muted-foreground">
@@ -176,7 +178,7 @@ export function PlateSolver({
                   <Settings className="h-4 w-4" />
                   {t('plateSolving.advancedOptions') || 'Advanced Options'}
                 </span>
-                <RotateCw className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-3 pt-2">
@@ -223,7 +225,7 @@ export function PlateSolver({
             trigger={
               <Button 
                 className="w-full" 
-                disabled={!apiKey || solving}
+                disabled={!onlineApiKey || solving}
               >
                 {solving ? (
                   <>

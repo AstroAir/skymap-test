@@ -57,6 +57,9 @@ import { AboutSettings } from './about-settings';
 import { DataManager } from '../management/data-manager';
 import { SetupWizardButton } from '../setup-wizard';
 
+const DEFAULT_CONNECTION = { ip: 'localhost', port: '1888' };
+const DEFAULT_BACKEND_PROTOCOL: 'http' | 'https' = 'http';
+
 export function UnifiedSettings() {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
@@ -80,8 +83,21 @@ export function UnifiedSettings() {
   
   // Calculate hasChanges
   const hasChanges = useMemo(() => {
-    return JSON.stringify(localSettings) !== JSON.stringify(storeSettings);
-  }, [localSettings, storeSettings]);
+    const stellariumChanged = JSON.stringify(localSettings) !== JSON.stringify(storeSettings);
+    const connectionChanged =
+      localConnection.ip !== connection.ip ||
+      localConnection.port !== connection.port;
+    const protocolChanged = localProtocol !== backendProtocol;
+
+    return stellariumChanged || connectionChanged || protocolChanged;
+  }, [
+    localSettings,
+    storeSettings,
+    localConnection,
+    connection,
+    localProtocol,
+    backendProtocol,
+  ]);
 
   // Handle dialog open state change
   const handleOpenChange = useCallback((isOpen: boolean) => {
@@ -128,12 +144,16 @@ export function UnifiedSettings() {
   // Cancel and reset
   const handleCancel = useCallback(() => {
     setLocalSettings(storeSettings);
+    setLocalConnection(connection);
+    setLocalProtocol(backendProtocol);
     setOpen(false);
-  }, [storeSettings]);
+  }, [storeSettings, connection, backendProtocol]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
     setLocalSettings(DEFAULT_STELLARIUM_SETTINGS as StellariumSettingsType);
+    setLocalConnection(DEFAULT_CONNECTION);
+    setLocalProtocol(DEFAULT_BACKEND_PROTOCOL);
     resetEquipment();
   }, [resetEquipment]);
 
@@ -275,6 +295,9 @@ export function UnifiedSettings() {
           <TabsContent value="equipment" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
+                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
+                </div>
                 <EquipmentSettings />
               </div>
             </ScrollArea>
@@ -284,6 +307,9 @@ export function UnifiedSettings() {
           <TabsContent value="fov" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
+                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
+                </div>
                 <FOVSettings />
               </div>
             </ScrollArea>
@@ -293,6 +319,9 @@ export function UnifiedSettings() {
           <TabsContent value="exposure" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
+                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
+                </div>
                 <ExposureSettings />
               </div>
             </ScrollArea>
@@ -302,6 +331,9 @@ export function UnifiedSettings() {
           <TabsContent value="general" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
+                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
+                </div>
                 <GeneralSettings />
               </div>
             </ScrollArea>
@@ -311,6 +343,9 @@ export function UnifiedSettings() {
           <TabsContent value="appearance" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
+                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
+                </div>
                 <AppearanceSettings />
               </div>
             </ScrollArea>
@@ -320,6 +355,9 @@ export function UnifiedSettings() {
           <TabsContent value="performance" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
+                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
+                </div>
                 <PerformanceSettings />
               </div>
             </ScrollArea>
@@ -329,6 +367,9 @@ export function UnifiedSettings() {
           <TabsContent value="accessibility" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
+                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
+                </div>
                 <AccessibilitySettings />
               </div>
             </ScrollArea>
@@ -342,16 +383,16 @@ export function UnifiedSettings() {
                 <MapProviderSettings />
                 <Separator className="my-4" />
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium">{t('dataManager.title') || 'Data Management'}</h3>
+                  <h3 className="text-sm font-medium">{t('dataManager.title')}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {t('dataManager.description') || 'Export, import, or clear your saved data including targets, markers, and settings.'}
+                    {t('dataManager.description')}
                   </p>
                 </div>
                 <DataManager 
                   trigger={
                     <Button variant="outline" className="w-full">
                       <HardDrive className="h-4 w-4 mr-2" />
-                      {t('dataManager.openManager') || 'Open Data Manager'}
+                      {t('dataManager.openManager')}
                     </Button>
                   } 
                 />

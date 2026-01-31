@@ -534,15 +534,7 @@ describe('EquipmentStep', () => {
       // After resetToDefaults, focalLength may still be > 0 (default value), so configured shows
       render(<EquipmentStep />);
 
-      // Check that the component renders and equipment state is accessible
-      const store = useEquipmentStore.getState();
-      const hasEquipment = store.activeCameraId || store.activeTelescopeId || store.focalLength > 0;
-      
-      if (hasEquipment) {
-        expect(screen.getByText(/equipment\.configured/i)).toBeInTheDocument();
-      } else {
-        expect(screen.queryByText(/equipment\.configured/i)).not.toBeInTheDocument();
-      }
+      expect(screen.queryByText(/equipment\.configured/i)).not.toBeInTheDocument();
     });
   });
 

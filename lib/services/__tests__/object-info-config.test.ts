@@ -482,7 +482,11 @@ describe('object-info-config', () => {
 
   describe('health check lifecycle', () => {
     it('should start health checks', () => {
-      (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
+      const { result } = renderHook(() => useObjectInfoConfigStore());
+
+      act(() => {
+        result.current.updateSettings({ healthCheckInterval: 0 });
+      });
 
       expect(() => startHealthChecks()).not.toThrow();
     });

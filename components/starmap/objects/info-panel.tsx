@@ -3,10 +3,8 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  X, ChevronDown, ChevronUp, Star, Crosshair, Plus,
+  X, ChevronDown, ChevronUp, Crosshair, Plus,
   Compass, TrendingUp, ArrowUp, Info, Sun, Ruler,
-  CircleDot, Sparkles, Cloud, Globe2, Orbit, Binary,
-  Zap, Circle, Target, Rocket, Moon, Asterisk, Atom
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,6 +50,7 @@ import {
 } from '@/lib/astronomy/astro-utils';
 import type { SelectedObjectData } from '@/lib/core/types';
 import { cn } from '@/lib/utils';
+import { getObjectTypeIcon, getObjectTypeColor } from '@/lib/astronomy/object-type-utils';
 
 interface InfoPanelProps {
   selectedObject: SelectedObjectData | null;
@@ -70,76 +69,6 @@ interface InfoPanelProps {
   clickPosition?: { x: number; y: number };
   /** Container bounds for adaptive positioning */
   containerBounds?: { width: number; height: number };
-}
-
-/** Get icon component for object type category */
-function getObjectTypeIcon(type?: string) {
-  if (!type) return Star;
-  const t = type.toLowerCase();
-  
-  // Galaxies
-  if (t.includes('galaxy') || t.includes('gx') || t === 'g') return Globe2;
-  
-  // Nebulae subtypes
-  if (t.includes('planetary') || t.includes('pn')) return Circle; // Planetary nebula
-  if (t.includes('supernova') || t.includes('snr')) return Zap; // Supernova remnant
-  if (t.includes('nebula') || t.includes('neb') || t.includes('hii') || t.includes('en') || t.includes('rn')) return Cloud;
-  
-  // Clusters
-  if (t.includes('globular') || t === 'gc') return Atom; // Globular cluster
-  if (t.includes('cluster') || t.includes('oc') || t.includes('as')) return Sparkles; // Open cluster / asterism
-  
-  // Stars subtypes
-  if (t.includes('double') || t.includes('binary') || t === '**' || t.includes('ds')) return Binary; // Double/binary star
-  if (t.includes('variable') || t.includes('var') || t === 'v*') return Asterisk; // Variable star
-  if (t.includes('carbon') || t.includes('c*')) return CircleDot; // Carbon star
-  if (t.includes('star') || t === '*') return CircleDot;
-  
-  // Solar system
-  if (t.includes('planet')) return Orbit;
-  if (t.includes('moon') || t.includes('satellite')) return Moon;
-  if (t.includes('asteroid') || t.includes('minor')) return Target;
-  if (t.includes('comet')) return Rocket;
-  
-  // Quasars and exotic objects
-  if (t.includes('quasar') || t.includes('qso') || t.includes('agn')) return Zap;
-  
-  return Star;
-}
-
-/** Get color class for object type */
-function getObjectTypeColor(type?: string): string {
-  if (!type) return 'text-primary';
-  const t = type.toLowerCase();
-  
-  // Galaxies - purple shades
-  if (t.includes('galaxy') || t.includes('gx') || t === 'g') return 'text-purple-400';
-  
-  // Nebulae - pink/magenta shades
-  if (t.includes('planetary') || t.includes('pn')) return 'text-cyan-400';
-  if (t.includes('supernova') || t.includes('snr')) return 'text-red-400';
-  if (t.includes('nebula') || t.includes('neb') || t.includes('hii') || t.includes('en') || t.includes('rn')) return 'text-pink-400';
-  
-  // Clusters - blue shades
-  if (t.includes('globular') || t === 'gc') return 'text-indigo-400';
-  if (t.includes('cluster') || t.includes('oc') || t.includes('as')) return 'text-blue-400';
-  
-  // Stars - yellow/orange shades
-  if (t.includes('double') || t.includes('binary') || t === '**' || t.includes('ds')) return 'text-amber-400';
-  if (t.includes('variable') || t.includes('var') || t === 'v*') return 'text-rose-400';
-  if (t.includes('carbon') || t.includes('c*')) return 'text-red-500';
-  if (t.includes('star') || t === '*') return 'text-yellow-400';
-  
-  // Solar system - orange/teal
-  if (t.includes('planet')) return 'text-orange-400';
-  if (t.includes('moon') || t.includes('satellite')) return 'text-slate-300';
-  if (t.includes('asteroid') || t.includes('minor')) return 'text-stone-400';
-  if (t.includes('comet')) return 'text-teal-400';
-  
-  // Quasars - bright colors
-  if (t.includes('quasar') || t.includes('qso') || t.includes('agn')) return 'text-violet-400';
-  
-  return 'text-primary';
 }
 
 export function InfoPanel({
@@ -325,7 +254,9 @@ export function InfoPanel({
       <Card 
         ref={panelRef}
         className={cn(
-          'bg-card/95 backdrop-blur-sm border-border shadow-xl transition-all duration-200',
+          'bg-card/95 backdrop-blur-md border-border/60 shadow-2xl',
+          'transition-all duration-300 ease-out',
+          'animate-in fade-in zoom-in-95 slide-in-from-bottom-2',
           hasCustomPosition ? 'fixed z-50 w-[280px] sm:w-[300px]' : 'w-full',
           className
         )}
@@ -574,13 +505,13 @@ export function InfoPanel({
 }
 
 // Custom tooltip component for Recharts
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { hour: number; altitude: number; time: string } }> }) {
+function CustomTooltip({ active, payload, altLabel }: { active?: boolean; payload?: Array<{ payload: { hour: number; altitude: number; time: string } }>; altLabel?: string }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
       <div className="bg-card/95 backdrop-blur-sm border border-border rounded px-2 py-1 text-xs">
         <p className="text-foreground font-mono">{data.time}</p>
-        <p className="text-cyan-400">Alt: {data.altitude.toFixed(1)}°</p>
+        <p className="text-cyan-400">{altLabel}: {data.altitude.toFixed(1)}°</p>
       </div>
     );
   }
@@ -596,6 +527,7 @@ function AltitudeChartCompact({
   dec: number;
   name?: string;
 }) {
+  const t = useTranslations();
   const profileInfo = useMountStore((state) => state.profileInfo);
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
@@ -736,11 +668,11 @@ function AltitudeChartCompact({
   }, [ra, dec, latitude, longitude, hoursAhead]);
 
   return (
-    <div ref={chartRef} className="p-2 cursor-ns-resize touch-pan-y select-none" title="Scroll to zoom, swipe to adjust range">
+    <div ref={chartRef} className="p-2 cursor-ns-resize touch-pan-y select-none" title={t('chart.zoomHint')}>
       {/* Zoom indicator with larger touch targets */}
       <div className="flex items-center justify-between mb-2 transition-opacity duration-200">
         <span className="text-[10px] sm:text-[9px] text-muted-foreground transition-all duration-300">
-          Time: <span className="font-mono font-medium text-foreground">{hoursAhead}h</span>
+          {t('chart.timeRange')}: <span className="font-mono font-medium text-foreground">{hoursAhead}h</span>
         </span>
         <div className="flex items-center gap-1">
           <Button 
@@ -817,7 +749,7 @@ function AltitudeChartCompact({
             <ReferenceLine x={chartData.setHour} stroke="#ef4444" strokeDasharray="2 2" />
           )}
           
-          <RechartsTooltip content={<CustomTooltip />} />
+          <RechartsTooltip content={<CustomTooltip altLabel={t('info.altitude')} />} />
           
           <Area
             type="monotone"
@@ -836,32 +768,32 @@ function AltitudeChartCompact({
       <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-2 gap-y-1 mt-2 sm:mt-1 text-[11px] sm:text-[9px] text-muted-foreground">
         <div className="flex items-center gap-1.5 sm:gap-1">
           <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-amber-400 rounded-full" />
-          <span>Now</span>
+          <span>{t('chart.now')}</span>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-1">
           <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-purple-400 rounded-full" />
-          <span>Transit</span>
+          <span>{t('time.transit')}</span>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-1">
           <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-green-500 rounded-full" />
-          <span>Rise</span>
+          <span>{t('time.rise')}</span>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-1">
           <div className="w-3 sm:w-2 h-1 sm:h-0.5 bg-red-500 rounded-full" />
-          <span>Set</span>
+          <span>{t('time.set')}</span>
         </div>
       </div>
       
       {/* Dark imaging info */}
       {chartData.darkImagingHours > 0 && (
         <div className="mt-2 sm:mt-1 text-[11px] sm:text-[9px] text-green-400 font-medium">
-          ✓ {chartData.darkImagingHours.toFixed(1)}h dark imaging window
+          ✓ {t('chart.darkImagingWindow', { hours: chartData.darkImagingHours.toFixed(1) })}
         </div>
       )}
       
       {/* Mobile hint */}
       <div className="sm:hidden text-[10px] text-muted-foreground/60 mt-1 text-center">
-        Swipe or pinch to adjust time range
+        {t('chart.mobileHint')}
       </div>
     </div>
   );

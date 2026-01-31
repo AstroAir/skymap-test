@@ -20,8 +20,8 @@ import { SettingsSection } from './settings-shared';
 import { useAppSettings } from '@/lib/tauri/hooks';
 import { isTauri } from '@/lib/storage/platform';
 
-const APP_VERSION = '1.0.0';
-const BUILD_DATE = '2024';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0';
+const BUILD_DATE = process.env.NEXT_PUBLIC_BUILD_DATE || new Date().getFullYear().toString();
 
 export function AboutSettings() {
   const t = useTranslations();
@@ -112,7 +112,7 @@ export function AboutSettings() {
           <Button
             variant="outline"
             className="w-full justify-start gap-2"
-            onClick={() => window.open('https://github.com/AstroAir/skymap', '_blank')}
+            onClick={() => window.open('https://github.com/AstroAir/skymap', '_blank', 'noopener,noreferrer')}
           >
             <Github className="h-4 w-4" />
             {t('settingsNew.about.sourceCode')}
@@ -120,7 +120,7 @@ export function AboutSettings() {
           <Button
             variant="outline"
             className="w-full justify-start gap-2"
-            onClick={() => window.open('https://github.com/AstroAir/skymap/wiki', '_blank')}
+            onClick={() => window.open('https://github.com/AstroAir/skymap/wiki', '_blank', 'noopener,noreferrer')}
           >
             <BookOpen className="h-4 w-4" />
             {t('settingsNew.about.documentation')}

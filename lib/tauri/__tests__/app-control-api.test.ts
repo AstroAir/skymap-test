@@ -36,6 +36,11 @@ jest.mock('@tauri-apps/api/window', () => ({
   }),
 }));
 
+// Helper to set window for tests (avoids Object.defineProperty issues in JSDOM)
+const setWindow = (value: unknown) => {
+  (global as Record<string, unknown>).window = value;
+};
+
 describe('app-control-api', () => {
   // Store original window object
   const originalWindow = global.window;
@@ -43,22 +48,16 @@ describe('app-control-api', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Set up Tauri environment
-    Object.defineProperty(global, 'window', {
-      value: {
-        ...originalWindow,
-        __TAURI__: {},
-        location: { reload: jest.fn(), hostname: 'localhost' },
-      },
-      writable: true,
+    setWindow({
+      ...originalWindow,
+      __TAURI__: {},
+      location: { reload: jest.fn(), hostname: 'localhost' } as unknown as Location,
     });
   });
 
   afterEach(() => {
     // Restore original window
-    Object.defineProperty(global, 'window', {
-      value: originalWindow,
-      writable: true,
-    });
+    setWindow(originalWindow);
   });
 
   describe('isTauri', () => {
@@ -67,18 +66,12 @@ describe('app-control-api', () => {
     });
 
     it('should return false when __TAURI__ is not present', () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
       expect(isTauri()).toBe(false);
     });
 
     it('should return false when window is undefined', () => {
-      Object.defineProperty(global, 'window', {
-        value: undefined,
-        writable: true,
-      });
+      setWindow(undefined);
       expect(isTauri()).toBe(false);
     });
   });
@@ -93,10 +86,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call invoke in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
 
       await restartApp();
 
@@ -130,10 +120,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call invoke in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
 
       await quitApp();
 
@@ -152,10 +139,7 @@ describe('app-control-api', () => {
 
     it('should reload window.location in non-Tauri environment', async () => {
       const reloadMock = jest.fn();
-      Object.defineProperty(global, 'window', {
-        value: { location: { reload: reloadMock, hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { reload: reloadMock, hostname: 'localhost' } });
 
       await reloadWebview();
 
@@ -175,10 +159,7 @@ describe('app-control-api', () => {
     });
 
     it('should return true for localhost in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
 
       const result = await isDevMode();
 
@@ -186,10 +167,7 @@ describe('app-control-api', () => {
     });
 
     it('should return false for non-localhost in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'example.com' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'example.com' } });
 
       const result = await isDevMode();
 
@@ -207,10 +185,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call close in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
 
       await closeWindow();
 
@@ -228,10 +203,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call minimize in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
 
       await minimizeWindow();
 
@@ -249,10 +221,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call toggleMaximize in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
 
       await toggleMaximizeWindow();
 
@@ -279,10 +248,7 @@ describe('app-control-api', () => {
     });
 
     it('should return false in non-Tauri environment', async () => {
-      Object.defineProperty(global, 'window', {
-        value: { location: { hostname: 'localhost' } },
-        writable: true,
-      });
+      setWindow({ location: { hostname: 'localhost' } });
 
       const result = await isWindowMaximized();
 

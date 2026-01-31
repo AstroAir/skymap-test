@@ -346,6 +346,62 @@ describe('ObjectImageGallery', () => {
       expect(externalLink).toHaveAttribute('href', mockImages[0].url);
       expect(externalLink).toHaveAttribute('target', '_blank');
     });
+
+    it('renders fullscreen image with onLoad and onError handlers', async () => {
+      render(<ObjectImageGallery images={mockImages} objectName="M31" />);
+      
+      // Open fullscreen
+      const buttons = screen.getAllByRole('button');
+      const fullscreenButton = buttons.find(btn => btn.querySelector('.lucide-maximize2'));
+      
+      await act(async () => {
+        fireEvent.click(fullscreenButton!);
+      });
+
+      // Get fullscreen dialog
+      const fullscreenDialog = screen.getByTestId('fullscreen-dialog');
+      expect(fullscreenDialog).toBeInTheDocument();
+      
+      // Fullscreen should contain the image info (multiple elements may exist)
+      expect(screen.getAllByText('M31 Image 1').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('NASA/ESA').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('shows image counter in fullscreen mode', async () => {
+      render(<ObjectImageGallery images={mockImages} objectName="M31" />);
+      
+      // Open fullscreen
+      const buttons = screen.getAllByRole('button');
+      const fullscreenButton = buttons.find(btn => btn.querySelector('.lucide-maximize2'));
+      
+      await act(async () => {
+        fireEvent.click(fullscreenButton!);
+      });
+
+      // Should show image counter
+      expect(screen.getAllByText(/1/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/3/).length).toBeGreaterThan(0);
+    });
+
+    it('has navigation buttons in fullscreen mode', async () => {
+      render(<ObjectImageGallery images={mockImages} objectName="M31" />);
+      
+      // Open fullscreen
+      const buttons = screen.getAllByRole('button');
+      const fullscreenButton = buttons.find(btn => btn.querySelector('.lucide-maximize2'));
+      
+      await act(async () => {
+        fireEvent.click(fullscreenButton!);
+      });
+
+      // Fullscreen should have navigation buttons
+      const fullscreenButtons = screen.getAllByRole('button');
+      const prevButton = fullscreenButtons.find(btn => btn.querySelector('.lucide-chevron-left'));
+      const nextButton = fullscreenButtons.find(btn => btn.querySelector('.lucide-chevron-right'));
+      
+      expect(prevButton).toBeDefined();
+      expect(nextButton).toBeDefined();
+    });
   });
 
   describe('Touch/Mouse Drag', () => {

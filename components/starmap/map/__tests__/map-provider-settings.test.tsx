@@ -80,7 +80,20 @@ jest.mock('@/components/ui/select', () => ({
     <select data-testid="select" value={value} onChange={(e) => onValueChange?.(e.target.value)}>{children}</select>
   ),
   SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => <option value={value}>{children}</option>,
+  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => {
+    const flatten = (node: React.ReactNode): string => {
+      if (node === null || node === undefined || node === false) return '';
+      if (typeof node === 'string' || typeof node === 'number') return String(node);
+      if (Array.isArray(node)) return node.map(flatten).join('');
+      if (React.isValidElement(node)) {
+        const el = node as React.ReactElement<{ children?: React.ReactNode }>;
+        return flatten(el.props.children);
+      }
+      return '';
+    };
+
+    return <option value={value}>{flatten(children)}</option>;
+  },
   SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SelectValue: () => null,
 }));

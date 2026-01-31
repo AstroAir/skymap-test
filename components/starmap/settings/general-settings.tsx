@@ -40,13 +40,13 @@ export function GeneralSettings() {
   const handleLocaleChange = (locale: AppLocale) => {
     setPreference('locale', locale);
     // Navigate to the new locale path
-    const segments = pathname.split('/');
-    if (segments[1] === 'en' || segments[1] === 'zh') {
-      segments[1] = locale;
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments[0] === 'en' || segments[0] === 'zh') {
+      segments[0] = locale;
     } else {
-      segments.splice(1, 0, locale);
+      segments.unshift(locale);
     }
-    router.push(segments.join('/') || '/');
+    router.push('/' + segments.join('/'));
   };
 
   return (

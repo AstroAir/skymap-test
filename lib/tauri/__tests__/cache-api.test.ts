@@ -89,13 +89,15 @@ describe('cacheApi', () => {
     const result = await cacheApi.createRegion('Andromeda', 10.68, 41.27, 3, 1, 10, 'dss');
 
     expect(mockInvoke).toHaveBeenCalledWith('create_cache_region', {
-      name: 'Andromeda',
-      centerRa: 10.68,
-      centerDec: 41.27,
-      radiusDeg: 3,
-      minZoom: 1,
-      maxZoom: 10,
-      surveyId: 'dss',
+      args: {
+        name: 'Andromeda',
+        center_ra: 10.68,
+        center_dec: 41.27,
+        radius_deg: 3,
+        min_zoom: 1,
+        max_zoom: 10,
+        survey_id: 'dss',
+      },
     });
     expect(result).toEqual(mockRegion);
   });

@@ -1,13 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { StarmapPage } from '../fixtures/page-objects';
 import { TEST_OBJECTS } from '../fixtures/test-data';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Astro Session Panel', () => {
-  let starmapPage: StarmapPage;
-
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    await waitForStarmapReady(page);
   });
 
   test.describe('Panel Access', () => {
@@ -433,7 +430,8 @@ test.describe('Astro Session Panel', () => {
           await page.waitForTimeout(500);
           
           // Session should update
-          await expect(starmapPage.canvas).toBeVisible();
+          const canvas = page.locator('canvas').first();
+          await expect(canvas).toBeVisible();
         }
       }
     });

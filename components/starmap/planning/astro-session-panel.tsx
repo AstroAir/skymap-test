@@ -224,14 +224,14 @@ export function AstroSessionPanel({
 
   return (
     <TooltipProvider>
-      <Card className="bg-card/95 border-border">
-        <CardHeader className="pb-2">
+      <Card className="bg-transparent border-0 shadow-none">
+        <CardHeader className="pb-2 px-0 pt-0">
           <CardTitle className="text-sm flex items-center gap-2 text-primary">
             <Eye className="h-4 w-4" />
             {t('session.sessionInfo')}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 px-0 pb-0">
           {/* Sky Condition with Countdown */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">

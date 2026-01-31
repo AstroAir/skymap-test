@@ -7,6 +7,10 @@ import { geocodingService } from '../geocoding-service';
 // Mock dependencies
 jest.mock('../map-config', () => ({
   mapConfig: {
+    getConfiguration: jest.fn(() => ({
+      cacheResponses: true,
+      cacheDuration: 3600000,
+    })),
     getEnabledProviders: jest.fn(() => []),
     getActiveApiKey: jest.fn(() => null),
     addConfigurationListener: jest.fn(),
@@ -16,7 +20,7 @@ jest.mock('../map-config', () => ({
 jest.mock('../connectivity-checker', () => ({
   connectivityChecker: {
     startMonitoring: jest.fn(),
-    getProviderStatus: jest.fn(() => ({ isHealthy: true })),
+    getProviderHealth: jest.fn(() => ({ isHealthy: true })),
     getRecommendedProvider: jest.fn(() => null),
   },
 }));

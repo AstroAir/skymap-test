@@ -193,6 +193,11 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
 
           {/* Solver List */}
           <div className="space-y-2">
+            {detectedSolvers.length === 0 && !isDetecting && !detectionError && (
+              <div className="text-sm text-muted-foreground text-center py-6">
+                {t('plateSolving.noSolversDetected') || 'No solvers detected. Click "Detect Solvers" to scan.'}
+              </div>
+            )}
             {detectedSolvers.map((solver) => (
               <div
                 key={solver.solver_type}
@@ -203,6 +208,15 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                     : 'border-border hover:bg-muted/50'
                 )}
                 onClick={() => handleSolverChange(solver.solver_type)}
+                role="button"
+                tabIndex={0}
+                aria-pressed={config.solver_type === solver.solver_type}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSolverChange(solver.solver_type);
+                  }
+                }}
               >
                 <div className="flex items-center gap-3">
                   {getSolverIcon(solver)}

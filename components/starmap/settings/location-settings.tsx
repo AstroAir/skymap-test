@@ -25,7 +25,7 @@ function LocationPermissionStatus() {
   const [isRequesting, setIsRequesting] = useState(false);
   const setProfileInfo = useMountStore((state) => state.setProfileInfo);
   const profileInfo = useMountStore((state) => state.profileInfo);
-  
+
   useEffect(() => {
     const checkPermission = async () => {
       setPermissionState('checking');
@@ -177,6 +177,11 @@ export function LocationSettings() {
       defaultOpen={false}
     >
       <div className="space-y-3">
+        {/* Instant effect hint */}
+        <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded">
+          {t('settings.locationInstantHint')}
+        </p>
+        
         <LocationPermissionStatus />
         
         {/* Manual Location Input */}
@@ -190,14 +195,19 @@ export function LocationSettings() {
               <Input
                 type="number"
                 step="0.0001"
+                min={-90}
+                max={90}
                 value={profileInfo.AstrometrySettings.Latitude || 0}
-                onChange={(e) => setProfileInfo({
-                  ...profileInfo,
-                  AstrometrySettings: {
-                    ...profileInfo.AstrometrySettings,
-                    Latitude: parseFloat(e.target.value) || 0,
-                  },
-                })}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setProfileInfo({
+                    ...profileInfo,
+                    AstrometrySettings: {
+                      ...profileInfo.AstrometrySettings,
+                      Latitude: Math.max(-90, Math.min(90, val)),
+                    },
+                  });
+                }}
                 placeholder="0.0000"
                 className="h-8 text-sm font-mono"
               />
@@ -207,14 +217,19 @@ export function LocationSettings() {
               <Input
                 type="number"
                 step="0.0001"
+                min={-180}
+                max={180}
                 value={profileInfo.AstrometrySettings.Longitude || 0}
-                onChange={(e) => setProfileInfo({
-                  ...profileInfo,
-                  AstrometrySettings: {
-                    ...profileInfo.AstrometrySettings,
-                    Longitude: parseFloat(e.target.value) || 0,
-                  },
-                })}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setProfileInfo({
+                    ...profileInfo,
+                    AstrometrySettings: {
+                      ...profileInfo.AstrometrySettings,
+                      Longitude: Math.max(-180, Math.min(180, val)),
+                    },
+                  });
+                }}
                 placeholder="0.0000"
                 className="h-8 text-sm font-mono"
               />

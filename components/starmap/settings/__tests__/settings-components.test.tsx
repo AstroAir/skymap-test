@@ -81,6 +81,7 @@ describe('Settings Components', () => {
         coordinateFormat: 'dms',
         distanceUnit: 'metric',
         temperatureUnit: 'celsius',
+        skipCloseConfirmation: false,
       },
       performance: {
         renderQuality: 'high',

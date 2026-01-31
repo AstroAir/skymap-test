@@ -232,6 +232,10 @@ async function searchSesame(query: string, timeout: number = 10000): Promise<Onl
     const url = `${ONLINE_SEARCH_SOURCES.sesame.baseUrl}${ONLINE_SEARCH_SOURCES.sesame.endpoint}/-ox/SNV?${encodedQuery}`;
     
     const response = await smartFetch(url, { timeout });
+
+    if (!response || typeof response.ok !== 'boolean') {
+      throw new Error('Sesame API error: invalid response');
+    }
     
     if (!response.ok) {
       throw new Error(`Sesame API error: ${response.status}`);
@@ -326,8 +330,7 @@ async function searchSesame(query: string, timeout: number = 10000): Promise<Onl
     
     return results;
   } catch (error) {
-    console.warn('Sesame search error:', error);
-    return [];
+    throw error instanceof Error ? error : new Error('Sesame search error');
   }
 }
 
@@ -349,6 +352,10 @@ interface SimbadTapRow {
 }
 
 async function searchSimbadByName(query: string, limit: number = 20, timeout: number = 15000): Promise<OnlineSearchResult[]> {
+  if (!query.trim()) {
+    return [];
+  }
+
   try {
     // Build ADQL query for SIMBAD TAP
     const escapedQuery = query.replace(/'/g, "''");
@@ -376,6 +383,10 @@ async function searchSimbadByName(query: string, limit: number = 20, timeout: nu
       timeout,
       headers: { 'Accept': 'application/json' },
     });
+
+    if (!response || typeof response.ok !== 'boolean') {
+      throw new Error('SIMBAD TAP error: invalid response');
+    }
     
     if (!response.ok) {
       throw new Error(`SIMBAD TAP error: ${response.status}`);
@@ -434,8 +445,7 @@ async function searchSimbadByName(query: string, limit: number = 20, timeout: nu
     
     return results;
   } catch (error) {
-    console.warn('SIMBAD TAP search error:', error);
-    return [];
+    throw error instanceof Error ? error : new Error('SIMBAD TAP search error');
   }
 }
 
@@ -471,6 +481,10 @@ async function searchSimbadByCoordinates(
       timeout,
       headers: { 'Accept': 'application/json' },
     });
+
+    if (!response || typeof response.ok !== 'boolean') {
+      throw new Error('SIMBAD coordinate search error: invalid response');
+    }
     
     if (!response.ok) {
       throw new Error(`SIMBAD coordinate search error: ${response.status}`);
@@ -528,8 +542,7 @@ async function searchSimbadByCoordinates(
     
     return results;
   } catch (error) {
-    console.warn('SIMBAD coordinate search error:', error);
-    return [];
+    throw error instanceof Error ? error : new Error('SIMBAD coordinate search error');
   }
 }
 
@@ -599,8 +612,7 @@ async function searchVizierCatalogs(
     
     return results;
   } catch (error) {
-    console.warn('VizieR search error:', error);
-    return [];
+    throw error instanceof Error ? error : new Error('VizieR search error');
   }
 }
 
@@ -680,8 +692,7 @@ async function searchNED(query: string, limit: number = 20, timeout: number = 15
     
     return results;
   } catch (error) {
-    console.warn('NED search error:', error);
-    return [];
+    throw error instanceof Error ? error : new Error('NED search error');
   }
 }
 
@@ -701,6 +712,15 @@ export async function searchOnlineByName(
     limit = 20,
     timeout = 15000,
   } = options;
+
+  if (!query.trim()) {
+    return {
+      results: [],
+      sources: [],
+      totalCount: 0,
+      searchTimeMs: 0,
+    };
+  }
   
   const startTime = performance.now();
   const allResults: OnlineSearchResult[] = [];
@@ -848,8 +868,12 @@ export async function searchOnlineByCoordinates(
  * Returns the first match with coordinates
  */
 export async function resolveObjectName(name: string): Promise<OnlineSearchResult | null> {
-  const results = await searchSesame(name, 8000);
-  return results.length > 0 ? results[0] : null;
+  try {
+    const results = await searchSesame(name, 8000);
+    return results.length > 0 ? results[0] : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

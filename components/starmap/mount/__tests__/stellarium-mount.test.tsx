@@ -2,45 +2,41 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 
 // Mock stores
+let mountState: { mountInfo: { Connected: boolean; Coordinates: { RADegrees: number; Dec: number } } } = {
+  mountInfo: {
+    Connected: false,
+    Coordinates: {
+      RADegrees: 0,
+      Dec: 0,
+    },
+  },
+};
+
 const mockUseMountStore = jest.fn((selector) => {
-  const state = {
-    isConnected: false,
-    isSlewing: false,
-    isTracking: false,
-    profileInfo: {
-      AstrometrySettings: {
-        Latitude: 40.7128,
-        Longitude: -74.006,
-        Elevation: 10,
-      },
-    },
-    mountInfo: {
-      Connected: false,
-      Coordinates: {
-        RADegrees: 0,
-        Dec: 0,
-      },
-    },
-    connect: jest.fn(),
-    disconnect: jest.fn(),
-    slew: jest.fn(),
-    sync: jest.fn(),
-    park: jest.fn(),
-    unpark: jest.fn(),
-    setTracking: jest.fn(),
-  };
-  return selector ? selector(state) : state;
+  return selector ? selector(mountState) : mountState;
 });
 
+type MockStel = {
+  observer: Record<string, unknown>;
+  D2R: number;
+  getObj: jest.Mock;
+  createObj: jest.Mock;
+  createLayer: jest.Mock;
+  s2c: jest.Mock;
+  convertFrame: jest.Mock;
+  pointAndLock: jest.Mock;
+};
+
+let stellariumState: { stel: MockStel | null; isReady: boolean } = {
+  stel: null,
+  isReady: true,
+};
+
 const mockUseStellariumStore = jest.fn((selector) => {
-  const state = {
-    stel: null,
-    isReady: true,
-  };
-  return selector ? selector(state) : state;
+  return selector ? selector(stellariumState) : stellariumState;
 });
 
 jest.mock('@/lib/stores', () => ({
@@ -70,15 +66,116 @@ jest.mock('@/components/ui/tooltip', () => ({
 
 import { StellariumMount } from '../stellarium-mount';
 
+const createMockStel = () => {
+  const circle = {
+    designations: jest.fn(() => []),
+    getInfo: jest.fn(() => null),
+    pos: [0, 0, 0],
+    color: [0, 0, 0, 0],
+    border_color: [0, 0, 0, 0],
+    size: [0, 0],
+    update: jest.fn(),
+  };
+
+  const layer = {
+    add: jest.fn(),
+  };
+
+  const stel = {
+    observer: {},
+    D2R: Math.PI / 180,
+    getObj: jest.fn(() => null),
+    createObj: jest.fn(() => circle),
+    createLayer: jest.fn(() => layer),
+    s2c: jest.fn(() => [1, 2, 3]),
+    convertFrame: jest.fn(() => [4, 5, 6]),
+    pointAndLock: jest.fn(),
+  };
+
+  return { stel, layer, circle };
+};
+
 describe('StellariumMount', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mountState = {
+      mountInfo: {
+        Connected: false,
+        Coordinates: {
+          RADegrees: 0,
+          Dec: 0,
+        },
+      },
+    };
+
+    stellariumState = {
+      stel: null,
+      isReady: true,
+    };
   });
 
-  it('renders without crashing', () => {
+  it('does not create marker objects when mount is not connected', () => {
+    const { stel } = createMockStel();
+    stellariumState.stel = stel;
+
     render(<StellariumMount />);
-    // Component should render
-    expect(document.body).toBeInTheDocument();
+    expect(stel.createLayer).not.toHaveBeenCalled();
+    expect(stel.createObj).not.toHaveBeenCalled();
+  });
+
+  it('creates marker once when connected and locks only when autosync enabled', async () => {
+    const { stel, layer, circle } = createMockStel();
+    stellariumState.stel = stel;
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Coordinates.RADegrees = 10;
+    mountState.mountInfo.Coordinates.Dec = 20;
+
+    const { rerender, getAllByRole } = render(<StellariumMount />);
+
+    await waitFor(() => {
+      expect(stel.createLayer).toHaveBeenCalledTimes(1);
+      expect(stel.createObj).toHaveBeenCalledTimes(1);
+      expect(layer.add).toHaveBeenCalledTimes(1);
+    });
+
+    mountState.mountInfo.Coordinates.RADegrees = 15;
+    rerender(<StellariumMount />);
+    await waitFor(() => {
+      expect(circle.update).toHaveBeenCalled();
+    });
+    expect(stel.createLayer).toHaveBeenCalledTimes(1);
+    expect(stel.createObj).toHaveBeenCalledTimes(1);
+    expect(stel.pointAndLock).toHaveBeenCalledTimes(0);
+
+    const buttons = getAllByRole('button');
+    fireEvent.click(buttons[1]);
+
+    await waitFor(() => {
+      expect(stel.pointAndLock).toHaveBeenCalledTimes(1);
+    });
+
+    mountState.mountInfo.Coordinates.RADegrees = 25;
+    rerender(<StellariumMount />);
+    await waitFor(() => {
+      expect(stel.pointAndLock).toHaveBeenCalledTimes(2);
+    });
+
+    fireEvent.click(buttons[1]);
+    await waitFor(() => {
+      expect(stel.pointAndLock).toHaveBeenCalledTimes(2);
+    });
+
+    mountState.mountInfo.Coordinates.RADegrees = 35;
+    rerender(<StellariumMount />);
+    await waitFor(() => {
+      expect(stel.pointAndLock).toHaveBeenCalledTimes(2);
+    });
+
+    fireEvent.click(buttons[0]);
+    await waitFor(() => {
+      expect(stel.pointAndLock).toHaveBeenCalledTimes(3);
+    });
   });
 });
 

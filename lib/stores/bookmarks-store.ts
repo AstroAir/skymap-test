@@ -44,7 +44,7 @@ interface BookmarksState {
   removeBookmark: (id: string) => void;
   getBookmark: (id: string) => ViewBookmark | undefined;
   reorderBookmarks: (fromIndex: number, toIndex: number) => void;
-  duplicateBookmark: (id: string) => string | null;
+  duplicateBookmark: (id: string, copySuffix?: string) => string | null;
 }
 
 // Generate unique ID for bookmarks
@@ -100,7 +100,7 @@ export const useBookmarksStore = create<BookmarksState>()(
         });
       },
 
-      duplicateBookmark: (id) => {
+      duplicateBookmark: (id, copySuffix = '(Copy)') => {
         const original = get().getBookmark(id);
         if (!original) return null;
 
@@ -110,7 +110,7 @@ export const useBookmarksStore = create<BookmarksState>()(
         const duplicated: ViewBookmark = {
           ...original,
           id: newId,
-          name: `${original.name} (Copy)`,
+          name: `${original.name} ${copySuffix}`,
           createdAt: now,
           updatedAt: now,
         };

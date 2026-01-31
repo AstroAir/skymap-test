@@ -23,18 +23,28 @@ graph TB
         B3[Backend APIs<br/>后端API]
     end
 
+    subgraph 安全层
+        S1[Rate Limiter<br/>速率限制]
+        S2[Validator<br/>输入验证]
+        S3[SSRF Protection<br/>SSRF防护]
+    end
+
+    subgraph 网络层
+        N1[HTTP Client<br/>HTTP客户端]
+    end
+
     subgraph 后端服务层
-        C1[Astronomy Engine<br/>天文计算]
-        C2[Data Storage<br/>数据存储]
-        C3[Cache System<br/>缓存系统]
-        C4[Device Management<br/>设备管理]
+        C1[platform<br/>桌面平台服务]
+        C2[cache<br/>缓存系统]
+        C3[astronomy<br/>天文计算]
+        C4[data<br/>数据存储]
     end
 
     subgraph 数据层
         D1[(JSON Stores)]
-        D2[File System Cache]
-        D3[Star Catalog Data]
-        D4[User Settings]
+        D2[Tile Cache<br/>瓦片缓存]
+        D3[Unified Cache<br/>统一缓存]
+        D4[Star Catalog Data]
     end
 
     A1 --> A2
@@ -43,14 +53,20 @@ graph TB
     A3 --> B1
     B1 --> B2
     B2 --> B3
-    B3 --> C1
-    B3 --> C2
-    B3 --> C3
-    B3 --> C4
-    C2 --> D1
-    C3 --> D2
-    C1 --> D3
-    C4 --> D4
+    B3 --> S1
+    B3 --> S2
+    B3 --> S3
+    S1 --> N1
+    S2 --> N1
+    S3 --> N1
+    N1 --> C1
+    N1 --> C2
+    N1 --> C3
+    N1 --> C4
+    C4 --> D1
+    C2 --> D2
+    C2 --> D3
+    C3 --> D4
 ```
 
 ## 前端架构
@@ -161,6 +177,21 @@ graph TD
 - **语言**: Rust
 - **存储**: JSON File Storage
 - **序列化**: Serde
+- **HTTP客户端**: reqwest 0.12
+- **异步运行时**: tokio
+
+### 后端模块结构
+
+后端代码按功能域组织为以下模块：
+
+| 模块 | 路径 | 职责 |
+|------|------|------|
+| `platform` | `src-tauri/src/platform/` | 桌面平台功能 (应用设置、控制、更新、板求解) |
+| `cache` | `src-tauri/src/cache/` | 缓存系统 (瓦片缓存、统一缓存) |
+| `astronomy` | `src-tauri/src/astronomy/` | 天文计算与事件 |
+| `data` | `src-tauri/src/data/` | 数据存储 (设备、位置、目标、标记、日志) |
+| `network` | `src-tauri/src/network/` | 网络与安全 (HTTP客户端、速率限制、验证) |
+| `utils` | `src-tauri/src/utils.rs` | 通用工具函数 |
 
 ### 后端模块组织
 
@@ -171,11 +202,20 @@ graph TD
         M2[lib.rs<br/>命令注册]
     end
 
-    subgraph 业务逻辑层
-        B1[astronomy.rs<br/>天文计算]
-        B2[storage.rs<br/>数据存储]
-        B3[equipment.rs<br/>设备管理]
-        B4[cache.rs<br/>缓存管理]
+    subgraph 安全层
+        S1[network/security.rs<br/>安全验证]
+        S2[network/rate_limiter.rs<br/>速率限制]
+    end
+
+    subgraph 网络层
+        N1[network/http_client.rs<br/>HTTP客户端]
+    end
+
+    subgraph 业务模块层
+        P1[platform/<br/>桌面平台]
+        P2[cache/<br/>缓存系统]
+        P3[astronomy/<br/>天文计算]
+        P4[data/<br/>数据存储]
     end
 
     subgraph 数据访问层
@@ -185,41 +225,50 @@ graph TD
     end
 
     M1 --> M2
-    M2 --> B1
-    M2 --> B2
-    M2 --> B3
-    M2 --> B4
-    B2 --> A1
-    B4 --> A2
-    B1 --> A3
+    M2 --> S1
+    M2 --> S2
+    S1 --> N1
+    S2 --> N1
+    N1 --> P1
+    N1 --> P2
+    N1 --> P3
+    N1 --> P4
+    P4 --> A1
+    P2 --> A2
+    P3 --> A3
 ```
 
 ### 后端核心模块
 
-#### 1. 数据存储模块
+#### 1. platform 模块 (桌面平台)
 
-**文件**: `storage.rs`
-
-**职责**:
-- JSON 文件存储管理
-- CRUD操作
-- 数据持久化
-
-**主要功能**:
-- 观测日志CRUD
-- 设备配置管理
-- 用户设置存储
-- 目标列表管理
-
-#### 2. 离线缓存模块
-
-**文件**: `offline_cache.rs`, `unified_cache.rs`
+**位置**: `src-tauri/src/platform/`
 
 **职责**:
-- 星表数据缓存
-- HiPS瓦片缓存
+- 应用设置与窗口管理
+- 应用控制 (重启、退出、刷新)
+- 更新管理
+- 板求解器集成
+
+**关键文件**:
+- `app_settings.rs` - 应用配置
+- `app_control.rs` - 应用控制
+- `updater.rs` - 自动更新
+- `plate_solver.rs` - 天文板求解
+
+#### 2. cache 模块 (缓存系统)
+
+**位置**: `src-tauri/src/cache/`
+
+**职责**:
+- HiPS瓦片离线缓存
+- 统一网络缓存
 - 缓存策略管理
 - 存储空间管理
+
+**关键文件**:
+- `offline.rs` - 瓦片缓存
+- `unified.rs` - 统一缓存
 
 **缓存层次**:
 
@@ -235,15 +284,55 @@ graph LR
     E --> C
 ```
 
-#### 3. 天文计算模块
+#### 3. astronomy 模块 (天文计算)
 
-**文件**: `astronomy.rs`
+**位置**: `src-tauri/src/astronomy/`
 
 **职责**:
 - 天体位置计算
 - 坐标转换
 - 升落时间计算
 - 可见性判断
+- 天文事件计算
+
+**关键文件**:
+- `calculations.rs` - 天文计算
+- `events.rs` - 天文事件
+
+#### 4. data 模块 (数据存储)
+
+**位置**: `src-tauri/src/data/`
+
+**职责**:
+- JSON 文件存储管理
+- CRUD操作
+- 数据持久化
+
+**关键文件**:
+- `storage.rs` - 通用存储
+- `equipment.rs` - 设备管理
+- `locations.rs` - 位置管理
+- `targets.rs` - 目标列表
+- `markers.rs` - 自定义标记
+- `observation_log.rs` - 观测日志
+- `target_io.rs` - 导入导出
+
+**详见**: [数据模块架构](../data-management/data-module.md)
+
+#### 5. network 模块 (网络与安全)
+
+**位置**: `src-tauri/src/network/`
+
+**职责**:
+- HTTP 请求处理
+- 速率限制 (滑动窗口算法)
+- URL 验证 (SSRF 防护)
+- 输入大小限制
+
+**关键文件**:
+- `http_client.rs` - HTTP 客户端
+- `security.rs` - 安全验证
+- `rate_limiter.rs` - 速率限制
 
 ## 前后端通信
 
@@ -253,11 +342,17 @@ graph LR
 sequenceDiagram
     participant F as 前端React
     participant I as Tauri IPC
+    participant S as 安全层
+    participant N as 网络层
     participant B as Rust后端
     participant D as 数据层
 
     F->>I: invoke('command_name', params)
-    I->>B: 调用Rust函数
+    I->>S: 验证请求
+    S->>S: 速率限制检查
+    S->>S: SSRF防护
+    S->>N: HTTP请求(如需)
+    N->>B: 调用Rust模块
     B->>D: 执行操作
     D-->>B: 返回结果
     B-->>I: 序列化结果
@@ -317,6 +412,8 @@ sequenceDiagram
     participant U as 用户
     participant F as 前端
     participant T as Tauri
+    participant S as 安全层
+    participant N as 网络层
     participant B as 后端
     participant D as 数据库
 
@@ -326,7 +423,10 @@ sequenceDiagram
         F->>U: 显示结果
     else 本地未找到
         F->>T: invoke('search_object')
-        T->>B: 执行搜索
+        T->>S: 验证请求
+        S->>S: 速率限制检查
+        S->>N: 通过安全检查
+        N->>B: 执行搜索
         B->>D: 查询数据库
         D-->>B: 返回结果
         B-->>T: 返回数据
@@ -357,6 +457,65 @@ sequenceDiagram
     S-->>F: 确认保存
     F->>U: 更新列表显示
 ```
+
+## 安全层架构
+
+### 安全防护机制
+
+SkyMap 在后端实现了多层安全防护，所有网络请求和用户输入都经过严格的验证和限制。
+
+### 安全组件
+
+```mermaid
+graph TD
+    A[前端请求] --> B{速率限制检查}
+    B -->|超过限制| C[拒绝请求]
+    B -->|通过| D{输入验证}
+    D -->|格式无效| C
+    D -->|大小超限| C
+    D -->|通过| E{URL安全检查}
+    E -->|私有IP| C
+    E -->|危险协议| C
+    E -->|通过| F[执行请求]
+```
+
+### 1. 速率限制 (Rate Limiting)
+
+**算法**: 滑动窗口 (Sliding Window)
+
+**限制**:
+- 全局: 100 请求/60秒
+- 每个命令可配置独立限制
+
+**实现**: `src-tauri/src/network/rate_limiter.rs`
+
+### 2. 输入验证
+
+**限制**:
+- `MAX_JSON_SIZE`: 10 MB
+- `MAX_CSV_SIZE`: 50 MB
+- `MAX_TILE_SIZE`: 5 MB
+- `MAX_URL_LENGTH`: 2048 字节
+
+**实现**: `src-tauri/src/network/security.rs`
+
+### 3. SSRF 防护
+
+**阻止的地址**:
+- 私有 IP (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+- Localhost 变体
+- 危险协议 (javascript:, data:, file: 等)
+
+**允许的协议**:
+- `https://` (默认)
+- `http://` (可配置)
+
+### 4. 存储安全
+
+**路径沙箱**:
+- 所有文件操作限制在应用数据目录
+- 路径遍历防护
+- 文件大小限制
 
 ## 状态管理
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useOnboardingStore, TOUR_STEPS } from '@/lib/stores/onboarding-store';
 import { TourSpotlight } from './tour-spotlight';
 import { TourTooltip } from './tour-tooltip';
@@ -29,13 +29,18 @@ export function OnboardingTour({
     ? TOUR_STEPS[currentStepIndex]
     : null;
 
+  const wasTourActiveRef = useRef(false);
+
   // Notify callbacks
   useEffect(() => {
-    if (isTourActive) {
+    const wasActive = wasTourActiveRef.current;
+    if (!wasActive && isTourActive) {
       onTourStart?.();
-    } else {
+    }
+    if (wasActive && !isTourActive) {
       onTourEnd?.();
     }
+    wasTourActiveRef.current = isTourActive;
   }, [isTourActive, onTourStart, onTourEnd]);
 
   useEffect(() => {

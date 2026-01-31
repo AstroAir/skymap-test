@@ -160,11 +160,16 @@ export function EquipmentSettings() {
 
   const handleAddCamera = useCallback(() => {
     if (!newCameraName || !newCameraSensorWidth || !newCameraSensorHeight) return;
+    const sensorWidth = parseFloat(newCameraSensorWidth);
+    const sensorHeight = parseFloat(newCameraSensorHeight);
+    const pixelSize = parseFloat(newCameraPixelSize) || 3.76;
+    // Validate numeric values are positive and reasonable
+    if (sensorWidth <= 0 || sensorWidth > 100 || sensorHeight <= 0 || sensorHeight > 100 || pixelSize <= 0) return;
     addCustomCamera({
-      name: newCameraName,
-      sensorWidth: parseFloat(newCameraSensorWidth),
-      sensorHeight: parseFloat(newCameraSensorHeight),
-      pixelSize: parseFloat(newCameraPixelSize) || 3.76,
+      name: newCameraName.trim(),
+      sensorWidth,
+      sensorHeight,
+      pixelSize,
     });
     setNewCameraName('');
     setNewCameraSensorWidth('');
@@ -175,10 +180,14 @@ export function EquipmentSettings() {
 
   const handleAddTelescope = useCallback(() => {
     if (!newTelescopeName || !newTelescopeFocalLength) return;
+    const focalLength = parseFloat(newTelescopeFocalLength);
+    const aperture = parseFloat(newTelescopeAperture) || 80;
+    // Validate numeric values are positive and reasonable
+    if (focalLength <= 0 || focalLength > 10000 || aperture <= 0 || aperture > 2000) return;
     addCustomTelescope({
-      name: newTelescopeName,
-      focalLength: parseFloat(newTelescopeFocalLength),
-      aperture: parseFloat(newTelescopeAperture) || 80,
+      name: newTelescopeName.trim(),
+      focalLength,
+      aperture,
       type: 'Custom',
     });
     setNewTelescopeName('');
@@ -334,8 +343,9 @@ export function EquipmentSettings() {
             <Input
               type="number"
               step="0.1"
+              min={0.1}
               value={sensorWidth}
-              onChange={(e) => setSensorWidth(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setSensorWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
               className="h-8 text-sm"
             />
           </div>
@@ -344,8 +354,9 @@ export function EquipmentSettings() {
             <Input
               type="number"
               step="0.1"
+              min={0.1}
               value={sensorHeight}
-              onChange={(e) => setSensorHeight(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setSensorHeight(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
               className="h-8 text-sm"
             />
           </div>
@@ -354,8 +365,9 @@ export function EquipmentSettings() {
             <Input
               type="number"
               step="0.01"
+              min={0.01}
               value={pixelSize}
-              onChange={(e) => setPixelSize(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPixelSize(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
               className="h-8 text-sm"
             />
           </div>
@@ -526,8 +538,9 @@ export function EquipmentSettings() {
             <Label className="text-xs text-muted-foreground">{t('fov.focalLength')} (mm)</Label>
             <Input
               type="number"
+              min={1}
               value={focalLength}
-              onChange={(e) => setFocalLength(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setFocalLength(Math.max(1, parseFloat(e.target.value) || 1))}
               className="h-8 text-sm"
             />
           </div>
@@ -535,8 +548,9 @@ export function EquipmentSettings() {
             <Label className="text-xs text-muted-foreground">{t('equipment.aperture')} (mm)</Label>
             <Input
               type="number"
+              min={1}
               value={aperture}
-              onChange={(e) => setAperture(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setAperture(Math.max(1, parseFloat(e.target.value) || 1))}
               className="h-8 text-sm"
             />
           </div>

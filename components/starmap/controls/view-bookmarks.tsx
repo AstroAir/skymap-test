@@ -184,7 +184,7 @@ export function ViewBookmarks({
           </TooltipContent>
         </Tooltip>
 
-        <PopoverContent className="w-72 p-0" align="end">
+        <PopoverContent className="w-72 p-0 animate-in fade-in zoom-in-95 slide-in-from-top-2" align="end">
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <h4 className="font-medium text-sm flex items-center gap-2">
               <Bookmark className="h-4 w-4" />
@@ -278,7 +278,7 @@ export function ViewBookmarks({
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
-                                duplicateBookmark(bookmark.id);
+                                duplicateBookmark(bookmark.id, t('bookmarks.copySuffix'));
                               }}
                             >
                               <Copy className="h-4 w-4 mr-2" />

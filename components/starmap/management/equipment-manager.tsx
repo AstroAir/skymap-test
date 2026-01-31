@@ -396,7 +396,12 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                             {isSelected && <Check className="h-3 w-3 text-primary" />}
                             {isDefault && <Star className="h-3 w-3 text-yellow-500" />}
                           </div>
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onDeleteTelescope(scope.id); }}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t('equipment.delete')}
+                            onClick={(e) => { e.stopPropagation(); onDeleteTelescope(scope.id); }}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -505,7 +510,12 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                             {isSelected && <Check className="h-3 w-3 text-primary" />}
                             {isDefault && <Star className="h-3 w-3 text-yellow-500" />}
                           </div>
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onDeleteCamera(cam.id); }}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t('equipment.delete')}
+                            onClick={(e) => { e.stopPropagation(); onDeleteCamera(cam.id); }}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -604,7 +614,12 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                             </p>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(barlow.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('equipment.delete')}
+                          onClick={() => handleDelete(barlow.id)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -672,7 +687,12 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                             </p>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(filter.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('equipment.delete')}
+                          onClick={() => handleDelete(filter.id)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

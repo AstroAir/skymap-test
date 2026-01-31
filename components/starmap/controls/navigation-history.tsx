@@ -36,6 +36,7 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
     currentIndex,
     back,
     forward,
+    goTo,
     canGoBack,
     canGoForward,
     clear,
@@ -55,11 +56,13 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
     }
   }, [forward, onNavigate]);
 
-  const handleSelectPoint = useCallback((point: NavigationPoint, _index: number) => {
-    if (onNavigate) {
-      onNavigate(point.ra, point.dec, point.fov);
+  const handleSelectPoint = useCallback((point: NavigationPoint, index: number) => {
+    // Use goTo to sync currentIndex with the selected history point
+    const navigatedPoint = goTo(index);
+    if (navigatedPoint && onNavigate) {
+      onNavigate(navigatedPoint.ra, navigatedPoint.dec, navigatedPoint.fov);
     }
-  }, [onNavigate]);
+  }, [goTo, onNavigate]);
 
   const isBackEnabled = canGoBack();
   const isForwardEnabled = canGoForward();
@@ -121,7 +124,7 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
           </TooltipContent>
         </Tooltip>
 
-        <PopoverContent className="w-72 p-0" align="end">
+        <PopoverContent className="w-72 p-0 animate-in fade-in zoom-in-95 slide-in-from-top-2" align="end">
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <h4 className="font-medium text-sm flex items-center gap-2">
               <History className="h-4 w-4" />
@@ -180,7 +183,11 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
                             {formatNavigationPoint(point)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            FOV: {point.fov.toFixed(1)}° • {formatTimestamp(point.timestamp)}
+                            FOV: {point.fov.toFixed(1)}° • {formatTimestamp(point.timestamp, {
+                              justNow: t('navigation.justNow'),
+                              minutesAgo: (mins) => t('navigation.minutesAgo', { count: mins }),
+                              hoursAgo: (hours) => t('navigation.hoursAgo', { count: hours }),
+                            })}
                           </p>
                         </div>
                       </div>

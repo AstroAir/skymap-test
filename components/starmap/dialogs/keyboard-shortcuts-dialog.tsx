@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Keyboard, Command, Navigation, Eye, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,65 +23,63 @@ import { Badge } from '@/components/ui/badge';
 
 interface ShortcutItem {
   key: string;
-  description: string;
+  descriptionKey: string;
   modifier?: string;
 }
 
 interface ShortcutGroup {
-  title: string;
+  titleKey: string;
   icon: React.ReactNode;
   shortcuts: ShortcutItem[];
 }
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
-    title: 'Navigation',
+    titleKey: 'navigation',
     icon: <Navigation className="h-4 w-4" />,
     shortcuts: [
-      { key: '+', description: 'Zoom in' },
-      { key: '-', description: 'Zoom out' },
-      { key: 'R', description: 'Reset view' },
-      { key: 'Scroll', description: 'Zoom with mouse wheel' },
-      { key: 'Drag', description: 'Pan view' },
+      { key: '+', descriptionKey: 'zoomIn' },
+      { key: '-', descriptionKey: 'zoomOut' },
+      { key: 'R', descriptionKey: 'resetView' },
+      { key: '/', descriptionKey: 'openSearch' },
     ],
   },
   {
-    title: 'Search & Panels',
+    titleKey: 'searchAndPanels',
     icon: <Command className="h-4 w-4" />,
     shortcuts: [
-      { key: '/', description: 'Open search' },
-      { key: 'F', modifier: 'Ctrl', description: 'Toggle search' },
-      { key: 'P', description: 'Toggle session panel' },
-      { key: 'O', description: 'Toggle FOV overlay' },
-      { key: 'Esc', description: 'Close panel' },
+      { key: 'F', modifier: 'Ctrl', descriptionKey: 'toggleSearch' },
+      { key: 'P', descriptionKey: 'toggleSessionPanel' },
+      { key: 'O', descriptionKey: 'toggleFovOverlay' },
+      { key: 'Esc', descriptionKey: 'closePanel' },
     ],
   },
   {
-    title: 'Display',
+    titleKey: 'display',
     icon: <Eye className="h-4 w-4" />,
     shortcuts: [
-      { key: 'L', description: 'Toggle constellation lines' },
-      { key: 'G', description: 'Toggle equatorial grid' },
-      { key: 'D', description: 'Toggle deep sky objects' },
-      { key: 'A', description: 'Toggle atmosphere' },
+      { key: 'L', descriptionKey: 'toggleConstellations' },
+      { key: 'G', descriptionKey: 'toggleGrid' },
+      { key: 'D', descriptionKey: 'toggleDso' },
+      { key: 'A', descriptionKey: 'toggleAtmosphere' },
     ],
   },
   {
-    title: 'Time Control',
+    titleKey: 'timeControl',
     icon: <Clock className="h-4 w-4" />,
     shortcuts: [
-      { key: 'Space', description: 'Pause/resume time' },
-      { key: ']', description: 'Speed up time (2x)' },
-      { key: '[', description: 'Slow down time (0.5x)' },
-      { key: 'T', description: 'Reset to current time' },
+      { key: 'Space', descriptionKey: 'pauseResumeTime' },
+      { key: ']', descriptionKey: 'speedUpTime' },
+      { key: '[', descriptionKey: 'slowDownTime' },
+      { key: 'T', descriptionKey: 'resetTime' },
     ],
   },
 ];
 
-function ShortcutKey({ shortcut }: { shortcut: ShortcutItem }) {
+function ShortcutKey({ shortcut, t }: { shortcut: ShortcutItem; t: ReturnType<typeof useTranslations> }) {
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-sm text-muted-foreground">{shortcut.description}</span>
+      <span className="text-sm text-muted-foreground">{t(`shortcuts.${shortcut.descriptionKey}`)}</span>
       <div className="flex items-center gap-1">
         {shortcut.modifier && (
           <>
@@ -107,6 +105,27 @@ export function KeyboardShortcutsDialog({ trigger }: KeyboardShortcutsDialogProp
   const t = useTranslations();
   const [open, setOpen] = useState(false);
 
+  // Global ? shortcut to open this dialog
+  const handleGlobalShortcut = useCallback((event: KeyboardEvent) => {
+    // Check if input is focused
+    const activeElement = document.activeElement;
+    const tagName = activeElement?.tagName.toLowerCase();
+    if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
+      return;
+    }
+
+    // ? key (Shift + /)
+    if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+      event.preventDefault();
+      setOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleGlobalShortcut);
+    return () => window.removeEventListener('keydown', handleGlobalShortcut);
+  }, [handleGlobalShortcut]);
+
   const defaultTrigger = (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -114,6 +133,7 @@ export function KeyboardShortcutsDialog({ trigger }: KeyboardShortcutsDialogProp
           variant="ghost"
           size="icon"
           className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent"
+          aria-label={t('shortcuts.keyboardShortcuts')}
         >
           <Keyboard className="h-4 w-4" />
         </Button>
@@ -143,15 +163,15 @@ export function KeyboardShortcutsDialog({ trigger }: KeyboardShortcutsDialogProp
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4">
             {SHORTCUT_GROUPS.map((group, index) => (
-              <div key={group.title}>
+              <div key={group.titleKey}>
                 {index > 0 && <Separator className="my-3" />}
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-primary">{group.icon}</span>
-                  <h3 className="font-medium text-sm">{group.title}</h3>
+                  <h3 className="font-medium text-sm">{t(`shortcuts.${group.titleKey}`)}</h3>
                 </div>
                 <div className="space-y-0.5 pl-6">
                   {group.shortcuts.map((shortcut) => (
-                    <ShortcutKey key={shortcut.key + shortcut.description} shortcut={shortcut} />
+                    <ShortcutKey key={shortcut.key + shortcut.descriptionKey} shortcut={shortcut} t={t} />
                   ))}
                 </div>
               </div>

@@ -223,7 +223,7 @@ export function FOVOverlay({
           {/* Rotation handle */}
           {onRotationChange && (
             <div
-              className="absolute -top-6 left-1/2 -translate-x-1/2 pointer-events-auto cursor-grab active:cursor-grabbing"
+              className="absolute -top-6 left-1/2 -translate-x-1/2 pointer-events-auto cursor-grab active:cursor-grabbing touch-none"
               onMouseDown={(e) => {
                 e.preventDefault();
                 const rect = e.currentTarget.parentElement?.getBoundingClientRect();
@@ -246,6 +246,31 @@ export function FOVOverlay({
                 
                 document.addEventListener('mousemove', handleMouseMove);
                 document.addEventListener('mouseup', handleMouseUp);
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                const rect = e.currentTarget.parentElement?.getBoundingClientRect();
+                if (!rect) return;
+                
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                
+                const handleTouchMove = (moveEvent: TouchEvent) => {
+                  const touch = moveEvent.touches[0];
+                  if (!touch) return;
+                  const dx = touch.clientX - centerX;
+                  const dy = touch.clientY - centerY;
+                  const angle = Math.atan2(dx, -dy) * (180 / Math.PI);
+                  onRotationChange(Math.round(angle));
+                };
+                
+                const handleTouchEnd = () => {
+                  document.removeEventListener('touchmove', handleTouchMove);
+                  document.removeEventListener('touchend', handleTouchEnd);
+                };
+                
+                document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                document.addEventListener('touchend', handleTouchEnd);
               }}
             >
               <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center">

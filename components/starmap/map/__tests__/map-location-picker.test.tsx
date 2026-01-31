@@ -4,6 +4,15 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
+jest.mock('next/dynamic', () => ({
+  __esModule: true,
+  default: () => () => <div data-testid="leaflet-map" />,
+}));
+
+jest.mock('../leaflet-map', () => ({
+  LeafletMap: () => <div data-testid="leaflet-map" />,
+}));
+
 // Mock geocoding service
 jest.mock('@/lib/services/geocoding-service', () => ({
   geocodingService: {

@@ -257,6 +257,18 @@ export function FOVSimulator({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [localPixelSize, setLocalPixelSize] = useState(pixelSize);
   const [localRotation, setLocalRotation] = useState(rotationAngle);
+  
+  // Display options state
+  const [overlayOpacity, setOverlayOpacity] = useState(80);
+  const [frameColor, setFrameColor] = useState('#3b82f6');
+  const [frameStyle, setFrameStyle] = useState<'solid' | 'dashed' | 'dotted'>('solid');
+  const [showCoordinateGrid, setShowCoordinateGrid] = useState(true);
+  const [showConstellations, setShowConstellations] = useState(false);
+  const [showConstellationBoundaries, setShowConstellationBoundaries] = useState(false);
+  const [showDSOLabels, setShowDSOLabels] = useState(true);
+  const [rotateSky, setRotateSky] = useState(false);
+  const [preserveAlignment, setPreserveAlignment] = useState(false);
+  const [dragToPosition, setDragToPosition] = useState(true);
 
   // Calculations
   const fovWidth = useMemo(() => 
@@ -733,21 +745,21 @@ export function FOVSimulator({
                     <span className="text-sm">{t('fov.rotateSky')}</span>
                     <p className="text-xs text-muted-foreground">{t('fov.rotateSkyDesc')}</p>
                   </div>
-                  <Switch defaultChecked={false} />
+                  <Switch checked={rotateSky} onCheckedChange={setRotateSky} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <span className="text-sm">{t('fov.preserveAlignment')}</span>
                     <p className="text-xs text-muted-foreground">{t('fov.preserveAlignmentDesc')}</p>
                   </div>
-                  <Switch defaultChecked={false} />
+                  <Switch checked={preserveAlignment} onCheckedChange={setPreserveAlignment} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <span className="text-sm">{t('fov.dragToPosition')}</span>
                     <p className="text-xs text-muted-foreground">{t('fov.dragToPositionDesc')}</p>
                   </div>
-                  <Switch defaultChecked={true} />
+                  <Switch checked={dragToPosition} onCheckedChange={setDragToPosition} />
                 </div>
               </div>
             </div>
@@ -770,10 +782,11 @@ export function FOVSimulator({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm">{t('fov.overlayOpacity')}</Label>
-                    <span className="text-xs text-muted-foreground font-mono">80%</span>
+                    <span className="text-xs text-muted-foreground font-mono">{overlayOpacity}%</span>
                   </div>
                   <Slider
-                    defaultValue={[80]}
+                    value={[overlayOpacity]}
+                    onValueChange={([v]) => setOverlayOpacity(v)}
                     min={10}
                     max={100}
                     step={5}
@@ -787,19 +800,19 @@ export function FOVSimulator({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showCoordinateGrid')}</span>
-                      <Switch defaultChecked />
+                      <Switch checked={showCoordinateGrid} onCheckedChange={setShowCoordinateGrid} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showConstellations')}</span>
-                      <Switch defaultChecked={false} />
+                      <Switch checked={showConstellations} onCheckedChange={setShowConstellations} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showConstellationBoundaries')}</span>
-                      <Switch defaultChecked={false} />
+                      <Switch checked={showConstellationBoundaries} onCheckedChange={setShowConstellationBoundaries} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showDSOLabels')}</span>
-                      <Switch defaultChecked />
+                      <Switch checked={showDSOLabels} onCheckedChange={setShowDSOLabels} />
                     </div>
                   </div>
                 </div>
@@ -815,8 +828,12 @@ export function FOVSimulator({
                         key={color}
                         variant="outline"
                         size="icon"
-                        className="w-7 h-7 p-0 hover:scale-110 transition-transform"
+                        className={cn(
+                          'w-7 h-7 p-0 hover:scale-110 transition-transform',
+                          frameColor === color && 'ring-2 ring-primary ring-offset-2'
+                        )}
                         style={{ backgroundColor: color }}
+                        onClick={() => setFrameColor(color)}
                       />
                     ))}
                   </div>
@@ -825,7 +842,12 @@ export function FOVSimulator({
                 {/* Frame Style */}
                 <div className="space-y-2">
                   <Label className="text-sm">{t('fov.frameStyle')}</Label>
-                  <ToggleGroup type="single" defaultValue="solid" className="flex gap-1">
+                  <ToggleGroup 
+                    type="single" 
+                    value={frameStyle} 
+                    onValueChange={(v) => v && setFrameStyle(v as 'solid' | 'dashed' | 'dotted')}
+                    className="flex gap-1"
+                  >
                     <ToggleGroupItem value="solid" className="flex-1 h-8 text-xs">
                       {t('fov.styleSolid')}
                     </ToggleGroupItem>

@@ -26,6 +26,7 @@ interface NavigationHistoryState {
   push: (point: Omit<NavigationPoint, 'id' | 'timestamp'>) => void;
   back: () => NavigationPoint | null;
   forward: () => NavigationPoint | null;
+  goTo: (index: number) => NavigationPoint | null;
   canGoBack: () => boolean;
   canGoForward: () => boolean;
   clear: () => void;
@@ -38,7 +39,10 @@ const generateId = () => `nav_${Date.now()}_${Math.random().toString(36).slice(2
 
 // Check if two points are similar enough to be considered the same location
 const isSimilarPoint = (a: NavigationPoint, b: Omit<NavigationPoint, 'id' | 'timestamp'>): boolean => {
-  const raDiff = Math.abs(a.ra - b.ra);
+  // Handle RA wrap-around (0° ≈ 360°)
+  let raDiff = Math.abs(a.ra - b.ra);
+  if (raDiff > 180) raDiff = 360 - raDiff;
+  
   const decDiff = Math.abs(a.dec - b.dec);
   const fovDiff = Math.abs(a.fov - b.fov);
   
@@ -113,6 +117,15 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>()(
         return currentIndex < history.length - 1;
       },
 
+      goTo: (index: number) => {
+        const { history } = get();
+        if (index >= 0 && index < history.length) {
+          set({ currentIndex: index });
+          return history[index];
+        }
+        return null;
+      },
+
       clear: () => {
         set({ history: [], currentIndex: -1 });
       },
@@ -129,10 +142,18 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>()(
     {
       name: 'starmap-navigation-history',
       storage: getZustandStorage(),
-      partialize: (state) => ({
-        history: state.history.slice(-20), // Only persist last 20 items
-        currentIndex: Math.min(state.currentIndex, 19),
-      }),
+      partialize: (state) => {
+        const persistedHistory = state.history.slice(-20);
+        // Ensure currentIndex is valid for the persisted history length
+        const persistedIndex = Math.min(
+          Math.max(state.currentIndex - (state.history.length - persistedHistory.length), -1),
+          persistedHistory.length - 1
+        );
+        return {
+          history: persistedHistory,
+          currentIndex: persistedIndex,
+        };
+      },
     }
   )
 );
@@ -175,24 +196,33 @@ export function formatNavigationPoint(point: NavigationPoint): string {
   const m = Math.floor((raHours - h) * 60);
   
   // Format Dec
-  const decSign = point.dec >= 0 ? '+' : '';
+  const decSign = point.dec >= 0 ? '+' : '-';
   const dec = Math.abs(point.dec).toFixed(1);
   
   return `${h}h${m}m ${decSign}${dec}°`;
 }
 
 /**
- * Format timestamp for display
+ * Format timestamp for display with i18n support
+ * @param timestamp - Unix timestamp in milliseconds
+ * @param labels - i18n labels for time formatting
  */
-export function formatTimestamp(timestamp: number): string {
+export function formatTimestamp(
+  timestamp: number,
+  labels: {
+    justNow: string;
+    minutesAgo: (mins: number) => string;
+    hoursAgo: (hours: number) => string;
+  }
+): string {
   const date = new Date(timestamp);
   const now = new Date();
   const diffMs = now.getTime() - timestamp;
   const diffMins = Math.floor(diffMs / 60000);
   
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+  if (diffMins < 1) return labels.justNow;
+  if (diffMins < 60) return labels.minutesAgo(diffMins);
+  if (diffMins < 1440) return labels.hoursAgo(Math.floor(diffMins / 60));
   
   return date.toLocaleDateString();
 }

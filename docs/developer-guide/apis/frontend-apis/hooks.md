@@ -958,6 +958,8 @@ function MultipleAnimations() {
 
 **文件**: `lib/tauri/updater-hooks.ts`
 
+**API 导出**: `lib/tauri/index.ts` → `useUpdater`, `useAutoUpdater`
+
 ```typescript
 interface UseUpdaterOptions {
   autoCheck?: boolean;       // 自动检查
@@ -1109,8 +1111,23 @@ useEffect(() => {
 ## 相关文档
 
 - [Stores API](stores.md) - 状态管理
+- [Tauri 命令 API](../backend-apis/tauri-commands.md) - 后端命令
 - [核心模块](../../core-modules/index.md) - 核心模块文档
 - [天文计算](../../core-modules/astronomy-engine.md) - 天文计算引擎
+
+## 平台专用 APIs
+
+以下 API 仅在特定平台可用：
+
+### 桌面端 (Tauri)
+
+- **应用控制**: `lib/tauri/app-control-api.ts` - 重启、退出、窗口控制
+- **自动更新**: `lib/tauri/updater-api.ts`, `lib/tauri/updater-hooks.ts` - 更新检查和安装
+- **天文定位**: `lib/tauri/plate-solver-api.ts` - 图像天文定位求解
+
+### 移动端
+
+- **地理定位**: `lib/tauri/geolocation-api.ts` - 设备位置 API
 
 ---
 

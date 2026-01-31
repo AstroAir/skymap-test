@@ -85,6 +85,7 @@ import { LocationSearch } from '@/components/starmap/map/location-search';
 
 describe('LocationSearch', () => {
   const mockOnLocationSelect = jest.fn();
+  const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -102,6 +103,10 @@ describe('LocationSearch', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  afterAll(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   describe('Rendering', () => {

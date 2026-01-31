@@ -108,26 +108,26 @@ describe('ToolbarGroup', () => {
   });
 
   it('applies gap classes', () => {
-    const { rerender } = render(
+    const { rerender, container } = render(
       <ToolbarGroup gap="none">
         <div>Child</div>
       </ToolbarGroup>
     );
-    expect(screen.getByRole('generic').closest('.flex')).toHaveClass('gap-0');
+    expect(container.querySelector('.flex')).toHaveClass('gap-0');
 
     rerender(
       <ToolbarGroup gap="sm">
         <div>Child</div>
       </ToolbarGroup>
     );
-    expect(screen.getByRole('generic').closest('.flex')).toHaveClass('gap-1');
+    expect(container.querySelector('.flex')).toHaveClass('gap-1');
 
     rerender(
       <ToolbarGroup gap="md">
         <div>Child</div>
       </ToolbarGroup>
     );
-    expect(screen.getByRole('generic').closest('.flex')).toHaveClass('gap-2');
+    expect(container.querySelector('.flex')).toHaveClass('gap-2');
   });
 });
 

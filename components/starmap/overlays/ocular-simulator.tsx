@@ -104,6 +104,43 @@ const DEFAULT_BARLOWS: BarlowLens[] = [
 ];
 
 // ============================================================================
+// LocalStorage Helpers
+// ============================================================================
+
+const STORAGE_KEY_TELESCOPES = 'ocular-simulator-telescopes';
+const STORAGE_KEY_EYEPIECES = 'ocular-simulator-eyepieces';
+const STORAGE_KEY_BARLOWS = 'ocular-simulator-barlows';
+
+function loadFromStorage<T extends { id: string }>(key: string, defaultValue: T[]): T[] {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored) as T[];
+      // Merge with defaults to ensure all default items exist
+      const defaultIds = new Set(defaultValue.map(item => item.id));
+      const customItems = parsed.filter(item => !defaultIds.has(item.id));
+      return [...defaultValue, ...customItems];
+    }
+  } catch (e) {
+    console.warn(`Failed to load ${key} from localStorage:`, e);
+  }
+  return defaultValue;
+}
+
+function saveToStorage<T extends { id: string }>(key: string, items: T[], defaultItems: T[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    // Only save custom items (not defaults)
+    const defaultIds = new Set(defaultItems.map(item => item.id));
+    const customItems = items.filter(item => !defaultIds.has(item.id));
+    localStorage.setItem(key, JSON.stringify(customItems));
+  } catch (e) {
+    console.warn(`Failed to save ${key} to localStorage:`, e);
+  }
+}
+
+// ============================================================================
 // Calculation Functions
 // ============================================================================
 
@@ -255,10 +292,16 @@ export function OcularSimulator() {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   
-  // Equipment state
-  const [telescopes, setTelescopes] = useState<TelescopeConfig[]>(DEFAULT_TELESCOPES);
-  const [eyepieces, setEyepieces] = useState<Eyepiece[]>(DEFAULT_EYEPIECES);
-  const [barlows] = useState<BarlowLens[]>(DEFAULT_BARLOWS);
+  // Equipment state - load from localStorage on mount
+  const [telescopes, setTelescopes] = useState<TelescopeConfig[]>(() => 
+    loadFromStorage(STORAGE_KEY_TELESCOPES, DEFAULT_TELESCOPES)
+  );
+  const [eyepieces, setEyepieces] = useState<Eyepiece[]>(() => 
+    loadFromStorage(STORAGE_KEY_EYEPIECES, DEFAULT_EYEPIECES)
+  );
+  const [barlows, setBarlows] = useState<BarlowLens[]>(() => 
+    loadFromStorage(STORAGE_KEY_BARLOWS, DEFAULT_BARLOWS)
+  );
   
   // Selection state
   const [selectedTelescope, setSelectedTelescope] = useState<string>(telescopes[0].id);
@@ -269,6 +312,7 @@ export function OcularSimulator() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showCustomTelescope, setShowCustomTelescope] = useState(false);
   const [showCustomEyepiece, setShowCustomEyepiece] = useState(false);
+  const [showCustomBarlow, setShowCustomBarlow] = useState(false);
   
   // Custom equipment form
   const [customTelescope, setCustomTelescope] = useState<Partial<TelescopeConfig>>({
@@ -281,6 +325,10 @@ export function OcularSimulator() {
     name: '',
     focalLength: 10,
     afov: 52,
+  });
+  const [customBarlow, setCustomBarlow] = useState<Partial<BarlowLens>>({
+    name: '',
+    magnification: 2,
   });
   
   // Get selected equipment
@@ -315,12 +363,14 @@ export function OcularSimulator() {
         aperture: customTelescope.aperture,
         type: customTelescope.type || 'reflector',
       };
-      setTelescopes(prev => [...prev, newTelescope]);
+      const updatedTelescopes = [...telescopes, newTelescope];
+      setTelescopes(updatedTelescopes);
+      saveToStorage(STORAGE_KEY_TELESCOPES, updatedTelescopes, DEFAULT_TELESCOPES);
       setSelectedTelescope(newTelescope.id);
       setShowCustomTelescope(false);
       setCustomTelescope({ name: '', focalLength: 1000, aperture: 200, type: 'reflector' });
     }
-  }, [customTelescope]);
+  }, [customTelescope, telescopes]);
   
   // Add custom eyepiece
   const handleAddEyepiece = useCallback(() => {
@@ -331,12 +381,31 @@ export function OcularSimulator() {
         focalLength: customEyepiece.focalLength,
         afov: customEyepiece.afov,
       };
-      setEyepieces(prev => [...prev, newEyepiece]);
+      const updatedEyepieces = [...eyepieces, newEyepiece];
+      setEyepieces(updatedEyepieces);
+      saveToStorage(STORAGE_KEY_EYEPIECES, updatedEyepieces, DEFAULT_EYEPIECES);
       setSelectedEyepiece(newEyepiece.id);
       setShowCustomEyepiece(false);
       setCustomEyepiece({ name: '', focalLength: 10, afov: 52 });
     }
-  }, [customEyepiece]);
+  }, [customEyepiece, eyepieces]);
+  
+  // Add custom barlow
+  const handleAddBarlow = useCallback(() => {
+    if (customBarlow.name && customBarlow.magnification) {
+      const newBarlow: BarlowLens = {
+        id: `custom-b-${Date.now()}`,
+        name: customBarlow.name,
+        magnification: customBarlow.magnification,
+      };
+      const updatedBarlows = [...barlows, newBarlow];
+      setBarlows(updatedBarlows);
+      saveToStorage(STORAGE_KEY_BARLOWS, updatedBarlows, DEFAULT_BARLOWS);
+      setSelectedBarlow(newBarlow.id);
+      setShowCustomBarlow(false);
+      setCustomBarlow({ name: '', magnification: 2 });
+    }
+  }, [customBarlow, barlows]);
   
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -501,7 +570,18 @@ export function OcularSimulator() {
               
               {/* Barlow Selection */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">{t('ocular.barlow')}</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">{t('ocular.barlow')}</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setShowCustomBarlow(!showCustomBarlow)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    {t('ocular.addCustom')}
+                  </Button>
+                </div>
                 <Select value={selectedBarlow} onValueChange={setSelectedBarlow}>
                   <SelectTrigger>
                     <SelectValue />
@@ -514,6 +594,32 @@ export function OcularSimulator() {
                     ))}
                   </SelectContent>
                 </Select>
+                
+                {/* Custom Barlow Form */}
+                {showCustomBarlow && (
+                  <Card className="border-dashed">
+                    <CardContent className="p-3 space-y-2">
+                      <Input
+                        placeholder={t('ocular.barlowName')}
+                        value={customBarlow.name}
+                        onChange={e => setCustomBarlow(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                      <div>
+                        <Label className="text-xs">{t('ocular.magnification')}</Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          value={customBarlow.magnification}
+                          onChange={e => setCustomBarlow(prev => ({ ...prev, magnification: Number(e.target.value) }))}
+                        />
+                      </div>
+                      <Button size="sm" className="w-full" onClick={handleAddBarlow}>
+                        <Save className="h-3 w-3 mr-1" />
+                        {t('common.save')}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
             

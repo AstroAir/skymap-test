@@ -158,12 +158,17 @@ export const useOnboardingStore = create<OnboardingState>()(
         
         if (currentStepIndex < totalSteps - 1) {
           const currentStep = TOUR_STEPS[currentStepIndex];
-          set((state) => ({
-            currentStepIndex: currentStepIndex + 1,
-            completedSteps: currentStep 
-              ? [...state.completedSteps, currentStep.id]
-              : state.completedSteps,
-          }));
+          set((state) => {
+            const stepId = currentStep?.id;
+            const completedSteps = stepId && !state.completedSteps.includes(stepId)
+              ? [...state.completedSteps, stepId]
+              : state.completedSteps;
+
+            return {
+              currentStepIndex: currentStepIndex + 1,
+              completedSteps,
+            };
+          });
         } else {
           // Complete the tour
           get().completeOnboarding();
@@ -188,6 +193,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         currentStepIndex: -1,
         hasCompletedOnboarding: true,
         hasSeenWelcome: true,
+        showOnNextVisit: false,
       }),
       
       completeOnboarding: () => set({
@@ -240,10 +246,19 @@ export const useOnboardingStore = create<OnboardingState>()(
     {
       name: 'starmap-onboarding',
       storage: getZustandStorage(),
-      version: 1,
+      version: 2,
+      migrate: (persistedState, version) => {
+        if (version < 2 && persistedState && typeof persistedState === 'object') {
+          const state = persistedState as Record<string, unknown>;
+          if ('hasSeenWelcome' in state) {
+            delete state.hasSeenWelcome;
+          }
+          return state;
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         hasCompletedOnboarding: state.hasCompletedOnboarding,
-        hasSeenWelcome: state.hasSeenWelcome,
         completedSteps: state.completedSteps,
         showOnNextVisit: state.showOnNextVisit,
       }),

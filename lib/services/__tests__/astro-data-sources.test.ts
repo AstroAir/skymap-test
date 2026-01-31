@@ -151,14 +151,20 @@ describe('astro-data-sources', () => {
     });
 
     it('should handle partial failures gracefully', async () => {
-      mockFetch
-        .mockRejectedValueOnce(new Error('USNO error'))
-        .mockRejectedValueOnce(new Error('NASA error'));
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-      const events = await fetchAllAstroEvents(2024, 7, ['usno', 'nasa', 'imo']);
-      
-      // Should still return IMO meteor showers
-      expect(events.length).toBeGreaterThan(0);
+      try {
+        mockFetch
+          .mockRejectedValueOnce(new Error('USNO error'))
+          .mockRejectedValueOnce(new Error('NASA error'));
+
+        const events = await fetchAllAstroEvents(2024, 7, ['usno', 'nasa', 'imo']);
+        
+        // Should still return IMO meteor showers
+        expect(events.length).toBeGreaterThan(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('should filter by enabled sources', async () => {
@@ -249,11 +255,17 @@ describe('astro-data-sources', () => {
     });
 
     it('should handle fetch errors gracefully', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-      const satellites = await fetchAllSatellites(['stations']);
+      try {
+        mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      expect(satellites).toEqual([]);
+        const satellites = await fetchAllSatellites(['stations']);
+
+        expect(satellites).toEqual([]);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('should sort satellites by name', async () => {

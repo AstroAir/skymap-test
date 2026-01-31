@@ -34,10 +34,10 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
   const hasSeenWelcome = useOnboardingStore((state) => state.hasSeenWelcome);
   const hasCompletedOnboarding = useOnboardingStore((state) => state.hasCompletedOnboarding);
   const showOnNextVisit = useOnboardingStore((state) => state.showOnNextVisit);
+  const isTourActive = useOnboardingStore((state) => state.isTourActive);
   const setHasSeenWelcome = useOnboardingStore((state) => state.setHasSeenWelcome);
   const setShowOnNextVisit = useOnboardingStore((state) => state.setShowOnNextVisit);
   const startTour = useOnboardingStore((state) => state.startTour);
-  const skipTour = useOnboardingStore((state) => state.skipTour);
 
   const [isOpen, setIsOpen] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -45,12 +45,12 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
   // Show dialog only for first-time users or if they haven't completed onboarding
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (!hasSeenWelcome && showOnNextVisit) {
+      if (!hasSeenWelcome && showOnNextVisit && !hasCompletedOnboarding && !isTourActive) {
         setIsOpen(true);
       }
     }, 500); // Delay after splash screen
     return () => clearTimeout(timer);
-  }, [hasSeenWelcome, showOnNextVisit]);
+  }, [hasSeenWelcome, showOnNextVisit, hasCompletedOnboarding, isTourActive]);
 
   const handleStartTour = () => {
     setHasSeenWelcome(true);
@@ -66,7 +66,6 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
     setHasSeenWelcome(true);
     if (dontShowAgain) {
       setShowOnNextVisit(false);
-      skipTour();
     }
     setIsOpen(false);
     onSkip?.();
@@ -80,7 +79,7 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
   };
 
   // Don't render if already completed and chose not to show again
-  if (hasCompletedOnboarding && !showOnNextVisit) {
+  if (hasCompletedOnboarding || !showOnNextVisit) {
     return null;
   }
 

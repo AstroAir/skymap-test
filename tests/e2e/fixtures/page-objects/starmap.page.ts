@@ -241,9 +241,9 @@ export class StarmapPage extends BasePage {
     // Context menu
     this.contextMenu = page.locator('[role="menu"]').or(page.locator('.context-menu'));
     
-    // About dialog
-    this.aboutButton = page.getByRole('button', { name: /about/i });
-    this.aboutDialog = page.locator('[role="dialog"]').filter({ hasText: /about/i });
+    // About dialog (supports en: "About", zh: "关于")
+    this.aboutButton = page.getByRole('button', { name: /about|关于/i });
+    this.aboutDialog = page.locator('[role="dialog"]').filter({ hasText: /about|关于/i });
     
     // Object detail drawer
     this.objectDetailDrawer = page.locator('[data-testid="object-detail-drawer"]').or(page.locator('[role="dialog"]').filter({ hasText: /overview|images|observation/i }));
@@ -269,12 +269,14 @@ export class StarmapPage extends BasePage {
 
   /**
    * Wait for starmap to be ready
+   * Uses extended timeout for WASM engine initialization
    */
   async waitForReady() {
     await this.goto();
     await this.waitForSplashToDisappear();
     await expect(this.canvas).toBeVisible({ timeout: TEST_TIMEOUTS.long });
-    await this.stellariumLoadingOverlay.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.long * 2 });
+    // WASM engine can take up to 2 minutes to initialize on cold start
+    await this.stellariumLoadingOverlay.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.wasmInit });
   }
 
   /**

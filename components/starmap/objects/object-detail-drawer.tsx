@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo, createElement } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   X, 
-  Star, 
   ExternalLink, 
   Crosshair, 
   Plus, 
@@ -20,20 +19,8 @@ import {
   Database,
   Compass,
   ArrowUp,
-  Globe2,
-  Cloud,
-  Sparkles,
-  Orbit,
-  CircleDot,
   Copy,
   Check,
-  Binary,
-  Zap,
-  Circle,
-  Target,
-  Rocket,
-  Asterisk,
-  Atom
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -73,6 +60,7 @@ import {
 } from '@/lib/services/object-info-service';
 import type { SelectedObjectData } from '@/lib/core/types';
 import { cn } from '@/lib/utils';
+import { getObjectTypeIcon, getObjectTypeColor } from '@/lib/astronomy/object-type-utils';
 
 interface ObjectDetailDrawerProps {
   open: boolean;
@@ -87,45 +75,12 @@ interface ObjectDetailDrawerProps {
   }) => void;
 }
 
-/** Get icon and color for object type category */
-function getObjectTypeDisplay(category?: string): { icon: React.ElementType; color: string } {
-  if (!category) return { icon: Star, color: 'text-primary' };
-  const t = category.toLowerCase();
-  
-  // Galaxies
-  if (t === 'galaxy' || t.includes('gx')) return { icon: Globe2, color: 'text-purple-400' };
-  
-  // Nebulae subtypes
-  if (t === 'planetary_nebula' || t.includes('pn')) return { icon: Circle, color: 'text-cyan-400' };
-  if (t === 'supernova_remnant' || t.includes('snr')) return { icon: Zap, color: 'text-red-400' };
-  if (t === 'nebula' || t.includes('neb')) return { icon: Cloud, color: 'text-pink-400' };
-  
-  // Clusters
-  if (t === 'globular_cluster' || t.includes('gc')) return { icon: Atom, color: 'text-indigo-400' };
-  if (t === 'cluster' || t.includes('oc')) return { icon: Sparkles, color: 'text-blue-400' };
-  
-  // Stars
-  if (t === 'double_star' || t === 'binary') return { icon: Binary, color: 'text-amber-400' };
-  if (t === 'variable_star' || t.includes('var')) return { icon: Asterisk, color: 'text-rose-400' };
-  if (t === 'star') return { icon: CircleDot, color: 'text-yellow-400' };
-  
-  // Solar system
-  if (t === 'planet') return { icon: Orbit, color: 'text-orange-400' };
-  if (t === 'moon') return { icon: Moon, color: 'text-slate-300' };
-  if (t === 'asteroid') return { icon: Target, color: 'text-stone-400' };
-  if (t === 'comet') return { icon: Rocket, color: 'text-teal-400' };
-  
-  // Exotic objects
-  if (t === 'quasar' || t.includes('agn')) return { icon: Zap, color: 'text-violet-400' };
-  
-  return { icon: Star, color: 'text-primary' };
-}
-
-/** Object type icon display component */
-function ObjectTypeIconDisplay({ category }: { category?: string }) {
-  const { icon: Icon, color } = getObjectTypeDisplay(category);
-  return <Icon className={`h-5 w-5 shrink-0 ${color}`} />;
-}
+/** Object type icon display component using shared utilities */
+const ObjectTypeIconDisplay = memo(function ObjectTypeIconDisplay({ category }: { category?: string }) {
+  const Icon = getObjectTypeIcon(category);
+  const color = getObjectTypeColor(category);
+  return createElement(Icon, { className: cn('h-5 w-5 shrink-0', color) });
+});
 
 export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   open,
@@ -149,6 +104,13 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   
   // Translate celestial object name
   const translatedName = useCelestialName(selectedObject?.names[0]);
+
+  // Auto-close drawer when selectedObject becomes null
+  useEffect(() => {
+    if (open && !selectedObject) {
+      onOpenChange(false);
+    }
+  }, [open, selectedObject, onOpenChange]);
 
   // Load object info when drawer opens
   useEffect(() => {

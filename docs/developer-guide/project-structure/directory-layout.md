@@ -265,22 +265,29 @@ src-tauri/
 ├── src/                      # Rust 源代码
 │   ├── main.rs              # 主入口
 │   ├── lib.rs               # 库入口，注册所有命令
-│   ├── storage.rs           # 数据存储 (JSON)
-│   ├── equipment.rs         # 设备管理
-│   ├── locations.rs         # 位置管理
-│   ├── observation_log.rs   # 观测日志
-│   ├── target_io.rs         # 目标导入导出
-│   ├── target_list.rs       # 目标列表管理
-│   ├── markers.rs           # 天空标记
-│   ├── app_settings.rs      # 应用设置
-│   ├── astronomy.rs         # 天文计算
-│   ├── astro_events.rs      # 天文事件
-│   ├── offline_cache.rs     # 离线缓存
-│   ├── unified_cache.rs     # 统一缓存系统
-│   ├── http_client.rs       # HTTP 客户端
-│   ├── rate_limiter.rs      # 速率限制
-│   ├── security.rs          # 安全模块
-│   ├── security_tests.rs    # 安全测试
+│   ├── data/                # 数据持久化模块
+│   │   ├── storage.rs       # 通用 JSON 存储
+│   │   ├── equipment.rs     # 设备管理
+│   │   ├── locations.rs     # 位置管理
+│   │   ├── observation_log.rs # 观测日志
+│   │   ├── target_io.rs     # 目标导入导出
+│   │   ├── target_list.rs   # 目标列表管理
+│   │   └── markers.rs       # 天空标记
+│   ├── astronomy/           # 天文计算模块
+│   │   ├── calculations.rs  # 坐标转换、可见性
+│   │   └── events.rs        # 天文事件
+│   ├── cache/               # 缓存模块
+│   │   ├── offline.rs       # 离线瓦片缓存
+│   │   └── unified.rs       # 统一缓存系统
+│   ├── network/             # 网络通信模块
+│   │   ├── http_client.rs   # HTTP 客户端
+│   │   ├── security.rs      # 安全模块（URL 验证、输入验证）
+│   │   └── rate_limiter.rs  # 速率限制
+│   ├── platform/            # 桌面特定功能
+│   │   ├── app_settings.rs  # 应用设置
+│   │   ├── app_control.rs   # 应用控制
+│   │   ├── updater.rs       # 自动更新
+│   │   └── plate_solver.rs  # 天文定位解算
 │   └── utils.rs             # 工具函数
 ├── capabilities/            # 权限配置
 │   ├── default.json         # 默认权限
@@ -294,18 +301,28 @@ src-tauri/
 
 **Rust 模块职责**:
 
-- **storage.rs**: JSON 文件存储管理，通用 CRUD 操作
-- **equipment.rs**: 望远镜、相机、目镜等设备管理
-- **locations.rs**: 观测位置管理
-- **observation_log.rs**: 观测日志记录
-- **target_list.rs**: 目标列表 CRUD 和批量操作
-- **markers.rs**: 天空标记管理
-- **astronomy.rs**: 坐标转换、可见性、月相等计算
-- **astro_events.rs**: 天文事件（流星雨、月相等）
-- **offline_cache.rs**: HiPS 瓦片缓存
-- **unified_cache.rs**: 统一缓存系统，支持 TTL
-- **http_client.rs**: 安全的 HTTP 客户端，支持代理和速率限制
-- **security.rs**: 输入验证、URL 白名单
+- **data/**: 数据持久化层
+  - `storage.rs`: JSON 文件存储管理，通用 CRUD 操作
+  - `equipment.rs`: 望远镜、相机、目镜等设备管理
+  - `locations.rs`: 观测位置管理
+  - `observation_log.rs`: 观测日志记录
+  - `target_list.rs`: 目标列表 CRUD 和批量操作
+  - `markers.rs`: 天空标记管理
+- **astronomy/**: 天文计算和事件
+  - `calculations.rs`: 坐标转换、可见性、月相等计算
+  - `events.rs`: 天文事件（流星雨、月相等）
+- **cache/**: 缓存系统
+  - `offline.rs`: HiPS 瓦片缓存
+  - `unified.rs`: 统一缓存系统，支持 TTL
+- **network/**: 网络通信和安全
+  - `http_client.rs`: 安全的 HTTP 客户端，支持代理和速率限制
+  - `security.rs`: 输入验证、URL 白名单、SSRF 防护
+  - `rate_limiter.rs`: 滑动窗口速率限制器
+- **platform/**: 桌面特定功能
+  - `app_settings.rs`: 应用设置和窗口状态
+  - `app_control.rs`: 应用生命周期控制
+  - `updater.rs`: 自动更新
+  - `plate_solver.rs`: 天文图像定位解算
 
 ## 配置文件
 

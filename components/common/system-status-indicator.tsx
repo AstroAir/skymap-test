@@ -28,7 +28,7 @@ export function SystemStatusIndicator({
 }: SystemStatusIndicatorProps) {
   const t = useTranslations("system");
   const [stats, setStats] = useState<SystemStats>({
-    online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    online: true, // Default to true for SSR, sync actual value in useEffect
     memoryUsage: null,
     fps: null,
   });
@@ -61,6 +61,9 @@ export function SystemStatusIndicator({
 
   // Check online status
   useEffect(() => {
+    // Sync actual online status after hydration
+    setStats(prev => ({ ...prev, online: navigator.onLine }));
+
     const handleOnline = () => setStats(prev => ({ ...prev, online: true }));
     const handleOffline = () => setStats(prev => ({ ...prev, online: false }));
 

@@ -40,10 +40,10 @@ SkyMap 包含多层安全防护机制，旨在保护用户数据并防止恶意�
 
 | 输入类型 | 最大大小 | 验证位置 |
 |----------|----------|----------|
-| JSON 存储 | 10 MB | `storage.rs` |
-| 星图瓦片 | 5 MB | `offline_cache.rs` |
-| CSV 导入 | 50 MB + 100,000 行 | `target_io.rs` |
-| URL 长度 | 2048 字符 | `security.rs` |
+| JSON 存储 | 10 MB | `data/storage.rs` |
+| 星图瓦片 | 5 MB | `cache/offline.rs` |
+| CSV 导入 | 50 MB + 100,000 行 | `data/target_io.rs` |
+| URL 长度 | 2048 字符 | `network/security.rs` |
 
 ### URL 验证 (SSRF 防护)
 
@@ -78,10 +78,9 @@ SkyMap 包含多层安全防护机制，旨在保护用户数据并防止恶意�
 ### 后端安全模块
 
 ```
-src-tauri/src/
+src-tauri/src/network/
 ├── security.rs         # 核心安全工具（URL 验证、大小验证）
-├── rate_limiter.rs     # 速率限制器实现
-└── security_tests.rs   # 安全功能测试套件
+└── rate_limiter.rs     # 速率限制器实现（含测试套件）
 ```
 
 ### 前端安全模块
@@ -123,15 +122,16 @@ lib/security/
 ```bash
 # 运行所有安全测试
 cd src-tauri
-cargo test security_tests
+cargo test network::security::tests
+cargo test network::rate_limiter::tests
 
 # 运行特定测试
-cargo test test_url_validation_blocks_localhost
-cargo test test_json_size_limit
-cargo test test_rate_limit_conservative
+cargo test test_validate_url_blocks_localhost
+cargo test test_validate_size
+cargo test test_rate_limit_within_window
 
 # 查看测试输出
-cargo test security_tests -- --nocapture
+cargo test network:: -- --nocapture
 ```
 
 ### 测试覆盖范围
@@ -147,7 +147,7 @@ cargo test security_tests -- --nocapture
 
 ### 调整大小限制
 
-编辑 `src-tauri/src/security.rs`：
+编辑 `src-tauri/src/network/security.rs`：
 
 ```rust
 pub mod limits {
@@ -160,7 +160,7 @@ pub mod limits {
 
 ### 配置速率限制
 
-编辑 `src-tauri/src/rate_limiter.rs` 中的 `get_command_rate_limit()` 函数。
+编辑 `src-tauri/src/network/rate_limiter.rs` 中的 `get_command_rate_limit()` 函数。
 
 ### 配置 URL 白名单
 

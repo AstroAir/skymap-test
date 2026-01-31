@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RefreshCw, Download, CheckCircle2 } from 'lucide-react';
+import { useAppSettings } from '@/lib/tauri';
 import { useUpdater } from '@/lib/tauri/updater-hooks';
 import { UpdateDialog } from './update-dialog';
 
@@ -16,7 +17,15 @@ interface UpdateSettingsProps {
 export function UpdateSettings({ className }: UpdateSettingsProps) {
   const t = useTranslations('updater');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [autoUpdate, setAutoUpdate] = useState(true);
+  const {
+    settings: appSettings,
+    updateSettings: updateAppSettings,
+    isAvailable: isAppSettingsAvailable,
+    loading: isAppSettingsLoading,
+  } = useAppSettings();
+
+  const autoUpdate = appSettings?.check_updates ?? false;
+  const autoUpdateDisabled = !isAppSettingsAvailable || isAppSettingsLoading || !appSettings;
   
   const {
     currentVersion,
@@ -24,7 +33,7 @@ export function UpdateSettings({ className }: UpdateSettingsProps) {
     hasUpdate,
     updateInfo,
     checkForUpdate,
-  } = useUpdater();
+  } = useUpdater({ autoCheck: autoUpdate });
 
   return (
     <div className={className}>
@@ -68,7 +77,10 @@ export function UpdateSettings({ className }: UpdateSettingsProps) {
           <Switch
             id="auto-update"
             checked={autoUpdate}
-            onCheckedChange={setAutoUpdate}
+            disabled={autoUpdateDisabled}
+            onCheckedChange={(checked) => {
+              updateAppSettings({ check_updates: checked });
+            }}
           />
         </div>
       </div>

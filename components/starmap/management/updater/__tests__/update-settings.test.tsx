@@ -6,9 +6,14 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const mockUseUpdater = jest.fn();
+const mockUseAppSettings = jest.fn();
 
 jest.mock('@/lib/tauri/updater-hooks', () => ({
   useUpdater: () => mockUseUpdater(),
+}));
+
+jest.mock('@/lib/tauri', () => ({
+  useAppSettings: () => mockUseAppSettings(),
 }));
 
 jest.mock('next-intl', () => ({
@@ -28,9 +33,17 @@ describe('UpdateSettings', () => {
     checkForUpdate: jest.fn(),
   };
 
+  const defaultAppSettingsReturn = {
+    settings: { check_updates: true },
+    updateSettings: jest.fn(),
+    isAvailable: true,
+    loading: false,
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseUpdater.mockReturnValue(defaultMockReturn);
+    mockUseAppSettings.mockReturnValue(defaultAppSettingsReturn);
   });
 
   it('should render settings', () => {
@@ -71,6 +84,13 @@ describe('UpdateSettings', () => {
   });
 
   it('should toggle auto update switch', () => {
+    const updateSettings = jest.fn();
+    mockUseAppSettings.mockReturnValue({
+      ...defaultAppSettingsReturn,
+      updateSettings,
+      settings: { check_updates: true },
+    });
+
     renderComponent();
 
     const switchElement = screen.getByRole('switch');
@@ -78,6 +98,16 @@ describe('UpdateSettings', () => {
 
     fireEvent.click(switchElement);
 
-    expect(switchElement).not.toBeChecked();
+    expect(updateSettings).toHaveBeenCalledWith({ check_updates: false });
+  });
+
+  it('should disable auto update switch when app settings are unavailable', () => {
+    mockUseAppSettings.mockReturnValue({
+      ...defaultAppSettingsReturn,
+      isAvailable: false,
+    });
+
+    renderComponent();
+    expect(screen.getByRole('switch')).toBeDisabled();
   });
 });

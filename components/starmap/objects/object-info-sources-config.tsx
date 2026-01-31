@@ -6,7 +6,6 @@ import {
   Settings,
   Plus,
   Trash2,
-  GripVertical,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -147,7 +146,10 @@ function ImageSourceItem({
       'flex items-center gap-3 p-3 rounded-lg border transition-colors',
       source.enabled ? 'bg-card' : 'bg-muted/30 opacity-60'
     )}>
-      <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+      {/* Priority indicator - drag reordering not implemented */}
+      <div className="flex flex-col items-center justify-center w-4 text-muted-foreground" title={t('sourceConfig.priorityHint')}>
+        <span className="text-[10px] font-mono leading-none">{source.priority}</span>
+      </div>
       
       <Switch
         checked={source.enabled}
@@ -244,7 +246,10 @@ function DataSourceItem({
       'flex items-center gap-3 p-3 rounded-lg border transition-colors',
       source.enabled ? 'bg-card' : 'bg-muted/30 opacity-60'
     )}>
-      <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+      {/* Priority indicator - drag reordering not implemented */}
+      <div className="flex flex-col items-center justify-center w-4 text-muted-foreground" title={t('sourceConfig.priorityHint')}>
+        <span className="text-[10px] font-mono leading-none">{source.priority}</span>
+      </div>
       
       <Switch
         checked={source.enabled}
@@ -314,6 +319,112 @@ function DataSourceItem({
         )}
       </div>
     </div>
+  );
+}
+
+// ============================================================================
+// Edit Source Dialog
+// ============================================================================
+
+function EditSourceDialog({
+  source,
+  type,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  source: ImageSourceConfig | DataSourceConfig;
+  type: 'image' | 'data';
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (updates: Partial<ImageSourceConfig | DataSourceConfig>) => void;
+}) {
+  const t = useTranslations();
+  // Use source.id as key to reset state when source changes (controlled by parent)
+  const [priority, setPriority] = useState(source.priority);
+  const [description, setDescription] = useState(source.description || '');
+  
+  const handleSave = () => {
+    onSave({ priority, description });
+    onOpenChange(false);
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {t('sourceConfig.editSource')}: {source.name}
+          </DialogTitle>
+          <DialogDescription>
+            {source.builtIn 
+              ? t('sourceConfig.editBuiltInDescription')
+              : t('sourceConfig.editCustomDescription')
+            }
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          {/* Priority */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>{t('sourceConfig.priority')}</Label>
+              <span className="text-sm text-muted-foreground font-mono">{priority}</span>
+            </div>
+            <Slider
+              value={[priority]}
+              onValueChange={([value]) => setPriority(value)}
+              min={1}
+              max={100}
+              step={1}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('sourceConfig.priorityDescription')}
+            </p>
+          </div>
+          
+          {/* Description (for custom sources only) */}
+          {!source.builtIn && (
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">{t('sourceConfig.sourceDescription')}</Label>
+              <Input
+                id="edit-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t('sourceConfig.descriptionPlaceholder')}
+              />
+            </div>
+          )}
+          
+          {/* Source Info (read-only) */}
+          <div className="space-y-2 p-3 rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{t('sourceConfig.sourceType')}:</span>
+              <span className="font-medium">{source.type}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{t('sourceConfig.baseUrl')}:</span>
+              <span className="font-mono text-xs truncate max-w-[200px]">{source.baseUrl}</span>
+            </div>
+            {type === 'image' && 'urlTemplate' in source && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t('sourceConfig.urlTemplate')}:</span>
+                <span className="font-mono text-xs truncate max-w-[200px]">{source.urlTemplate}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleSave}>
+            {t('common.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -495,9 +606,15 @@ export function ObjectInfoSourcesConfig() {
     removeDataSource,
     setImageSourceStatus,
     setDataSourceStatus,
+    updateImageSource,
+    updateDataSource,
     updateSettings,
     resetToDefaults,
   } = useObjectInfoConfigStore();
+  
+  // Edit dialog state
+  const [editingImageSource, setEditingImageSource] = useState<ImageSourceConfig | null>(null);
+  const [editingDataSource, setEditingDataSource] = useState<DataSourceConfig | null>(null);
   
   // Start health checks on mount
   useEffect(() => {
@@ -531,8 +648,9 @@ export function ObjectInfoSourcesConfig() {
     );
   }, [setDataSourceStatus]);
   
-  const onlineImageCount = imageSources.filter(s => s.status === 'online').length;
-  const onlineDataCount = dataSources.filter(s => s.status === 'online').length;
+  // Only count online status for enabled sources
+  const onlineImageCount = imageSources.filter(s => s.enabled && s.status === 'online').length;
+  const onlineDataCount = dataSources.filter(s => s.enabled && s.status === 'online').length;
   
   return (
     <div className="space-y-4">
@@ -628,7 +746,7 @@ export function ObjectInfoSourcesConfig() {
                 onToggle={() => setImageSourceEnabled(source.id, !source.enabled)}
                 onCheck={() => handleCheckImageSource(source)}
                 onRemove={source.builtIn ? undefined : () => removeImageSource(source.id)}
-                onEdit={() => {/* TODO: Edit dialog */}}
+                onEdit={() => setEditingImageSource(source)}
               />
             ))}
           
@@ -664,7 +782,7 @@ export function ObjectInfoSourcesConfig() {
                 onToggle={() => setDataSourceEnabled(source.id, !source.enabled)}
                 onCheck={() => handleCheckDataSource(source)}
                 onRemove={source.builtIn ? undefined : () => removeDataSource(source.id)}
-                onEdit={() => {/* TODO: Edit dialog */}}
+                onEdit={() => setEditingDataSource(source)}
               />
             ))}
           
@@ -798,6 +916,33 @@ export function ObjectInfoSourcesConfig() {
           </div>
         </CollapsibleContent>
       </Collapsible>
+      
+      {/* Edit Source Dialogs */}
+      {editingImageSource && (
+        <EditSourceDialog
+          source={editingImageSource}
+          type="image"
+          open={!!editingImageSource}
+          onOpenChange={(open) => !open && setEditingImageSource(null)}
+          onSave={(updates) => {
+            updateImageSource(editingImageSource.id, updates as Partial<ImageSourceConfig>);
+            setEditingImageSource(null);
+          }}
+        />
+      )}
+      
+      {editingDataSource && (
+        <EditSourceDialog
+          source={editingDataSource}
+          type="data"
+          open={!!editingDataSource}
+          onOpenChange={(open) => !open && setEditingDataSource(null)}
+          onSave={(updates) => {
+            updateDataSource(editingDataSource.id, updates as Partial<DataSourceConfig>);
+            setEditingDataSource(null);
+          }}
+        />
+      )}
     </div>
   );
 }

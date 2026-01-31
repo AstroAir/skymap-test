@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { join } from '@tauri-apps/api/path';
 import {
   Database,
   Download,
@@ -49,7 +51,10 @@ import {
   getAvailableIndexes,
   getInstalledIndexes,
   deleteIndex,
+  downloadIndex,
+  getDefaultIndexPath,
 } from '@/lib/tauri/plate-solver-api';
+import { isTauri } from '@/lib/tauri/app-control-api';
 
 // ============================================================================
 // Types
@@ -83,10 +88,11 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
   const [availableIndexes, setAvailableIndexes] = useState<DownloadableIndex[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloads] = useState<Map<string, DownloadState>>(new Map());
+  const [downloads, setDownloads] = useState<Map<string, DownloadState>>(new Map());
   const [deleteConfirm, setDeleteConfirm] = useState<IndexInfo | null>(null);
 
   const currentSolverType = solverType || config.solver_type;
+  const isDesktop = isTauri();
 
   // Load indexes
   const loadIndexes = useCallback(async () => {
@@ -97,7 +103,7 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
 
     try {
       const [installed, available] = await Promise.all([
-        getInstalledIndexes(currentSolverType),
+        getInstalledIndexes(currentSolverType, config.index_path ?? undefined),
         getAvailableIndexes(currentSolverType),
       ]);
       setInstalledIndexes(installed);
@@ -107,7 +113,111 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
     } finally {
       setIsLoading(false);
     }
-  }, [currentSolverType]);
+  }, [currentSolverType, config.index_path]);
+
+  useEffect(() => {
+    if (!open || !isDesktop) return;
+
+    let unlisten: UnlistenFn | null = null;
+
+    (async () => {
+      try {
+        unlisten = await listen<{
+          index_name: string;
+          downloaded: number;
+          total: number;
+          percent: number;
+        }>('index-download-progress', (event) => {
+          const payload = event.payload;
+          setDownloads((prev) => {
+            const next = new Map(prev);
+            const prevState = next.get(payload.index_name);
+            next.set(payload.index_name, {
+              fileName: payload.index_name,
+              progress: payload.percent,
+              status: prevState?.status === 'error' ? 'error' : 'downloading',
+              error: prevState?.error,
+            });
+            return next;
+          });
+        });
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [open, isDesktop]);
+
+  const handleDownload = useCallback(async (index: DownloadableIndex) => {
+    if (!isDesktop) {
+      window.open(index.download_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    setError(null);
+    setDownloads((prev) => {
+      const next = new Map(prev);
+      next.set(index.name, {
+        fileName: index.file_name,
+        progress: 0,
+        status: 'downloading',
+      });
+      return next;
+    });
+
+    try {
+      const basePath = config.index_path ?? (await getDefaultIndexPath(currentSolverType));
+      if (!basePath) {
+        throw new Error('Index path not available');
+      }
+
+      const destPath = await join(basePath, index.file_name);
+      const sizeMb = Math.max(1, Math.ceil(index.size_bytes / (1024 * 1024)));
+
+      await downloadIndex(
+        {
+          name: index.name,
+          url: index.download_url,
+          scale_low: index.scale_range.min_arcmin,
+          scale_high: index.scale_range.max_arcmin,
+          size_mb: sizeMb,
+          description: index.description,
+        },
+        destPath
+      );
+
+      setDownloads((prev) => {
+        const next = new Map(prev);
+        next.set(index.name, {
+          fileName: index.file_name,
+          progress: 100,
+          status: 'complete',
+        });
+        return next;
+      });
+
+      await loadIndexes();
+      await detectSolvers();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Download failed';
+      setDownloads((prev) => {
+        const next = new Map(prev);
+        next.set(index.name, {
+          fileName: index.file_name,
+          progress: 0,
+          status: 'error',
+          error: message,
+        });
+        return next;
+      });
+      setError(message);
+    }
+  }, [isDesktop, config.index_path, currentSolverType, loadIndexes, detectSolvers]);
 
   // Load on open
   useEffect(() => {
@@ -256,15 +366,14 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
           ) : installed ? (
             <CheckCircle className="h-5 w-5 text-green-500" />
           ) : (
-            <a
-              href={index.download_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary flex items-center gap-1 hover:underline"
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDownload(index)}
             >
               <Download className="h-4 w-4 mr-1" />
               {t('common.download') || 'Download'}
-            </a>
+            </Button>
           )}
         </div>
       </div>

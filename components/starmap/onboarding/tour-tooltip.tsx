@@ -162,11 +162,18 @@ export function TourTooltip({
 
     // Update on resize
     window.addEventListener('resize', calculatePosition);
+    window.addEventListener('scroll', calculatePosition, true);
+
+    // Observe DOM changes (target elements may mount/unmount during tour)
+    const observer = new MutationObserver(calculatePosition);
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       cancelAnimationFrame(rafId);
       clearTimeout(timer);
       window.removeEventListener('resize', calculatePosition);
+      window.removeEventListener('scroll', calculatePosition, true);
+      observer.disconnect();
     };
   }, [calculatePosition]);
 

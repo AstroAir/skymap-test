@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useMountStore } from '@/lib/stores/mount-store';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
 
 // Simple location storage for setup wizard
@@ -37,24 +38,21 @@ function saveLocation(location: ObserverLocation): void {
   }
 }
 
+function isValidLocation(location: ObserverLocation | null): location is ObserverLocation {
+  if (!location) return false;
+  const { latitude, longitude } = location;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+  if (latitude < -90 || latitude > 90) return false;
+  if (longitude < -180 || longitude > 180) return false;
+  return true;
+}
+
 export function LocationStep() {
   const t = useTranslations();
   const updateSetupData = useSetupWizardStore((state) => state.updateSetupData);
-  
+  const setProfileInfo = useMountStore((state) => state.setProfileInfo);
+
   const [location, setLocationState] = useState<ObserverLocation | null>(null);
-  
-  const setLocation = useCallback((loc: ObserverLocation) => {
-    setLocationState(loc);
-    saveLocation(loc);
-  }, []);
-  
-  // Load stored location on mount
-  useEffect(() => {
-    const stored = loadStoredLocation();
-    if (stored) {
-      setLocationState(stored);
-    }
-  }, []);
 
   const [inputMode, setInputMode] = useState<'gps' | 'manual'>('gps');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
@@ -62,12 +60,51 @@ export function LocationStep() {
   const [manualLat, setManualLat] = useState(location?.latitude?.toString() || '');
   const [manualLon, setManualLon] = useState(location?.longitude?.toString() || '');
 
-  const hasLocation = location && location.latitude !== 0 && location.longitude !== 0;
+  const setLocation = useCallback((loc: ObserverLocation) => {
+    setLocationState(loc);
+    saveLocation(loc);
+
+    const currentProfile = useMountStore.getState().profileInfo;
+    setProfileInfo({
+      AstrometrySettings: {
+        ...currentProfile.AstrometrySettings,
+        Latitude: loc.latitude,
+        Longitude: loc.longitude,
+        Elevation: loc.altitude,
+      },
+    });
+  }, [setProfileInfo]);
+
+  // Load stored location on mount
+  useEffect(() => {
+    const stored = loadStoredLocation();
+    if (stored) {
+      setLocationState(stored);
+      setManualLat(stored.latitude.toString());
+      setManualLon(stored.longitude.toString());
+
+      const currentProfile = useMountStore.getState().profileInfo;
+      setProfileInfo({
+        AstrometrySettings: {
+          ...currentProfile.AstrometrySettings,
+          Latitude: stored.latitude,
+          Longitude: stored.longitude,
+          Elevation: stored.altitude,
+        },
+      });
+    }
+  }, [setProfileInfo]);
 
   useEffect(() => {
-    if (hasLocation) {
-      updateSetupData({ locationConfigured: true });
-    }
+    if (!location) return;
+    setManualLat(location.latitude.toString());
+    setManualLon(location.longitude.toString());
+  }, [location]);
+
+  const hasLocation = isValidLocation(location);
+
+  useEffect(() => {
+    updateSetupData({ locationConfigured: hasLocation });
   }, [hasLocation, updateSetupData]);
 
   const handleGetGPSLocation = async () => {
@@ -89,7 +126,6 @@ export function LocationStep() {
         setManualLat(position.coords.latitude.toString());
         setManualLon(position.coords.longitude.toString());
         setIsGettingLocation(false);
-        updateSetupData({ locationConfigured: true });
       },
       (error) => {
         setIsGettingLocation(false);
@@ -118,6 +154,7 @@ export function LocationStep() {
   };
 
   const handleManualSubmit = () => {
+    if (!isManualValid()) return;
     const lat = parseFloat(manualLat);
     const lon = parseFloat(manualLon);
 
@@ -126,7 +163,6 @@ export function LocationStep() {
       longitude: lon,
       altitude: 0,
     });
-    updateSetupData({ locationConfigured: true });
   };
 
   return (
@@ -141,6 +177,7 @@ export function LocationStep() {
         <button
           type="button"
           onClick={() => setInputMode('gps')}
+          aria-pressed={inputMode === 'gps'}
           className={cn(
             'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
             inputMode === 'gps'
@@ -163,6 +200,7 @@ export function LocationStep() {
         <button
           type="button"
           onClick={() => setInputMode('manual')}
+          aria-pressed={inputMode === 'manual'}
           className={cn(
             'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
             inputMode === 'manual'
@@ -221,7 +259,7 @@ export function LocationStep() {
                 id="latitude"
                 type="number"
                 step="any"
-                placeholder="-90 to 90"
+                placeholder={t('setupWizard.steps.location.latitudePlaceholder')}
                 value={manualLat}
                 onChange={(e) => setManualLat(e.target.value)}
               />
@@ -232,7 +270,7 @@ export function LocationStep() {
                 id="longitude"
                 type="number"
                 step="any"
-                placeholder="-180 to 180"
+                placeholder={t('setupWizard.steps.location.longitudePlaceholder')}
                 value={manualLon}
                 onChange={(e) => setManualLon(e.target.value)}
               />

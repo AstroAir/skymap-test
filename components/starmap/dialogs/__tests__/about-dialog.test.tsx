@@ -52,6 +52,10 @@ jest.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
+jest.mock('../stellarium-credits', () => ({
+  StellariumCredits: () => <div data-testid="stellarium-credits">Stellarium Credits</div>,
+}));
+
 import { AboutDialog } from '../about-dialog';
 
 describe('AboutDialog', () => {
@@ -78,5 +82,17 @@ describe('AboutDialog', () => {
   it('renders tabs component', () => {
     render(<AboutDialog />);
     expect(screen.getByTestId('tabs')).toBeInTheDocument();
+  });
+
+  it('trigger button has aria-label for accessibility', () => {
+    render(<AboutDialog />);
+    const buttons = screen.getAllByTestId('button');
+    const triggerButton = buttons[0];
+    expect(triggerButton).toHaveAttribute('aria-label');
+  });
+
+  it('renders StellariumCredits component in data credits section', () => {
+    render(<AboutDialog />);
+    expect(screen.getByTestId('stellarium-credits')).toBeInTheDocument();
   });
 });

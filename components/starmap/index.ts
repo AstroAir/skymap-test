@@ -18,6 +18,9 @@ export { ZoomControls } from './controls/zoom-controls';
 export { KeyboardShortcutsManager } from './controls/keyboard-shortcuts-manager';
 export { NavigationHistory } from './controls/navigation-history';
 export { ViewBookmarks } from './controls/view-bookmarks';
+export { QuickActionsPanel } from './controls/quick-actions-panel';
+export { MobileToolbar, MobileZoomControl } from './controls/mobile-toolbar';
+export { SidePanel, ZoomSection, ToolSection, ToolButton } from './controls/side-panel';
 
 // Time - Time control
 export { StellariumClock } from './time/stellarium-clock';
@@ -79,6 +82,7 @@ export { OcularSimulator } from './overlays/ocular-simulator';
 export { SatelliteTracker } from './overlays/satellite-tracker';
 export { SatelliteOverlay } from './overlays/satellite-overlay';
 export { SkyMarkers } from './overlays/sky-markers';
+export { StatusBar } from './overlays/status-bar';
 
 // Management components
 export { OfflineCacheManager } from './management/offline-cache-manager';

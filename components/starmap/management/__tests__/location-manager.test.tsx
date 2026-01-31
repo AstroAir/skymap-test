@@ -158,7 +158,7 @@ describe('LocationManager', () => {
   });
 
   describe('Rendering', () => {
-    it('renders nothing when not available (non-Tauri environment)', () => {
+    it('renders web fallback when not available (non-Tauri environment)', () => {
       mockUseLocations.mockReturnValue({
         locations: null,
         currentLocation: null,
@@ -169,7 +169,8 @@ describe('LocationManager', () => {
       });
 
       const { container } = render(<LocationManager />);
-      expect(container.firstChild).toBeNull();
+      expect(container.firstChild).not.toBeNull();
+      expect(screen.getAllByText(/locations\.title/).length).toBeGreaterThanOrEqual(1);
     });
 
     it('renders default trigger button when available', () => {

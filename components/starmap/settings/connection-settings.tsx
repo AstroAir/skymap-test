@@ -56,6 +56,7 @@ export function ConnectionSettings({
             <Input
               value={localConnection.ip}
               onChange={(e) => onConnectionChange({ ...localConnection, ip: e.target.value })}
+              onBlur={(e) => onConnectionChange({ ...localConnection, ip: e.target.value.trim() })}
               placeholder="localhost"
               className="h-8 text-sm font-mono"
             />
@@ -63,8 +64,20 @@ export function ConnectionSettings({
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{t('settings.port')}</Label>
             <Input
+              type="number"
+              min={1}
+              max={65535}
               value={localConnection.port}
-              onChange={(e) => onConnectionChange({ ...localConnection, port: e.target.value })}
+              onChange={(e) => {
+                // Allow any input during typing, validate on blur
+                onConnectionChange({ ...localConnection, port: e.target.value });
+              }}
+              onBlur={(e) => {
+                // Validate and clamp port number on blur
+                const port = parseInt(e.target.value);
+                const validPort = isNaN(port) ? 1888 : Math.max(1, Math.min(65535, port));
+                onConnectionChange({ ...localConnection, port: String(validPort) });
+              }}
               placeholder="1888"
               className="h-8 text-sm font-mono"
             />

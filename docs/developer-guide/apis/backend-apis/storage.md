@@ -153,3 +153,4 @@ try {
 
 - [Tauri 命令大全](tauri-commands.md)
 - [前端状态管理 (Zustand)](../frontend-apis/stores.md)
+- [数据模块架构](../../data-management/data-module.md) - 数据模块组织结构

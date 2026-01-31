@@ -57,7 +57,6 @@ import { isTauri } from '@/lib/tauri/app-control-api';
 import {
   usePlateSolverStore,
   selectActiveSolver,
-  selectCanSolve,
 } from '@/lib/stores/plate-solver-store';
 import {
   solveImageLocal,
@@ -91,7 +90,7 @@ export function PlateSolverUnified({
   onGoToCoordinates,
   trigger, 
   className,
-  defaultImagePath,
+  defaultImagePath: _defaultImagePath,
   raHint,
   decHint,
   fovHint,
@@ -108,7 +107,12 @@ export function PlateSolverUnified({
     loadConfig,
   } = usePlateSolverStore();
   const activeSolver = usePlateSolverStore(selectActiveSolver);
-  const canSolveLocal = usePlateSolverStore(selectCanSolve);
+  const canSolveLocal = usePlateSolverStore((state) => {
+    const active = selectActiveSolver(state);
+    if (!active) return false;
+    if (active.solver_type === 'astrometry_net_online') return false;
+    return active.is_available && active.installed_indexes.length > 0;
+  });
 
   // Local state
   const [open, setOpen] = useState(false);
@@ -120,11 +124,39 @@ export function PlateSolverUnified({
   const [result, setResult] = useState<PlateSolveResult | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [imagePath] = useState(defaultImagePath || '');
   const [options, setOptions] = useState<Partial<UploadOptions>>({
     downsampleFactor: 2,
     publiclyVisible: 'n',
   });
+
+  const persistFileForLocalSolve = useCallback(async (file: File) => {
+    const fileWithPath = file as File & { path?: string };
+    if (fileWithPath.path) {
+      return { filePath: fileWithPath.path, cleanup: undefined as undefined | (() => Promise<void>) };
+    }
+
+    const { mkdir, writeFile, remove } = await import('@tauri-apps/plugin-fs');
+    const { BaseDirectory, appCacheDir, join } = await import('@tauri-apps/api/path');
+
+    const dirName = 'plate-solving';
+    await mkdir(dirName, { recursive: true, baseDir: BaseDirectory.AppCache });
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `${Date.now()}-${safeName}`;
+    const relativePath = `${dirName}/${fileName}`;
+
+    const data = new Uint8Array(await file.arrayBuffer());
+    await writeFile(relativePath, data, { baseDir: BaseDirectory.AppCache });
+
+    const fullPath = await join(await appCacheDir(), dirName, fileName);
+
+    return {
+      filePath: fullPath,
+      cleanup: async () => {
+        await remove(relativePath, { baseDir: BaseDirectory.AppCache });
+      },
+    };
+  }, []);
 
   // Initialize on open
   useEffect(() => {
@@ -137,33 +169,47 @@ export function PlateSolverUnified({
   // Handle local solve
   const handleLocalSolve = useCallback(async (file: File) => {
     if (!isDesktop || !canSolveLocal) return;
+    if (config.solver_type === 'astrometry_net_online') {
+      setResult({
+        success: false,
+        coordinates: null,
+        positionAngle: 0,
+        pixelScale: 0,
+        fov: { width: 0, height: 0 },
+        flipped: false,
+        solverName: activeSolver?.name || 'Local Solver',
+        solveTime: 0,
+        errorMessage: t('plateSolving.localSolverNotReady') || 'Local solver not ready.',
+      });
+      return;
+    }
 
     setSolving(true);
     setResult(null);
     setLocalProgress(10);
     setLocalMessage(t('plateSolving.preparing') || 'Preparing...');
 
+    let cleanup: undefined | (() => Promise<void>);
+
     try {
-      // Save file temporarily if needed
-      // For now, we assume the file path is available
-      const filePath = (file as File & { path?: string }).path || imagePath;
-      
-      if (!filePath) {
-        throw new Error('Image path not available');
-      }
+      const persisted = await persistFileForLocalSolve(file);
+      cleanup = persisted.cleanup;
 
       setLocalProgress(30);
       setLocalMessage(t('plateSolving.solving') || 'Solving...');
 
-      const solveResult = await solveImageLocal(config, {
-        image_path: filePath,
-        ra_hint: raHint ?? null,
-        dec_hint: decHint ?? null,
-        fov_hint: fovHint ?? null,
-        search_radius: config.search_radius,
-        downsample: config.downsample,
-        timeout: config.timeout_seconds,
-      });
+      const solveResult = await solveImageLocal(
+        config,
+        {
+          image_path: persisted.filePath,
+          ra_hint: raHint ?? null,
+          dec_hint: decHint ?? null,
+          fov_hint: fovHint ?? null,
+          search_radius: config.search_radius,
+          downsample: config.downsample,
+          timeout: config.timeout_seconds,
+        }
+      );
 
       setLocalProgress(100);
       setLocalMessage(solveResult.success 
@@ -188,9 +234,12 @@ export function PlateSolverUnified({
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {
+      if (cleanup) {
+        cleanup().catch(() => {});
+      }
       setSolving(false);
     }
-  }, [isDesktop, canSolveLocal, config, imagePath, raHint, decHint, fovHint, activeSolver, onSolveComplete, t]);
+  }, [isDesktop, canSolveLocal, config, persistFileForLocalSolve, raHint, decHint, fovHint, activeSolver, onSolveComplete, t]);
 
   // Handle online solve
   const handleOnlineSolve = useCallback(async (file: File) => {

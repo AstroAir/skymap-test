@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useSettingsStore } from '@/lib/stores';
 import type { StellariumSettings as StellariumSettingsType } from '@/lib/core/types';
 import { Settings, Save, X, RotateCcw, Globe, Moon, Palette } from 'lucide-react';
+import { DEFAULT_STELLARIUM_SETTINGS } from './settings-constants';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -104,25 +105,9 @@ export function StellariumSettings() {
     setOpen(false);
   }, [storeSettings]);
 
-  // Reset to defaults
+  // Reset to defaults - use centralized constant for consistency
   const handleReset = useCallback(() => {
-    setLocalSettings({
-      constellationsLinesVisible: true,
-      constellationArtVisible: false,
-      azimuthalLinesVisible: false,
-      equatorialLinesVisible: false,
-      meridianLinesVisible: false,
-      eclipticLinesVisible: false,
-      atmosphereVisible: false,
-      landscapesVisible: false,
-      dsosVisible: true,
-      surveyEnabled: true,
-      surveyId: 'dss',
-      surveyUrl: undefined,
-      skyCultureLanguage: 'native',
-      nightMode: false,
-      sensorControl: false,
-    });
+    setLocalSettings(DEFAULT_STELLARIUM_SETTINGS);
   }, []);
 
   // Update sky culture language

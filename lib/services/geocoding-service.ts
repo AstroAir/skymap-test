@@ -53,15 +53,21 @@ class GeocodingService {
   private readonly DEFAULT_TIMEOUT = 10000; // 10 seconds
 
   constructor() {
+    const cfg = mapConfig.getConfiguration();
     this.cache = new LRUCache<string, CacheValue>({
       maxSize: this.MAX_CACHE_SIZE,
-      ttl: this.CACHE_DURATION,
+      ttl: cfg.cacheDuration || this.CACHE_DURATION,
     });
     
     this.initializeProviders();
     
     // Listen for configuration changes
     mapConfig.addConfigurationListener(() => {
+      const nextCfg = mapConfig.getConfiguration();
+      this.cache = new LRUCache<string, CacheValue>({
+        maxSize: this.MAX_CACHE_SIZE,
+        ttl: nextCfg.cacheDuration || this.CACHE_DURATION,
+      });
       this.initializeProviders();
     });
     
@@ -69,6 +75,16 @@ class GeocodingService {
     if (typeof window !== 'undefined') {
       setInterval(() => this.cache.prune(), 60000); // Prune every minute
     }
+
+  }
+
+  private shouldUseCache(): boolean {
+    return mapConfig.getConfiguration().cacheResponses;
+  }
+
+  private getCacheTtl(): number {
+    const cfg = mapConfig.getConfiguration();
+    return cfg.cacheDuration || this.CACHE_DURATION;
   }
 
   private initializeProviders(): void {
@@ -134,13 +150,15 @@ class GeocodingService {
   }
 
   private getCachedResult<T>(key: string): T | null {
+    if (!this.shouldUseCache()) return null;
     const cached = this.cache.get(key);
     if (!cached) return null;
     return cached.data as T;
   }
 
   private setCachedResult(key: string, data: GeocodingResult[] | ReverseGeocodingResult, provider: string): void {
-    this.cache.set(key, { data, provider });
+    if (!this.shouldUseCache()) return;
+    this.cache.set(key, { data, provider }, this.getCacheTtl());
   }
 
   /**

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { useEquipmentStore } from '@/lib/stores';
 import { cn } from '@/lib/utils';
-import { GRID_TYPE_OPTIONS, FRAME_COLORS } from './settings-constants';
+import { GRID_TYPE_OPTIONS, FRAME_COLORS, MAX_MOSAIC_ROWS, MAX_MOSAIC_COLS } from './settings-constants';
 
 export function FOVSettings() {
   const t = useTranslations();
@@ -62,7 +62,7 @@ export function FOVSettings() {
               onClick={() => setGridType(option.value)}
             >
               <span className="text-base font-mono">{option.icon}</span>
-              <span className="text-[10px]">{option.label}</span>
+              <span className="text-[10px]">{t(option.labelKey)}</span>
             </Button>
           ))}
         </div>
@@ -104,14 +104,14 @@ export function FOVSettings() {
                     onChange={(e) => setMosaicGrid(mosaic.rows, Math.max(1, parseInt(e.target.value) || 1))}
                     className="h-7 w-12 text-center"
                     min={1}
-                    max={10}
+                    max={MAX_MOSAIC_COLS}
                   />
                   <Button
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setMosaicGrid(mosaic.rows, Math.min(10, mosaic.cols + 1))}
-                    disabled={mosaic.cols >= 10}
+                    onClick={() => setMosaicGrid(mosaic.rows, Math.min(MAX_MOSAIC_COLS, mosaic.cols + 1))}
+                    disabled={mosaic.cols >= MAX_MOSAIC_COLS}
                   >
                     +
                   </Button>
@@ -135,14 +135,14 @@ export function FOVSettings() {
                     onChange={(e) => setMosaicGrid(Math.max(1, parseInt(e.target.value) || 1), mosaic.cols)}
                     className="h-7 w-12 text-center"
                     min={1}
-                    max={10}
+                    max={MAX_MOSAIC_ROWS}
                   />
                   <Button
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setMosaicGrid(Math.min(10, mosaic.rows + 1), mosaic.cols)}
-                    disabled={mosaic.rows >= 10}
+                    onClick={() => setMosaicGrid(Math.min(MAX_MOSAIC_ROWS, mosaic.rows + 1), mosaic.cols)}
+                    disabled={mosaic.rows >= MAX_MOSAIC_ROWS}
                   >
                     +
                   </Button>

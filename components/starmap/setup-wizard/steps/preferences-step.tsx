@@ -119,6 +119,7 @@ export function PreferencesStep() {
         <div className="space-y-2">
           {DISPLAY_OPTIONS.map(({ id, icon: Icon, titleKey, descKey, settingKey }) => {
             const isEnabled = stellarium[settingKey] as boolean;
+            const switchId = `setup-wizard-preferences-${id}`;
             
             return (
               <div
@@ -136,7 +137,7 @@ export function PreferencesStep() {
                     <Icon className="w-4 h-4" />
                   </div>
                   <div>
-                    <Label className="text-sm font-medium cursor-pointer">
+                    <Label className="text-sm font-medium cursor-pointer" htmlFor={switchId}>
                       {t(titleKey)}
                     </Label>
                     <p className="text-xs text-muted-foreground">
@@ -145,6 +146,7 @@ export function PreferencesStep() {
                   </div>
                 </div>
                 <Switch
+                  id={switchId}
                   checked={isEnabled}
                   onCheckedChange={() => toggleStellariumSetting(settingKey)}
                 />

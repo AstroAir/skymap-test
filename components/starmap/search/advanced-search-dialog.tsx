@@ -197,6 +197,9 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
       types: selectedTypes,
       includeTargetList,
       searchMode: coordinateMode,
+      minMagnitude,
+      maxMagnitude,
+      searchRadius,
     });
     
     // Set query to trigger search
@@ -205,7 +208,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
     } else {
       setQuery(localQuery);
     }
-  }, [localQuery, selectedTypes, includeTargetList, coordinateMode, raInput, decInput, setFilters, setQuery]);
+  }, [localQuery, selectedTypes, includeTargetList, coordinateMode, raInput, decInput, minMagnitude, maxMagnitude, searchRadius, setFilters, setQuery]);
 
   // Auto-search effect (must be after executeSearch is declared)
   useEffect(() => {
