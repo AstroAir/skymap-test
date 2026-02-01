@@ -179,8 +179,8 @@ describe('StellariumCanvas', () => {
       
       render(<StellariumCanvas />);
       
-      // Should show loading status
-      expect(screen.getByText(/Preparing resources|Loading engine|Initializing/i)).toBeInTheDocument();
+      // Should show loading status (translation key returned by mock)
+      expect(screen.getByText(/loadingScript|preparingResources|initializingStarmap/i)).toBeInTheDocument();
     });
 
     it('shows spinner during loading', async () => {
@@ -215,8 +215,8 @@ describe('StellariumCanvas', () => {
       
       render(<StellariumCanvas />);
       
-      // Should show loading status initially
-      expect(screen.getByText(/Loading engine script|Preparing resources|Initializing/i)).toBeInTheDocument();
+      // Should show loading status initially (translation key returned by mock)
+      expect(screen.getByText(/loadingScript|preparingResources|initializingStarmap/i)).toBeInTheDocument();
       
       // The component handles timeouts internally with auto-retry
       // We verify the loading UI is shown correctly
@@ -291,8 +291,8 @@ describe('StellariumCanvas', () => {
       const loadingStatus = screen.getByRole('status');
       expect(loadingStatus).toBeInTheDocument();
       
-      // Should have a status message
-      const statusText = screen.getByText(/Loading|Preparing|Initializing/i);
+      // Should have a status message (translation key returned by mock)
+      const statusText = screen.queryByText(/loadingScript|preparingResources|initializingStarmap/i);
       expect(statusText).toBeInTheDocument();
     });
 
@@ -375,5 +375,107 @@ describe('Loading Constants', () => {
     
     // Constants are internal, but we can verify behavior through timeouts
     // Script timeout: 15s, WASM timeout: 30s, Max retries: 2
+  });
+});
+
+describe('Module Exports', () => {
+  it('exports constants correctly', async () => {
+    const { MIN_FOV, MAX_FOV, DEFAULT_FOV, SCRIPT_PATH, WASM_PATH } = await import('../constants');
+    
+    expect(MIN_FOV).toBe(0.5);
+    expect(MAX_FOV).toBe(180);
+    expect(DEFAULT_FOV).toBe(60);
+    expect(SCRIPT_PATH).toContain('stellarium-web-engine.js');
+    expect(WASM_PATH).toContain('stellarium-web-engine.wasm');
+  });
+
+  it('exports types correctly', async () => {
+    const typesModule = await import('../types');
+    expect(typesModule).toBeDefined();
+  });
+
+  it('exports utils correctly', async () => {
+    const { fovToRad, fovToDeg, withTimeout, prefetchWasm } = await import('../utils');
+    
+    expect(typeof fovToRad).toBe('function');
+    expect(typeof fovToDeg).toBe('function');
+    expect(typeof withTimeout).toBe('function');
+    expect(typeof prefetchWasm).toBe('function');
+  });
+
+  it('exports hooks correctly', async () => {
+    const hooksModule = await import('../hooks');
+    
+    expect(hooksModule.useClickCoordinates).toBeDefined();
+    expect(hooksModule.useStellariumZoom).toBeDefined();
+    expect(hooksModule.useStellariumEvents).toBeDefined();
+    expect(hooksModule.useObserverSync).toBeDefined();
+    expect(hooksModule.useSettingsSync).toBeDefined();
+    expect(hooksModule.useStellariumLoader).toBeDefined();
+  });
+
+  it('exports LoadingOverlay component correctly', async () => {
+    const { LoadingOverlay } = await import('../components');
+    expect(LoadingOverlay).toBeDefined();
+  });
+
+  it('exports from index correctly', async () => {
+    const indexModule = await import('../index');
+    
+    expect(indexModule.StellariumCanvas).toBeDefined();
+    expect(indexModule.MIN_FOV).toBeDefined();
+    expect(indexModule.MAX_FOV).toBeDefined();
+    expect(indexModule.DEFAULT_FOV).toBeDefined();
+    expect(indexModule.fovToRad).toBeDefined();
+    expect(indexModule.fovToDeg).toBeDefined();
+    expect(indexModule.LoadingOverlay).toBeDefined();
+  });
+});
+
+describe('Utils Functions', () => {
+  it('fovToRad converts degrees to radians correctly', async () => {
+    const { fovToRad } = await import('../utils');
+    
+    expect(fovToRad(0)).toBe(0);
+    expect(fovToRad(180)).toBeCloseTo(Math.PI);
+    expect(fovToRad(90)).toBeCloseTo(Math.PI / 2);
+    expect(fovToRad(60)).toBeCloseTo(Math.PI / 3);
+  });
+
+  it('fovToDeg converts radians to degrees correctly', async () => {
+    const { fovToDeg } = await import('../utils');
+    
+    expect(fovToDeg(0)).toBe(0);
+    expect(fovToDeg(Math.PI)).toBeCloseTo(180);
+    expect(fovToDeg(Math.PI / 2)).toBeCloseTo(90);
+    expect(fovToDeg(Math.PI / 3)).toBeCloseTo(60);
+  });
+
+  it('fovToRad and fovToDeg are inverses', async () => {
+    const { fovToRad, fovToDeg } = await import('../utils');
+    
+    const testValues = [0, 30, 45, 60, 90, 120, 180];
+    for (const value of testValues) {
+      expect(fovToDeg(fovToRad(value))).toBeCloseTo(value);
+    }
+  });
+
+  it('withTimeout resolves if promise completes in time', async () => {
+    const { withTimeout } = await import('../utils');
+    
+    const fastPromise = Promise.resolve('success');
+    const result = await withTimeout(fastPromise, 1000, 'timeout');
+    
+    expect(result).toBe('success');
+  });
+
+  it('withTimeout rejects if promise times out', async () => {
+    const { withTimeout } = await import('../utils');
+    
+    const slowPromise = new Promise((resolve) => setTimeout(resolve, 5000));
+    
+    await expect(
+      withTimeout(slowPromise, 10, 'Operation timed out')
+    ).rejects.toThrow('Operation timed out');
   });
 });

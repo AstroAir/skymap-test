@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Sky Atlas', () => {
   let starmapPage: StarmapPage;
 
   test.beforeEach(async ({ page }) => {
     starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    // Use skipWasmWait for faster tests - sky atlas UI works before WASM loads
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Panel Access', () => {

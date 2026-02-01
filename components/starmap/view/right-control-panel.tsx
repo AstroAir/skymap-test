@@ -21,15 +21,8 @@ import { LocationManager } from '../management/location-manager';
 import { StellariumMount } from '../mount/stellarium-mount';
 import { AstroSessionPanel } from '../planning/astro-session-panel';
 
-import type { SelectedObjectData } from '@/lib/core/types';
+import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
 import type { MosaicSettings, GridType } from '@/lib/stores';
-
-interface ClickCoords {
-  ra: number;
-  dec: number;
-  raStr: string;
-  decStr: string;
-}
 
 interface RightControlPanelProps {
   stel: boolean;

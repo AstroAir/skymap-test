@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Selected Object Display', () => {
   let starmapPage: StarmapPage;
 
   test.beforeEach(async ({ page }) => {
     starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Object Selection', () => {

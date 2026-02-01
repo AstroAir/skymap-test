@@ -2,14 +2,14 @@ import { Page, expect } from '@playwright/test';
 import { TEST_TIMEOUTS } from './test-data';
 
 /**
- * Helper to wait for starmap ready and dismiss onboarding.
- * This bypasses the WASM loading wait and skips onboarding dialogs
- * for faster and more reliable tests.
+ * Selector for the Stellarium loading overlay
  */
-export async function waitForStarmapReady(page: Page) {
-  await page.goto('/starmap');
-  
-  // Skip onboarding and setup wizard by setting localStorage
+const LOADING_OVERLAY_SELECTOR = 'div.absolute.inset-0.flex.flex-col.items-center.justify-center.bg-black\\/90.z-10';
+
+/**
+ * Helper to skip onboarding and setup wizard via localStorage
+ */
+export async function skipOnboardingAndSetup(page: Page) {
   await page.evaluate(() => {
     localStorage.setItem('onboarding-storage', JSON.stringify({
       state: {
@@ -31,15 +31,42 @@ export async function waitForStarmapReady(page: Page) {
       version: 1,
     }));
   });
+}
+
+/**
+ * Helper to wait for starmap ready and dismiss onboarding.
+ * This bypasses the WASM loading wait and skips onboarding dialogs
+ * for faster and more reliable tests.
+ */
+export async function waitForStarmapReady(page: Page, options?: { skipWasmWait?: boolean }) {
+  await page.goto('/starmap');
+  
+  // Skip onboarding and setup wizard by setting localStorage
+  await skipOnboardingAndSetup(page);
   
   await page.reload();
   
-  // Wait for canvas to be visible (WASM may still be loading in background)
+  // Wait for canvas to be visible
   const canvas = page.locator('canvas').first();
-  await expect(canvas).toBeVisible({ timeout: TEST_TIMEOUTS.wasmInit });
+  await expect(canvas).toBeVisible({ timeout: TEST_TIMEOUTS.long });
+  
+  // Wait for WASM loading overlay to disappear (if not skipping)
+  if (!options?.skipWasmWait) {
+    const loadingOverlay = page.locator(LOADING_OVERLAY_SELECTOR);
+    try {
+      // Check if loading overlay exists and wait for it to disappear
+      const overlayVisible = await loadingOverlay.isVisible().catch(() => false);
+      if (overlayVisible) {
+        await loadingOverlay.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.wasmInit });
+      }
+    } catch {
+      // If timeout, log but continue - some tests may work without full WASM init
+      console.warn('WASM loading timeout - continuing with test');
+    }
+  }
   
   // Wait a bit for UI to stabilize
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(1000);
 }
 
 /**

@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Advanced Search', () => {
-  let starmapPage: StarmapPage;
+  let _starmapPage: StarmapPage;
 
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    _starmapPage = new StarmapPage(page);
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Dialog Access', () => {

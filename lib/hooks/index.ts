@@ -88,6 +88,19 @@ export {
   type AnimationFrameOptions,
 } from './use-animation-frame';
 
+// Coordinate projection hooks (for overlays)
+export {
+  useCoordinateProjection,
+  useBatchProjection,
+  createCoordinateProjector,
+  type ScreenPosition,
+  type CelestialCoordinate,
+  type ProjectedItem,
+  type UseCoordinateProjectionOptions,
+  type UseCoordinateProjectionReturn,
+  type UseBatchProjectionOptions,
+} from './use-coordinate-projection';
+
 // Keyboard shortcuts
 export {
   useKeyboardShortcuts,

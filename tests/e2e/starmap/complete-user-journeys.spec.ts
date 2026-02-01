@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { HomePage, StarmapPage } from '../fixtures/page-objects';
 import { TEST_OBJECTS, TEST_TIMEOUTS } from '../fixtures/test-data';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Complete User Journeys', () => {
   test.describe('First-Time User Journey', () => {
@@ -47,7 +48,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Observation Planning Journey', () => {
     test('should complete full observation planning session', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Check tonight's conditions
       const tonightButton = page.getByRole('button', { name: /tonight|今晚/i }).first();
@@ -120,7 +121,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Astrophotography Setup Journey', () => {
     test('should complete astrophotography equipment setup', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open FOV simulator
       const fovButton = page.getByRole('button', { name: /fov|视场/i }).first();
@@ -175,7 +176,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Visual Observation Journey', () => {
     test('should complete visual observation planning', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open ocular simulator
       const ocularButton = page.getByRole('button', { name: /eyepiece|ocular|目镜/i }).first();
@@ -210,7 +211,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Multi-Night Planning Journey', () => {
     test('should plan observations across multiple nights', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open time controls
       const timeButton = page.getByRole('button', { name: /time|时间/i }).first();
@@ -244,7 +245,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Deep Sky Object Exploration Journey', () => {
     test('should explore deep sky objects using sky atlas', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open sky atlas
       const atlasButton = page.getByRole('button', { name: /atlas|图集/i }).first();
@@ -291,7 +292,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Satellite Tracking Journey', () => {
     test('should track satellites and ISS', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open satellite tracker
       const satelliteButton = page.getByRole('button', { name: /satellite|卫星/i }).first();
@@ -317,7 +318,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Location Setup Journey', () => {
     test('should set up observation location', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open location manager
       const locationButton = page.getByRole('button', { name: /location|位置/i }).first();
@@ -340,7 +341,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Offline Mode Journey', () => {
     test('should work in offline mode with cached data', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open cache manager
       const cacheButton = page.getByRole('button', { name: /cache|offline|缓存|离线/i }).first();
@@ -373,7 +374,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Settings Customization Journey', () => {
     test('should customize all display settings', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Open settings
       const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
@@ -464,7 +465,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Complete Imaging Session Journey', () => {
     test('should complete full imaging session workflow', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Set location
       const locationButton = page.getByRole('button', { name: /location|位置/i }).first();
@@ -538,7 +539,7 @@ test.describe('Complete User Journeys', () => {
   test.describe('Error Recovery Journey', () => {
     test('should recover from errors and continue working', async ({ page }) => {
       const starmapPage = new StarmapPage(page);
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // 1. Trigger potential errors with invalid input
       const searchInput = page.getByPlaceholder(/search/i);

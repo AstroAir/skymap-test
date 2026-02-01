@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
+import { type GridType } from '@/lib/constants/equipment-presets';
+
+// Re-export GridType for backward compatibility
+export type { GridType } from '@/lib/constants/equipment-presets';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-export type GridType = 'none' | 'crosshair' | 'thirds' | 'golden' | 'diagonal';
 export type BinningType = '1x1' | '2x2' | '3x3' | '4x4';
 export type TrackingType = 'none' | 'basic' | 'guided';
 export type TargetType = 'galaxy' | 'nebula' | 'cluster' | 'planetary';

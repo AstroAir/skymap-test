@@ -2,8 +2,19 @@
 //! Provides high-performance astronomical calculations for the desktop application
 
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
+
+/// Static compiled regex for RA parsing (HMS format)
+static RA_HMS_REGEX: Lazy<regex_lite::Regex> = Lazy::new(|| {
+    regex_lite::Regex::new(r"(\d+)[h:\s]+(\d+)[m:\s]+(\d+\.?\d*)s?").unwrap()
+});
+
+/// Static compiled regex for Dec parsing (DMS format)
+static DEC_DMS_REGEX: Lazy<regex_lite::Regex> = Lazy::new(|| {
+    regex_lite::Regex::new(r#"([+-]?\d+)[°:\s]+(\d+)[':\s]+(\d+\.?\d*)"?"#).unwrap()
+});
 
 // ============================================================================
 // Constants
@@ -1069,11 +1080,8 @@ pub fn format_dec_dms(dec_deg: f64) -> String {
 /// Parse RA from HMS string
 #[tauri::command]
 pub fn parse_ra_hms(ra_str: String) -> Result<f64, String> {
-    // Try various formats
-    let re = regex_lite::Regex::new(r"(\d+)[h:\s]+(\d+)[m:\s]+(\d+\.?\d*)s?")
-        .map_err(|e| e.to_string())?;
-
-    if let Some(caps) = re.captures(&ra_str) {
+    // Try various formats using static compiled regex
+    if let Some(caps) = RA_HMS_REGEX.captures(&ra_str) {
         let h: f64 = caps
             .get(1)
             .unwrap()
@@ -1103,10 +1111,8 @@ pub fn parse_ra_hms(ra_str: String) -> Result<f64, String> {
 /// Parse Dec from DMS string
 #[tauri::command]
 pub fn parse_dec_dms(dec_str: String) -> Result<f64, String> {
-    let re = regex_lite::Regex::new(r#"([+-]?\d+)[°:\s]+(\d+)[':\s]+(\d+\.?\d*)"?"#)
-        .map_err(|e| e.to_string())?;
-
-    if let Some(caps) = re.captures(&dec_str) {
+    // Try various formats using static compiled regex
+    if let Some(caps) = DEC_DMS_REGEX.captures(&dec_str) {
         let d: f64 = caps
             .get(1)
             .unwrap()

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 import { TEST_TIMEOUTS } from '../fixtures/test-data';
 
 test.describe('Error Recovery', () => {
@@ -11,7 +12,7 @@ test.describe('Error Recovery', () => {
 
   test.describe('Network Errors', () => {
     test('should handle network offline gracefully', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Go offline
       await page.context().setOffline(true);
@@ -28,7 +29,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should show offline indicator when network is lost', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Go offline
       await page.context().setOffline(true);
@@ -43,7 +44,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should recover when network is restored', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Go offline
       await page.context().setOffline(true);
@@ -72,7 +73,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should handle failed API requests', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Block API requests
       await page.route('**/api/**', (route) => route.abort());
@@ -113,7 +114,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should show placeholder for failed images', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Block images after load
       await page.route('**/*.{png,jpg,jpeg}', (route) => route.abort());
@@ -138,7 +139,7 @@ test.describe('Error Recovery', () => {
         errors.push(error.message);
       });
       
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Interact with the app
       await starmapPage.clickCanvas();
@@ -158,7 +159,7 @@ test.describe('Error Recovery', () => {
         rejections.push(error.message);
       });
       
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Trigger potential async operations
       const searchInput = page.getByPlaceholder(/search/i);
@@ -207,7 +208,7 @@ test.describe('Error Recovery', () => {
 
   test.describe('User Input Errors', () => {
     test('should handle invalid search input', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const searchInput = page.getByPlaceholder(/search/i);
       if (await searchInput.isVisible().catch(() => false)) {
@@ -221,7 +222,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should handle very long input', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const searchInput = page.getByPlaceholder(/search/i);
       if (await searchInput.isVisible().catch(() => false)) {
@@ -236,7 +237,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should handle invalid coordinate input', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const searchInput = page.getByPlaceholder(/search/i);
       if (await searchInput.isVisible().catch(() => false)) {
@@ -252,7 +253,7 @@ test.describe('Error Recovery', () => {
 
   test.describe('Memory Pressure', () => {
     test('should handle rapid interactions without memory leak', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Rapid interactions
       for (let i = 0; i < 50; i++) {
@@ -267,7 +268,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should handle opening and closing many panels', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
       
@@ -288,7 +289,7 @@ test.describe('Error Recovery', () => {
 
   test.describe('Concurrent Operations', () => {
     test('should handle multiple simultaneous searches', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const searchInput = page.getByPlaceholder(/search/i);
       if (await searchInput.isVisible().catch(() => false)) {
@@ -306,7 +307,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should handle rapid button clicks', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const zoomInButton = page.getByRole('button', { name: /zoom.*in|放大/i }).first();
       
@@ -329,7 +330,7 @@ test.describe('Error Recovery', () => {
       // Note: This test may not work in all browsers
       // WebGL is typically available in modern browsers
       
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Check for WebGL error message
       const webglError = page.locator('text=/webgl.*not.*supported|webgl.*error/i');
@@ -358,7 +359,7 @@ test.describe('Error Recovery', () => {
 
   test.describe('Error Messages', () => {
     test('should display user-friendly error messages', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Block all external requests to trigger errors
       await page.route('**/external/**', (route) => route.abort());
@@ -376,7 +377,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should provide retry options on error', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Look for retry buttons
       const retryButton = page.getByRole('button', { name: /retry|try.*again|重试/i });
@@ -398,7 +399,7 @@ test.describe('Error Recovery', () => {
     });
 
     test('should provide fallback for missing features', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // App should indicate when features are unavailable
       const unavailableFeature = page.locator('text=/unavailable|not.*available|disabled|不可用/i');

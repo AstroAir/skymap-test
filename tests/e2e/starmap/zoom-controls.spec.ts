@@ -3,7 +3,8 @@ import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Zoom Controls', () => {
   test.beforeEach(async ({ page }) => {
-    await waitForStarmapReady(page);
+    // Use skipWasmWait for faster tests - zoom controls work before WASM fully loads
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Zoom Buttons', () => {

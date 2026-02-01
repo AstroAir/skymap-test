@@ -1,5 +1,23 @@
-import { redirect } from 'next/navigation';
+import {
+  Navbar,
+  HeroSection,
+  FeaturesSection,
+  ScreenshotCarousel,
+  TechStack,
+  CTASection,
+  Footer,
+} from '@/components/landing';
 
 export default function Home() {
-  redirect('/starmap');
+  return (
+    <main className="min-h-screen bg-background">
+      <Navbar />
+      <HeroSection />
+      <FeaturesSection />
+      <ScreenshotCarousel />
+      <TechStack />
+      <CTASection />
+      <Footer />
+    </main>
+  );
 }

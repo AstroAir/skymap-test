@@ -2079,5 +2079,104 @@
     "info": "信息",
     "warn": "警告",
     "error": "错误"
+  },
+  "landing": {
+    "nav": {
+      "features": "功能特性",
+      "screenshots": "界面预览",
+      "technology": "技术栈",
+      "launchApp": "启动应用"
+    },
+    "hero": {
+      "badge": "由 Stellarium Web Engine 提供支持",
+      "tagline": "探索宇宙",
+      "description": "一款强大的天文应用，适用于观星、观测规划和天文摄影。发现天体目标，规划观测计划，捕捉璀璨星空。",
+      "launchButton": "启动星图",
+      "launchTooltip": "打开交互式星图",
+      "learnMore": "了解更多",
+      "learnMoreTooltip": "探索功能和特性",
+      "poweredBy": "由 Stellarium Web Engine 提供支持"
+    },
+    "features": {
+      "title": "强大功能",
+      "subtitle": "为天文观测和天文摄影规划提供一切所需",
+      "stellarium": {
+        "title": "Stellarium 引擎",
+        "description": "逼真的星空渲染，包含数十亿颗恒星、深空天体和太阳系天体"
+      },
+      "planning": {
+        "title": "观测规划",
+        "description": "通过高度图表、暮光时间和月相分析来规划观测计划"
+      },
+      "shotList": {
+        "title": "拍摄清单",
+        "description": "管理拍摄目标，支持优先级排序和时段安排"
+      },
+      "fovSimulator": {
+        "title": "视场模拟器",
+        "description": "可视化相机和望远镜视场，支持马赛克拼接规划"
+      },
+      "tonight": {
+        "title": "今晚推荐",
+        "description": "获取今晚最佳观测目标的个性化推荐"
+      },
+      "coordinates": {
+        "title": "坐标系统",
+        "description": "完整支持赤道和地平坐标系，提供精确计算"
+      },
+      "equipment": {
+        "title": "设备配置",
+        "description": "保存和管理望远镜、相机和滤镜配置"
+      },
+      "i18n": {
+        "title": "多语言支持",
+        "description": "完整支持中英文，更多语言即将推出"
+      }
+    },
+    "screenshots": {
+      "title": "功能展示",
+      "subtitle": "探索专为天文爱好者设计的直观界面",
+      "starmap": {
+        "label": "星图",
+        "caption": "交互式星图，实时星空渲染"
+      },
+      "planning": {
+        "label": "规划",
+        "caption": "全面的观测规划工具"
+      },
+      "fov": {
+        "label": "视场",
+        "caption": "视场模拟，支持马赛克拼接"
+      },
+      "settings": {
+        "label": "设置",
+        "caption": "丰富的自定义选项"
+      }
+    },
+    "tech": {
+      "title": "现代技术构建",
+      "subtitle": "采用最新的网页和桌面技术，提供最佳体验",
+      "engineTitle": "Stellarium Web Engine",
+      "engineDescription": "世界上最精确的开源天象仪软件"
+    },
+    "cta": {
+      "title": "开启你的天文之旅",
+      "description": "无论你是初学者还是经验丰富的天文爱好者，SkyMap 都能满足你探索星空的一切需求。",
+      "launchButton": "启动星图",
+      "downloadButton": "下载桌面版",
+      "githubButton": "查看源码"
+    },
+    "footer": {
+      "description": "一款现代化的天文应用，用于观星和观测规划。",
+      "links": "快速链接",
+      "starmap": "星图",
+      "credits": "数据来源",
+      "stellariumEngine": "Stellarium Web Engine",
+      "gaiaData": "ESA 盖亚任务",
+      "dssImages": "数字化巡天",
+      "allRightsReserved": "保留所有权利。",
+      "madeWith": "用",
+      "forAstronomers": "为天文爱好者制作"
+    }
   }
 }

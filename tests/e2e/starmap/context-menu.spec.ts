@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
 import { TEST_OBJECTS } from '../fixtures/test-data';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Context Menu', () => {
   let starmapPage: StarmapPage;
 
   test.beforeEach(async ({ page }) => {
     starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Canvas Context Menu', () => {
@@ -45,7 +46,10 @@ test.describe('Context Menu', () => {
         await page.waitForTimeout(300);
         
         const contextMenu = page.locator('[role="menu"]');
-        await expect(contextMenu).toBeHidden({ timeout: 2000 }).catch(() => {});
+        // Only assert if menu was visible
+        if (await contextMenu.isVisible()) {
+          await expect(contextMenu).toBeHidden({ timeout: 2000 });
+        }
       }
     });
 
@@ -63,7 +67,10 @@ test.describe('Context Menu', () => {
         await page.waitForTimeout(300);
         
         const contextMenu = page.locator('[role="menu"]');
-        await expect(contextMenu).toBeHidden({ timeout: 2000 }).catch(() => {});
+        // Only assert if menu was visible
+        if (await contextMenu.isVisible()) {
+          await expect(contextMenu).toBeHidden({ timeout: 2000 });
+        }
       }
     });
   });

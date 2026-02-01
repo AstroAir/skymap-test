@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
 import { TEST_TIMEOUTS } from '../fixtures/test-data';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Starmap Core Functionality', () => {
   let starmapPage: StarmapPage;
@@ -29,13 +30,13 @@ test.describe('Starmap Core Functionality', () => {
       await expect(starmapPage.canvas).toBeVisible({ timeout: TEST_TIMEOUTS.long });
     });
 
-    test('should render the canvas element', async () => {
-      await starmapPage.waitForReady();
+    test('should render the canvas element', async ({ page }) => {
+      await waitForStarmapReady(page, { skipWasmWait: true });
       await expect(starmapPage.canvas).toBeVisible();
     });
 
-    test('should have proper canvas dimensions', async () => {
-      await starmapPage.waitForReady();
+    test('should have proper canvas dimensions', async ({ page }) => {
+      await waitForStarmapReady(page, { skipWasmWait: true });
       const box = await starmapPage.canvas.boundingBox();
       expect(box).toBeTruthy();
       expect(box!.width).toBeGreaterThan(0);
@@ -44,8 +45,9 @@ test.describe('Starmap Core Functionality', () => {
   });
 
   test.describe('Canvas Interactions', () => {
-    test.beforeEach(async () => {
-      await starmapPage.waitForReady();
+    test.beforeEach(async ({ page }) => {
+      // Use skipWasmWait for faster tests - canvas interactions work during loading
+      await waitForStarmapReady(page, { skipWasmWait: true });
     });
 
     test('should respond to mouse drag for panning', async ({ page }) => {
@@ -117,8 +119,9 @@ test.describe('Starmap Core Functionality', () => {
   });
 
   test.describe('Toolbar', () => {
-    test.beforeEach(async () => {
-      await starmapPage.waitForReady();
+    test.beforeEach(async ({ page }) => {
+      // Toolbar is visible before WASM loads
+      await waitForStarmapReady(page, { skipWasmWait: true });
     });
 
     test('should display toolbar elements', async ({ page }) => {
@@ -138,8 +141,8 @@ test.describe('Starmap Core Functionality', () => {
   });
 
   test.describe('View Direction', () => {
-    test.beforeEach(async () => {
-      await starmapPage.waitForReady();
+    test.beforeEach(async ({ page }) => {
+      await waitForStarmapReady(page, { skipWasmWait: true });
     });
 
     test('should display view center coordinates', async ({ page }) => {
@@ -152,8 +155,8 @@ test.describe('Starmap Core Functionality', () => {
   });
 
   test.describe('Keyboard Navigation', () => {
-    test.beforeEach(async () => {
-      await starmapPage.waitForReady();
+    test.beforeEach(async ({ page }) => {
+      await waitForStarmapReady(page, { skipWasmWait: true });
     });
 
     test('should handle Escape key', async ({ page }) => {
@@ -177,7 +180,7 @@ test.describe('Starmap Core Functionality', () => {
 
   test.describe('Error Handling', () => {
     test('should not crash on rapid interactions', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const box = await starmapPage.canvas.boundingBox();
       if (box) {
@@ -200,7 +203,7 @@ test.describe('Starmap Core Functionality', () => {
     });
 
     test('should handle window resize', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       await page.setViewportSize({ width: 800, height: 600 });
       await page.waitForTimeout(500);

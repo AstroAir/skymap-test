@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 import { VIEWPORT_SIZES, TEST_TIMEOUTS } from '../fixtures/test-data';
 
 // Skip touch tests on desktop browsers - they should run on mobile projects only
@@ -11,7 +12,7 @@ test.describe('Touch Interactions', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(VIEWPORT_SIZES.mobile);
     starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Single Touch', () => {

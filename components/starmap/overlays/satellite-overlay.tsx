@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useStellariumStore, useSatelliteStore } from '@/lib/stores';
-import { useThrottledUpdate } from '@/lib/hooks';
+import { useMemo } from 'react';
+import { useSatelliteStore } from '@/lib/stores';
+import { useBatchProjection } from '@/lib/hooks';
 import { getSatelliteColor } from '@/lib/services/celestial-icons';
 import {
   Tooltip,
@@ -10,31 +10,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface SatelliteData {
-  id: string;
-  name: string;
-  noradId: number;
-  type: string;
-  altitude: number;
-  velocity: number;
-  ra?: number;
-  dec?: number;
-  azimuth?: number;
-  elevation?: number;
-  isVisible: boolean;
-}
-
-interface SatellitePosition {
-  satellite: SatelliteData;
-  x: number;
-  y: number;
-  visible: boolean;
-}
+import type { SatelliteData } from '@/lib/core/types';
 
 interface SatelliteOverlayProps {
   containerWidth: number;
@@ -158,122 +134,42 @@ export function SatelliteOverlay({
   containerHeight,
   onSatelliteClick,
 }: SatelliteOverlayProps) {
-  const stel = useStellariumStore((state) => state.stel);
-  
   // Get satellite display settings from store
   const showSatellites = useSatelliteStore((state) => state.showSatellites);
   const showLabels = useSatelliteStore((state) => state.showLabels);
   const trackedSatellites = useSatelliteStore((state) => state.trackedSatellites);
   
   // Convert tracked satellites to local format
-  const satellites: SatelliteData[] = trackedSatellites.map(sat => ({
-    id: sat.id,
-    name: sat.name,
-    noradId: sat.noradId,
-    type: sat.type,
-    altitude: sat.altitude,
-    velocity: sat.velocity,
-    ra: sat.ra,
-    dec: sat.dec,
-    azimuth: sat.azimuth,
-    elevation: sat.elevation,
-    isVisible: sat.isVisible,
-  }));
-  const [positions, setPositions] = useState<SatellitePosition[]>([]);
-  
-  // Convert RA/Dec to screen coordinates using Stellarium's coordinate system
-  // Unified with sky-markers.tsx for consistency
-  const convertToScreen = useCallback(
-    (ra: number, dec: number): { x: number; y: number; visible: boolean } | null => {
-      if (!stel) return null;
-
-      try {
-        // Convert degrees to radians
-        const raRad = ra * stel.D2R;
-        const decRad = dec * stel.D2R;
-
-        // Convert spherical to cartesian (ICRF frame)
-        const icrfVec = stel.s2c(raRad, decRad);
-
-        // Convert ICRF to VIEW frame
-        const viewVec = stel.convertFrame(stel.observer, 'ICRF', 'VIEW', icrfVec);
-
-        // Check if the point is behind the viewer (z > 0 in VIEW frame means behind)
-        if (viewVec[2] > 0) {
-          return { x: 0, y: 0, visible: false };
-        }
-
-        // Get current FOV and aspect ratio
-        const fov = stel.core.fov; // FOV in radians
-        const aspect = containerWidth / containerHeight;
-
-        // Gnomonic projection:
-        // projX = viewX / (-viewZ), projY = viewY / (-viewZ)
-        // Then scale by 1/tan(fov/2) and account for aspect ratio
-        const scale = 1 / Math.tan(fov / 2);
-
-        // Project onto the viewing plane
-        const projX = viewVec[0] / (-viewVec[2]);
-        const projY = viewVec[1] / (-viewVec[2]);
-
-        // Convert to normalized device coordinates
-        const ndcX = projX * scale / aspect;
-        const ndcY = projY * scale;
-
-        // Check if within visible area (with some margin)
-        if (Math.abs(ndcX) > 1.2 || Math.abs(ndcY) > 1.2) {
-          return { x: 0, y: 0, visible: false };
-        }
-
-        // Convert to screen coordinates
-        const screenX = (ndcX + 1) * 0.5 * containerWidth;
-        const screenY = (1 - ndcY) * 0.5 * containerHeight;
-
-        return { x: screenX, y: screenY, visible: true };
-      } catch {
-        return null;
-      }
-    },
-    [stel, containerWidth, containerHeight]
+  const satellites: SatelliteData[] = useMemo(() => 
+    trackedSatellites.map(sat => ({
+      id: sat.id,
+      name: sat.name,
+      noradId: sat.noradId,
+      type: sat.type,
+      altitude: sat.altitude,
+      velocity: sat.velocity,
+      ra: sat.ra,
+      dec: sat.dec,
+      azimuth: sat.azimuth,
+      elevation: sat.elevation,
+      isVisible: sat.isVisible,
+    })),
+    [trackedSatellites]
   );
 
-  // Ref to store satellites for the throttled callback
-  const satellitesRef = useRef(satellites);
-  
-  // Update ref when satellites change
-  useEffect(() => {
-    satellitesRef.current = satellites;
-  }, [satellites]);
-
-  // Optimized position update callback using RAF-based throttling
-  const updatePositions = useCallback(() => {
-    if (!showSatellites || !stel) {
-      setPositions([]);
-      return;
-    }
-
-    const currentSatellites = satellitesRef.current;
-    const newPositions: SatellitePosition[] = [];
-
-    for (const satellite of currentSatellites) {
-      if (satellite.ra !== undefined && satellite.dec !== undefined) {
-        const screenPos = convertToScreen(satellite.ra, satellite.dec);
-        if (screenPos && screenPos.visible) {
-          newPositions.push({
-            satellite,
-            x: screenPos.x,
-            y: screenPos.y,
-            visible: true,
-          });
-        }
-      }
-    }
-
-    setPositions(newPositions);
-  }, [showSatellites, stel, convertToScreen]);
-
-  // Use RAF-based throttled update for smooth 30fps tracking (same as sky-markers)
-  useThrottledUpdate(updatePositions, 33, !!stel && showSatellites);
+  // Use unified batch projection hook for coordinate conversion
+  // This replaces the duplicated convertToScreen logic and RAF-based update loop
+  const positions = useBatchProjection({
+    containerWidth,
+    containerHeight,
+    items: satellites,
+    getRa: (sat) => sat.ra,
+    getDec: (sat) => sat.dec,
+    enabled: showSatellites,
+    intervalMs: 33, // ~30fps
+    visibilityMargin: 1.2, // Slightly larger margin for satellites
+    loopId: 'satellite-overlay',
+  });
 
   if (!showSatellites || positions.length === 0) {
     return null;
@@ -300,12 +196,12 @@ export function SatelliteOverlay({
       <g filter="url(#satellite-glow)" className="pointer-events-auto">
         {positions.map((pos) => (
           <SatelliteMarker
-            key={pos.satellite.id}
-            satellite={pos.satellite}
+            key={pos.item.id}
+            satellite={pos.item}
             x={pos.x}
             y={pos.y}
             showLabel={showLabels}
-            onClick={() => onSatelliteClick?.(pos.satellite)}
+            onClick={() => onSatelliteClick?.(pos.item)}
           />
         ))}
       </g>

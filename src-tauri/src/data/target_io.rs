@@ -1,6 +1,7 @@
 //! Target list import/export module
 //! Supports CSV, Stellarium, and other common formats
 
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -8,6 +9,16 @@ use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 
 use super::storage::StorageError;
+
+/// Static compiled regex for RA parsing (HMS format)
+static RA_REGEX: Lazy<regex_lite::Regex> = Lazy::new(|| {
+    regex_lite::Regex::new(r"(\d+)[h:\s]+(\d+)[m:\s]+(\d+\.?\d*)s?").unwrap()
+});
+
+/// Static compiled regex for Dec parsing (DMS format)
+static DEC_REGEX: Lazy<regex_lite::Regex> = Lazy::new(|| {
+    regex_lite::Regex::new(r#"([+-]?\d+)[°:\s]+(\d+)[':\s]+(\d+\.?\d*)"?"#).unwrap()
+});
 
 /// Target item for import/export
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -242,9 +253,9 @@ fn import_stellarium(content: &str) -> ImportTargetsResult {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') || line.starts_with('[') { continue; }
 
-        let parts: Vec<&str> = line.split('\t').collect();
+        let mut parts: Vec<&str> = line.split('\t').collect();
         if parts.len() < 3 {
-            let parts: Vec<&str> = line.split(',').collect();
+            parts = line.split(',').collect();
             if parts.len() < 3 { errors.push(format!("Line {}: invalid", i + 1)); skipped += 1; continue; }
         }
 
@@ -298,14 +309,28 @@ fn parse_csv_line(line: &str) -> Vec<String> {
 }
 
 fn parse_coordinates(ra_str: &str, dec_str: &str) -> Option<(f64, f64)> {
-    Some((parse_ra(ra_str)?, parse_dec(dec_str)?))
+    let ra = parse_ra(ra_str)?;
+    let dec = parse_dec(dec_str)?;
+    validate_coordinates(ra, dec)
+}
+
+/// Validate that coordinates are within valid astronomical ranges
+fn validate_coordinates(ra: f64, dec: f64) -> Option<(f64, f64)> {
+    // RA: 0-360 degrees (allow slightly negative for wrap-around)
+    // Dec: -90 to +90 degrees
+    if ra >= -0.001 && ra < 360.001 && dec >= -90.0 && dec <= 90.0 {
+        // Normalize RA to 0-360 range
+        let normalized_ra = if ra < 0.0 { ra + 360.0 } else if ra >= 360.0 { ra - 360.0 } else { ra };
+        Some((normalized_ra, dec))
+    } else {
+        None
+    }
 }
 
 fn parse_ra(s: &str) -> Option<f64> {
     let s = s.trim();
     if let Ok(deg) = s.parse::<f64>() { return Some(deg); }
-    let re = regex_lite::Regex::new(r"(\d+)[h:\s]+(\d+)[m:\s]+(\d+\.?\d*)s?").ok()?;
-    if let Some(caps) = re.captures(s) {
+    if let Some(caps) = RA_REGEX.captures(s) {
         let h: f64 = caps.get(1)?.as_str().parse().ok()?;
         let m: f64 = caps.get(2)?.as_str().parse().ok()?;
         let sec: f64 = caps.get(3)?.as_str().parse().ok()?;
@@ -317,8 +342,7 @@ fn parse_ra(s: &str) -> Option<f64> {
 fn parse_dec(s: &str) -> Option<f64> {
     let s = s.trim();
     if let Ok(deg) = s.parse::<f64>() { return Some(deg); }
-    let re = regex_lite::Regex::new(r#"([+-]?\d+)[°:\s]+(\d+)[':\s]+(\d+\.?\d*)"?"#).ok()?;
-    if let Some(caps) = re.captures(s) {
+    if let Some(caps) = DEC_REGEX.captures(s) {
         let d: f64 = caps.get(1)?.as_str().parse().ok()?;
         let m: f64 = caps.get(2)?.as_str().parse().ok()?;
         let sec: f64 = caps.get(3)?.as_str().parse().ok()?;
@@ -526,7 +550,8 @@ mod tests {
         let content = "[Stellarium Observing List]\n# Exported: 1\n\nM31\t00h 42m 44s\t+41° 16' 09\"";
         let result = import_stellarium(content);
         
-        assert!(result.imported >= 0); // May or may not parse depending on format
+        // Just verify the function runs without panicking; imported count depends on format
+        let _ = result.imported;
     }
 
     #[test]

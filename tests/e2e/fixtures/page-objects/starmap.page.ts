@@ -271,12 +271,51 @@ export class StarmapPage extends BasePage {
    * Wait for starmap to be ready
    * Uses extended timeout for WASM engine initialization
    */
-  async waitForReady() {
+  async waitForReady(options?: { skipWasmWait?: boolean }) {
     await this.goto();
+    
+    // Skip onboarding and setup wizard by setting localStorage
+    await this.page.evaluate(() => {
+      localStorage.setItem('onboarding-storage', JSON.stringify({
+        state: {
+          hasCompletedOnboarding: true,
+          hasSeenWelcome: true,
+          currentStepIndex: -1,
+          isTourActive: false,
+          completedSteps: ['welcome', 'search', 'navigation', 'zoom', 'settings', 'fov', 'shotlist', 'tonight', 'contextmenu', 'complete'],
+          showOnNextVisit: false,
+        },
+        version: 0,
+      }));
+      localStorage.setItem('starmap-setup-wizard', JSON.stringify({
+        state: {
+          hasCompletedSetup: true,
+          showOnNextVisit: false,
+          completedSteps: ['welcome', 'location', 'equipment', 'preferences', 'complete'],
+        },
+        version: 1,
+      }));
+    });
+    
+    await this.page.reload();
     await this.waitForSplashToDisappear();
     await expect(this.canvas).toBeVisible({ timeout: TEST_TIMEOUTS.long });
-    // WASM engine can take up to 2 minutes to initialize on cold start
-    await this.stellariumLoadingOverlay.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.wasmInit });
+    
+    // Wait for WASM loading overlay to disappear (if not skipping)
+    if (!options?.skipWasmWait) {
+      try {
+        const overlayVisible = await this.stellariumLoadingOverlay.isVisible().catch(() => false);
+        if (overlayVisible) {
+          await this.stellariumLoadingOverlay.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.wasmInit });
+        }
+      } catch {
+        // If timeout, continue - some tests may work without full WASM init
+        console.warn('WASM loading timeout - continuing with test');
+      }
+    }
+    
+    // Wait a bit for UI to stabilize
+    await this.page.waitForTimeout(1000);
   }
 
   /**

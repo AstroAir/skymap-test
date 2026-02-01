@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMarkerStore, type SkyMarker, type MarkerIcon } from '@/lib/stores';
-import { useStellariumStore } from '@/lib/stores';
-import { useThrottledUpdate } from '@/lib/hooks';
+import { useBatchProjection } from '@/lib/hooks';
 import {
   Star,
   Circle,
@@ -32,16 +31,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { createLogger } from '@/lib/logger';
-
-const logger = createLogger('sky-markers');
-
-interface MarkerPosition {
-  marker: SkyMarker;
-  x: number;
-  y: number;
-  visible: boolean;
-}
 
 interface SkyMarkersProps {
   containerWidth: number;
@@ -75,7 +64,6 @@ export function SkyMarkers({
   onMarkerNavigate,
 }: SkyMarkersProps) {
   const t = useTranslations();
-  const stel = useStellariumStore((state) => state.stel);
   const markers = useMarkerStore((state) => state.markers);
   const showMarkers = useMarkerStore((state) => state.showMarkers);
   const activeMarkerId = useMarkerStore((state) => state.activeMarkerId);
@@ -94,107 +82,28 @@ export function SkyMarkers({
     return markers.filter((m) => m.visible);
   }, [markers, showMarkers]);
 
-  const [markerPositions, setMarkerPositions] = useState<MarkerPosition[]>([]);
+  // Use unified batch projection hook for coordinate conversion
+  // This replaces the duplicated convertToScreen logic and RAF-based update loop
+  const projectedMarkers = useBatchProjection({
+    containerWidth,
+    containerHeight,
+    items: visibleMarkers,
+    getRa: (marker) => marker.ra,
+    getDec: (marker) => marker.dec,
+    enabled: showMarkers,
+    intervalMs: 33, // ~30fps
+    loopId: 'sky-markers',
+  });
 
-  // Convert RA/Dec to screen coordinates
-  // Uses gnomonic (rectilinear) projection - must be inverse of getClickCoordinates in StellariumCanvas
-  const convertToScreen = useCallback(
-    (ra: number, dec: number): { x: number; y: number; visible: boolean } | null => {
-      if (!stel) return null;
-
-      try {
-        // Convert degrees to radians
-        const raRad = ra * stel.D2R;
-        const decRad = dec * stel.D2R;
-
-        // Convert spherical to cartesian (ICRF frame)
-        const icrfVec = stel.s2c(raRad, decRad);
-
-        // Convert ICRF to VIEW frame
-        const viewVec = stel.convertFrame(stel.observer, 'ICRF', 'VIEW', icrfVec);
-
-        // Check if the point is behind the viewer (z > 0 in VIEW frame means behind)
-        if (viewVec[2] > 0) {
-          return { x: 0, y: 0, visible: false };
-        }
-
-        // Get current FOV and aspect ratio
-        const fov = stel.core.fov; // FOV in radians
-        const aspect = containerWidth / containerHeight;
-        
-        // Gnomonic projection:
-        // projX = viewX / (-viewZ), projY = viewY / (-viewZ)
-        // Then scale by 1/tan(fov/2) and account for aspect ratio
-        const scale = 1 / Math.tan(fov / 2);
-        
-        // Project onto the viewing plane
-        const projX = viewVec[0] / (-viewVec[2]);
-        const projY = viewVec[1] / (-viewVec[2]);
-
-        // Convert to normalized device coordinates
-        // ndcX = projX * scale / aspect (to match inverse in getClickCoordinates)
-        // ndcY = projY * scale
-        const ndcX = projX * scale / aspect;
-        const ndcY = projY * scale;
-
-        // Check if within visible area (with some margin)
-        if (Math.abs(ndcX) > 1.1 || Math.abs(ndcY) > 1.1) {
-          return { x: 0, y: 0, visible: false };
-        }
-
-        // Convert to screen coordinates
-        // screenX = (ndcX + 1) * 0.5 * width
-        // screenY = (1 - ndcY) * 0.5 * height (Y is inverted)
-        const screenX = (ndcX + 1) * 0.5 * containerWidth;
-        const screenY = (1 - ndcY) * 0.5 * containerHeight;
-
-        return { x: screenX, y: screenY, visible: true };
-      } catch (error) {
-        logger.error('Error converting coordinates', error);
-        return null;
-      }
-    },
-    [stel, containerWidth, containerHeight]
-  );
-
-  // Ref to store markers for the interval callback
-  const markersRef = useRef(visibleMarkers);
-  
-  // Update ref when markers change
-  useEffect(() => {
-    markersRef.current = visibleMarkers;
-  }, [visibleMarkers]);
-
-  // Optimized position update callback using RAF-based throttling
-  const updatePositions = useCallback(() => {
-    const currentMarkers = markersRef.current;
-    const positions: MarkerPosition[] = [];
-
-    for (const marker of currentMarkers) {
-      const pos = convertToScreen(marker.ra, marker.dec);
-      if (pos) {
-        positions.push({
-          marker,
-          x: pos.x,
-          y: pos.y,
-          visible: pos.visible,
-        });
-      }
-    }
-
-    setMarkerPositions(positions);
-  }, [convertToScreen]);
-
-  // Use RAF-based throttled update for smooth 30fps tracking
-  useThrottledUpdate(updatePositions, 33, !!stel && showMarkers);
-
-  // Memoize renderable markers for rendering
+  // Map projected items to marker positions for rendering
   const renderableMarkers = useMemo(() => {
-    if (!showMarkers) {
-      return [];
-    }
-    return markerPositions.filter((p) => p.visible);
-  }, [markerPositions, showMarkers]);
+    return projectedMarkers.map((p) => ({
+      marker: p.item,
+      x: p.x,
+      y: p.y,
+      visible: p.visible,
+    }));
+  }, [projectedMarkers]);
 
   // Handle right-click on marker
   const handleMarkerContextMenu = useCallback((e: React.MouseEvent, marker: SkyMarker) => {

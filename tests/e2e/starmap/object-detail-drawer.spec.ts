@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 import { TEST_OBJECTS } from '../fixtures/test-data';
 
 test.describe('Object Detail Drawer', () => {
-  let starmapPage: StarmapPage;
+  let _starmapPage: StarmapPage;
 
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    _starmapPage = new StarmapPage(page);
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   async function selectObject(page: import('@playwright/test').Page, objectName: string) {

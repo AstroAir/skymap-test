@@ -2079,5 +2079,104 @@
     "info": "Info",
     "warn": "Warning",
     "error": "Error"
+  },
+  "landing": {
+    "nav": {
+      "features": "Features",
+      "screenshots": "Screenshots",
+      "technology": "Technology",
+      "launchApp": "Launch App"
+    },
+    "hero": {
+      "badge": "Powered by Stellarium Web Engine",
+      "tagline": "Explore the Universe",
+      "description": "A powerful astronomy application for stargazing, observation planning, and astrophotography. Discover celestial objects, plan your sessions, and capture the night sky.",
+      "launchButton": "Launch Star Map",
+      "launchTooltip": "Open the interactive star map",
+      "learnMore": "Learn More",
+      "learnMoreTooltip": "Explore features and capabilities",
+      "poweredBy": "Powered by Stellarium Web Engine"
+    },
+    "features": {
+      "title": "Powerful Features",
+      "subtitle": "Everything you need for astronomical observation and astrophotography planning",
+      "stellarium": {
+        "title": "Stellarium Engine",
+        "description": "Realistic sky rendering with billions of stars, deep sky objects, and solar system bodies"
+      },
+      "planning": {
+        "title": "Observation Planning",
+        "description": "Plan your observing sessions with altitude charts, twilight times, and moon phase analysis"
+      },
+      "shotList": {
+        "title": "Shot List",
+        "description": "Manage your imaging targets with priority ordering and session scheduling"
+      },
+      "fovSimulator": {
+        "title": "FOV Simulator",
+        "description": "Visualize your camera and telescope field of view with mosaic planning"
+      },
+      "tonight": {
+        "title": "Tonight's Picks",
+        "description": "Get personalized recommendations for the best objects to observe tonight"
+      },
+      "coordinates": {
+        "title": "Coordinate System",
+        "description": "Full support for equatorial and horizontal coordinate systems with precise calculations"
+      },
+      "equipment": {
+        "title": "Equipment Profiles",
+        "description": "Save and manage your telescope, camera, and filter configurations"
+      },
+      "i18n": {
+        "title": "Multi-language",
+        "description": "Full support for English and Chinese with more languages coming soon"
+      }
+    },
+    "screenshots": {
+      "title": "See It in Action",
+      "subtitle": "Explore the intuitive interface designed for astronomers",
+      "starmap": {
+        "label": "Star Map",
+        "caption": "Interactive star map with real-time sky rendering"
+      },
+      "planning": {
+        "label": "Planning",
+        "caption": "Comprehensive observation planning tools"
+      },
+      "fov": {
+        "label": "FOV",
+        "caption": "Field of view simulation with mosaic support"
+      },
+      "settings": {
+        "label": "Settings",
+        "caption": "Extensive customization options"
+      }
+    },
+    "tech": {
+      "title": "Built with Modern Technology",
+      "subtitle": "Leveraging the latest web and desktop technologies for the best experience",
+      "engineTitle": "Stellarium Web Engine",
+      "engineDescription": "The world's most accurate open-source planetarium software"
+    },
+    "cta": {
+      "title": "Start Your Astronomical Journey",
+      "description": "Whether you're a beginner or an experienced astronomer, SkyMap has everything you need to explore the night sky.",
+      "launchButton": "Launch Star Map",
+      "downloadButton": "Download Desktop",
+      "githubButton": "View on GitHub"
+    },
+    "footer": {
+      "description": "A modern astronomy application for stargazing and observation planning.",
+      "links": "Quick Links",
+      "starmap": "Star Map",
+      "credits": "Data Credits",
+      "stellariumEngine": "Stellarium Web Engine",
+      "gaiaData": "ESA Gaia Mission",
+      "dssImages": "Digitized Sky Survey",
+      "allRightsReserved": "All rights reserved.",
+      "madeWith": "Made with",
+      "forAstronomers": "for astronomers"
+    }
   }
 }

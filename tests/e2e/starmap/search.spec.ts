@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
 import { TEST_OBJECTS, TEST_COORDINATES } from '../fixtures/test-data';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Search Functionality', () => {
-  let starmapPage: StarmapPage;
-
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    // Initialize page object for potential future use
+    new StarmapPage(page);
+    // Use skipWasmWait for faster tests - search UI is available before WASM loads
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Search Input', () => {

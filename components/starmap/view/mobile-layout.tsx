@@ -16,15 +16,8 @@ import { PlateSolver } from '../plate-solving/plate-solver';
 import { SkyAtlasPanel } from '../planning/sky-atlas-panel';
 import { EquipmentManager } from '../management/equipment-manager';
 
-import type { SelectedObjectData } from '@/lib/core/types';
+import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
 import type { MosaicSettings, GridType } from '@/lib/stores';
-
-interface ClickCoords {
-  ra: number;
-  dec: number;
-  raStr: string;
-  decStr: string;
-}
 
 interface MobileLayoutProps {
   stel: boolean;

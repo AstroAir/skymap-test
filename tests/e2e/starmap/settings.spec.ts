@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Settings Panel', () => {
   let starmapPage: StarmapPage;
 
   test.beforeEach(async ({ page }) => {
     starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    // Use skipWasmWait for faster tests - settings panel works before WASM loads
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Settings Panel Access', () => {

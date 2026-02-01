@@ -58,13 +58,19 @@ import {
 } from '@/components/ui/collapsible';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
+import { type MosaicSettings } from '@/lib/stores';
 import {
-  type MosaicSettings,
+  SENSOR_PRESETS,
+  TELESCOPE_PRESETS,
+  GRID_OPTIONS,
+  type SensorPreset,
+  type TelescopePreset,
   type GridType,
-} from '@/lib/stores';
+} from '@/lib/constants/equipment-presets';
 
-// Re-export types from equipment store for backward compatibility
-export type { MosaicSettings, GridType } from '@/lib/stores';
+// Re-export types for backward compatibility
+export type { MosaicSettings } from '@/lib/stores';
+export type { GridType } from '@/lib/constants/equipment-presets';
 
 interface FOVSimulatorProps {
   enabled: boolean;
@@ -85,91 +91,6 @@ interface FOVSimulatorProps {
   onGridTypeChange: (type: GridType) => void;
 }
 
-// ============================================================================
-// Sensor Presets
-// ============================================================================
-
-interface SensorPreset {
-  name: string;
-  width: number;
-  height: number;
-  pixelSize?: number;
-  resolution?: string;
-}
-
-const SENSOR_PRESETS: Record<string, SensorPreset[]> = {
-  fullFrame: [
-    { name: 'Full Frame 35mm', width: 36, height: 24, pixelSize: 4.5, resolution: '6000×4000' },
-    { name: 'Sony A7R IV', width: 35.7, height: 23.8, pixelSize: 3.76, resolution: '9504×6336' },
-    { name: 'Canon R5', width: 36, height: 24, pixelSize: 4.39, resolution: '8192×5464' },
-    { name: 'Nikon Z7', width: 35.9, height: 23.9, pixelSize: 4.34, resolution: '8256×5504' },
-  ],
-  apsc: [
-    { name: 'APS-C Canon', width: 22.3, height: 14.9, pixelSize: 4.3, resolution: '5184×3456' },
-    { name: 'APS-C Nikon/Sony', width: 23.5, height: 15.6, pixelSize: 3.9, resolution: '6000×4000' },
-    { name: 'Micro 4/3', width: 17.3, height: 13, pixelSize: 3.75, resolution: '4608×3456' },
-    { name: '1" Sensor', width: 13.2, height: 8.8, pixelSize: 2.4, resolution: '5472×3648' },
-  ],
-  zwo: [
-    { name: 'ASI6200MC Pro', width: 36, height: 24, pixelSize: 3.76, resolution: '9576×6388' },
-    { name: 'ASI2600MC Pro', width: 23.5, height: 15.7, pixelSize: 3.76, resolution: '6248×4176' },
-    { name: 'ASI2400MC Pro', width: 36, height: 24, pixelSize: 5.94, resolution: '6072×4042' },
-    { name: 'ASI294MC Pro', width: 19.1, height: 13, pixelSize: 4.63, resolution: '4144×2822' },
-    { name: 'ASI533MC Pro', width: 11.31, height: 11.31, pixelSize: 3.76, resolution: '3008×3008' },
-    { name: 'ASI183MC Pro', width: 13.2, height: 8.8, pixelSize: 2.4, resolution: '5496×3672' },
-    { name: 'ASI071MC Pro', width: 23.6, height: 15.6, pixelSize: 4.78, resolution: '4944×3284' },
-    { name: 'ASI1600MM Pro', width: 17.7, height: 13.4, pixelSize: 3.8, resolution: '4656×3520' },
-    { name: 'ASI290MM Mini', width: 5.6, height: 3.2, pixelSize: 2.9, resolution: '1936×1096' },
-  ],
-  qhy: [
-    { name: 'QHY600M', width: 36, height: 24, pixelSize: 3.76, resolution: '9576×6388' },
-    { name: 'QHY268M', width: 23.5, height: 15.7, pixelSize: 3.76, resolution: '6280×4210' },
-    { name: 'QHY294M Pro', width: 19.1, height: 13, pixelSize: 4.63, resolution: '4164×2796' },
-    { name: 'QHY533M', width: 11.31, height: 11.31, pixelSize: 3.76, resolution: '3008×3008' },
-    { name: 'QHY183M', width: 13.2, height: 8.8, pixelSize: 2.4, resolution: '5544×3694' },
-    { name: 'QHY163M', width: 17.7, height: 13.4, pixelSize: 3.8, resolution: '4656×3522' },
-  ],
-  other: [
-    { name: 'Player One Poseidon-M', width: 23.5, height: 15.7, pixelSize: 3.76, resolution: '6280×4210' },
-    { name: 'Player One Ares-M', width: 19.1, height: 13, pixelSize: 4.63, resolution: '4128×2808' },
-    { name: 'Player One Neptune-M', width: 11.31, height: 11.31, pixelSize: 3.76, resolution: '3008×3008' },
-    { name: 'Touptek ATR3CMOS26000KMA', width: 23.5, height: 15.7, pixelSize: 3.76, resolution: '6252×4176' },
-  ],
-};
-
-// ============================================================================
-// Telescope Presets
-// ============================================================================
-
-interface TelescopePreset {
-  name: string;
-  focalLength: number;
-  aperture: number;
-  type: string;
-}
-
-const TELESCOPE_PRESETS: TelescopePreset[] = [
-  { name: 'Samyang 135mm f/2', focalLength: 135, aperture: 67.5, type: 'Lens' },
-  { name: 'RedCat 51', focalLength: 250, aperture: 51, type: 'APO' },
-  { name: 'Radian 61', focalLength: 275, aperture: 61, type: 'APO' },
-  { name: 'Esprit 80ED', focalLength: 400, aperture: 80, type: 'APO' },
-  { name: 'FSQ-85ED', focalLength: 450, aperture: 85, type: 'APO' },
-  { name: 'Esprit 100ED', focalLength: 550, aperture: 100, type: 'APO' },
-  { name: 'TOA-130F', focalLength: 1000, aperture: 130, type: 'APO' },
-  { name: 'EdgeHD 8"', focalLength: 2032, aperture: 203, type: 'SCT' },
-  { name: 'EdgeHD 9.25"', focalLength: 2350, aperture: 235, type: 'SCT' },
-  { name: 'C11', focalLength: 2800, aperture: 280, type: 'SCT' },
-  { name: 'EdgeHD 11"', focalLength: 2800, aperture: 280, type: 'SCT' },
-  { name: 'EdgeHD 14"', focalLength: 3910, aperture: 356, type: 'SCT' },
-];
-
-const GRID_OPTIONS: { value: GridType; label: string; icon: string }[] = [
-  { value: 'none', label: 'None', icon: '○' },
-  { value: 'crosshair', label: 'Crosshair', icon: '┼' },
-  { value: 'thirds', label: 'Rule of Thirds', icon: '▦' },
-  { value: 'golden', label: 'Golden Ratio', icon: '◫' },
-  { value: 'diagonal', label: 'Diagonals', icon: '╳' },
-];
 
 // ============================================================================
 // Utility Components

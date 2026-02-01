@@ -172,6 +172,62 @@ export interface SelectedObjectData {
 }
 
 // ============================================================================
+// Coordinate Types
+// ============================================================================
+
+/**
+ * Context menu click coordinates type
+ * Used for right-click context menus on the star map
+ */
+export interface ClickCoords {
+  ra: number;
+  dec: number;
+  raStr: string;
+  decStr: string;
+}
+
+// ============================================================================
+// Overlay Position Types
+// ============================================================================
+
+/**
+ * Satellite data for overlay display
+ */
+export interface SatelliteData {
+  id: string;
+  name: string;
+  noradId: number;
+  type: string;
+  altitude: number;
+  velocity: number;
+  ra?: number;
+  dec?: number;
+  azimuth?: number;
+  elevation?: number;
+  isVisible: boolean;
+}
+
+/**
+ * Satellite position on screen overlay
+ */
+export interface SatellitePosition {
+  satellite: SatelliteData;
+  x: number;
+  y: number;
+  visible: boolean;
+}
+
+/**
+ * Marker position on screen overlay
+ */
+export interface MarkerPosition {
+  marker: import('@/lib/stores').SkyMarker;
+  x: number;
+  y: number;
+  visible: boolean;
+}
+
+// ============================================================================
 // Global Window Extension
 // ============================================================================
 

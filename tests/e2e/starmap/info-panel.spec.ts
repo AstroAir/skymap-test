@@ -4,7 +4,7 @@ import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Info Panel', () => {
   test.beforeEach(async ({ page }) => {
-    await waitForStarmapReady(page);
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Object Selection', () => {

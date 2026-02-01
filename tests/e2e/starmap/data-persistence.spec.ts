@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 import { TEST_OBJECTS, TEST_TIMEOUTS } from '../fixtures/test-data';
 
 test.describe('Data Persistence', () => {
@@ -11,7 +12,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Settings Persistence', () => {
     test('should persist display settings after reload', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
       
@@ -50,7 +51,7 @@ test.describe('Data Persistence', () => {
     });
 
     test('should persist theme preference', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const themeToggle = page.getByRole('button', { name: /theme|dark|light|主题/i }).first()
         .or(page.locator('[data-testid="theme-toggle"]').first());
@@ -79,7 +80,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Language Persistence', () => {
     test('should persist language preference after reload', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const languageSwitcher = page.getByRole('button', { name: /language|语言/i }).first();
       
@@ -108,7 +109,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Shot List Persistence', () => {
     test('should persist shot list items after reload', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Add an object to shot list
       const searchInput = page.getByPlaceholder(/search/i);
@@ -150,7 +151,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Location Persistence', () => {
     test('should persist observation location', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const locationButton = page.getByRole('button', { name: /location|位置/i }).first();
       
@@ -169,7 +170,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Equipment Persistence', () => {
     test('should persist equipment settings', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const fovButton = page.getByRole('button', { name: /fov|视场/i }).first();
       
@@ -207,7 +208,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('View State Persistence', () => {
     test('should persist zoom level after reload', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Zoom in
       const zoomInButton = page.getByRole('button', { name: /zoom.*in|放大/i }).first();
@@ -237,7 +238,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('LocalStorage', () => {
     test('should store data in localStorage', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Check localStorage has some data
       const storageKeys = await page.evaluate(() => Object.keys(localStorage));
@@ -245,7 +246,7 @@ test.describe('Data Persistence', () => {
     });
 
     test('should handle localStorage being cleared', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Clear localStorage
       await page.evaluate(() => localStorage.clear());
@@ -277,7 +278,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Session Storage', () => {
     test('should handle session data', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Check sessionStorage
       const sessionKeys = await page.evaluate(() => Object.keys(sessionStorage));
@@ -315,7 +316,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Data Export/Import', () => {
     test('should have export functionality', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
       
@@ -329,7 +330,7 @@ test.describe('Data Persistence', () => {
     });
 
     test('should have import functionality', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
       
@@ -345,7 +346,7 @@ test.describe('Data Persistence', () => {
 
   test.describe('Cache Persistence', () => {
     test('should persist cached data', async ({ page }) => {
-      await starmapPage.waitForReady();
+      await waitForStarmapReady(page, { skipWasmWait: true });
       
       // Check if service worker or cache API is used
       const cacheNames = await page.evaluate(async () => {

@@ -1,13 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 import { TEST_OBJECTS } from '../fixtures/test-data';
 
 test.describe('Shot List', () => {
-  let starmapPage: StarmapPage;
+  let _starmapPage: StarmapPage;
 
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    _starmapPage = new StarmapPage(page);
+    // Use skipWasmWait for faster tests - shot list UI works before WASM loads
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Shot List Panel', () => {

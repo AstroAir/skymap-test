@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
+import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('About Dialog', () => {
-  let starmapPage: StarmapPage;
-
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
-    await starmapPage.waitForReady();
+    // Initialize page object for potential future use
+    new StarmapPage(page);
+    // Use skipWasmWait for faster tests - about dialog works before WASM loads
+    await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Dialog Access', () => {
@@ -37,9 +38,11 @@ test.describe('About Dialog', () => {
         await page.keyboard.press('Escape');
         await page.waitForTimeout(300);
         
-        // Dialog should be closed
+        // Dialog should be closed - only assert if it was visible
         const dialog = page.locator('[role="dialog"]');
-        await expect(dialog).toBeHidden({ timeout: 2000 }).catch(() => {});
+        if (await dialog.isVisible()) {
+          await expect(dialog).toBeHidden({ timeout: 2000 });
+        }
       }
     });
 

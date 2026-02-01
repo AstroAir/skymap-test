@@ -198,6 +198,12 @@ pub async fn http_request(app: AppHandle, config: RequestConfig) -> Result<HttpR
                 }
 
                 let body = if let (true, Some(total)) = (config.report_progress, content_length) {
+                    // Validate response size before allocation
+                    if total > global_config.max_response_size as u64 {
+                        return Err(HttpClientError::InvalidResponse(
+                            format!("Response size {} exceeds maximum allowed {}", total, global_config.max_response_size)
+                        ));
+                    }
                     let mut downloaded = 0u64;
                     let mut body_bytes = Vec::with_capacity(total as usize);
                     let mut stream = response.bytes_stream();
@@ -324,6 +330,36 @@ impl Default for HttpClientConfig {
 static HTTP_CONFIG: Lazy<Arc<Mutex<HttpClientConfig>>> =
     Lazy::new(|| Arc::new(Mutex::new(HttpClientConfig::default())));
 
+/// Build a reqwest client with global configuration applied
+fn build_configured_client(timeout_secs: u64) -> Result<reqwest::Client, HttpClientError> {
+    let global_config = HTTP_CONFIG.lock().map(|c| c.clone()).unwrap_or_default();
+    
+    let mut builder = reqwest::Client::builder()
+        .timeout(Duration::from_secs(timeout_secs))
+        .connect_timeout(Duration::from_millis(global_config.connect_timeout_ms))
+        .user_agent(&global_config.user_agent);
+
+    if global_config.enable_compression {
+        builder = builder.gzip(true).deflate(true);
+    } else {
+        builder = builder.no_gzip().no_deflate();
+    }
+
+    if global_config.follow_redirects {
+        builder = builder.redirect(reqwest::redirect::Policy::limited(global_config.max_redirects as usize));
+    } else {
+        builder = builder.redirect(reqwest::redirect::Policy::none());
+    }
+
+    if let Some(ref proxy_url) = global_config.proxy_url {
+        if let Ok(proxy) = reqwest::Proxy::all(proxy_url) {
+            builder = builder.proxy(proxy);
+        }
+    }
+
+    builder.build().map_err(|e| HttpClientError::Request(e.to_string()))
+}
+
 #[tauri::command]
 pub fn get_http_config() -> HttpClientConfig {
     HTTP_CONFIG.lock().map(|c| c.clone()).unwrap_or_default()
@@ -386,10 +422,7 @@ pub async fn http_head(
 ) -> Result<HashMap<String, String>, HttpClientError> {
     security::validate_url(&url, allow_http.unwrap_or(false), None)?;
     
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| HttpClientError::Request(e.to_string()))?;
+    let client = build_configured_client(30)?;
 
     let response = client.head(&url).send().await
         .map_err(|e| HttpClientError::Request(e.to_string()))?;
@@ -407,10 +440,7 @@ pub async fn http_head(
 pub async fn http_check_url(url: String, allow_http: Option<bool>) -> Result<bool, HttpClientError> {
     security::validate_url(&url, allow_http.unwrap_or(false), None)?;
     
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .map_err(|e| HttpClientError::Request(e.to_string()))?;
+    let client = build_configured_client(10)?;
 
     match client.head(&url).send().await {
         Ok(response) => Ok(response.status().is_success()),
@@ -790,10 +820,9 @@ mod tests {
     #[test]
     fn test_get_active_requests_empty() {
         // When no requests are active, should return empty vec
-        let requests = get_active_requests();
         // Note: This might not be empty if other tests are running
         // Just verify it doesn't panic and returns a Vec
-        assert!(requests.len() >= 0);
+        let _requests = get_active_requests();
     }
 
     #[test]
