@@ -204,12 +204,28 @@ describe('TourTooltip', () => {
       jest.advanceTimersByTime(200);
     });
     
-    // Find and click the close button (X icon button)
-    const closeButton = document.querySelector('button[class*="h-6 w-6"]');
+    // Find close button by aria-label
+    const closeButton = document.querySelector('button[aria-label="Skip"]');
     if (closeButton) {
       fireEvent.click(closeButton);
       expect(onClose).toHaveBeenCalled();
     }
+  });
+
+  it('should have role="dialog" and aria attributes', async () => {
+    render(<TourTooltip {...defaultProps} />);
+    
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+    
+    await waitFor(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog).toBeInTheDocument();
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(dialog).toHaveAttribute('aria-labelledby');
+      expect(dialog).toHaveAttribute('aria-describedby');
+    });
   });
 
   it('should render progress dots', async () => {

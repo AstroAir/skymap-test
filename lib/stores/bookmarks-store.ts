@@ -50,6 +50,48 @@ interface BookmarksState {
 // Generate unique ID for bookmarks
 const generateId = () => `bm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+/**
+ * Default bookmarks for common celestial objects
+ */
+export const DEFAULT_BOOKMARKS: Omit<ViewBookmark, 'id' | 'createdAt' | 'updatedAt'>[] = [
+  {
+    name: 'North Celestial Pole',
+    ra: 0,
+    dec: 90,
+    fov: 30,
+    description: 'The point in the sky directly above Earth\'s North Pole',
+    icon: 'star',
+    color: BOOKMARK_COLORS[4],
+  },
+  {
+    name: 'Orion Nebula',
+    ra: 83.82,
+    dec: -5.39,
+    fov: 2,
+    description: 'M42 - The Great Orion Nebula',
+    icon: 'camera',
+    color: BOOKMARK_COLORS[6],
+  },
+  {
+    name: 'Andromeda Galaxy',
+    ra: 10.68,
+    dec: 41.27,
+    fov: 3,
+    description: 'M31 - Our nearest major galaxy',
+    icon: 'telescope',
+    color: BOOKMARK_COLORS[5],
+  },
+  {
+    name: 'Galactic Center',
+    ra: 266.42,
+    dec: -29.01,
+    fov: 15,
+    description: 'Center of the Milky Way',
+    icon: 'eye',
+    color: BOOKMARK_COLORS[1],
+  },
+];
+
 export const useBookmarksStore = create<BookmarksState>()(
   persist(
     (set, get) => ({
@@ -130,48 +172,19 @@ export const useBookmarksStore = create<BookmarksState>()(
     {
       name: 'starmap-bookmarks',
       storage: getZustandStorage(),
+      onRehydrateStorage: () => (state) => {
+        // Load default bookmarks on first use (empty store)
+        if (state && state.bookmarks.length === 0) {
+          const now = Date.now();
+          const defaults = DEFAULT_BOOKMARKS.map((b, i) => ({
+            ...b,
+            id: generateId() + `_${i}`,
+            createdAt: now,
+            updatedAt: now,
+          }));
+          useBookmarksStore.setState({ bookmarks: defaults });
+        }
+      },
     }
   )
 );
-
-/**
- * Default bookmarks for common celestial objects
- */
-export const DEFAULT_BOOKMARKS: Omit<ViewBookmark, 'id' | 'createdAt' | 'updatedAt'>[] = [
-  {
-    name: 'North Celestial Pole',
-    ra: 0,
-    dec: 90,
-    fov: 30,
-    description: 'The point in the sky directly above Earth\'s North Pole',
-    icon: 'star',
-    color: BOOKMARK_COLORS[4],
-  },
-  {
-    name: 'Orion Nebula',
-    ra: 83.82,
-    dec: -5.39,
-    fov: 2,
-    description: 'M42 - The Great Orion Nebula',
-    icon: 'camera',
-    color: BOOKMARK_COLORS[6],
-  },
-  {
-    name: 'Andromeda Galaxy',
-    ra: 10.68,
-    dec: 41.27,
-    fov: 3,
-    description: 'M31 - Our nearest major galaxy',
-    icon: 'telescope',
-    color: BOOKMARK_COLORS[5],
-  },
-  {
-    name: 'Galactic Center',
-    ra: 266.42,
-    dec: -29.01,
-    fov: 15,
-    description: 'Center of the Milky Way',
-    icon: 'eye',
-    color: BOOKMARK_COLORS[1],
-  },
-];

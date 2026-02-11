@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
 import type { StellariumSettings } from '@/lib/core/types';
+import { DEFAULT_STELLARIUM_SETTINGS } from '@/components/starmap/settings/settings-constants';
 
 // ============================================================================
 // Types
@@ -166,23 +167,7 @@ const DEFAULT_SEARCH: SearchSettings = {
   maxHistoryItems: 20,
 };
 
-const DEFAULT_STELLARIUM: StellariumSettings = {
-  constellationsLinesVisible: true,
-  constellationArtVisible: false,
-  azimuthalLinesVisible: false,
-  equatorialLinesVisible: false,
-  meridianLinesVisible: false,
-  eclipticLinesVisible: false,
-  atmosphereVisible: false,
-  landscapesVisible: false,
-  dsosVisible: true,
-  surveyEnabled: true,
-  surveyId: 'dss',
-  surveyUrl: undefined,
-  skyCultureLanguage: 'native',
-  nightMode: false,
-  sensorControl: false,
-};
+const DEFAULT_STELLARIUM: StellariumSettings = DEFAULT_STELLARIUM_SETTINGS;
 
 // ============================================================================
 // Store

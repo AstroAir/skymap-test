@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
-import { useObjectSearch, type ObjectType, useSkyCultureLanguage } from '@/lib/hooks';
-import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
+import { useObjectSearch, type ObjectType, useSkyCultureLanguage, useSelectTarget } from '@/lib/hooks';
+import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import type { SearchResultItem } from '@/lib/core/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,28 +31,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { createLogger } from '@/lib/logger';
 import {
   Search,
-  Star,
-  Globe,
-  Moon as MoonIcon,
-  Sparkles,
   CircleDot,
   Loader2,
   CheckSquare,
   Square,
   SlidersHorizontal,
   ListPlus,
-  MapPin,
   ChevronDown,
   ChevronRight,
   Bookmark,
   RotateCcw,
 } from 'lucide-react';
 import { SearchResultItemRow, getResultId } from './search-result-item';
-
-const logger = createLogger('advanced-search-dialog');
+import { getTypeIcon } from './search-utils';
 
 // ============================================================================
 // Types
@@ -103,7 +95,6 @@ function isValidDec(value: string): boolean {
 
 export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedSearchDialogProps) {
   const t = useTranslations();
-  const stel = useStellariumStore((state) => state.stel);
   const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
   
   // Local state for advanced filters
@@ -226,59 +217,12 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
     return () => clearTimeout(timer);
   }, [localQuery, raInput, decInput, selectedTypes, autoSearch, open, coordinateMode, executeSearch]);
 
-  // Navigate to target in Stellarium
-  const selectTarget = useCallback(async (item: SearchResultItem) => {
-    if (!stel) return;
-
-    try {
-      // Handle Stellarium objects (Comets, Planets)
-      if (item.StellariumObj) {
-        Object.assign(stel.core, { selection: item.StellariumObj });
-        stel.pointAndLock(item.StellariumObj);
-        addRecentSearch(item.Name);
-        onSelect?.(item);
-        return;
-      }
-
-      // Handle legacy Planets without StellariumObj
-      let ra: number | undefined = item.RA;
-      let dec: number | undefined = item.Dec;
-      
-      if (item.Type && (item.Type === 'Planet' || item.Type === 'Star' || item.Type === 'Moon')) {
-        const planetInfo = stel.getObj(`NAME ${item.Name}`)?.getInfo('pvo', stel.observer) as number[][] | undefined;
-        if (planetInfo) {
-          const cirs = stel.convertFrame(stel.observer, 'ICRF', 'CIRS', planetInfo[0]);
-          ra = rad2deg(stel.anp(stel.c2s(cirs)[0]));
-          dec = rad2deg(stel.anpm(stel.c2s(cirs)[1]));
-        }
-      }
-
-      // Handle coordinate-based objects
-      if (ra !== undefined && dec !== undefined) {
-        const ra_rad = ra * stel.D2R;
-        const dec_rad = dec * stel.D2R;
-        const icrfVec = stel.s2c(ra_rad, dec_rad);
-        const observedVec = stel.convertFrame(stel.observer, 'ICRF', 'CIRS', icrfVec);
-
-        const targetCircle = stel.createObj('circle', {
-          id: 'targetCircle',
-          pos: observedVec,
-          color: [0, 0, 0, 0.1],
-          size: [0.05, 0.05],
-        });
-
-        targetCircle.pos = observedVec;
-        targetCircle.update();
-        Object.assign(stel.core, { selection: targetCircle });
-        stel.pointAndLock(targetCircle);
-      }
-
-      addRecentSearch(item.Name);
-      onSelect?.(item);
-    } catch (error) {
-      logger.error('Error selecting target', error);
-    }
-  }, [stel, onSelect, addRecentSearch]);
+  // Navigate to target in Stellarium (shared hook)
+  const selectTargetCallbacks = useMemo(() => ({
+    onSelect,
+    addRecentSearch,
+  }), [onSelect, addRecentSearch]);
+  const selectTarget = useSelectTarget(selectTargetCallbacks);
 
   // Handle batch add to target list
   const handleBatchAdd = useCallback(() => {
@@ -315,19 +259,6 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
     clearSearch();
     clearSelection();
   }, [clearSearch, clearSelection]);
-
-  // Icon helpers
-  const getTypeIcon = (type?: string) => {
-    switch (type) {
-      case 'Comet': return <Sparkles className="h-4 w-4 text-green-400" />;
-      case 'Planet': return <Globe className="h-4 w-4 text-blue-400" />;
-      case 'DSO': return <CircleDot className="h-4 w-4 text-purple-400" />;
-      case 'Star': return <Star className="h-4 w-4 text-orange-400" />;
-      case 'Moon': return <MoonIcon className="h-4 w-4 text-gray-400" />;
-      case 'Constellation': return <MapPin className="h-4 w-4 text-cyan-400" />;
-      default: return <CircleDot className="h-4 w-4 text-gray-400" />;
-    }
-  };
 
   const selectedCount = selectedIds.size;
   const hasResults = results.length > 0;

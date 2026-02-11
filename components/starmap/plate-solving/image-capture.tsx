@@ -11,7 +11,7 @@ import {
   AlertCircle,
   Loader2,
   ImageIcon,
-  Maximize2
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -48,6 +48,7 @@ import {
   formatExposure,
   type FITSMetadata 
 } from '@/lib/plate-solving';
+import { formatFileSize } from '@/lib/tauri/plate-solver-api';
 
 // ============================================================================
 // Types
@@ -85,12 +86,6 @@ const MAX_DIMENSION_FOR_PREVIEW = 4096;
 // ============================================================================
 // Utility Functions
 // ============================================================================
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
 
 function isFitsFile(file: File): boolean {
   const name = file.name.toLowerCase();
@@ -655,7 +650,7 @@ export function ImageCapture({
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="sm" className="w-full justify-between text-xs">
                       <span>{t('plateSolving.fitsMetadata') || 'FITS Metadata'}</span>
-                      <Maximize2 className="h-3 w-3" />
+                      <ChevronDown className="h-3 w-3" />
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-2 pt-2">
@@ -750,7 +745,7 @@ export function ImageCapture({
               size="sm"
               onClick={() => setShowAdvanced(!showAdvanced)}
             >
-              <Maximize2 className={`h-4 w-4 mr-2 transition-transform ${showAdvanced ? 'rotate-45' : ''}`} />
+              <ChevronDown className={`h-4 w-4 mr-2 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
               {t('plateSolving.advancedOptions') || 'Advanced Options'}
             </Button>
           </div>

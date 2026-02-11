@@ -7,7 +7,6 @@ import {
   usePlateSolverStore,
   selectActiveSolver,
   selectIsLocalSolverAvailable,
-  selectHasInstalledIndexes,
   selectCanSolve,
 } from '../plate-solver-store';
 import type { SolverInfo } from '@/lib/tauri/plate-solver-api';
@@ -346,7 +345,9 @@ describe('selectors', () => {
         executable_path: '/path/to/astap',
         is_available: true,
         index_path: '/path/to/indexes',
-        installed_indexes: [],
+        installed_indexes: [
+          { name: 'D50', file_name: 'D50', path: '/path/to/D50', size_bytes: 500000000, scale_range: { min_arcmin: 18, max_arcmin: 600 }, description: 'Large database' },
+        ],
       };
 
       usePlateSolverStore.setState({ detectedSolvers: [mockSolver] });
@@ -390,51 +391,6 @@ describe('selectors', () => {
 
       const state = usePlateSolverStore.getState();
       expect(selectIsLocalSolverAvailable(state)).toBe(true);
-    });
-  });
-
-  describe('selectHasInstalledIndexes', () => {
-    it('should return false when no indexes installed', () => {
-      const mockSolver: SolverInfo = {
-        solver_type: 'astap',
-        name: 'ASTAP',
-        version: '1.0',
-        executable_path: '/path/to/astap',
-        is_available: true,
-        index_path: '/path/to/indexes',
-        installed_indexes: [],
-      };
-
-      usePlateSolverStore.setState({ detectedSolvers: [mockSolver] });
-
-      const state = usePlateSolverStore.getState();
-      expect(selectHasInstalledIndexes(state)).toBe(false);
-    });
-
-    it('should return true when indexes are installed', () => {
-      const mockSolver: SolverInfo = {
-        solver_type: 'astap',
-        name: 'ASTAP',
-        version: '1.0',
-        executable_path: '/path/to/astap',
-        is_available: true,
-        index_path: '/path/to/indexes',
-        installed_indexes: [
-          {
-            name: 'D50',
-            file_name: 'D50',
-            path: '/path/to/D50',
-            size_bytes: 500000000,
-            scale_range: { min_arcmin: 18, max_arcmin: 600 },
-            description: 'Test index',
-          },
-        ],
-      };
-
-      usePlateSolverStore.setState({ detectedSolvers: [mockSolver] });
-
-      const state = usePlateSolverStore.getState();
-      expect(selectHasInstalledIndexes(state)).toBe(true);
     });
   });
 

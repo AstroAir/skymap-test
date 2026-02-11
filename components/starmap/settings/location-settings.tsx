@@ -24,7 +24,6 @@ function LocationPermissionStatus() {
   const [permissionState, setPermissionState] = useState<PermissionState>('unknown');
   const [isRequesting, setIsRequesting] = useState(false);
   const setProfileInfo = useMountStore((state) => state.setProfileInfo);
-  const profileInfo = useMountStore((state) => state.profileInfo);
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -61,13 +60,14 @@ function LocationPermissionStatus() {
         setPermissionState('granted');
         setIsRequesting(false);
         
+        const currentProfile = useMountStore.getState().profileInfo;
         setProfileInfo({
-          ...profileInfo,
+          ...currentProfile,
           AstrometrySettings: {
-            ...profileInfo.AstrometrySettings,
+            ...currentProfile.AstrometrySettings,
             Latitude: position.coords.latitude,
             Longitude: position.coords.longitude,
-            Elevation: position.coords.altitude || profileInfo.AstrometrySettings.Elevation || 0,
+            Elevation: position.coords.altitude || currentProfile.AstrometrySettings.Elevation || 0,
           },
         });
       },
@@ -85,7 +85,7 @@ function LocationPermissionStatus() {
         maximumAge: 0,
       }
     );
-  }, [profileInfo, setProfileInfo]);
+  }, [setProfileInfo]);
   
   const getStatusIcon = () => {
     switch (permissionState) {

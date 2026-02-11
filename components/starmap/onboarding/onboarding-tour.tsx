@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useOnboardingStore, TOUR_STEPS } from '@/lib/stores/onboarding-store';
 import { TourSpotlight } from './tour-spotlight';
 import { TourTooltip } from './tour-tooltip';
@@ -30,14 +30,18 @@ export function OnboardingTour({
     : null;
 
   const wasTourActiveRef = useRef(false);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  // Notify callbacks
+  // Notify callbacks and manage focus
   useEffect(() => {
     const wasActive = wasTourActiveRef.current;
     if (!wasActive && isTourActive) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
       onTourStart?.();
     }
     if (wasActive && !isTourActive) {
+      previousFocusRef.current?.focus?.();
+      previousFocusRef.current = null;
       onTourEnd?.();
     }
     wasTourActiveRef.current = isTourActive;
@@ -78,28 +82,6 @@ export function OnboardingTour({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isTourActive, nextStep, prevStep, endTour, isFirstStep, isLastStep]);
 
-  // Handle clicking on the spotlight overlay
-  const handleSpotlightClick = useCallback(() => {
-    // Optional: advance on spotlight click
-    // nextStep();
-  }, []);
-
-  const handleNext = useCallback(() => {
-    nextStep();
-  }, [nextStep]);
-
-  const handlePrev = useCallback(() => {
-    prevStep();
-  }, [prevStep]);
-
-  const handleSkip = useCallback(() => {
-    skipTour();
-  }, [skipTour]);
-
-  const handleClose = useCallback(() => {
-    endTour();
-  }, [endTour]);
-
   if (!isTourActive || !currentStep) {
     return null;
   }
@@ -111,7 +93,6 @@ export function OnboardingTour({
         targetSelector={currentStep.targetSelector}
         padding={currentStep.highlightPadding}
         isActive={isTourActive}
-        onClick={handleSpotlightClick}
         spotlightRadius={currentStep.spotlightRadius}
       />
 
@@ -120,10 +101,10 @@ export function OnboardingTour({
         step={currentStep}
         currentIndex={currentStepIndex}
         totalSteps={TOUR_STEPS.length}
-        onNext={handleNext}
-        onPrev={handlePrev}
-        onSkip={handleSkip}
-        onClose={handleClose}
+        onNext={nextStep}
+        onPrev={prevStep}
+        onSkip={skipTour}
+        onClose={endTour}
         isFirst={isFirstStep()}
         isLast={isLastStep()}
       />

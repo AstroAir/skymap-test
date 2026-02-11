@@ -8,9 +8,12 @@ import { render, screen } from '@testing-library/react';
 jest.mock('@/components/ui/dialog', () => ({
   Dialog: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog">{children}</div>,
   DialogContent: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-content">{children}</div>,
+  DialogDescription: ({ children, className }: { children: React.ReactNode; className?: string }) => <p data-testid="dialog-description" className={className}>{children}</p>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-  DialogTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-trigger">{children}</div>,
+  DialogTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
+    asChild ? <>{children}</> : <div data-testid="dialog-trigger">{children}</div>
+  ),
 }));
 
 jest.mock('@/components/ui/button', () => ({
@@ -35,9 +38,10 @@ describe('StellariumCredits', () => {
     expect(screen.getByTestId('dialog')).toBeInTheDocument();
   });
 
-  it('renders dialog trigger', () => {
+  it('renders dialog trigger button', () => {
     render(<StellariumCredits />);
-    expect(screen.getByTestId('dialog-trigger')).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: /credits.dataCredits/i });
+    expect(button).toBeInTheDocument();
   });
 
   it('renders dialog content', () => {
@@ -50,5 +54,18 @@ describe('StellariumCredits', () => {
     // Multiple headings are rendered, check that at least one exists
     const headings = screen.getAllByRole('heading');
     expect(headings.length).toBeGreaterThan(0);
+  });
+
+  it('renders DialogDescription for accessibility', () => {
+    render(<StellariumCredits />);
+    const description = screen.getByTestId('dialog-description');
+    expect(description).toBeInTheDocument();
+    expect(description).toHaveClass('sr-only');
+  });
+
+  it('supports custom trigger prop', () => {
+    const customTrigger = <button data-testid="custom-trigger">Custom</button>;
+    render(<StellariumCredits trigger={customTrigger} />);
+    expect(screen.getByTestId('custom-trigger')).toBeInTheDocument();
   });
 });

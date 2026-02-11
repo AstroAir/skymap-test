@@ -55,8 +55,8 @@ export function AstroSessionPanel({
   selectedName,
 }: AstroSessionPanelProps) {
   const t = useTranslations();
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [showTwilightDetails, setShowTwilightDetails] = useState(false);
+  const [calcEpoch, setCalcEpoch] = useState(0);
   
   const profileInfo = useMountStore((state) => state.profileInfo);
   
@@ -66,11 +66,11 @@ export function AstroSessionPanel({
   // Tauri astronomy hook for enhanced calculations in desktop mode
   const tauriAstronomy = useAstronomy(latitude, longitude);
 
-  // Update time every second
+  // Recalculate astronomical data every 60 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+      setCalcEpoch(prev => prev + 1);
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -107,19 +107,19 @@ export function AstroSessionPanel({
     let countdownMinutes = 0;
     
     if (twilight.currentTwilightPhase === 'day' && twilight.sunset) {
-      nextEvent = 'Sunset';
+      nextEvent = t('session.sunset');
       nextEventTime = twilight.sunset;
     } else if (twilight.currentTwilightPhase === 'civil' && twilight.civilDusk) {
-      nextEvent = 'Civil Dusk';
+      nextEvent = t('session.civilDusk');
       nextEventTime = twilight.civilDusk;
     } else if (twilight.currentTwilightPhase === 'nautical' && twilight.nauticalDusk) {
-      nextEvent = 'Nautical Dusk';
+      nextEvent = t('session.nauticalDusk');
       nextEventTime = twilight.nauticalDusk;
     } else if (twilight.currentTwilightPhase === 'astronomical' && twilight.astronomicalDusk) {
-      nextEvent = 'Astro Dusk';
+      nextEvent = t('session.astroDusk');
       nextEventTime = twilight.astronomicalDusk;
     } else if (twilight.currentTwilightPhase === 'night' && twilight.astronomicalDawn) {
-      nextEvent = 'Astro Dawn';
+      nextEvent = t('session.astroDawn');
       nextEventTime = twilight.astronomicalDawn;
     }
     
@@ -151,8 +151,9 @@ export function AstroSessionPanel({
       countdownMinutes,
       moonInterference,
     };
+  // calcEpoch is intentionally used to throttle recalculations to every 60s
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, longitude, Math.floor(currentTime.getTime() / 1000), tauriAstronomy.moonPhase, tauriAstronomy.moonPosition, tauriAstronomy.sunPosition]);
+  }, [latitude, longitude, calcEpoch, t, tauriAstronomy.moonPhase, tauriAstronomy.moonPosition, tauriAstronomy.sunPosition]);
 
   // Calculate target-specific data with full visibility info
   const targetData = useMemo(() => {
@@ -179,8 +180,9 @@ export function AstroSessionPanel({
       visibility,
       feasibility,
     };
+  // calcEpoch is intentionally used to throttle recalculations to every 60s
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRa, selectedDec, latitude, longitude, astroData.moonRa, astroData.moonDec, Math.floor(currentTime.getTime() / 1000)]);
+  }, [selectedRa, selectedDec, latitude, longitude, astroData.moonRa, astroData.moonDec, calcEpoch]);
 
   const getSkyConditionColor = (condition: string) => {
     switch (condition) {
@@ -235,7 +237,7 @@ export function AstroSessionPanel({
           {/* Sky Condition with Countdown */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Sky</span>
+              <span className="text-xs text-muted-foreground">{t('session.sky')}</span>
               <Badge className={`${getSkyConditionColor(astroData.twilight.currentTwilightPhase)} text-white text-xs`}>
                 {getSkyConditionLabel(astroData.twilight.currentTwilightPhase)}
               </Badge>
@@ -258,7 +260,7 @@ export function AstroSessionPanel({
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <Star className="h-3 w-3" />
-                <span>Dark Time</span>
+                <span>{t('session.darkTime')}</span>
               </div>
               <span className="text-foreground">{formatDuration(astroData.twilight.darknessDuration)}</span>
             </div>
@@ -268,7 +270,7 @@ export function AstroSessionPanel({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Clock className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">LST</span>
+              <span className="text-xs text-muted-foreground">{t('session.lst')}</span>
             </div>
             <span className="text-xs text-foreground font-mono">{astroData.lstString}</span>
           </div>
@@ -280,45 +282,45 @@ export function AstroSessionPanel({
             <CollapsibleTrigger className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground">
               <div className="flex items-center gap-1.5">
                 <Calendar className="h-3 w-3" />
-                <span>Twilight Times</span>
+                <span>{t('session.twilightTimes')}</span>
               </div>
               {showTwilightDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2 space-y-1.5">
               {/* Evening */}
-              <div className="text-[10px] text-muted-foreground mb-1">Evening</div>
+              <div className="text-[10px] text-muted-foreground mb-1">{t('session.evening')}</div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
                 <div className="flex items-center gap-1">
                   <Sunset className="h-3 w-3 text-amber-500" />
-                  <span className="text-muted-foreground">Sunset</span>
+                  <span className="text-muted-foreground">{t('session.sunset')}</span>
                 </div>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.sunset)}</span>
                 
-                <span className="text-muted-foreground pl-4">Civil</span>
+                <span className="text-muted-foreground pl-4">{t('session.civil')}</span>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.civilDusk)}</span>
                 
-                <span className="text-muted-foreground pl-4">Nautical</span>
+                <span className="text-muted-foreground pl-4">{t('session.nautical')}</span>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.nauticalDusk)}</span>
                 
-                <span className="text-muted-foreground pl-4">Astro</span>
+                <span className="text-muted-foreground pl-4">{t('session.astro')}</span>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.astronomicalDusk)}</span>
               </div>
               
               {/* Morning */}
-              <div className="text-[10px] text-muted-foreground mt-2 mb-1">Morning</div>
+              <div className="text-[10px] text-muted-foreground mt-2 mb-1">{t('session.morning')}</div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-                <span className="text-muted-foreground pl-4">Astro</span>
+                <span className="text-muted-foreground pl-4">{t('session.astro')}</span>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.astronomicalDawn)}</span>
                 
-                <span className="text-muted-foreground pl-4">Nautical</span>
+                <span className="text-muted-foreground pl-4">{t('session.nautical')}</span>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.nauticalDawn)}</span>
                 
-                <span className="text-muted-foreground pl-4">Civil</span>
+                <span className="text-muted-foreground pl-4">{t('session.civil')}</span>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.civilDawn)}</span>
                 
                 <div className="flex items-center gap-1">
                   <Sunrise className="h-3 w-3 text-amber-500" />
-                  <span className="text-muted-foreground">Sunrise</span>
+                  <span className="text-muted-foreground">{t('session.sunrise')}</span>
                 </div>
                 <span className="text-foreground font-mono text-right">{formatTimeShort(astroData.twilight.sunrise)}</span>
               </div>
@@ -339,7 +341,7 @@ export function AstroSessionPanel({
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Illumination</span>
+              <span className="text-muted-foreground">{t('session.illumination')}</span>
               <span className="text-foreground">{astroData.moonIllumination}%</span>
             </div>
             <Progress value={astroData.moonIllumination} className="h-1" />
@@ -365,7 +367,7 @@ export function AstroSessionPanel({
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
               <Sun className="h-3 w-3 text-amber-500" />
-              <span className="text-muted-foreground">Sun Altitude</span>
+              <span className="text-muted-foreground">{t('session.sunAltitude')}</span>
             </div>
             <span className={astroData.sunAltitude > 0 ? 'text-amber-500' : 'text-muted-foreground'}>
               {astroData.sunAltitude.toFixed(1)}°
@@ -380,7 +382,7 @@ export function AstroSessionPanel({
                 <div className="flex items-center gap-1.5">
                   <Compass className="h-3 w-3 text-primary" />
                   <span className="text-xs text-primary truncate font-medium">
-                    {selectedName || 'Target'}
+                    {selectedName || t('session.target')}
                   </span>
                 </div>
                 
@@ -401,17 +403,17 @@ export function AstroSessionPanel({
                 {/* Rise/Set/Transit Times */}
                 <div className="grid grid-cols-3 gap-1 text-xs">
                   <div className="text-center">
-                    <div className="text-muted-foreground text-[10px]">Rise</div>
+                    <div className="text-muted-foreground text-[10px]">{t('chart.rise')}</div>
                     <div className="text-foreground font-mono">
                       {targetData.visibility.isCircumpolar ? '∞' : formatTimeShort(targetData.visibility.riseTime)}
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-muted-foreground text-[10px]">Transit</div>
+                    <div className="text-muted-foreground text-[10px]">{t('session.transitTime')}</div>
                     <div className="text-foreground font-mono">{formatTimeShort(targetData.visibility.transitTime)}</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-muted-foreground text-[10px]">Set</div>
+                    <div className="text-muted-foreground text-[10px]">{t('chart.set')}</div>
                     <div className="text-foreground font-mono">
                       {targetData.visibility.isCircumpolar ? '∞' : formatTimeShort(targetData.visibility.setTime)}
                     </div>
@@ -421,13 +423,13 @@ export function AstroSessionPanel({
                 {/* Moon & Max Alt */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Moon</span>
+                    <span className="text-muted-foreground">{t('session.moonDistance')}</span>
                     <span className={targetData.moonDistance > 30 ? 'text-green-400' : 'text-yellow-400'}>
                       {targetData.moonDistance.toFixed(0)}°
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Max</span>
+                    <span className="text-muted-foreground">{t('session.maxAltitude')}</span>
                     <span className="text-foreground">{targetData.maxAltitude.toFixed(1)}°</span>
                   </div>
                 </div>
@@ -436,7 +438,7 @@ export function AstroSessionPanel({
                 {targetData.visibility.darkImagingHours > 0 && (
                   <div className="text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Dark Window</span>
+                      <span className="text-muted-foreground">{t('session.darkWindow')}</span>
                       <span className="text-green-400">{formatDuration(targetData.visibility.darkImagingHours)}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground">
@@ -465,10 +467,10 @@ export function AstroSessionPanel({
                   <TooltipContent side="left" className="max-w-56">
                     <div className="space-y-1 text-xs">
                       <div className="grid grid-cols-2 gap-x-2">
-                        <span>Moon:</span><span>{targetData.feasibility.moonScore}</span>
-                        <span>Altitude:</span><span>{targetData.feasibility.altitudeScore}</span>
-                        <span>Duration:</span><span>{targetData.feasibility.durationScore}</span>
-                        <span>Twilight:</span><span>{targetData.feasibility.twilightScore}</span>
+                        <span>{t('feasibility.moon')}:</span><span>{targetData.feasibility.moonScore}</span>
+                        <span>{t('feasibility.altitude')}:</span><span>{targetData.feasibility.altitudeScore}</span>
+                        <span>{t('feasibility.duration')}:</span><span>{targetData.feasibility.durationScore}</span>
+                        <span>{t('feasibility.twilight')}:</span><span>{targetData.feasibility.twilightScore}</span>
                       </div>
                       {targetData.feasibility.warnings.length > 0 && (
                         <div className="text-yellow-400 mt-1">

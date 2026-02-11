@@ -95,7 +95,7 @@ describe('EquipmentStep', () => {
       // Use getAllByText since focalLength appears in multiple places (label and configured summary)
       const focalLengthElements = screen.getAllByText(/fov\.focalLength/i);
       expect(focalLengthElements.length).toBeGreaterThan(0);
-      expect(screen.getByPlaceholderText('e.g. 1000')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/focalLengthPlaceholder/i)).toBeInTheDocument();
     });
 
     it('should apply manual telescope settings', async () => {
@@ -106,8 +106,8 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[0]);
 
       // Fill in values
-      const focalLengthInput = screen.getByPlaceholderText('e.g. 1000');
-      const apertureInput = screen.getByPlaceholderText('e.g. 200');
+      const focalLengthInput = screen.getByPlaceholderText(/focalLengthPlaceholder/i);
+      const apertureInput = screen.getByPlaceholderText(/aperturePlaceholder/i);
 
       fireEvent.change(focalLengthInput, { target: { value: '800' } });
       fireEvent.change(apertureInput, { target: { value: '150' } });
@@ -137,7 +137,7 @@ describe('EquipmentStep', () => {
       fireEvent.click(screen.getByText(/common\.cancel/i));
 
       // Manual form should be hidden
-      expect(screen.queryByPlaceholderText('e.g. 1000')).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/focalLengthPlaceholder/i)).not.toBeInTheDocument();
     });
   });
 
@@ -186,9 +186,9 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[1]); // Second one is for camera
 
       // Check that manual input fields are shown by looking for placeholders
-      expect(screen.getByPlaceholderText('e.g. 36')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('e.g. 24')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('e.g. 3.76')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/sensorWidthPlaceholder/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/sensorHeightPlaceholder/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/pixelSizePlaceholder/i)).toBeInTheDocument();
     });
 
     it('should apply manual camera settings', async () => {
@@ -199,9 +199,9 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[1]);
 
       // Fill in values
-      const sensorWidthInput = screen.getByPlaceholderText('e.g. 36');
-      const sensorHeightInput = screen.getByPlaceholderText('e.g. 24');
-      const pixelSizeInput = screen.getByPlaceholderText('e.g. 3.76');
+      const sensorWidthInput = screen.getByPlaceholderText(/sensorWidthPlaceholder/i);
+      const sensorHeightInput = screen.getByPlaceholderText(/sensorHeightPlaceholder/i);
+      const pixelSizeInput = screen.getByPlaceholderText(/pixelSizePlaceholder/i);
 
       fireEvent.change(sensorWidthInput, { target: { value: '23.5' } });
       fireEvent.change(sensorHeightInput, { target: { value: '15.6' } });
@@ -354,7 +354,7 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[0]);
 
       // Fill in invalid value
-      const focalLengthInput = screen.getByPlaceholderText('e.g. 1000');
+      const focalLengthInput = screen.getByPlaceholderText(/focalLengthPlaceholder/i);
       fireEvent.change(focalLengthInput, { target: { value: '0' } });
 
       // Click apply
@@ -378,8 +378,8 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[1]);
 
       // Fill in invalid values
-      const sensorWidthInput = screen.getByPlaceholderText('e.g. 36');
-      const sensorHeightInput = screen.getByPlaceholderText('e.g. 24');
+      const sensorWidthInput = screen.getByPlaceholderText(/sensorWidthPlaceholder/i);
+      const sensorHeightInput = screen.getByPlaceholderText(/sensorHeightPlaceholder/i);
 
       fireEvent.change(sensorWidthInput, { target: { value: '-10' } });
       fireEvent.change(sensorHeightInput, { target: { value: '0' } });
@@ -405,7 +405,7 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[0]);
 
       // Fill in NaN value
-      const focalLengthInput = screen.getByPlaceholderText('e.g. 1000');
+      const focalLengthInput = screen.getByPlaceholderText(/focalLengthPlaceholder/i);
       fireEvent.change(focalLengthInput, { target: { value: 'abc' } });
 
       // Click apply
@@ -427,8 +427,8 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[0]);
 
       // Fill in valid focal length but invalid aperture
-      const focalLengthInput = screen.getByPlaceholderText('e.g. 1000');
-      const apertureInput = screen.getByPlaceholderText('e.g. 200');
+      const focalLengthInput = screen.getByPlaceholderText(/focalLengthPlaceholder/i);
+      const apertureInput = screen.getByPlaceholderText(/aperturePlaceholder/i);
 
       fireEvent.change(focalLengthInput, { target: { value: '500' } });
       fireEvent.change(apertureInput, { target: { value: '-50' } }); // Invalid aperture
@@ -452,9 +452,9 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[1]);
 
       // Fill in valid sensor dimensions but invalid pixel size
-      const sensorWidthInput = screen.getByPlaceholderText('e.g. 36');
-      const sensorHeightInput = screen.getByPlaceholderText('e.g. 24');
-      const pixelSizeInput = screen.getByPlaceholderText('e.g. 3.76');
+      const sensorWidthInput = screen.getByPlaceholderText(/sensorWidthPlaceholder/i);
+      const sensorHeightInput = screen.getByPlaceholderText(/sensorHeightPlaceholder/i);
+      const pixelSizeInput = screen.getByPlaceholderText(/pixelSizePlaceholder/i);
 
       fireEvent.change(sensorWidthInput, { target: { value: '22.5' } });
       fireEvent.change(sensorHeightInput, { target: { value: '15' } });
@@ -482,8 +482,8 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[1]);
 
       // Fill in NaN values
-      const sensorWidthInput = screen.getByPlaceholderText('e.g. 36');
-      const sensorHeightInput = screen.getByPlaceholderText('e.g. 24');
+      const sensorWidthInput = screen.getByPlaceholderText(/sensorWidthPlaceholder/i);
+      const sensorHeightInput = screen.getByPlaceholderText(/sensorHeightPlaceholder/i);
 
       fireEvent.change(sensorWidthInput, { target: { value: 'not a number' } });
       fireEvent.change(sensorHeightInput, { target: { value: '24' } });
@@ -509,7 +509,8 @@ describe('EquipmentStep', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/equipment\.configured/i)).toBeInTheDocument();
-        expect(screen.getByText(/750mm/)).toBeInTheDocument();
+        const matches = screen.getAllByText(/750mm/);
+        expect(matches.length).toBeGreaterThan(0);
       });
     });
 
@@ -631,7 +632,7 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[0]);
       
       // Verify manual form is visible
-      expect(screen.getByPlaceholderText('e.g. 1000')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/focalLengthPlaceholder/i)).toBeInTheDocument();
       
       // Select a preset telescope
       const firstTelescope = BUILTIN_TELESCOPE_PRESETS[0];
@@ -642,7 +643,7 @@ describe('EquipmentStep', () => {
 
       await waitFor(() => {
         // Manual form should be hidden
-        expect(screen.queryByPlaceholderText('e.g. 1000')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText(/focalLengthPlaceholder/i)).not.toBeInTheDocument();
       });
     });
 
@@ -654,7 +655,7 @@ describe('EquipmentStep', () => {
       fireEvent.click(manualButtons[1]);
       
       // Verify manual form is visible
-      expect(screen.getByPlaceholderText('e.g. 36')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/sensorWidthPlaceholder/i)).toBeInTheDocument();
       
       // Select a preset camera
       const firstCamera = BUILTIN_CAMERA_PRESETS[0];
@@ -665,7 +666,7 @@ describe('EquipmentStep', () => {
 
       await waitFor(() => {
         // Manual form should be hidden
-        expect(screen.queryByPlaceholderText('e.g. 36')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText(/sensorWidthPlaceholder/i)).not.toBeInTheDocument();
       });
     });
 
@@ -675,18 +676,18 @@ describe('EquipmentStep', () => {
       const manualButtons = screen.getAllByText(/equipment\.manualInput/i);
       
       // Initially hidden
-      expect(screen.queryByPlaceholderText('e.g. 1000')).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/focalLengthPlaceholder/i)).not.toBeInTheDocument();
       
       // Click to show
       fireEvent.click(manualButtons[0]);
-      expect(screen.getByPlaceholderText('e.g. 1000')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/focalLengthPlaceholder/i)).toBeInTheDocument();
       
       // Button should now show "Cancel"
       expect(screen.getByText(/common\.cancel/i)).toBeInTheDocument();
       
       // Click to hide
       fireEvent.click(screen.getByText(/common\.cancel/i));
-      expect(screen.queryByPlaceholderText('e.g. 1000')).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/focalLengthPlaceholder/i)).not.toBeInTheDocument();
     });
   });
 });

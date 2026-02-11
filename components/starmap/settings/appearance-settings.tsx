@@ -29,7 +29,7 @@ import {
   type ThemeCustomization,
 } from '@/lib/stores/theme-store';
 import { cn } from '@/lib/utils';
-import { SettingsSection, ToggleItem } from './settings-shared';
+import { SettingsSection } from './settings-shared';
 
 export function AppearanceSettings() {
   const t = useTranslations();
@@ -40,7 +40,6 @@ export function AppearanceSettings() {
     setRadius,
     setFontFamily,
     setFontSize,
-    setAnimationsEnabled,
     setActivePreset,
   } = useThemeStore();
 
@@ -215,16 +214,6 @@ export function AppearanceSettings() {
         </div>
       </SettingsSection>
 
-      <Separator />
-
-      {/* Animations */}
-      <ToggleItem
-        id="enable-animations"
-        label={t('settingsNew.appearance.enableAnimations')}
-        description={t('settingsNew.appearance.enableAnimationsDesc')}
-        checked={customization.animationsEnabled}
-        onCheckedChange={setAnimationsEnabled}
-      />
     </div>
   );
 }

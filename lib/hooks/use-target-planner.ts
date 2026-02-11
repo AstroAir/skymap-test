@@ -9,6 +9,10 @@ import {
   calculateMoonDistance,
   type NighttimeData,
 } from '@/lib/catalogs';
+import {
+  neverRises as neverRisesFn,
+  isCircumpolar as isCircumpolarFn,
+} from '@/lib/astronomy/astro-utils';
 
 // ============================================================================
 // Types
@@ -251,9 +255,9 @@ export function useTargetPlanner() {
       );
       
       // Check if target is visible
-      const neverRises = target.dec < -(90 - Math.abs(location.latitude));
-      const isCircumpolar = Math.abs(target.dec) > (90 - Math.abs(location.latitude));
-      const isVisible = !neverRises && altitudeData.maxAltitude > 0;
+      const targetNeverRises = neverRisesFn(target.dec, location.latitude);
+      const targetIsCircumpolar = isCircumpolarFn(target.dec, location.latitude);
+      const isVisible = !targetNeverRises && altitudeData.maxAltitude > 0;
       
       return {
         targetId: target.id,
@@ -271,8 +275,8 @@ export function useTargetPlanner() {
         moonInterference,
         imagingScore,
         isVisible,
-        isCircumpolar,
-        neverRises,
+        isCircumpolar: targetIsCircumpolar,
+        neverRises: targetNeverRises,
         optimalStart: optimalWindow.start,
         optimalEnd: optimalWindow.end,
         optimalHours: optimalWindow.hours,

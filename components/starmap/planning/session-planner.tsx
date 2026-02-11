@@ -51,6 +51,7 @@ import {
   ListOrdered,
   Timer,
   Eye,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMountStore, useStellariumStore, useEquipmentStore } from '@/lib/stores';
@@ -499,7 +500,7 @@ interface TargetCardProps {
   onRemove: () => void;
 }
 
-function ScheduledTargetCard({ scheduled, onNavigate, onRemove: _onRemove }: TargetCardProps) {
+function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProps) {
   const t = useTranslations();
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -534,6 +535,14 @@ function ScheduledTargetCard({ scheduled, onNavigate, onRemove: _onRemove }: Tar
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('actions.goToTarget')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onRemove}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.remove')}</TooltipContent>
           </Tooltip>
           <Button
             variant="ghost"
@@ -636,6 +645,7 @@ export function SessionPlanner() {
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const targets = useTargetListStore((state) => state.targets);
   const setActiveTarget = useTargetListStore((state) => state.setActiveTarget);
+  const removeTarget = useTargetListStore((state) => state.removeTarget);
   
   // Equipment profile
   const focalLength = useEquipmentStore((state) => state.focalLength);
@@ -890,7 +900,7 @@ export function SessionPlanner() {
                     key={scheduled.target.id}
                     scheduled={scheduled}
                     onNavigate={() => handleTargetClick(scheduled.target)}
-                    onRemove={() => {}}
+                    onRemove={() => removeTarget(scheduled.target.id)}
                   />
                 ))
               )}

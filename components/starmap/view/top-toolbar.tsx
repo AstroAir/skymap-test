@@ -39,7 +39,7 @@ import { AstroCalculatorDialog } from '../planning/astro-calculator-dialog';
 import { SessionPlanner } from '../planning/session-planner';
 import { SatelliteTracker } from '../overlays/satellite-tracker';
 import { OcularSimulator } from '../overlays/ocular-simulator';
-import { PlateSolver } from '../plate-solving/plate-solver';
+import { PlateSolverUnified } from '../plate-solving/plate-solver-unified';
 import { EquipmentManager } from '../management/equipment-manager';
 import { KeyboardShortcutsDialog } from '../dialogs/keyboard-shortcuts-dialog';
 import { AboutDialog } from '../dialogs/about-dialog';
@@ -160,7 +160,7 @@ export const TopToolbar = memo(function TopToolbar({
             {/* Secondary Tools Group */}
             <ToolbarGroup gap="none" className="p-0.5">
               <OcularSimulator />
-              <PlateSolver onGoToCoordinates={onGoToCoordinates} />
+              <PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />
               <EquipmentManager />
             </ToolbarGroup>
 

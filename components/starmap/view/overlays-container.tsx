@@ -1,12 +1,31 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, type ComponentProps } from 'react';
 import { FOVOverlay } from '../overlays/fov-overlay';
 import { SkyMarkers } from '../overlays/sky-markers';
 import { SatelliteOverlay } from '../overlays/satellite-overlay';
 
-import type { MosaicSettings, GridType } from '@/lib/stores';
+import { useEquipmentStore, type MosaicSettings, type GridType } from '@/lib/stores';
 import type { SkyMarker } from '@/lib/stores/marker-store';
+
+/**
+ * Wrapper that reads fovDisplay settings from equipment-store
+ * and passes them as props to FOVOverlay.
+ */
+function FOVOverlayConnected(props: Omit<ComponentProps<typeof FOVOverlay>, 'frameColor' | 'frameStyle' | 'overlayOpacity'>) {
+  const frameColor = useEquipmentStore((s) => s.fovDisplay.frameColor);
+  const frameStyle = useEquipmentStore((s) => s.fovDisplay.frameStyle);
+  const overlayOpacity = useEquipmentStore((s) => s.fovDisplay.overlayOpacity);
+
+  return (
+    <FOVOverlay
+      {...props}
+      frameColor={frameColor}
+      frameStyle={frameStyle}
+      overlayOpacity={overlayOpacity}
+    />
+  );
+}
 
 interface OverlaysContainerProps {
   containerBounds: { width: number; height: number } | undefined;
@@ -42,7 +61,7 @@ export const OverlaysContainer = memo(function OverlaysContainer({
   return (
     <>
       {/* FOV Overlay */}
-      <FOVOverlay
+      <FOVOverlayConnected
         enabled={fovEnabled}
         sensorWidth={sensorWidth}
         sensorHeight={sensorHeight}

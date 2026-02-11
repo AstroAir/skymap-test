@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Settings,
-  GripVertical,
   AlertTriangle,
   Info,
   Save,
@@ -283,7 +282,6 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3">
-                        <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 cursor-grab" />
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{info.name}</span>

@@ -13,6 +13,9 @@ import {
   SCRIPT_PATH,
   WASM_PATH,
   DEFAULT_FOV,
+  ENGINE_FOV_INIT_DELAY,
+  ENGINE_SETTINGS_INIT_DELAY,
+  RETRY_DELAY_MS,
 } from '../constants';
 import { withTimeout, prefetchWasm, fovToRad } from '../utils';
 import type { StellariumEngine, SelectedObjectData } from '@/lib/core/types';
@@ -62,18 +65,17 @@ export function useStellariumLoader({
   const setHelpers = useStellariumStore((state) => state.setHelpers);
   const updateStellariumCore = useStellariumStore((state) => state.updateStellariumCore);
   
-  const profileInfo = useMountStore((state) => state.profileInfo);
-
   // Initialize Stellarium engine with all data sources
   const initStellarium = useCallback((stel: StellariumEngine) => {
     logger.info('Stellarium is ready!');
     (stelRef as React.MutableRefObject<StellariumEngine | null>).current = stel;
     setStel(stel);
 
-    // Set observer location from profile
-    const lat = profileInfo.AstrometrySettings.Latitude || 0;
-    const lon = profileInfo.AstrometrySettings.Longitude || 0;
-    const elev = profileInfo.AstrometrySettings.Elevation || 0;
+    // Set observer location from profile (read latest from store, subsequent syncs handled by useObserverSync)
+    const currentProfile = useMountStore.getState().profileInfo;
+    const lat = currentProfile.AstrometrySettings.Latitude || 0;
+    const lon = currentProfile.AstrometrySettings.Longitude || 0;
+    const elev = currentProfile.AstrometrySettings.Elevation || 0;
     
     // Use direct property assignment for Stellarium engine compatibility
     stel.core.observer.latitude = lat * stel.D2R;
@@ -88,7 +90,7 @@ export function useStellariumLoader({
         stelRef.current.core.fov = fovToRad(DEFAULT_FOV);
         onFovChange?.(DEFAULT_FOV);
       }
-    }, 100);
+    }, ENGINE_FOV_INIT_DELAY);
 
     // Helper function to get current view direction
     const getCurrentViewDirection = () => {
@@ -174,11 +176,13 @@ export function useStellariumLoader({
     setTimeout(() => {
       updateStellariumCore(currentSettings);
       setEngineReady(true);
-    }, 200);
+    }, ENGINE_SETTINGS_INIT_DELAY);
 
-    // Watch for selection changes
+    // Watch for selection changes (guard against callback firing after unmount)
     stel.change((_obj: unknown, attr: string) => {
       if (attr === 'selection') {
+        if (!stelRef.current) return;
+
         const selection = core.selection;
         if (!selection) {
           onSelectionChange?.(null);
@@ -208,7 +212,6 @@ export function useStellariumLoader({
     setStel,
     setBaseUrl,
     setHelpers,
-    profileInfo,
     onSelectionChange,
     onFovChange,
   ]);
@@ -388,7 +391,7 @@ export function useStellariumLoader({
 
     // Handle retry outside try-catch-finally to avoid race condition
     if (shouldRetry && !abortControllerRef.current?.signal.aborted) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
       if (!abortControllerRef.current?.signal.aborted) {
         startLoading();
       }

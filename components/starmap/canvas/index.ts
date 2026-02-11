@@ -20,6 +20,7 @@ export {
   MIN_FOV,
   MAX_FOV,
   DEFAULT_FOV,
+  ZOOM_PRESETS,
   SCRIPT_PATH,
   WASM_PATH,
 } from './constants';

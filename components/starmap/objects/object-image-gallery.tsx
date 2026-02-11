@@ -148,6 +148,17 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
     handleDragEnd();
   }, [handleDragEnd]);
 
+  // Preload adjacent images for smoother switching
+  useEffect(() => {
+    if (!images.length) return;
+    const preloadIndices = [currentIndex - 1, currentIndex + 1]
+      .filter(i => i >= 0 && i < images.length);
+    preloadIndices.forEach(i => {
+      const img = new Image();
+      img.src = images[i].url;
+    });
+  }, [currentIndex, images]);
+
   // Keyboard navigation
   useEffect(() => {
     if (!fullscreenOpen) return;
@@ -272,6 +283,7 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
               {images.map((_, index) => (
                 <button
                   key={index}
+                  aria-label={t('objectDetail.goToImage', { index: index + 1 })}
                   className={cn(
                     'w-3 h-3 sm:w-2 sm:h-2 rounded-full transition-all touch-target',
                     index === currentIndex 
@@ -398,6 +410,7 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
                 {images.map((_, index) => (
                   <button
                     key={index}
+                    aria-label={t('objectDetail.goToImage', { index: index + 1 })}
                     className={cn(
                       'w-3 h-3 rounded-full transition-all',
                       index === currentIndex 

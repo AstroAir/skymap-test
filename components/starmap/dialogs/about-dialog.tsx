@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -38,7 +39,7 @@ import { StellariumCredits } from './stellarium-credits';
 
 const APP_INFO = {
   name: 'SkyMap',
-  version: '0.1.0',
+  version: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
   repository: 'https://github.com/AstroAir/skymap-test',
   author: 'AstroAir Team',
 };
@@ -152,13 +153,13 @@ function LicenseCard({ item }: { item: typeof LICENSES[0] }) {
 
 function DependencyRow({ item }: { item: typeof DEPENDENCIES[0] }) {
   const typeColors: Record<string, string> = {
-    core: 'bg-blue-500/20 text-blue-400',
-    dev: 'bg-gray-500/20 text-gray-400',
-    style: 'bg-purple-500/20 text-purple-400',
-    state: 'bg-green-500/20 text-green-400',
-    i18n: 'bg-yellow-500/20 text-yellow-400',
-    ui: 'bg-pink-500/20 text-pink-400',
-    util: 'bg-orange-500/20 text-orange-400',
+    core: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
+    dev: 'bg-gray-500/20 text-gray-700 dark:text-gray-400',
+    style: 'bg-purple-500/20 text-purple-700 dark:text-purple-400',
+    state: 'bg-green-500/20 text-green-700 dark:text-green-400',
+    i18n: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
+    ui: 'bg-pink-500/20 text-pink-700 dark:text-pink-400',
+    util: 'bg-orange-500/20 text-orange-700 dark:text-orange-400',
   };
 
   return (
@@ -212,7 +213,7 @@ export function AboutDialog() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-10 w-10"
+              className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent"
               aria-label={t('about.title')}
             >
               <Info className="h-5 w-5" />
@@ -230,6 +231,9 @@ export function AboutDialog() {
             <Star className="h-5 w-5 text-primary" />
             {t('about.title')}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('about.appDescription')}
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="about" className="flex-1 flex flex-col min-h-0">

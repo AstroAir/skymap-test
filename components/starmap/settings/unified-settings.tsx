@@ -1,22 +1,15 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Settings,
-  Save,
-  X,
   RotateCcw,
   Eye,
   Camera,
-  LayoutGrid,
-  Calculator,
-  HardDrive,
-  Palette,
-  Gauge,
-  Accessibility,
-  Info,
   Sliders,
+  HardDrive,
+  Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -28,7 +21,6 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-  DrawerFooter,
 } from '@/components/ui/drawer';
 import {
   Tooltip,
@@ -36,13 +28,23 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
   useSettingsStore,
   useEquipmentStore,
 } from '@/lib/stores';
-import type { StellariumSettings as StellariumSettingsType, SkyCultureLanguage } from '@/lib/core/types';
+import { useThemeStore } from '@/lib/stores/theme-store';
 import { MapProviderSettings, MapHealthMonitor } from '../map';
 import { cn } from '@/lib/utils';
-import { DEFAULT_STELLARIUM_SETTINGS } from './settings-constants';
 import { DisplaySettings } from './display-settings';
 import { EquipmentSettings } from './equipment-settings';
 import { FOVSettings } from './fov-settings';
@@ -57,116 +59,23 @@ import { AboutSettings } from './about-settings';
 import { DataManager } from '../management/data-manager';
 import { SetupWizardButton } from '../setup-wizard';
 
-const DEFAULT_CONNECTION = { ip: 'localhost', port: '1888' };
-const DEFAULT_BACKEND_PROTOCOL: 'http' | 'https' = 'http';
-
 export function UnifiedSettings() {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('display');
   
-  // Stellarium settings
-  const storeSettings = useSettingsStore((state) => state.stellarium);
-  const setStellariumSettings = useSettingsStore((state) => state.setStellariumSettings);
-  const [localSettings, setLocalSettings] = useState<StellariumSettingsType>(storeSettings);
-  
-  // Connection settings
-  const connection = useSettingsStore((state) => state.connection);
-  const setConnection = useSettingsStore((state) => state.setConnection);
-  const backendProtocol = useSettingsStore((state) => state.backendProtocol);
-  const setBackendProtocol = useSettingsStore((state) => state.setBackendProtocol);
-  const [localConnection, setLocalConnection] = useState(connection);
-  const [localProtocol, setLocalProtocol] = useState(backendProtocol);
-  
-  // Equipment settings
+  const resetSettings = useSettingsStore((state) => state.resetToDefaults);
   const resetEquipment = useEquipmentStore((state) => state.resetToDefaults);
-  
-  // Calculate hasChanges
-  const hasChanges = useMemo(() => {
-    const stellariumChanged = JSON.stringify(localSettings) !== JSON.stringify(storeSettings);
-    const connectionChanged =
-      localConnection.ip !== connection.ip ||
-      localConnection.port !== connection.port;
-    const protocolChanged = localProtocol !== backendProtocol;
+  const resetTheme = useThemeStore((state) => state.resetCustomization);
 
-    return stellariumChanged || connectionChanged || protocolChanged;
-  }, [
-    localSettings,
-    storeSettings,
-    localConnection,
-    connection,
-    localProtocol,
-    backendProtocol,
-  ]);
-
-  // Handle dialog open state change
-  const handleOpenChange = useCallback((isOpen: boolean) => {
-    if (isOpen) {
-      setLocalSettings(storeSettings);
-      setLocalConnection(connection);
-      setLocalProtocol(backendProtocol);
-    }
-    setOpen(isOpen);
-  }, [storeSettings, connection, backendProtocol]);
-
-  // Toggle a setting locally
-  const toggleLocalSetting = useCallback((key: keyof StellariumSettingsType) => {
-    setLocalSettings((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  }, []);
-
-  // Update survey settings locally
-  const handleSurveyChange = useCallback((surveyId: string, surveyUrl?: string) => {
-    setLocalSettings((prev) => ({
-      ...prev,
-      surveyId,
-      surveyUrl,
-    }));
-  }, []);
-
-  const handleSurveyToggle = useCallback((enabled: boolean) => {
-    setLocalSettings((prev) => ({
-      ...prev,
-      surveyEnabled: enabled,
-    }));
-  }, []);
-
-  // Save all settings
-  const handleSave = useCallback(() => {
-    setStellariumSettings(localSettings);
-    setConnection(localConnection);
-    setBackendProtocol(localProtocol);
-    setOpen(false);
-  }, [localSettings, setStellariumSettings, localConnection, setConnection, localProtocol, setBackendProtocol]);
-
-  // Cancel and reset
-  const handleCancel = useCallback(() => {
-    setLocalSettings(storeSettings);
-    setLocalConnection(connection);
-    setLocalProtocol(backendProtocol);
-    setOpen(false);
-  }, [storeSettings, connection, backendProtocol]);
-
-  // Reset to defaults
-  const handleReset = useCallback(() => {
-    setLocalSettings(DEFAULT_STELLARIUM_SETTINGS as StellariumSettingsType);
-    setLocalConnection(DEFAULT_CONNECTION);
-    setLocalProtocol(DEFAULT_BACKEND_PROTOCOL);
+  const handleResetAll = useCallback(() => {
+    resetSettings();
     resetEquipment();
-  }, [resetEquipment]);
-
-  // Update sky culture language
-  const handleSkyCultureLanguageChange = useCallback((value: SkyCultureLanguage) => {
-    setLocalSettings((prev) => ({
-      ...prev,
-      skyCultureLanguage: value,
-    }));
-  }, []);
+    resetTheme();
+  }, [resetSettings, resetEquipment, resetTheme]);
 
   return (
-    <Drawer open={open} onOpenChange={handleOpenChange} direction="right">
+    <Drawer open={open} onOpenChange={setOpen} direction="right">
       <Tooltip>
         <TooltipTrigger asChild>
           <DrawerTrigger asChild>
@@ -196,20 +105,36 @@ export function UnifiedSettings() {
               <Settings className="h-5 w-5" />
               {t('settings.allSettings')}
             </DrawerTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-muted-foreground hover:text-foreground"
-              onClick={handleReset}
-            >
-              <RotateCcw className="h-3 w-3 mr-1" />
-              {t('common.reset')}
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  {t('common.reset')}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t('common.reset')}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t('settings.resetAllDescription')}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleResetAll}>
+                    {t('common.reset')}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </DrawerHeader>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          {/* Primary Tabs Row */}
           <TabsList className="grid w-full grid-cols-5 shrink-0 mx-2 sm:mx-4 mt-2 h-auto" style={{ width: 'calc(100% - 1rem)' }}>
             <TabsTrigger value="display" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
               <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -221,39 +146,10 @@ export function UnifiedSettings() {
               <span className="hidden sm:inline truncate">{t('settings.equipmentTab')}</span>
               <span className="sm:hidden truncate">{t('settings.equipmentTabShort')}</span>
             </TabsTrigger>
-            <TabsTrigger value="fov" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
-              <LayoutGrid className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline truncate">{t('settings.fovTab')}</span>
-              <span className="sm:hidden truncate">{t('settings.fovTabShort')}</span>
-            </TabsTrigger>
-            <TabsTrigger value="exposure" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
-              <Calculator className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline truncate">{t('settings.exposureTab')}</span>
-              <span className="sm:hidden truncate">{t('settings.exposureTabShort')}</span>
-            </TabsTrigger>
-            <TabsTrigger value="general" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
+            <TabsTrigger value="preferences" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
               <Sliders className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline truncate">{t('settingsNew.tabs.general')}</span>
               <span className="sm:hidden truncate">{t('settingsNew.tabs.generalShort')}</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Secondary Tabs Row */}
-          <TabsList className="grid w-full grid-cols-5 shrink-0 mx-2 sm:mx-4 mt-1 h-auto" style={{ width: 'calc(100% - 1rem)' }}>
-            <TabsTrigger value="appearance" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
-              <Palette className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.appearance')}</span>
-              <span className="sm:hidden truncate">{t('settingsNew.tabs.appearanceShort')}</span>
-            </TabsTrigger>
-            <TabsTrigger value="performance" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
-              <Gauge className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.performance')}</span>
-              <span className="sm:hidden truncate">{t('settingsNew.tabs.performanceShort')}</span>
-            </TabsTrigger>
-            <TabsTrigger value="accessibility" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
-              <Accessibility className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline truncate">{t('settingsNew.tabs.accessibility')}</span>
-              <span className="sm:hidden truncate">{t('settingsNew.tabs.accessibilityShort')}</span>
             </TabsTrigger>
             <TabsTrigger value="data" className="text-[10px] sm:text-xs px-0.5 sm:px-1 py-1.5 flex-col sm:flex-row gap-0.5 sm:gap-1 h-auto">
               <HardDrive className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -267,109 +163,42 @@ export function UnifiedSettings() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Display Settings Tab */}
+          {/* Display Settings Tab — includes stellarium display, connection, location */}
           <TabsContent value="display" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
-              <DisplaySettings
-                localSettings={localSettings}
-                onToggleSetting={toggleLocalSetting}
-                onSurveyChange={handleSurveyChange}
-                onSurveyToggle={handleSurveyToggle}
-                onSkyCultureLanguageChange={handleSkyCultureLanguageChange}
-              />
+              <DisplaySettings />
               <Separator className="mx-4" />
               <div className="px-4 pb-4">
-                <ConnectionSettings
-                  localConnection={localConnection}
-                  localProtocol={localProtocol}
-                  onConnectionChange={setLocalConnection}
-                  onProtocolChange={setLocalProtocol}
-                />
+                <ConnectionSettings />
                 <Separator className="my-4" />
                 <LocationSettings />
               </div>
             </ScrollArea>
           </TabsContent>
 
-          {/* Equipment Settings Tab */}
+          {/* Equipment Tab — includes equipment, FOV, exposure */}
           <TabsContent value="equipment" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
-              <div className="p-4">
-                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
-                </div>
+              <div className="p-4 space-y-4">
                 <EquipmentSettings />
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          {/* FOV Settings Tab */}
-          <TabsContent value="fov" className="flex-1 mt-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-4">
-                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
-                </div>
+                <Separator />
                 <FOVSettings />
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          {/* Exposure Settings Tab */}
-          <TabsContent value="exposure" className="flex-1 mt-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-4">
-                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
-                </div>
+                <Separator />
                 <ExposureSettings />
               </div>
             </ScrollArea>
           </TabsContent>
 
-          {/* General Settings Tab */}
-          <TabsContent value="general" className="flex-1 mt-0 overflow-hidden">
+          {/* Preferences Tab — includes general, appearance, performance, accessibility */}
+          <TabsContent value="preferences" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
-              <div className="p-4">
-                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
-                </div>
+              <div className="p-4 space-y-4">
                 <GeneralSettings />
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          {/* Appearance Settings Tab */}
-          <TabsContent value="appearance" className="flex-1 mt-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-4">
-                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
-                </div>
+                <Separator />
                 <AppearanceSettings />
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          {/* Performance Settings Tab */}
-          <TabsContent value="performance" className="flex-1 mt-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-4">
-                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
-                </div>
+                <Separator />
                 <PerformanceSettings />
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          {/* Accessibility Settings Tab */}
-          <TabsContent value="accessibility" className="flex-1 mt-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-4">
-                <div className="mb-3 px-2 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">{t('settings.autoSaveHint')}</p>
-                </div>
+                <Separator />
                 <AccessibilitySettings />
               </div>
             </ScrollArea>
@@ -417,27 +246,6 @@ export function UnifiedSettings() {
             </ScrollArea>
           </TabsContent>
         </Tabs>
-
-        <DrawerFooter className="border-t shrink-0">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={handleCancel}
-            >
-              <X className="h-4 w-4 mr-2" />
-              {t('common.cancel')}
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={handleSave}
-              disabled={!hasChanges}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {t('common.save')}
-            </Button>
-          </div>
-        </DrawerFooter>
       </DrawerContent>
     </Drawer>
   );

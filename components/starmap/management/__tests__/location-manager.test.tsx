@@ -601,7 +601,7 @@ describe('LocationManager', () => {
       const ghostButtons = screen.getAllByRole('button').filter(
         (btn) => btn.getAttribute('data-variant') === 'ghost'
       );
-      expect(ghostButtons.length).toBe(1); // Only delete button
+      expect(ghostButtons.length).toBe(2); // Edit + delete buttons (no navigation button for current)
     });
 
     it('shows error toast when set current fails', async () => {

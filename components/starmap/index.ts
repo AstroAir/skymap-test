@@ -45,7 +45,8 @@ export { TourTooltip } from './onboarding/tour-tooltip';
 
 // Plate Solving - Image capture and plate solving
 export { ImageCapture } from './plate-solving/image-capture';
-export { PlateSolver } from './plate-solving/plate-solver';
+export { PlateSolverUnified } from './plate-solving/plate-solver-unified';
+export { SolveResultCard } from './plate-solving/solve-result-card';
 
 // Feedback - UI feedback components
 export { SplashScreen } from './feedback/splash-screen';

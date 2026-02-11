@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { 
@@ -9,10 +9,6 @@ import {
   CheckCircle, 
   XCircle, 
   Settings,
-  MapPin,
-  RotateCw,
-  Ruler,
-  Eye,
   Database,
   Globe,
   Cpu,
@@ -22,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -44,15 +39,17 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
-import { ImageCapture } from './image-capture';
+import { ImageCapture, type ImageMetadata } from './image-capture';
 import { SolverSettings } from './solver-settings';
 import { IndexManager } from './index-manager';
 import { 
   AstrometryApiClient, 
+  createErrorResult,
   type SolveProgress,
   type UploadOptions 
 } from '@/lib/plate-solving';
 import type { PlateSolveResult } from '@/lib/plate-solving';
+import { SolveResultCard } from './solve-result-card';
 import { isTauri } from '@/lib/tauri/app-control-api';
 import {
   usePlateSolverStore,
@@ -62,6 +59,7 @@ import {
   solveImageLocal,
   convertToLegacyResult,
   isLocalSolver,
+  DEFAULT_SOLVER_CONFIG,
 } from '@/lib/tauri/plate-solver-api';
 
 // ============================================================================
@@ -90,7 +88,7 @@ export function PlateSolverUnified({
   onGoToCoordinates,
   trigger, 
   className,
-  defaultImagePath: _defaultImagePath,
+  defaultImagePath,
   raHint,
   decHint,
   fovHint,
@@ -100,12 +98,13 @@ export function PlateSolverUnified({
   
   // Store state
   const {
-    config,
+    config: storeConfig,
     onlineApiKey,
     detectSolvers,
     setOnlineApiKey,
     loadConfig,
   } = usePlateSolverStore();
+  const config = storeConfig ?? DEFAULT_SOLVER_CONFIG;
   const activeSolver = usePlateSolverStore(selectActiveSolver);
   const canSolveLocal = usePlateSolverStore((state) => {
     const active = selectActiveSolver(state);
@@ -113,6 +112,9 @@ export function PlateSolverUnified({
     if (active.solver_type === 'astrometry_net_online') return false;
     return active.is_available && active.installed_indexes.length > 0;
   });
+
+  // Cancel ref for online solve
+  const cancelClientRef = useRef<AstrometryApiClient | null>(null);
 
   // Local state
   const [open, setOpen] = useState(false);
@@ -166,21 +168,32 @@ export function PlateSolverUnified({
     }
   }, [open, isDesktop, detectSolvers, loadConfig]);
 
+  // Auto-load default image when dialog opens with a defaultImagePath
+  useEffect(() => {
+    if (open && defaultImagePath && isDesktop && !solving) {
+      (async () => {
+        try {
+          const { readFile } = await import('@tauri-apps/plugin-fs');
+          const data = await readFile(defaultImagePath);
+          const fileName = defaultImagePath.split(/[/\\]/).pop() || 'image';
+          const file = new File([data], fileName);
+          handleImageCapture(file);
+        } catch {
+          // Silently ignore if the file cannot be read
+        }
+      })();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultImagePath]);
+
   // Handle local solve
-  const handleLocalSolve = useCallback(async (file: File) => {
+  const handleLocalSolve = useCallback(async (file: File, effectiveRaHint?: number, effectiveDecHint?: number) => {
     if (!isDesktop || !canSolveLocal) return;
     if (config.solver_type === 'astrometry_net_online') {
-      setResult({
-        success: false,
-        coordinates: null,
-        positionAngle: 0,
-        pixelScale: 0,
-        fov: { width: 0, height: 0 },
-        flipped: false,
-        solverName: activeSolver?.name || 'Local Solver',
-        solveTime: 0,
-        errorMessage: t('plateSolving.localSolverNotReady') || 'Local solver not ready.',
-      });
+      setResult(createErrorResult(
+        activeSolver?.name || 'Local Solver',
+        t('plateSolving.localSolverNotReady') || 'Local solver not ready.',
+      ));
       return;
     }
 
@@ -202,8 +215,8 @@ export function PlateSolverUnified({
         config,
         {
           image_path: persisted.filePath,
-          ra_hint: raHint ?? null,
-          dec_hint: decHint ?? null,
+          ra_hint: effectiveRaHint ?? raHint ?? null,
+          dec_hint: effectiveDecHint ?? decHint ?? null,
           fov_hint: fovHint ?? null,
           search_radius: config.search_radius,
           downsample: config.downsample,
@@ -222,17 +235,10 @@ export function PlateSolverUnified({
     } catch (error) {
       setLocalProgress(100);
       setLocalMessage(t('plateSolving.failed') || 'Failed');
-      setResult({
-        success: false,
-        coordinates: null,
-        positionAngle: 0,
-        pixelScale: 0,
-        fov: { width: 0, height: 0 },
-        flipped: false,
-        solverName: activeSolver?.name || 'Local Solver',
-        solveTime: 0,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      });
+      setResult(createErrorResult(
+        activeSolver?.name || 'Local Solver',
+        error instanceof Error ? error.message : 'Unknown error',
+      ));
     } finally {
       if (cleanup) {
         cleanup().catch(() => {});
@@ -241,44 +247,83 @@ export function PlateSolverUnified({
     }
   }, [isDesktop, canSolveLocal, config, persistFileForLocalSolve, raHint, decHint, fovHint, activeSolver, onSolveComplete, t]);
 
-  // Handle online solve
-  const handleOnlineSolve = useCallback(async (file: File) => {
+  // Handle online solve with optional retry logic
+  const handleOnlineSolve = useCallback(async (file: File, effectiveRaHint?: number, effectiveDecHint?: number) => {
     if (!onlineApiKey) return;
 
     setSolving(true);
     setResult(null);
     setProgress({ stage: 'uploading', progress: 0 });
 
-    try {
-      const client = new AstrometryApiClient({ apiKey: onlineApiKey });
-      const solveResult = await client.solve(file, options, setProgress);
-      setResult(solveResult);
-      onSolveComplete?.(solveResult);
-    } catch (error) {
-      setResult({
-        success: false,
-        coordinates: null,
-        positionAngle: 0,
-        pixelScale: 0,
-        fov: { width: 0, height: 0 },
-        flipped: false,
-        solverName: 'astrometry.net',
-        solveTime: 0,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setSolving(false);
-    }
-  }, [onlineApiKey, options, onSolveComplete]);
+    const maxAttempts = config?.retry_on_failure ? (config.max_retries + 1) : 1;
 
-  // Handle image capture
-  const handleImageCapture = useCallback(async (file: File) => {
-    if (solveMode === 'local' && isDesktop) {
-      await handleLocalSolve(file);
-    } else {
-      await handleOnlineSolve(file);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const client = new AstrometryApiClient({ apiKey: onlineApiKey });
+        cancelClientRef.current = client;
+        const effectiveOptions = { ...options };
+        if (effectiveRaHint !== undefined && effectiveDecHint !== undefined) {
+          effectiveOptions.centerRa = effectiveRaHint;
+          effectiveOptions.centerDec = effectiveDecHint;
+          effectiveOptions.radius = config?.search_radius ?? 30;
+        }
+        // Increase downsample on retry to improve chances
+        if (attempt > 0 && effectiveOptions.downsampleFactor) {
+          effectiveOptions.downsampleFactor = Math.min(effectiveOptions.downsampleFactor + attempt, 4);
+        }
+        const solveResult = await client.solve(file, effectiveOptions, setProgress);
+        if (solveResult.success || attempt >= maxAttempts - 1) {
+          setResult(solveResult);
+          onSolveComplete?.(solveResult);
+          break;
+        }
+        // Backoff before retry
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        setProgress({ stage: 'uploading', progress: 0 });
+      } catch (error) {
+        if (attempt >= maxAttempts - 1) {
+          setResult(createErrorResult(
+            'astrometry.net',
+            error instanceof Error ? error.message : 'Unknown error',
+          ));
+        } else {
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          setProgress({ stage: 'uploading', progress: 0 });
+        }
+      }
     }
-  }, [solveMode, isDesktop, handleLocalSolve, handleOnlineSolve]);
+
+    setSolving(false);
+  }, [onlineApiKey, options, onSolveComplete, config]);
+
+  // Handle image capture with optional FITS WCS hints
+  const handleImageCapture = useCallback(async (file: File, metadata?: ImageMetadata) => {
+    // Extract WCS hints from FITS metadata when auto_hints is enabled and no explicit hints provided
+    let effectiveRaHint = raHint;
+    let effectiveDecHint = decHint;
+    if (config?.auto_hints && metadata?.fitsData?.wcs && !raHint && !decHint) {
+      const wcs = metadata.fitsData.wcs;
+      effectiveRaHint = wcs.referenceCoordinates.ra;
+      effectiveDecHint = wcs.referenceCoordinates.dec;
+    }
+
+    if (solveMode === 'local' && isDesktop) {
+      await handleLocalSolve(file, effectiveRaHint, effectiveDecHint);
+    } else {
+      await handleOnlineSolve(file, effectiveRaHint, effectiveDecHint);
+    }
+  }, [solveMode, isDesktop, handleLocalSolve, handleOnlineSolve, config, raHint, decHint]);
+
+  // Handle cancel solve
+  const handleCancelSolve = useCallback(() => {
+    cancelClientRef.current?.cancel();
+    cancelClientRef.current = null;
+    setSolving(false);
+    setResult(createErrorResult(
+      solveMode === 'local' ? (activeSolver?.name || 'Local Solver') : 'astrometry.net',
+      t('plateSolving.cancelled') || 'Solve cancelled by user',
+    ));
+  }, [solveMode, activeSolver, t]);
 
   // Handle go to coordinates
   const handleGoTo = useCallback(() => {
@@ -553,72 +598,24 @@ export function PlateSolverUnified({
               <p className="text-sm text-center text-muted-foreground">
                 {solveMode === 'local' ? localMessage : getProgressText()}
               </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={handleCancelSolve}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                {t('plateSolving.cancel') || 'Cancel'}
+              </Button>
             </div>
           )}
 
           {/* Result */}
           {result && (
-            <Card className={result.success ? 'border-green-500/20 bg-green-500/5' : 'border-red-500/20 bg-red-500/5'}>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  {result.success ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  )}
-                  <span className="font-medium">
-                    {result.success 
-                      ? (t('plateSolving.solveSuccess') || 'Plate Solve Successful!')
-                      : (t('plateSolving.solveFailed') || 'Plate Solve Failed')
-                    }
-                  </span>
-                </div>
-
-                {result.success && result.coordinates && (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>RA: {result.coordinates.raHMS}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>Dec: {result.coordinates.decDMS}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <RotateCw className="h-4 w-4 text-muted-foreground" />
-                      <span>{t('plateSolving.rotation') || 'Rotation'}: {result.positionAngle.toFixed(2)}°</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Ruler className="h-4 w-4 text-muted-foreground" />
-                      <span>{t('plateSolving.pixelScale') || 'Scale'}: {result.pixelScale.toFixed(2)}&quot;/px</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                      <span>{t('plateSolving.fov') || 'FOV'}: {result.fov.width.toFixed(2)}° × {result.fov.height.toFixed(2)}°</span>
-                    </div>
-
-                    {onGoToCoordinates && (
-                      <Button onClick={handleGoTo} className="w-full mt-3">
-                        <MapPin className="h-4 w-4 mr-2" />
-                        {t('plateSolving.goToPosition') || 'Go to Position'}
-                      </Button>
-                    )}
-                  </div>
-                )}
-
-                {!result.success && result.errorMessage && (
-                  <Alert variant="destructive" className="mt-2">
-                    <XCircle className="h-4 w-4" />
-                    <AlertDescription>{result.errorMessage}</AlertDescription>
-                  </Alert>
-                )}
-
-                <p className="text-xs text-muted-foreground mt-2">
-                  {t('plateSolving.solveTime') || 'Solve time'}: {(result.solveTime / 1000).toFixed(1)}s
-                  <span className="ml-2">• {result.solverName}</span>
-                </p>
-              </CardContent>
-            </Card>
+            <SolveResultCard
+              result={result}
+              onGoTo={onGoToCoordinates ? handleGoTo : undefined}
+            />
           )}
         </div>
 

@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { useSettingsStore } from '@/lib/stores';
 
 jest.mock('@/components/ui/input', () => ({
   Input: ({ value, onChange, placeholder, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
@@ -46,257 +47,135 @@ jest.mock('@/components/ui/collapsible', () => ({
 
 import { ConnectionSettings } from '../connection-settings';
 
-describe('ConnectionSettings', () => {
-  const mockOnConnectionChange = jest.fn();
-  const mockOnProtocolChange = jest.fn();
+function setStoreState(connection: { ip: string; port: string }, protocol: 'http' | 'https' = 'http') {
+  useSettingsStore.setState({
+    connection,
+    backendProtocol: protocol,
+  });
+}
 
+describe('ConnectionSettings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    setStoreState({ ip: 'localhost', port: '1888' });
   });
 
   it('renders connection settings section', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    render(<ConnectionSettings />);
     expect(screen.getByTestId('collapsible')).toBeInTheDocument();
   });
 
   it('renders protocol select', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    render(<ConnectionSettings />);
     expect(screen.getByTestId('select')).toBeInTheDocument();
   });
 
-  it('renders IP address input', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
-    const inputs = screen.getAllByTestId('input');
-    expect(inputs.length).toBe(2); // IP and port inputs
-  });
-
-  it('renders port input', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+  it('renders IP address and port inputs', () => {
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     expect(inputs.length).toBe(2);
   });
 
   it('displays current connection values', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: '192.168.1.100', port: '8080' }}
-        localProtocol="https"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: '192.168.1.100', port: '8080' }, 'https');
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     expect(inputs[0]).toHaveValue('192.168.1.100');
-    expect(inputs[1]).toHaveValue('8080');
+    expect(inputs[1]).toHaveAttribute('value', '8080');
   });
 
-  it('calls onConnectionChange when IP is changed', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+  it('calls setConnection when IP is changed', () => {
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     fireEvent.change(inputs[0], { target: { value: '192.168.1.1' } });
-    expect(mockOnConnectionChange).toHaveBeenCalled();
+    expect(useSettingsStore.getState().connection.ip).toBe('192.168.1.1');
   });
 
-  it('calls onConnectionChange when port is changed', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+  it('calls setConnection when port is changed', () => {
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     fireEvent.change(inputs[1], { target: { value: '9000' } });
-    expect(mockOnConnectionChange).toHaveBeenCalled();
+    expect(useSettingsStore.getState().connection.port).toBe('9000');
   });
 
   it('renders labels for connection fields', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    render(<ConnectionSettings />);
     expect(screen.getAllByTestId('label').length).toBeGreaterThan(0);
   });
 });
 
 describe('ConnectionSettings validation tests', () => {
-  const mockOnConnectionChange = jest.fn();
-  const mockOnProtocolChange = jest.fn();
-
   beforeEach(() => {
     jest.clearAllMocks();
+    setStoreState({ ip: 'localhost', port: '1888' });
   });
 
   it('handles empty IP address', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: '', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: '', port: '1888' });
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     expect(inputs[0]).toHaveValue('');
   });
 
   it('handles empty port', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: 'localhost', port: '' });
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
-    expect(inputs[1]).toHaveValue('');
+    expect(inputs[1]).toHaveAttribute('value', '');
   });
 
   it('handles IPv4 address', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: '192.168.1.100', port: '8080' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: '192.168.1.100', port: '8080' });
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     expect(inputs[0]).toHaveValue('192.168.1.100');
   });
 
   it('handles IPv6 address', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: '::1', port: '8080' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: '::1', port: '8080' });
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     expect(inputs[0]).toHaveValue('::1');
   });
 
   it('handles hostname with subdomain', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'api.example.com', port: '443' }}
-        localProtocol="https"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: 'api.example.com', port: '443' }, 'https');
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     expect(inputs[0]).toHaveValue('api.example.com');
   });
 
   it('handles https protocol', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '443' }}
-        localProtocol="https"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: 'localhost', port: '443' }, 'https');
+    render(<ConnectionSettings />);
     expect(screen.getByTestId('select')).toHaveAttribute('data-value', 'https');
   });
 
   it('handles port change to non-standard port', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     fireEvent.change(inputs[1], { target: { value: '65535' } });
-    expect(mockOnConnectionChange).toHaveBeenCalledWith({ ip: 'localhost', port: '65535' });
+    expect(useSettingsStore.getState().connection.port).toBe('65535');
   });
 
   it('handles special characters in IP field', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     fireEvent.change(inputs[0], { target: { value: 'test-server.local' } });
-    expect(mockOnConnectionChange).toHaveBeenCalledWith({ ip: 'test-server.local', port: '1888' });
+    expect(useSettingsStore.getState().connection.ip).toBe('test-server.local');
   });
 
   it('handles both fields empty', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: '', port: '' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
+    setStoreState({ ip: '', port: '' });
+    render(<ConnectionSettings />);
     const inputs = screen.getAllByTestId('input');
     expect(inputs[0]).toHaveValue('');
-    expect(inputs[1]).toHaveValue('');
+    expect(inputs[1]).toHaveAttribute('value', '');
   });
 
   it('handles protocol change callback', () => {
-    render(
-      <ConnectionSettings
-        localConnection={{ ip: 'localhost', port: '1888' }}
-        localProtocol="http"
-        onConnectionChange={mockOnConnectionChange}
-        onProtocolChange={mockOnProtocolChange}
-      />
-    );
-    
+    render(<ConnectionSettings />);
     fireEvent.click(screen.getByTestId('select'));
-    expect(mockOnProtocolChange).toHaveBeenCalledWith('https');
+    expect(useSettingsStore.getState().backendProtocol).toBe('https');
   });
 });

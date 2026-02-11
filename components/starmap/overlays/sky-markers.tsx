@@ -228,7 +228,7 @@ export function SkyMarkers({
             }}
           />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuContent align="start" className="w-48" aria-label={t('markers.contextMenu')}>
           {contextMenuMarker && (
             <>
               <div className="px-2 py-1.5 text-xs">

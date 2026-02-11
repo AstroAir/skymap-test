@@ -16,6 +16,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
+import { ZoomControls } from './zoom-controls';
 
 interface SidePanelProps {
   children?: React.ReactNode;
@@ -128,46 +129,25 @@ export function SidePanel({ children, className, defaultCollapsed = false }: Sid
 }
 
 // Pre-built tool sections for common use
+// ZoomSection delegates to ZoomControls for consistent behavior
 export function ZoomSection({ 
   currentFov, 
   onZoomIn, 
   onZoomOut, 
-  onFovChange: _onFovChange 
+  onFovChange,
 }: { 
   currentFov: number; 
   onZoomIn: () => void; 
   onZoomOut: () => void;
   onFovChange?: (fov: number) => void;
 }) {
-  const t = useTranslations();
-  
   return (
-    <div className="space-y-1">
-      <div className="text-[10px] text-muted-foreground text-center px-1">
-        {t('zoom.fov')}
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={onZoomIn}
-        >
-          <span className="text-lg">+</span>
-        </Button>
-        <div className="text-xs font-mono bg-muted/50 rounded px-2 py-1 min-w-[48px] text-center">
-          {currentFov < 1 ? currentFov.toFixed(2) : currentFov.toFixed(1)}°
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={onZoomOut}
-        >
-          <span className="text-lg">−</span>
-        </Button>
-      </div>
-    </div>
+    <ZoomControls
+      fov={currentFov}
+      onZoomIn={onZoomIn}
+      onZoomOut={onZoomOut}
+      onFovChange={onFovChange ?? (() => {})}
+    />
   );
 }
 

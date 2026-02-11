@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useStellariumStore, useFramingStore, useMountStore, useEquipmentStore, useMarkerStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useSettingsStore } from '@/lib/stores/settings-store';
@@ -11,6 +12,8 @@ import type { StellariumCanvasRef } from '../canvas/stellarium-canvas';
 import type { StellariumSearchRef } from '../search/stellarium-search';
 
 export function useStellariumViewState() {
+  const router = useRouter();
+
   // UI state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedObject, setSelectedObject] = useState<SelectedObjectData | null>(null);
@@ -33,16 +36,13 @@ export function useStellariumViewState() {
   // Close confirmation dialog state
   const [closeConfirmDialogOpen, setCloseConfirmDialogOpen] = useState(false);
 
-  // View center for bookmarks
-  const [viewCenterRaDec, setViewCenterRaDec] = useState<{ ra: number; dec: number }>({ ra: 0, dec: 0 });
-
   // Refs
   const canvasRef = useRef<StellariumCanvasRef>(null);
   const searchRef = useRef<StellariumSearchRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevViewCenterRef = useRef({ ra: 0, dec: 0 });
-  const fovChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fovChangeRafRef = useRef<number | null>(null);
   const lastFovRef = useRef(currentFov);
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Equipment store - centralized FOV settings
   const fovSimEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
@@ -62,8 +62,16 @@ export function useStellariumViewState() {
 
   // Stellarium store
   const stel = useStellariumStore((state) => state.stel);
-  const setViewDirection = useStellariumStore((state) => state.setViewDirection);
-  const getCurrentViewDirection = useStellariumStore((state) => state.getCurrentViewDirection);
+  const setViewDirectionRaw = useStellariumStore((state) => state.setViewDirection);
+  const viewDirection = useStellariumStore((state) => state.viewDirection);
+  const updateViewDirection = useStellariumStore((state) => state.updateViewDirection);
+
+  // Safe wrapper that handles null check once
+  const safeSetViewDirection = useCallback((ra: number, dec: number) => {
+    if (setViewDirectionRaw) {
+      setViewDirectionRaw(ra, dec);
+    }
+  }, [setViewDirectionRaw]);
 
   // Mount store
   const mountConnected = useMountStore((state) => state.mountInfo.Connected);
@@ -90,42 +98,37 @@ export function useStellariumViewState() {
   // Navigation history store
   const pushNavigationHistory = useNavigationHistoryStore((state) => state.push);
 
-  // Update view center for bookmarks periodically
+  // Single centralized view direction polling — updates the store
   useEffect(() => {
-    const updateViewCenter = () => {
-      if (getCurrentViewDirection) {
-        try {
-          const dir = getCurrentViewDirection();
-          const newRa = rad2deg(dir.ra);
-          const newDec = rad2deg(dir.dec);
-          if (Math.abs(newRa - prevViewCenterRef.current.ra) > 0.01 ||
-              Math.abs(newDec - prevViewCenterRef.current.dec) > 0.01) {
-            prevViewCenterRef.current = { ra: newRa, dec: newDec };
-            setViewCenterRaDec({ ra: newRa, dec: newDec });
-          }
-        } catch {
-          // Engine not ready yet
-        }
-      }
-    };
-
-    updateViewCenter();
-    const interval = setInterval(updateViewCenter, 500);
+    updateViewDirection();
+    const interval = setInterval(updateViewDirection, 500);
     return () => clearInterval(interval);
-  }, [getCurrentViewDirection]);
+  }, [updateViewDirection]);
 
-  // Track container bounds on resize
+  // Derive view center (degrees) from store's viewDirection for bookmarks
+  const viewCenterRaDec = useMemo(() => {
+    if (!viewDirection) return { ra: 0, dec: 0 };
+    return { ra: rad2deg(viewDirection.ra), dec: rad2deg(viewDirection.dec) };
+  }, [viewDirection]);
+
+  // Track container bounds via ResizeObserver
   useEffect(() => {
-    const updateBounds = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setContainerBounds({ width: rect.width, height: rect.height });
-      }
-    };
+    const el = containerRef.current;
+    if (!el) return;
 
-    updateBounds();
-    window.addEventListener('resize', updateBounds);
-    return () => window.removeEventListener('resize', updateBounds);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setContainerBounds({ width, height });
+      }
+    });
+
+    observer.observe(el);
+    // Set initial bounds
+    const rect = el.getBoundingClientRect();
+    setContainerBounds({ width: rect.width, height: rect.height });
+
+    return () => observer.disconnect();
   }, []);
 
   // Track last mouse position for info panel placement
@@ -133,7 +136,7 @@ export function useStellariumViewState() {
     const handleMouseMove = (e: MouseEvent) => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        (containerRef.current as HTMLDivElement & { lastMousePos?: { x: number; y: number } }).lastMousePos = {
+        lastMousePosRef.current = {
           x: e.clientX - rect.left,
           y: e.clientY - rect.top,
         };
@@ -148,11 +151,8 @@ export function useStellariumViewState() {
   const handleSelectionChange = useCallback((selection: SelectedObjectData | null) => {
     if (selection) {
       setIsSearchOpen(false);
-      if (containerRef.current) {
-        const lastPos = (containerRef.current as HTMLDivElement & { lastMousePos?: { x: number; y: number } }).lastMousePos;
-        if (lastPos) {
-          setClickPosition(lastPos);
-        }
+      if (lastMousePosRef.current) {
+        setClickPosition(lastMousePosRef.current);
       }
       pushNavigationHistory({
         ra: selection.raDeg,
@@ -164,23 +164,23 @@ export function useStellariumViewState() {
     setSelectedObject(selection);
   }, [currentFov, pushNavigationHistory]);
 
-  // Handle FOV change with throttling
+  // Handle FOV change with rAF throttling
   const handleFovChange = useCallback((fov: number) => {
     lastFovRef.current = fov;
 
-    if (fovChangeTimeoutRef.current) return;
+    if (fovChangeRafRef.current) return;
 
-    fovChangeTimeoutRef.current = setTimeout(() => {
+    fovChangeRafRef.current = requestAnimationFrame(() => {
       setCurrentFov(lastFovRef.current);
-      fovChangeTimeoutRef.current = null;
-    }, 16);
+      fovChangeRafRef.current = null;
+    });
   }, []);
 
-  // Cleanup FOV change timeout on unmount
+  // Cleanup rAF on unmount
   useEffect(() => {
     return () => {
-      if (fovChangeTimeoutRef.current) {
-        clearTimeout(fovChangeTimeoutRef.current);
+      if (fovChangeRafRef.current) {
+        cancelAnimationFrame(fovChangeRafRef.current);
       }
     };
   }, []);
@@ -214,10 +214,6 @@ export function useStellariumViewState() {
 
   const handleZoomOut = useCallback(() => {
     canvasRef.current?.zoomOut();
-  }, []);
-
-  const handleFovSliderChange = useCallback((fov: number) => {
-    canvasRef.current?.setFov(fov);
   }, []);
 
   const handleSetFov = useCallback((fov: number) => {
@@ -292,18 +288,16 @@ export function useStellariumViewState() {
 
   // Navigate to coords
   const handleNavigateToCoords = useCallback(() => {
-    if (contextMenuCoords && setViewDirection) {
-      setViewDirection(contextMenuCoords.ra, contextMenuCoords.dec);
+    if (contextMenuCoords) {
+      safeSetViewDirection(contextMenuCoords.ra, contextMenuCoords.dec);
     }
     setContextMenuOpen(false);
-  }, [contextMenuCoords, setViewDirection]);
+  }, [contextMenuCoords, safeSetViewDirection]);
 
   // Go to coordinates
   const handleGoToCoordinates = useCallback((ra: number, dec: number) => {
-    if (setViewDirection) {
-      setViewDirection(ra, dec);
-    }
-  }, [setViewDirection]);
+    safeSetViewDirection(ra, dec);
+  }, [safeSetViewDirection]);
 
   // Open go to dialog
   const openGoToDialog = useCallback(() => {
@@ -314,11 +308,11 @@ export function useStellariumViewState() {
   // Close starmap
   const handleCloseStarmapClick = useCallback(() => {
     if (skipCloseConfirmation) {
-      window.location.href = '/';
+      router.push('/');
     } else {
       setCloseConfirmDialogOpen(true);
     }
-  }, [skipCloseConfirmation]);
+  }, [skipCloseConfirmation, router]);
 
   // Confirm close
   const handleConfirmClose = useCallback((dontShowAgain: boolean) => {
@@ -326,8 +320,8 @@ export function useStellariumViewState() {
       setPreference('skipCloseConfirmation', true);
     }
     setCloseConfirmDialogOpen(false);
-    window.location.href = '/';
-  }, [setPreference]);
+    router.push('/');
+  }, [setPreference, router]);
 
   // Toggle search
   const toggleSearch = useCallback(() => {
@@ -342,28 +336,18 @@ export function useStellariumViewState() {
 
   // Navigation handler
   const handleNavigate = useCallback((ra: number, dec: number, fov: number) => {
-    if (setViewDirection) {
-      setViewDirection(ra, dec);
-    }
+    safeSetViewDirection(ra, dec);
     canvasRef.current?.setFov(fov);
-  }, [setViewDirection]);
+  }, [safeSetViewDirection]);
 
   // Marker handlers
-  const handleMarkerDoubleClick = useCallback((marker: { ra: number; dec: number }) => {
-    if (setViewDirection) {
-      setViewDirection(marker.ra, marker.dec);
-    }
-  }, [setViewDirection]);
+  const handleMarkerNavigate = useCallback((marker: { ra: number; dec: number }) => {
+    safeSetViewDirection(marker.ra, marker.dec);
+  }, [safeSetViewDirection]);
 
   const handleMarkerEdit = useCallback((marker: { id: string }) => {
     setEditingMarkerId(marker.id);
   }, [setEditingMarkerId]);
-
-  const handleMarkerNavigate = useCallback((marker: { ra: number; dec: number }) => {
-    if (setViewDirection) {
-      setViewDirection(marker.ra, marker.dec);
-    }
-  }, [setViewDirection]);
 
   return {
     // UI state
@@ -417,7 +401,7 @@ export function useStellariumViewState() {
 
     // Store states
     stel,
-    setViewDirection,
+    safeSetViewDirection,
     mountConnected,
     stellariumSettings,
     toggleStellariumSetting,
@@ -431,7 +415,6 @@ export function useStellariumViewState() {
     handleSetFramingCoordinates,
     handleZoomIn,
     handleZoomOut,
-    handleFovSliderChange,
     handleSetFov,
     handleResetView,
     handleLocationChange,
@@ -444,7 +427,6 @@ export function useStellariumViewState() {
     handleConfirmClose,
     toggleSearch,
     handleNavigate,
-    handleMarkerDoubleClick,
     handleMarkerEdit,
     handleMarkerNavigate,
   };

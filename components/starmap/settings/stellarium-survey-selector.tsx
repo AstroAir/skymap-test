@@ -110,11 +110,13 @@ export function StellariumSurveySelector({
   // Fetch cache statuses for local surveys
   useEffect(() => {
     const fetchCacheStatuses = async () => {
+      const results = await Promise.all(
+        localSurveys.map((survey) => offlineCacheManager.getHiPSCacheStatus(survey))
+      );
       const statuses: Record<string, HiPSCacheStatus> = {};
-      for (const survey of localSurveys) {
-        const status = await offlineCacheManager.getHiPSCacheStatus(survey);
-        statuses[survey.id] = status;
-      }
+      localSurveys.forEach((survey, i) => {
+        statuses[survey.id] = results[i];
+      });
       setCacheStatuses(statuses);
     };
     fetchCacheStatuses();

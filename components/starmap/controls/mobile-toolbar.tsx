@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Drawer,
   DrawerContent,
@@ -32,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { ZOOM_PRESETS } from '@/components/starmap/canvas/constants';
 import { useEquipmentStore, useSettingsStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 
@@ -42,6 +44,8 @@ interface MobileToolbarProps {
   onZoomOut?: () => void;
   onResetView?: () => void;
   onToggleFOV?: () => void;
+  onZoomToFov?: (fov: number) => void;
+  onOpenTargetList?: () => void;
   currentFov?: number;
   children?: React.ReactNode;
   className?: string;
@@ -52,6 +56,8 @@ export function MobileToolbar({
   onZoomIn,
   onZoomOut,
   onResetView,
+  onZoomToFov,
+  onOpenTargetList,
   currentFov = 60,
   children,
   className,
@@ -80,15 +86,7 @@ export function MobileToolbar({
     toggleStellariumSetting('equatorialLinesVisible');
   }, [toggleStellariumSetting]);
 
-  // Zoom presets for quick access
-  const zoomPresets = [
-    { fov: 90, label: t('mobileToolbar.wideField') },
-    { fov: 60, label: t('mobileToolbar.normal') },
-    { fov: 30, label: t('mobileToolbar.medium') },
-    { fov: 15, label: t('mobileToolbar.closeUp') },
-    { fov: 5, label: t('mobileToolbar.detail') },
-    { fov: 1, label: t('mobileToolbar.maxZoom') },
-  ];
+  // Zoom presets from shared constants
 
   return (
     <div className={cn(
@@ -98,13 +96,14 @@ export function MobileToolbar({
       className
     )}>
       {/* Main toolbar */}
-      <div className="flex items-center justify-around p-2 gap-1">
+      <div className="flex items-center justify-around p-2 gap-1" role="toolbar" aria-label={t('mobileToolbar.toolbar')}>
         {/* Search */}
         <Button
           variant="ghost"
           size="icon"
           className="h-12 w-12 flex-col gap-0.5 text-foreground/80"
           onClick={onOpenSearch}
+          aria-label={t('mobileToolbar.search')}
         >
           <Search className="h-5 w-5" />
           <span className="text-[9px]">{t('mobileToolbar.search')}</span>
@@ -134,6 +133,7 @@ export function MobileToolbar({
                   size="lg"
                   className="h-14 w-14 rounded-full"
                   onClick={() => { onZoomOut?.(); }}
+                  aria-label={t('zoom.zoomOut')}
                 >
                   <ZoomOut className="h-6 w-6" />
                 </Button>
@@ -146,6 +146,7 @@ export function MobileToolbar({
                   size="lg"
                   className="h-14 w-14 rounded-full"
                   onClick={() => { onZoomIn?.(); }}
+                  aria-label={t('zoom.zoomIn')}
                 >
                   <ZoomIn className="h-6 w-6" />
                 </Button>
@@ -153,18 +154,19 @@ export function MobileToolbar({
 
               {/* Preset buttons */}
               <div className="grid grid-cols-3 gap-2">
-                {zoomPresets.map((preset) => (
+                {ZOOM_PRESETS.map((preset) => (
                   <Button
                     key={preset.fov}
                     variant={Math.abs(currentFov - preset.fov) < 1 ? "default" : "outline"}
                     size="sm"
                     className="h-10"
                     onClick={() => {
-                      // Need to access the canvas ref from parent - this will be handled via callback
+                      onZoomToFov?.(preset.fov);
+                      setZoomDrawerOpen(false);
                     }}
                   >
                     <span className="font-mono mr-1">{preset.fov}°</span>
-                    <span className="text-xs text-muted-foreground">{preset.label}</span>
+                    <span className="text-xs text-muted-foreground">{t(`mobileToolbar.${preset.labelKey}`)}</span>
                   </Button>
                 ))}
               </div>
@@ -191,6 +193,8 @@ export function MobileToolbar({
             fovEnabled ? "text-primary" : "text-foreground/80"
           )}
           onClick={handleToggleFOV}
+          aria-label={t('mobileToolbar.fov')}
+          aria-pressed={fovEnabled}
         >
           <Camera className="h-5 w-5" />
           <span className="text-[9px]">{t('mobileToolbar.fov')}</span>
@@ -201,6 +205,8 @@ export function MobileToolbar({
           variant="ghost"
           size="icon"
           className="h-12 w-12 flex-col gap-0.5 text-foreground/80 relative"
+          onClick={onOpenTargetList}
+          aria-label={t('mobileToolbar.targets')}
         >
           <List className="h-5 w-5" />
           <span className="text-[9px]">{t('mobileToolbar.targets')}</span>
@@ -234,31 +240,23 @@ export function MobileToolbar({
             <DropdownMenuItem onClick={handleToggleConstellations}>
               <Star className={cn("h-4 w-4 mr-2", stellariumSettings.constellationsLinesVisible && "text-primary")} />
               {t('mobileToolbar.constellations')}
-              {stellariumSettings.constellationsLinesVisible && (
-                <Badge variant="secondary" className="ml-auto text-[10px]">{t('common.on')}</Badge>
-              )}
+              <Switch checked={stellariumSettings.constellationsLinesVisible} className="ml-auto scale-75" tabIndex={-1} />
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleToggleGrid}>
               <Compass className={cn("h-4 w-4 mr-2", stellariumSettings.equatorialLinesVisible && "text-primary")} />
               {t('mobileToolbar.grid')}
-              {stellariumSettings.equatorialLinesVisible && (
-                <Badge variant="secondary" className="ml-auto text-[10px]">{t('common.on')}</Badge>
-              )}
+              <Switch checked={stellariumSettings.equatorialLinesVisible} className="ml-auto scale-75" tabIndex={-1} />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => toggleStellariumSetting('dsosVisible')}>
               <Eye className={cn("h-4 w-4 mr-2", stellariumSettings.dsosVisible && "text-primary")} />
               {t('mobileToolbar.deepSky')}
-              {stellariumSettings.dsosVisible && (
-                <Badge variant="secondary" className="ml-auto text-[10px]">{t('common.on')}</Badge>
-              )}
+              <Switch checked={stellariumSettings.dsosVisible} className="ml-auto scale-75" tabIndex={-1} />
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => toggleStellariumSetting('atmosphereVisible')}>
               <Sun className={cn("h-4 w-4 mr-2", stellariumSettings.atmosphereVisible && "text-primary")} />
               {t('mobileToolbar.atmosphere')}
-              {stellariumSettings.atmosphereVisible && (
-                <Badge variant="secondary" className="ml-auto text-[10px]">{t('common.on')}</Badge>
-              )}
+              <Switch checked={stellariumSettings.atmosphereVisible} className="ml-auto scale-75" tabIndex={-1} />
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -211,6 +211,48 @@ jest.mock('@/components/ui/tabs', () => ({
   ),
 }));
 
+jest.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({
+    children,
+    open,
+    _onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open?: boolean;
+    _onOpenChange?: (open: boolean) => void;
+  }) => (
+    open ? <div data-testid="alert-dialog" data-open={open}>{children}</div> : null
+  ),
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="alert-dialog-content">{children}</div>
+  ),
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="alert-dialog-header">{children}</div>
+  ),
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2 data-testid="alert-dialog-title">{children}</h2>
+  ),
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <p data-testid="alert-dialog-description">{children}</p>
+  ),
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="alert-dialog-footer">{children}</div>
+  ),
+  AlertDialogCancel: ({ children }: { children: React.ReactNode }) => (
+    <button data-testid="alert-dialog-cancel">{children}</button>
+  ),
+  AlertDialogAction: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    className?: string;
+  }) => (
+    <button data-testid="alert-dialog-action" onClick={onClick}>{children}</button>
+  ),
+}));
+
 import { EquipmentManager } from '../equipment-manager';
 
 describe('EquipmentManager', () => {
@@ -465,7 +507,7 @@ describe('EquipmentManager', () => {
       });
     });
 
-    it('deletes telescope when delete button clicked', async () => {
+    it('deletes telescope when delete button clicked and confirmed', async () => {
       const mockRefresh = jest.fn();
       mockUseEquipment.mockReturnValue({
         equipment: {
@@ -493,8 +535,14 @@ describe('EquipmentManager', () => {
 
       render(<EquipmentManager />);
 
+      // Click delete button opens confirmation dialog
       await act(async () => {
         fireEvent.click(screen.getByLabelText('equipment.delete'));
+      });
+
+      // Confirm deletion in AlertDialog
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('alert-dialog-action'));
       });
 
       await waitFor(() => {
@@ -657,7 +705,7 @@ describe('EquipmentManager', () => {
       });
     });
 
-    it('deletes camera when delete button clicked', async () => {
+    it('deletes camera when delete button clicked and confirmed', async () => {
       const mockRefresh = jest.fn();
       mockUseEquipment.mockReturnValue({
         equipment: {
@@ -688,8 +736,14 @@ describe('EquipmentManager', () => {
 
       render(<EquipmentManager />);
 
+      // Click delete button opens confirmation dialog
       await act(async () => {
         fireEvent.click(screen.getByLabelText('equipment.delete'));
+      });
+
+      // Confirm deletion in AlertDialog
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('alert-dialog-action'));
       });
 
       await waitFor(() => {
@@ -728,8 +782,14 @@ describe('EquipmentManager', () => {
 
       render(<EquipmentManager />);
 
+      // Click delete button opens confirmation dialog
       await act(async () => {
         fireEvent.click(screen.getByLabelText('equipment.delete'));
+      });
+
+      // Confirm deletion in AlertDialog
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('alert-dialog-action'));
       });
 
       await waitFor(() => {

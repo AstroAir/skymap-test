@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Telescope, Camera, Check, ChevronDown } from 'lucide-react';
+import { Telescope, Camera, Check, ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +38,8 @@ export function EquipmentStep() {
   const [cameraOpen, setCameraOpen] = useState(true);
   const [showManualTelescope, setShowManualTelescope] = useState(false);
   const [showManualCamera, setShowManualCamera] = useState(false);
+  const [telescopeSearch, setTelescopeSearch] = useState('');
+  const [cameraSearch, setCameraSearch] = useState('');
 
   // Manual input states
   const [manualFocalLength, setManualFocalLength] = useState(focalLength.toString());
@@ -56,6 +58,13 @@ export function EquipmentStep() {
 
   const allCameras = [...BUILTIN_CAMERA_PRESETS, ...customCameras];
   const allTelescopes = [...BUILTIN_TELESCOPE_PRESETS, ...customTelescopes];
+
+  const filteredTelescopes = telescopeSearch
+    ? allTelescopes.filter((t) => t.name.toLowerCase().includes(telescopeSearch.toLowerCase()))
+    : allTelescopes;
+  const filteredCameras = cameraSearch
+    ? allCameras.filter((c) => c.name.toLowerCase().includes(cameraSearch.toLowerCase()))
+    : allCameras;
 
   const handleSelectTelescope = (telescope: typeof BUILTIN_TELESCOPE_PRESETS[0]) => {
     applyTelescope(telescope);
@@ -121,10 +130,22 @@ export function EquipmentStep() {
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder={t('setupWizard.steps.equipment.searchPlaceholder')}
+              value={telescopeSearch}
+              onChange={(e) => setTelescopeSearch(e.target.value)}
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+
           {/* Preset grid */}
           <ScrollArea className="max-h-40">
             <div className="grid grid-cols-2 gap-2 pr-3">
-              {allTelescopes.slice(0, 8).map((telescope) => (
+              {filteredTelescopes.map((telescope) => (
                 <button
                   key={telescope.id}
                   type="button"
@@ -211,10 +232,22 @@ export function EquipmentStep() {
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder={t('setupWizard.steps.equipment.searchPlaceholder')}
+              value={cameraSearch}
+              onChange={(e) => setCameraSearch(e.target.value)}
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+
           {/* Preset grid */}
           <ScrollArea className="max-h-40">
             <div className="grid grid-cols-2 gap-2 pr-3">
-              {allCameras.slice(0, 8).map((camera) => (
+              {filteredCameras.map((camera) => (
                 <button
                   key={camera.id}
                   type="button"

@@ -36,16 +36,13 @@ import {
 import { useStellariumStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
+import type { StellariumSettings as FullStellariumSettings } from '@/lib/core/types/stellarium';
 import type { MosaicSettings } from '@/lib/stores';
 
-interface StellariumSettings {
-  constellationsLinesVisible: boolean;
-  equatorialLinesVisible: boolean;
-  azimuthalLinesVisible: boolean;
-  dsosVisible: boolean;
-  surveyEnabled: boolean;
-  atmosphereVisible: boolean;
-}
+type StellariumSettings = Pick<FullStellariumSettings,
+  'constellationsLinesVisible' | 'equatorialLinesVisible' | 'azimuthalLinesVisible' |
+  'dsosVisible' | 'surveyEnabled' | 'atmosphereVisible'
+>;
 
 interface CanvasContextMenuProps {
   open: boolean;

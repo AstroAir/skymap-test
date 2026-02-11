@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   X, ChevronDown, ChevronUp, Crosshair, Plus,
@@ -32,7 +32,7 @@ import {
 } from 'recharts';
 
 import { useMountStore, useTargetListStore } from '@/lib/stores';
-import { useCelestialName, useCelestialNames } from '@/lib/hooks';
+import { useCelestialName, useCelestialNames, useAdaptivePosition } from '@/lib/hooks';
 import { raDecToAltAz, getLST, degreesToHMS } from '@/lib/astronomy/starmap-utils';
 import {
   getMoonPhase,
@@ -50,7 +50,7 @@ import {
 } from '@/lib/astronomy/astro-utils';
 import type { SelectedObjectData } from '@/lib/core/types';
 import { cn } from '@/lib/utils';
-import { getObjectTypeIcon, getObjectTypeColor } from '@/lib/astronomy/object-type-utils';
+import { getObjectTypeIcon, getObjectTypeColor, getFeasibilityColor } from '@/lib/astronomy/object-type-utils';
 
 interface InfoPanelProps {
   selectedObject: SelectedObjectData | null;
@@ -85,7 +85,6 @@ export function InfoPanel({
   const [objectExpanded, setObjectExpanded] = useState(true);
   const [chartExpanded, setChartExpanded] = useState(true);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [panelSize, setPanelSize] = useState({ width: 300, height: 400 });
   
   const profileInfo = useMountStore((state) => state.profileInfo);
   const mountConnected = useMountStore((state) => state.mountInfo.Connected);
@@ -98,66 +97,19 @@ export function InfoPanel({
   const primaryName = useCelestialName(selectedObject?.names[0]);
   const secondaryNames = useCelestialNames(selectedObject?.names.slice(1, 3));
 
-  // Measure panel size for positioning
-  useEffect(() => {
-    if (panelRef.current) {
-      const rect = panelRef.current.getBoundingClientRect();
-      setPanelSize({ width: rect.width, height: rect.height });
-    }
-  }, [selectedObject, objectExpanded, chartExpanded]);
-
-  // Calculate adaptive position
-  const position = useMemo(() => {
-    if (!clickPosition || !containerBounds) {
-      return { left: 12, top: 64 }; // Default position
-    }
-    
-    const padding = 16;
-    const offset = 20; // Offset from click point
-    const rightPanelWidth = 320; // Reserve space for right-side panels
-    const topBarHeight = 64; // Reserve space for top toolbar
-    const bottomBarHeight = 48; // Reserve space for bottom status bar
-    
-    // Calculate available width (exclude right panel area)
-    const availableWidth = containerBounds.width - rightPanelWidth;
-    
-    let left = clickPosition.x + offset;
-    let top = clickPosition.y - panelSize.height / 2;
-    
-    // Check right edge - ensure InfoPanel stays within left portion of screen
-    if (left + panelSize.width + padding > availableWidth) {
-      // Try to position on left side of click
-      left = clickPosition.x - panelSize.width - offset;
-    }
-    
-    // If still exceeds available width, clamp to available area
-    if (left + panelSize.width > availableWidth) {
-      left = availableWidth - panelSize.width - padding;
-    }
-    
-    // Check left edge
-    if (left < padding) {
-      left = padding;
-    }
-    
-    // Check top edge (account for top toolbar)
-    if (top < topBarHeight + padding) {
-      top = topBarHeight + padding;
-    }
-    
-    // Check bottom edge (account for bottom status bar)
-    if (top + panelSize.height + padding > containerBounds.height - bottomBarHeight) {
-      top = containerBounds.height - panelSize.height - bottomBarHeight - padding;
-    }
-    
-    return { left, top };
-  }, [clickPosition, containerBounds, panelSize]);
+  // Calculate adaptive position using shared hook
+  const position = useAdaptivePosition(
+    panelRef,
+    clickPosition,
+    containerBounds,
+    [selectedObject, objectExpanded, chartExpanded],
+  );
 
   // Update time every second
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date());
-    }, 1000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -213,16 +165,6 @@ export function InfoPanel({
   }, [selectedObject, latitude, longitude, astroData.moonRa, astroData.moonDec, Math.floor(currentTime.getTime() / 1000)]);
 
 
-  const getFeasibilityColor = (rec: string) => {
-    switch (rec) {
-      case 'excellent': return 'text-green-400 bg-green-900/30';
-      case 'good': return 'text-emerald-400 bg-emerald-900/30';
-      case 'fair': return 'text-yellow-400 bg-yellow-900/30';
-      case 'poor': return 'text-orange-400 bg-orange-900/30';
-      case 'not_recommended': return 'text-red-400 bg-red-900/30';
-      default: return 'text-muted-foreground';
-    }
-  };
 
   const handleSlew = useCallback(() => {
     if (!selectedObject) return;
@@ -409,7 +351,7 @@ export function InfoPanel({
                         <TooltipTrigger asChild>
                           <div className={cn(
                             'flex items-center justify-between p-1.5 rounded text-xs',
-                            getFeasibilityColor(targetData.feasibility.recommendation)
+                            getFeasibilityColor(targetData.feasibility.recommendation, 'compact')
                           )}>
                             <div className="flex items-center gap-1.5">
                               <TrendingUp className="h-3 w-3" />
@@ -519,7 +461,7 @@ function CustomTooltip({ active, payload, altLabel }: { active?: boolean; payloa
 }
 
 // Compact altitude chart using Recharts with zoom support
-function AltitudeChartCompact({
+const AltitudeChartCompact = memo(function AltitudeChartCompact({
   ra,
   dec,
 }: {
@@ -694,7 +636,7 @@ function AltitudeChartCompact({
         </div>
       </div>
       {/* Chart - taller on mobile for better touch interaction */}
-      <div className="transition-all duration-300 ease-out" style={{ height: typeof window !== 'undefined' && window.innerWidth < 640 ? 120 : 100 }}>
+      <div className="transition-all duration-300 ease-out h-[120px] sm:h-[100px]">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={chartData.points}
@@ -797,6 +739,6 @@ function AltitudeChartCompact({
       </div>
     </div>
   );
-}
+});
 
 

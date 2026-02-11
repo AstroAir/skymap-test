@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, forwardRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { translateCelestialName } from '@/lib/translations';
 import type { SearchResultItem, SkyCultureLanguage } from '@/lib/core/types';
@@ -32,7 +32,7 @@ export interface SearchResultItemProps {
   globalIndex?: number;
 }
 
-export const SearchResultItemRow = memo(function SearchResultItemRow({
+export const SearchResultItemRow = memo(forwardRef<HTMLDivElement, SearchResultItemProps>(function SearchResultItemRow({
   item,
   itemId,
   checked,
@@ -44,11 +44,15 @@ export const SearchResultItemRow = memo(function SearchResultItemRow({
   onMouseEnter,
   onAddToTargetList,
   globalIndex = 0,
-}: SearchResultItemProps) {
+}, ref) {
   const t = useTranslations();
 
   return (
     <div
+      ref={ref}
+      id={`search-option-${itemId}`}
+      role="option"
+      aria-selected={isHighlighted}
       className={`flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors ${
         checked ? 'bg-accent/30' : ''
       } ${isHighlighted ? 'ring-2 ring-primary bg-accent/40' : ''}`}
@@ -116,4 +120,4 @@ export const SearchResultItemRow = memo(function SearchResultItemRow({
       </Tooltip>
     </div>
   );
-});
+}));

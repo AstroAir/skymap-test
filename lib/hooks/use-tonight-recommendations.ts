@@ -4,6 +4,11 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useStellariumStore } from '@/lib/stores';
 import type { SearchResultItem } from '@/lib/core/types';
 import {
+  neverRises,
+  isCircumpolar,
+  calculateImagingHours,
+} from '@/lib/astronomy/astro-utils';
+import {
   calculateNighttimeData,
   calculateAltitudeData,
   calculateMoonDistance,
@@ -87,51 +92,7 @@ export interface TonightConditions {
 // Utility Functions
 // ============================================================================
 
-// Memoized visibility check functions
-const neverRisesCache = new Map<string, boolean>();
-const circumpolarCache = new Map<string, boolean>();
-
-function neverRises(dec: number, latitude: number): boolean {
-  const key = `${dec.toFixed(2)}_${latitude.toFixed(2)}`;
-  if (neverRisesCache.has(key)) return neverRisesCache.get(key)!;
-  
-  const result = latitude >= 0 ? dec < -(90 - latitude) : dec > (90 + latitude);
-  neverRisesCache.set(key, result);
-  return result;
-}
-
-function isCircumpolar(dec: number, latitude: number): boolean {
-  const key = `${dec.toFixed(2)}_${latitude.toFixed(2)}`;
-  if (circumpolarCache.has(key)) return circumpolarCache.get(key)!;
-  
-  const result = Math.abs(dec) > (90 - Math.abs(latitude));
-  circumpolarCache.set(key, result);
-  return result;
-}
-
-function calculateImagingHours(
-  altitudeData: { points: Array<{ altitude: number; time: Date }> },
-  minAltitude: number,
-  darkStart: Date | null,
-  darkEnd: Date | null
-): number {
-  if (!darkStart || !darkEnd) return 0;
-
-  const darkStartMs = darkStart.getTime();
-  const darkEndMs = darkEnd.getTime();
-
-  let totalHours = 0;
-  const intervalHours = 0.1; // 6 minutes
-
-  for (const point of altitudeData.points) {
-    const timeMs = point.time.getTime();
-    if (timeMs >= darkStartMs && timeMs <= darkEndMs && point.altitude >= minAltitude) {
-      totalHours += intervalHours;
-    }
-  }
-
-  return totalHours;
-}
+// neverRises, isCircumpolar, calculateImagingHours imported from @/lib/astronomy/astro-utils
 
 // ============================================================================
 // Main Hook

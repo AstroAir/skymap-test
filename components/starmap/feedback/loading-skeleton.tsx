@@ -146,7 +146,13 @@ export function LoadingSkeleton({ className, variant = 'card' }: LoadingSkeleton
  */
 export function FullScreenLoader({ message }: { message?: string }) {
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm z-50">
+    <div
+      role="status"
+      aria-busy
+      aria-label={message || 'Loading'}
+      data-testid="full-screen-loader"
+      className="fixed inset-0 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm z-50"
+    >
       <div className="relative">
         {/* Animated rings */}
         <div className="absolute inset-0 flex items-center justify-center">
@@ -176,11 +182,15 @@ export function InlineLoader({ size = 'default' }: { size?: 'sm' | 'default' | '
 
   return (
     <div
+      role="status"
+      aria-label="Loading"
       className={cn(
         'animate-spin rounded-full border-primary border-t-transparent',
         sizeClasses[size]
       )}
-    />
+    >
+      <span className="sr-only">Loading</span>
+    </div>
   );
 }
 
@@ -213,7 +223,13 @@ const STAR_POSITIONS = [
  */
 export function StarmapLoadingSkeleton() {
   return (
-    <div className="relative w-full h-full bg-black">
+    <div
+      role="status"
+      aria-busy
+      aria-label="Loading star map"
+      data-testid="starmap-loading-skeleton"
+      className="relative w-full h-full bg-black"
+    >
       {/* Simulated star field */}
       <div className="absolute inset-0 overflow-hidden">
         {STAR_POSITIONS.map((star, i) => (

@@ -8,6 +8,7 @@ import { render, screen } from '@testing-library/react';
 jest.mock('@/components/ui/dialog', () => ({
   Dialog: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog">{children}</div>,
   DialogContent: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-content">{children}</div>,
+  DialogDescription: ({ children, className }: { children: React.ReactNode; className?: string }) => <p data-testid="dialog-description" className={className}>{children}</p>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-header">{children}</div>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2 data-testid="dialog-title">{children}</h2>,
   DialogTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
@@ -94,5 +95,35 @@ describe('AboutDialog', () => {
   it('renders StellariumCredits component in data credits section', () => {
     render(<AboutDialog />);
     expect(screen.getByTestId('stellarium-credits')).toBeInTheDocument();
+  });
+
+  it('renders DialogDescription for accessibility', () => {
+    render(<AboutDialog />);
+    const description = screen.getByTestId('dialog-description');
+    expect(description).toBeInTheDocument();
+    expect(description).toHaveClass('sr-only');
+  });
+
+  it('renders three tab triggers', () => {
+    render(<AboutDialog />);
+    const tabTriggers = screen.getAllByTestId('tabs-trigger');
+    expect(tabTriggers).toHaveLength(3);
+  });
+
+  it('displays version info from environment variable', () => {
+    render(<AboutDialog />);
+    expect(screen.getByText(/v0\.1\.0/)).toBeInTheDocument();
+  });
+
+  it('renders license cards', () => {
+    render(<AboutDialog />);
+    expect(screen.getByText('Stellarium Web Engine')).toBeInTheDocument();
+    expect(screen.getByText('Next.js')).toBeInTheDocument();
+  });
+
+  it('renders dependency rows', () => {
+    render(<AboutDialog />);
+    expect(screen.getByText('next')).toBeInTheDocument();
+    expect(screen.getByText('react')).toBeInTheDocument();
   });
 });

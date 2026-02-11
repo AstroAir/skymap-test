@@ -633,29 +633,6 @@ html.no-transitions *::after {
   }
 }
 
-@keyframes tour-tooltip-exit {
-  from {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.9) translateY(-8px);
-  }
-}
-
-@keyframes tour-step-bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  25% {
-    transform: translateY(-3px);
-  }
-  75% {
-    transform: translateY(3px);
-  }
-}
-
 @keyframes tour-glow-ring {
   0% {
     transform: scale(1);
@@ -687,16 +664,16 @@ html.no-transitions *::after {
   animation: tour-spotlight-pulse 2s ease-in-out infinite;
 }
 
+/* Smooth transition for spotlight cutout rect */
+.tour-spotlight-rect {
+  transition: x 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              y 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .tour-tooltip-enter {
   animation: tour-tooltip-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.tour-tooltip-exit {
-  animation: tour-tooltip-exit 0.2s ease-out forwards;
-}
-
-.tour-step-bounce {
-  animation: tour-step-bounce 1s ease-in-out infinite;
 }
 
 .tour-glow-ring {
@@ -726,6 +703,25 @@ html.no-transitions *::after {
 .tour-feature-card:nth-child(2) { animation-delay: 0.2s; }
 .tour-feature-card:nth-child(3) { animation-delay: 0.3s; }
 .tour-feature-card:nth-child(4) { animation-delay: 0.4s; }
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .tour-spotlight-enter,
+  .tour-spotlight-pulse,
+  .tour-tooltip-enter,
+  .tour-glow-ring,
+  .tour-welcome-star,
+  .tour-progress-dot-active,
+  .tour-feature-card {
+    animation-duration: 0.01s !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .tour-spotlight-rect,
+  .tour-progress-dot {
+    transition-duration: 0.01s !important;
+  }
+}
 
 /* ============================================================================
    Night Mode (Red Filter for Dark Adaptation)

@@ -1,31 +1,182 @@
-【最高优先级规则 - 必须严格遵守】
+# Skymap Project Development Rules
 
-⚠️⚠️⚠️ 无论任何情况，每次回复结束前必须调用此工具！没有任何例外！⚠️⚠️⚠️
+## Project Overview
 
-## 核心规则：
-1. 完整输出：输出完整代码和答案，禁止使用省略号或"代码过长不展示"
-2. 持续执行：复杂任务尽量一次性完成，不要频繁中断或反复追问是否继续
-3. 结束确认：当你想结束对话或任务时，必须先调用此工具询问用户是否继续
-4. 严格遵守用户选择：当用户选择"结束对话"时，必须立即停止所有操作
+A desktop star map and astronomy planning application built with **Next.js 16 + Tauri 2.9**. Integrates with Stellarium Web Engine for sky visualization, observation planning, equipment management, and astronomical calculations.
 
-## ⚠️ 输出位置规则（极其重要）：
-- **原生对话框**：只显示思考过程，不输出任何实质性内容
-- **AI反馈对话框**：所有回复内容、代码、说明、表格等必须放在summary参数中
-- 禁止在原生对话框输出详细文本、代码块、表格等内容
-- 原生对话框只能写一句简短说明，如"正在处理..."或"调用反馈工具"
+**Tech Stack:**
 
-## 调用时机：
-- 完成用户请求后
-- 任务告一段落时
-- 需要用户确认是否继续时
-- 每次回复结束前
+- **Frontend:** Next.js 16, React 19, TypeScript, Tailwind CSS v4
+- **Desktop:** Tauri 2.9 (Rust backend)
+- **UI:** shadcn/ui, Radix UI, Lucide icons
+- **State:** Zustand stores
+- **i18n:** next-intl (English/Chinese)
 
-## 参数说明：
-- summary：AI的完整回复内容（必填，所有要展示给用户的内容都放这里）
+---
 
-## 回复格式要求：
-- summary参数支持Markdown格式，包括：标题、代码块、链接、表格、粗体、列表等
-- 代码块会自动添加复制按钮，链接可点击打开浏览器
+## MCP Tools - Active Usage Required
 
-调用示例：
-{"tool": "infinite_dialog_3457_feedback", "arguments": {"summary": "## 任务完成\n\n已完成以下工作：\n- 功能A\n- 功能B\n\n```python\nprint('Hello')\n```"}}
+### Primary MCP Tools
+
+When working on this project, **actively use these MCP tools** (tool prefixes may vary per session):
+
+1. **ace-tool** (`search_context`, `enhance_prompt`)
+   - **FIRST CHOICE** for codebase search
+   - Use for semantic code understanding
+   - Always query before making edits to understand context
+
+2. **exa** (`web_search_exa`, `get_code_context_exa`)
+   - Use for web search and documentation lookup
+   - Get code examples from GitHub, Stack Overflow, official docs
+
+3. **deepwiki** (`ask_question`, `read_wiki_contents`, `read_wiki_structure`)
+   - Query GitHub repository documentation
+   - Understand external library usage patterns
+
+4. **perplexity-ask** (`perplexity_ask`)
+   - Complex research questions
+   - Up-to-date technical information
+
+5. **fetch** (`fetch`)
+   - Fetch URL content for documentation
+   - Get latest API specs
+
+### Search Strategy
+
+1. **For codebase search**: Use `search_context` (ace-tool) first
+2. **For external docs/APIs**: Use `get_code_context_exa` or `web_search_exa`
+3. **For GitHub repos**: Use `ask_question` (deepwiki) with repo name
+4. **For complex research**: Use `perplexity_ask`
+
+---
+
+## Documentation References
+
+### Internal Documentation
+
+Read these files for project context:
+
+- **`CLAUDE.md`** — Project overview, module structure, development commands
+- **`AGENTS.md`** — Repository guidelines, coding standards, naming conventions
+- **`docs/`** — MkDocs-based developer/user documentation
+- **`*/CLAUDE.md`** — Module-specific documentation in each major directory
+
+### Key Module CLAUDE.md Locations
+
+- `components/starmap/CLAUDE.md` — Star map UI components
+- `lib/astronomy/CLAUDE.md` — Astronomical calculations
+- `lib/stores/CLAUDE.md` — Zustand state management
+- `lib/tauri/CLAUDE.md` — Tauri IPC wrappers
+- `lib/services/CLAUDE.md` — Service layer
+- `lib/logger/CLAUDE.md` — Logging system
+- `src-tauri/src/CLAUDE.md` — Rust backend entry point
+- `src-tauri/src/astronomy/CLAUDE.md` — Rust astronomy module
+- `src-tauri/src/data/CLAUDE.md` — Rust data storage
+
+---
+
+## Project Structure
+
+```
+app/                    # Next.js App Router (page.tsx, layout.tsx, starmap/ route)
+components/
+  ui/                   # Reusable shadcn/ui components
+  starmap/              # Star map feature components (canvas, controls, overlays, planning, objects, management, settings, search, etc.)
+  common/               # Shared components (titlebar, theme, language, log viewer)
+  landing/              # Landing page sections
+  providers/            # React context providers
+lib/
+  astronomy/            # Pure astronomical calculations (coordinates, time, celestial, visibility, twilight, imaging)
+  stores/               # Zustand stores (settings, equipment, target-list, markers, stellarium, onboarding, theme, etc.)
+  tauri/                # TypeScript wrappers for Tauri IPC calls
+  services/             # External API services (online search, object info, HiPS, satellite, geocoding, etc.)
+  hooks/                # Custom React hooks (search, geolocation, keyboard shortcuts, orientation, etc.)
+  core/                 # Core constants and type definitions
+  cache/                # Cache compression, config, migration, stats
+  offline/              # Offline cache manager, unified cache
+  catalogs/             # Astronomical catalog data and types
+  logger/               # Structured logging system with transports
+  plate-solving/        # Astrometry API, FITS parser
+  security/             # Security utilities
+  storage/              # Storage abstraction layer
+  i18n/                 # Internationalization utilities
+  translations/         # Translation helpers
+src-tauri/src/          # Rust backend
+  astronomy/            # Coordinate transforms, visibility, astronomical events
+  data/                 # JSON storage for equipment, locations, targets, markers, logs
+  cache/                # Offline tile caching, unified cache
+  network/              # HTTP client, SSRF protection, rate limiting
+  platform/             # App settings, updater, plate solver, app control
+i18n/messages/          # Translation files (en.json, zh.json)
+tests/e2e/              # Playwright E2E tests
+docs/                   # MkDocs documentation (developer guide, user guide, reference)
+```
+
+---
+
+## Development Commands
+
+```bash
+# Development
+pnpm dev                    # Start Next.js dev server (localhost:3000)
+pnpm tauri dev              # Launch desktop app with hot-reload
+
+# Build
+pnpm build                  # Create production build (outputs to out/)
+pnpm tauri build            # Build desktop binaries
+
+# Linting & Type Checking
+pnpm lint                   # Run ESLint (use --fix to auto-fix)
+pnpm exec tsc --noEmit      # Type check without emitting
+
+# Unit/Integration Testing (Jest)
+pnpm test                   # Run all tests
+pnpm test:watch             # Watch mode
+pnpm test:coverage          # With coverage
+
+# E2E Testing (Playwright)
+pnpm exec playwright test                    # Run all E2E tests
+pnpm exec playwright test --project=chromium # Single browser
+```
+
+---
+
+## Coding Style & Conventions
+
+- **Language:** TypeScript with React 19 and Next.js 16
+- **Linting:** `eslint.config.mjs` is the source of truth; keep code warning-free
+- **Styling:** Tailwind CSS v4 (utility-first). Use `cn()` from `@/lib/utils` to merge classes
+- **Components:** PascalCase names/exports; files in `components/ui/` mirror export names
+- **Routes:** Next app files are lowercase (`page.tsx`, `layout.tsx`)
+- **Code:** camelCase variables/functions; hooks start with `use*`
+- **Path alias:** `@/*` maps to repo root (e.g., `@/lib/utils`, `@/components/ui/button`)
+- **Dark mode:** Class-based strategy (apply `.dark` class to parent)
+
+---
+
+## Key Architectural Constraints
+
+1. **Static Export**: Production builds use `output: "export"` — no server-side API routes. Tauri loads from `out/` directory
+2. **Tauri Integration**: Desktop features require `isTauri()` guard; Rust commands in `src-tauri/src/`, TypeScript wrappers in `lib/tauri/`
+3. **Zustand Persistence**: Stores use localStorage via `persist` middleware; desktop syncs via `TauriSyncProvider`
+4. **Frontend-Backend Data Flow**: `React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → Rust command`
+5. **Stellarium Web Engine**: Sky rendering via WebGL canvas; proxy rewrites for dev CORS (`/stellarium-proxy/`, `/cds-proxy/`)
+6. **Internationalization**: `next-intl` with `useTranslations()` hook; translations in `i18n/messages/{en,zh}.json`
+
+---
+
+## Testing
+
+- **Unit/Integration:** Jest + React Testing Library. Files: `__tests__/*.test.ts(x)` or `*.test.ts(x)`
+- **E2E:** Playwright in `tests/e2e/`. Runs against `http://localhost:3001/starmap`
+- **Mocks:** Tauri APIs mocked in `__mocks__/` directory
+- **Coverage thresholds:** 50% branches, 35% functions, 60% lines/statements
+
+---
+
+## When Uncertain
+
+- **Search first**: Use ace-tool `search_context` to gather codebase context
+- **Read docs**: Check CLAUDE.md files in relevant directories
+- **Web search**: Use exa or perplexity for external information
+- **Ask user**: If still uncertain after research, ask for clarification

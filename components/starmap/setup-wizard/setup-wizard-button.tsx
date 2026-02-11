@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
 
 interface SetupWizardButtonProps {
@@ -30,9 +31,9 @@ export function SetupWizardButton({
       variant={variant}
       size={size}
       onClick={handleClick}
-      className={className}
+      className={cn('gap-2', className)}
     >
-      <Settings2 className="w-4 h-4 mr-2" />
+      <Settings2 className="w-4 h-4" />
       {t('setupWizard.restartSetup')}
     </Button>
   );

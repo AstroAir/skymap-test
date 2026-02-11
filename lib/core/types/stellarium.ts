@@ -145,6 +145,14 @@ export interface MountInfo {
     RADegrees: number;
     Dec: number;
   };
+  Tracking?: boolean;
+  TrackMode?: 'sidereal' | 'lunar' | 'solar' | 'custom';
+  Slewing?: boolean;
+  Parked?: boolean;
+  PierSide?: 'east' | 'west' | 'unknown';
+  CanSlew?: boolean;
+  CanPark?: boolean;
+  CanSync?: boolean;
 }
 
 export interface ProfileInfo {
@@ -193,11 +201,13 @@ export interface ClickCoords {
 /**
  * Satellite data for overlay display
  */
+export type SatelliteType = 'iss' | 'starlink' | 'weather' | 'gps' | 'communication' | 'scientific' | 'amateur' | 'other';
+
 export interface SatelliteData {
   id: string;
   name: string;
   noradId: number;
-  type: string;
+  type: SatelliteType;
   altitude: number;
   velocity: number;
   ra?: number;
@@ -205,6 +215,10 @@ export interface SatelliteData {
   azimuth?: number;
   elevation?: number;
   isVisible: boolean;
+  inclination?: number;
+  period?: number;
+  magnitude?: number;
+  source?: string;
 }
 
 /**

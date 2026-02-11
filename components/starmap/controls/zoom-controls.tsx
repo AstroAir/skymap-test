@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { MIN_FOV, MAX_FOV } from '@/components/starmap/canvas';
 
 interface ZoomControlsProps {
   fov: number;
@@ -18,11 +20,7 @@ interface ZoomControlsProps {
   onFovChange: (fov: number) => void;
 }
 
-// FOV limits - must match StellariumCanvas
-const MIN_FOV = 0.5;
-const MAX_FOV = 180;
-
-export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomControlsProps) {
+export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomControlsProps) {
   const t = useTranslations();
   // Convert FOV to slider value (logarithmic scale for better UX)
   const fovToSlider = (f: number) => {
@@ -43,7 +41,7 @@ export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomCont
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col items-center gap-1.5 sm:gap-2 bg-background/80 backdrop-blur-sm rounded-lg p-1.5 sm:p-2 border border-border">
+      <div className="flex flex-col items-center gap-1.5 sm:gap-2 bg-background/80 backdrop-blur-sm rounded-lg p-1.5 sm:p-2 border border-border" role="group" aria-label={t('zoom.zoomControls')}>
         {/* Zoom In Button */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -53,6 +51,7 @@ export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomCont
               className="h-9 w-9 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 touch-target toolbar-btn"
               onClick={onZoomIn}
               disabled={fov <= MIN_FOV}
+              aria-label={t('zoom.zoomIn')}
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -71,6 +70,10 @@ export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomCont
             max={100}
             step={1}
             className="h-full"
+            aria-label={t('zoom.fovSlider')}
+            aria-valuemin={MIN_FOV}
+            aria-valuemax={MAX_FOV}
+            aria-valuenow={Math.round(fov * 10) / 10}
           />
         </div>
 
@@ -83,6 +86,7 @@ export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomCont
               className="h-9 w-9 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 touch-target toolbar-btn"
               onClick={onZoomOut}
               disabled={fov >= MAX_FOV}
+              aria-label={t('zoom.zoomOut')}
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -93,10 +97,11 @@ export function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomCont
         </Tooltip>
 
         {/* FOV Display */}
-        <div className="text-[10px] sm:text-xs text-muted-foreground text-center font-mono">
+        <div className="text-[10px] sm:text-xs text-muted-foreground text-center font-mono" aria-live="polite" aria-atomic="true">
           {fov < 1 ? fov.toFixed(2) : fov.toFixed(1)}°
         </div>
       </div>
     </TooltipProvider>
   );
-}
+});
+ZoomControls.displayName = 'ZoomControls';

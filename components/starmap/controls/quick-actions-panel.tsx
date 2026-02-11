@@ -45,7 +45,8 @@ import {
   getSunPosition,
   calculateTwilightTimes,
 } from '@/lib/astronomy/astro-utils';
-import { raDecToAltAz } from '@/lib/astronomy/starmap-utils';
+import { raDecToAltAz, getLST } from '@/lib/astronomy/starmap-utils';
+import { ZOOM_PRESETS } from '@/components/starmap/canvas/constants';
 
 interface QuickActionsPanelProps {
   onZoomToFov?: (fov: number) => void;
@@ -62,15 +63,17 @@ export function QuickActionsPanel({
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(true);
   
-  // Refresh trigger for astronomical conditions (updates every 60 seconds)
+  // Refresh trigger for astronomical conditions (only when popover is open)
   const [refreshTick, setRefreshTick] = useState(0);
   
   useEffect(() => {
+    if (!open) return;
+    setRefreshTick(prev => prev + 1);
     const interval = setInterval(() => {
       setRefreshTick(prev => prev + 1);
-    }, 60000); // Update every 60 seconds
+    }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [open]);
 
   // Store state
   const profileInfo = useMountStore((state) => state.profileInfo);
@@ -139,13 +142,11 @@ export function QuickActionsPanel({
       case 'autumnal': // Autumnal Equinox (RA=12h = 180°)
         setViewDirection(180, 0);
         break;
-      case 'zenith': // Zenith approximation (Dec = latitude, RA needs LST)
-        // For simplicity, point to declination equal to latitude at RA=0
-        // A true zenith would need current Local Sidereal Time
-        setViewDirection(0, latitude);
+      case 'zenith': // Zenith (Dec = latitude, RA = LST)
+        setViewDirection(getLST(longitude), latitude);
         break;
     }
-  }, [setViewDirection, latitude]);
+  }, [setViewDirection, latitude, longitude]);
 
   // Navigate to active target
   const navigateToActiveTarget = useCallback(() => {
@@ -153,15 +154,7 @@ export function QuickActionsPanel({
     setViewDirection(activeTarget.ra, activeTarget.dec);
   }, [activeTarget, setViewDirection]);
 
-  // Quick zoom presets
-  const zoomPresets = [
-    { fov: 90, label: '90°' },
-    { fov: 60, label: '60°' },
-    { fov: 30, label: '30°' },
-    { fov: 15, label: '15°' },
-    { fov: 5, label: '5°' },
-    { fov: 1, label: '1°' },
-  ];
+  // Quick zoom presets (from shared constants)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -178,6 +171,7 @@ export function QuickActionsPanel({
                   : "bg-card/60 text-foreground/80 hover:text-foreground hover:bg-accent",
                 className
               )}
+              data-tour-id="quick-actions"
             >
               <Zap className="h-4 w-4" />
             </Button>
@@ -352,7 +346,7 @@ export function QuickActionsPanel({
                     {t('quickActions.quickZoom')}
                   </h4>
                   <div className="grid grid-cols-6 gap-1">
-                    {zoomPresets.map((preset) => (
+                    {ZOOM_PRESETS.map((preset) => (
                       <Button
                         key={preset.fov}
                         variant="outline"
@@ -360,7 +354,7 @@ export function QuickActionsPanel({
                         className="h-7 text-[10px] px-1"
                         onClick={() => onZoomToFov?.(preset.fov)}
                       >
-                        {preset.label}
+                        {preset.fov}°
                       </Button>
                     ))}
                   </div>

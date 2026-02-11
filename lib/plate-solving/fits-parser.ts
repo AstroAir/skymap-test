@@ -77,7 +77,7 @@ function parseHeaderCard(card: string): { key: string; value: string | number | 
   
   let valueStr = card.substring(10).trim();
   
-  const commentIdx = valueStr.indexOf('/');
+  const commentIdx = valueStr.indexOf(' /');
   if (commentIdx > 0 && !valueStr.startsWith("'")) {
     valueStr = valueStr.substring(0, commentIdx).trim();
   }

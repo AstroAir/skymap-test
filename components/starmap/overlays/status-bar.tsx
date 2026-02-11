@@ -70,7 +70,7 @@ function ViewCenterDisplay() {
     };
 
     updateViewCenter();
-    const interval = setInterval(updateViewCenter, 500);
+    const interval = setInterval(updateViewCenter, 1000);
     return () => clearInterval(interval);
   }, [getCurrentViewDirection]);
 

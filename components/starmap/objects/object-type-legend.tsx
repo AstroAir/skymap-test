@@ -4,19 +4,6 @@ import { memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Star,
-  Globe2,
-  Cloud,
-  Sparkles,
-  Orbit,
-  CircleDot,
-  Binary,
-  Zap,
-  Circle,
-  Target,
-  Rocket,
-  Moon,
-  Asterisk,
-  Atom,
   Library,
 } from 'lucide-react';
 import {
@@ -34,41 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-
-interface ObjectTypeLegendItem {
-  icon: React.ElementType;
-  color: string;
-  labelKey: string;
-  category: 'galaxy' | 'nebula' | 'cluster' | 'star' | 'solar' | 'exotic';
-}
-
-const legendItems: ObjectTypeLegendItem[] = [
-  // Galaxies
-  { icon: Globe2, color: 'text-purple-400', labelKey: 'galaxy', category: 'galaxy' },
-  
-  // Nebulae
-  { icon: Cloud, color: 'text-pink-400', labelKey: 'nebula', category: 'nebula' },
-  { icon: Circle, color: 'text-cyan-400', labelKey: 'planetaryNebula', category: 'nebula' },
-  { icon: Zap, color: 'text-red-400', labelKey: 'supernovaRemnant', category: 'nebula' },
-  
-  // Clusters
-  { icon: Sparkles, color: 'text-blue-400', labelKey: 'openCluster', category: 'cluster' },
-  { icon: Atom, color: 'text-indigo-400', labelKey: 'globularCluster', category: 'cluster' },
-  
-  // Stars
-  { icon: CircleDot, color: 'text-yellow-400', labelKey: 'star', category: 'star' },
-  { icon: Binary, color: 'text-amber-400', labelKey: 'doubleStar', category: 'star' },
-  { icon: Asterisk, color: 'text-rose-400', labelKey: 'variableStar', category: 'star' },
-  
-  // Solar System
-  { icon: Orbit, color: 'text-orange-400', labelKey: 'planet', category: 'solar' },
-  { icon: Moon, color: 'text-slate-300', labelKey: 'moon', category: 'solar' },
-  { icon: Target, color: 'text-stone-400', labelKey: 'asteroid', category: 'solar' },
-  { icon: Rocket, color: 'text-teal-400', labelKey: 'comet', category: 'solar' },
-  
-  // Exotic
-  { icon: Zap, color: 'text-violet-400', labelKey: 'quasar', category: 'exotic' },
-];
+import { getLegendItems } from '@/lib/astronomy/object-type-utils';
 
 interface ObjectTypeLegendContentProps {
   compact?: boolean;
@@ -78,19 +31,21 @@ function ObjectTypeLegendContent({ compact = false }: ObjectTypeLegendContentPro
   const t = useTranslations('objects');
   const tLegend = useTranslations('legend');
 
+  const allItems = getLegendItems();
+
   const categories = [
-    { key: 'galaxy', label: tLegend('galaxies') },
-    { key: 'nebula', label: tLegend('nebulae') },
-    { key: 'cluster', label: tLegend('clusters') },
-    { key: 'star', label: tLegend('stars') },
-    { key: 'solar', label: tLegend('solarSystem') },
-    { key: 'exotic', label: tLegend('exoticObjects') },
+    { key: 'galaxy' as const, label: tLegend('galaxies') },
+    { key: 'nebula' as const, label: tLegend('nebulae') },
+    { key: 'cluster' as const, label: tLegend('clusters') },
+    { key: 'star' as const, label: tLegend('stars') },
+    { key: 'solar' as const, label: tLegend('solarSystem') },
+    { key: 'exotic' as const, label: tLegend('exoticObjects') },
   ];
 
   if (compact) {
     return (
       <div className="grid grid-cols-2 gap-2 p-2">
-        {legendItems.map((item) => {
+        {allItems.map((item) => {
           const Icon = item.icon;
           return (
             <div key={item.labelKey} className="flex items-center gap-2 text-xs">
@@ -106,7 +61,7 @@ function ObjectTypeLegendContent({ compact = false }: ObjectTypeLegendContentPro
   return (
     <div className="space-y-4">
       {categories.map((category) => {
-        const items = legendItems.filter((item) => item.category === category.key);
+        const items = allItems.filter((item) => item.group === category.key);
         if (items.length === 0) return null;
 
         return (

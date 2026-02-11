@@ -12,33 +12,22 @@ import { ObservationLog } from '../planning/observation-log';
 import { MarkerManager } from '../management/marker-manager';
 import { LocationManager } from '../management/location-manager';
 import { StellariumMount } from '../mount/stellarium-mount';
-import { PlateSolver } from '../plate-solving/plate-solver';
+import { PlateSolverUnified } from '../plate-solving/plate-solver-unified';
 import { SkyAtlasPanel } from '../planning/sky-atlas-panel';
 import { EquipmentManager } from '../management/equipment-manager';
 
+import { useEquipmentStore } from '@/lib/stores';
 import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
-import type { MosaicSettings, GridType } from '@/lib/stores';
+import { buildSelectionData } from './selection-utils';
 
 interface MobileLayoutProps {
   stel: boolean;
   currentFov: number;
   selectedObject: SelectedObjectData | null;
   contextMenuCoords: ClickCoords | null;
-  fovSimEnabled: boolean;
-  sensorWidth: number;
-  sensorHeight: number;
-  focalLength: number;
-  mosaic: MosaicSettings;
-  gridType: GridType;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFovSliderChange: (fov: number) => void;
-  onFovSimEnabledChange: (enabled: boolean) => void;
-  onSensorWidthChange: (width: number) => void;
-  onSensorHeightChange: (height: number) => void;
-  onFocalLengthChange: (length: number) => void;
-  onMosaicChange: (mosaic: MosaicSettings) => void;
-  onGridTypeChange: (type: GridType) => void;
   onLocationChange: (lat: number, lon: number, alt: number) => void;
   onGoToCoordinates: (ra: number, dec: number) => void;
 }
@@ -48,38 +37,27 @@ export const MobileLayout = memo(function MobileLayout({
   currentFov,
   selectedObject,
   contextMenuCoords,
-  fovSimEnabled,
-  sensorWidth,
-  sensorHeight,
-  focalLength,
-  mosaic,
-  gridType,
   onZoomIn,
   onZoomOut,
   onFovSliderChange,
-  onFovSimEnabledChange,
-  onSensorWidthChange,
-  onSensorHeightChange,
-  onFocalLengthChange,
-  onMosaicChange,
-  onGridTypeChange,
   onLocationChange,
   onGoToCoordinates,
 }: MobileLayoutProps) {
-  // Build current selection data for ShotList and ObservationLog
-  const currentSelection = selectedObject ? {
-    name: selectedObject.names[0] || 'Unknown',
-    ra: selectedObject.raDeg,
-    dec: selectedObject.decDeg,
-    raString: selectedObject.ra,
-    decString: selectedObject.dec,
-  } : null;
+  const { currentSelection, observationSelection } = buildSelectionData(selectedObject);
 
-  const observationSelection = selectedObject ? {
-    ...currentSelection!,
-    type: selectedObject.type,
-    constellation: selectedObject.constellation,
-  } : null;
+  // Subscribe to equipment store directly — avoids prop drilling
+  const fovSimEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
+  const setFovSimEnabled = useEquipmentStore((s) => s.setFOVEnabled);
+  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
+  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
+  const focalLength = useEquipmentStore((s) => s.focalLength);
+  const mosaic = useEquipmentStore((s) => s.mosaic);
+  const gridType = useEquipmentStore((s) => s.fovDisplay.gridType);
+  const setSensorWidth = useEquipmentStore((s) => s.setSensorWidth);
+  const setSensorHeight = useEquipmentStore((s) => s.setSensorHeight);
+  const setFocalLength = useEquipmentStore((s) => s.setFocalLength);
+  const setMosaic = useEquipmentStore((s) => s.setMosaic);
+  const setGridType = useEquipmentStore((s) => s.setGridType);
 
   return (
     <>
@@ -122,17 +100,17 @@ export const MobileLayout = memo(function MobileLayout({
         <div className="flex items-center gap-0.5 shrink-0">
           <FOVSimulator
             enabled={fovSimEnabled}
-            onEnabledChange={onFovSimEnabledChange}
+            onEnabledChange={setFovSimEnabled}
             sensorWidth={sensorWidth}
             sensorHeight={sensorHeight}
             focalLength={focalLength}
-            onSensorWidthChange={onSensorWidthChange}
-            onSensorHeightChange={onSensorHeightChange}
-            onFocalLengthChange={onFocalLengthChange}
+            onSensorWidthChange={setSensorWidth}
+            onSensorHeightChange={setSensorHeight}
+            onFocalLengthChange={setFocalLength}
             mosaic={mosaic}
-            onMosaicChange={onMosaicChange}
+            onMosaicChange={setMosaic}
             gridType={gridType}
-            onGridTypeChange={onGridTypeChange}
+            onGridTypeChange={setGridType}
           />
           <ExposureCalculator focalLength={focalLength} />
         </div>
@@ -151,8 +129,8 @@ export const MobileLayout = memo(function MobileLayout({
         
         {/* Mount & Advanced */}
         <div className="flex items-center gap-0.5 shrink-0">
-          {stel && <StellariumMount />}
-          <PlateSolver onGoToCoordinates={onGoToCoordinates} />
+          {stel && <StellariumMount compact />}
+          <PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />
           <SkyAtlasPanel />
           <EquipmentManager />
         </div>

@@ -20,6 +20,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { STARMAP_SHORTCUT_KEYS } from '@/lib/hooks';
 
 interface ShortcutItem {
   key: string;
@@ -33,14 +34,24 @@ interface ShortcutGroup {
   shortcuts: ShortcutItem[];
 }
 
+/**
+ * Format a shortcut key for display (uppercase letters, named keys)
+ */
+function displayKey(key: string): string {
+  if (key === ' ') return 'Space';
+  if (key === 'Escape') return 'Esc';
+  if (key.length === 1) return key.toUpperCase();
+  return key;
+}
+
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     titleKey: 'navigation',
     icon: <Navigation className="h-4 w-4" />,
     shortcuts: [
-      { key: '+', descriptionKey: 'zoomIn' },
-      { key: '-', descriptionKey: 'zoomOut' },
-      { key: 'R', descriptionKey: 'resetView' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.ZOOM_IN), descriptionKey: 'zoomIn' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.ZOOM_OUT), descriptionKey: 'zoomOut' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.RESET_VIEW), descriptionKey: 'resetView' },
       { key: '/', descriptionKey: 'openSearch' },
     ],
   },
@@ -48,30 +59,30 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     titleKey: 'searchAndPanels',
     icon: <Command className="h-4 w-4" />,
     shortcuts: [
-      { key: 'F', modifier: 'Ctrl', descriptionKey: 'toggleSearch' },
-      { key: 'P', descriptionKey: 'toggleSessionPanel' },
-      { key: 'O', descriptionKey: 'toggleFovOverlay' },
-      { key: 'Esc', descriptionKey: 'closePanel' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_SEARCH), modifier: 'Ctrl', descriptionKey: 'toggleSearch' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_SESSION_PANEL), descriptionKey: 'toggleSessionPanel' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_FOV), descriptionKey: 'toggleFovOverlay' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.CLOSE_PANEL), descriptionKey: 'closePanel' },
     ],
   },
   {
     titleKey: 'display',
     icon: <Eye className="h-4 w-4" />,
     shortcuts: [
-      { key: 'L', descriptionKey: 'toggleConstellations' },
-      { key: 'G', descriptionKey: 'toggleGrid' },
-      { key: 'D', descriptionKey: 'toggleDso' },
-      { key: 'A', descriptionKey: 'toggleAtmosphere' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_CONSTELLATIONS), descriptionKey: 'toggleConstellations' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_GRID), descriptionKey: 'toggleGrid' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_DSO), descriptionKey: 'toggleDso' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_ATMOSPHERE), descriptionKey: 'toggleAtmosphere' },
     ],
   },
   {
     titleKey: 'timeControl',
     icon: <Clock className="h-4 w-4" />,
     shortcuts: [
-      { key: 'Space', descriptionKey: 'pauseResumeTime' },
-      { key: ']', descriptionKey: 'speedUpTime' },
-      { key: '[', descriptionKey: 'slowDownTime' },
-      { key: 'T', descriptionKey: 'resetTime' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.PAUSE_TIME), descriptionKey: 'pauseResumeTime' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.SPEED_UP), descriptionKey: 'speedUpTime' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.SLOW_DOWN), descriptionKey: 'slowDownTime' },
+      { key: displayKey(STARMAP_SHORTCUT_KEYS.RESET_TIME), descriptionKey: 'resetTime' },
     ],
   },
 ];
@@ -111,6 +122,11 @@ export function KeyboardShortcutsDialog({ trigger }: KeyboardShortcutsDialogProp
     const activeElement = document.activeElement;
     const tagName = activeElement?.tagName.toLowerCase();
     if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
+      return;
+    }
+
+    // Don't trigger if another dialog/modal is already open
+    if (document.querySelector('[role="dialog"][data-state="open"]')) {
       return;
     }
 

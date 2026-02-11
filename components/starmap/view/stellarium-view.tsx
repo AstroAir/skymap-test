@@ -18,10 +18,8 @@ import { SearchPanel } from './search-panel';
 import { CloseConfirmDialog } from './close-confirm-dialog';
 import { OverlaysContainer } from './overlays-container';
 import { CenterCrosshair } from './center-crosshair';
-import { ViewCenterDisplay, LocationTimeDisplay } from './bottom-status-bar';
+import { BottomStatusBar } from './bottom-status-bar';
 import { useStellariumViewState } from './use-stellarium-view-state';
-
-import { SystemStatusIndicator } from '@/components/common/system-status-indicator';
 
 export function StellariumView() {
   const {
@@ -67,12 +65,8 @@ export function StellariumView() {
     rotationAngle,
     mosaic,
     gridType,
-    setSensorWidth,
-    setSensorHeight,
-    setFocalLength,
     setRotationAngle,
     setMosaic,
-    setGridType,
 
     // Store states
     stel,
@@ -89,7 +83,6 @@ export function StellariumView() {
     handleSetFramingCoordinates,
     handleZoomIn,
     handleZoomOut,
-    handleFovSliderChange,
     handleSetFov,
     handleResetView,
     handleLocationChange,
@@ -102,7 +95,6 @@ export function StellariumView() {
     handleConfirmClose,
     toggleSearch,
     handleNavigate,
-    handleMarkerDoubleClick,
     handleMarkerEdit,
     handleMarkerNavigate,
   } = useStellariumViewState();
@@ -184,7 +176,7 @@ export function StellariumView() {
           mosaic={mosaic}
           gridType={gridType}
           onRotationChange={setRotationAngle}
-          onMarkerDoubleClick={handleMarkerDoubleClick}
+          onMarkerDoubleClick={handleMarkerNavigate}
           onMarkerEdit={handleMarkerEdit}
           onMarkerNavigate={handleMarkerNavigate}
         />
@@ -220,21 +212,9 @@ export function StellariumView() {
           selectedObject={selectedObject}
           showSessionPanel={showSessionPanel}
           contextMenuCoords={contextMenuCoords}
-          fovSimEnabled={fovSimEnabled}
-          sensorWidth={sensorWidth}
-          sensorHeight={sensorHeight}
-          focalLength={focalLength}
-          mosaic={mosaic}
-          gridType={gridType}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
-          onFovSliderChange={handleFovSliderChange}
-          onFovSimEnabledChange={setFovSimEnabled}
-          onSensorWidthChange={setSensorWidth}
-          onSensorHeightChange={setSensorHeight}
-          onFocalLengthChange={setFocalLength}
-          onMosaicChange={setMosaic}
-          onGridTypeChange={setGridType}
+          onFovSliderChange={handleSetFov}
           onLocationChange={handleLocationChange}
         />
 
@@ -244,21 +224,9 @@ export function StellariumView() {
           currentFov={currentFov}
           selectedObject={selectedObject}
           contextMenuCoords={contextMenuCoords}
-          fovSimEnabled={fovSimEnabled}
-          sensorWidth={sensorWidth}
-          sensorHeight={sensorHeight}
-          focalLength={focalLength}
-          mosaic={mosaic}
-          gridType={gridType}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
-          onFovSliderChange={handleFovSliderChange}
-          onFovSimEnabledChange={setFovSimEnabled}
-          onSensorWidthChange={setSensorWidth}
-          onSensorHeightChange={setSensorHeight}
-          onFocalLengthChange={setFocalLength}
-          onMosaicChange={setMosaic}
-          onGridTypeChange={setGridType}
+          onFovSliderChange={handleSetFov}
           onLocationChange={handleLocationChange}
           onGoToCoordinates={handleGoToCoordinates}
         />
@@ -292,31 +260,7 @@ export function StellariumView() {
         />
 
         {/* Bottom Status Bar */}
-        <div className="absolute bottom-0 left-0 right-0 pointer-events-none safe-area-bottom">
-          <div className="bg-card/80 backdrop-blur-md border-t border-border/50 px-2 sm:px-4 py-1.5 sm:py-2 status-bar-reveal">
-            <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
-              {/* Left: View Center Coordinates */}
-              <div className="flex items-center gap-4">
-                <ViewCenterDisplay />
-              </div>
-
-              {/* Center: FOV */}
-              <div className="flex items-center gap-4">
-                <span className="text-muted-foreground">
-                  FOV: <span className="text-foreground font-mono">{currentFov < 1 ? currentFov.toFixed(2) : currentFov.toFixed(1)}°</span>
-                </span>
-              </div>
-
-              {/* Right: Location & Time + System Status */}
-              <div className="flex items-center gap-4">
-                <LocationTimeDisplay />
-                <div className="hidden sm:block">
-                  <SystemStatusIndicator compact />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <BottomStatusBar currentFov={currentFov} />
 
         {/* Center Crosshair */}
         <CenterCrosshair />

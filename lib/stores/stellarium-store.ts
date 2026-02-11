@@ -23,6 +23,9 @@ interface StellariumState {
   getCurrentViewDirection: (() => { ra: number; dec: number; alt: number; az: number }) | null;
   setViewDirection: ((raDeg: number, decDeg: number) => void) | null;
   
+  // Cached view direction (radians) — updated by a single polling source
+  viewDirection: { ra: number; dec: number; alt: number; az: number } | null;
+  
   // Actions
   setStel: (stel: StellariumEngine | null) => void;
   setBaseUrl: (url: string) => void;
@@ -31,6 +34,7 @@ interface StellariumState {
     getCurrentViewDirection?: StellariumState['getCurrentViewDirection'];
     setViewDirection?: StellariumState['setViewDirection'];
   }) => void;
+  updateViewDirection: () => void;
   updateStellariumCore: (settings: StellariumSettings) => void;
 }
 
@@ -45,6 +49,7 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
   },
   getCurrentViewDirection: null,
   setViewDirection: null,
+  viewDirection: null,
   
   setStel: (stel) => set({ stel }),
   setBaseUrl: (baseUrl) => set({ baseUrl }),
@@ -55,6 +60,16 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
     getCurrentViewDirection: helpers.getCurrentViewDirection ?? get().getCurrentViewDirection,
     setViewDirection: helpers.setViewDirection ?? get().setViewDirection,
   }),
+  updateViewDirection: () => {
+    const fn = get().getCurrentViewDirection;
+    if (fn) {
+      try {
+        set({ viewDirection: fn() });
+      } catch {
+        // Engine not ready yet
+      }
+    }
+  },
   
   updateStellariumCore: (settings) => {
     const { stel, baseUrl } = get();

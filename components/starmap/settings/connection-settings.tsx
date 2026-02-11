@@ -11,22 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useSettingsStore } from '@/lib/stores';
 import { SettingsSection } from './settings-shared';
 
-interface ConnectionSettingsProps {
-  localConnection: { ip: string; port: string };
-  localProtocol: 'http' | 'https';
-  onConnectionChange: (connection: { ip: string; port: string }) => void;
-  onProtocolChange: (protocol: 'http' | 'https') => void;
-}
-
-export function ConnectionSettings({
-  localConnection,
-  localProtocol,
-  onConnectionChange,
-  onProtocolChange,
-}: ConnectionSettingsProps) {
+export function ConnectionSettings() {
   const t = useTranslations();
+  const connection = useSettingsStore((state) => state.connection);
+  const setConnection = useSettingsStore((state) => state.setConnection);
+  const backendProtocol = useSettingsStore((state) => state.backendProtocol);
+  const setBackendProtocol = useSettingsStore((state) => state.setBackendProtocol);
 
   return (
     <SettingsSection
@@ -38,8 +31,8 @@ export function ConnectionSettings({
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">{t('settings.protocol')}</Label>
           <Select
-            value={localProtocol}
-            onValueChange={(v) => onProtocolChange(v as 'http' | 'https')}
+            value={backendProtocol}
+            onValueChange={(v) => setBackendProtocol(v as 'http' | 'https')}
           >
             <SelectTrigger className="h-8">
               <SelectValue />
@@ -54,9 +47,9 @@ export function ConnectionSettings({
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{t('settings.ipAddress')}</Label>
             <Input
-              value={localConnection.ip}
-              onChange={(e) => onConnectionChange({ ...localConnection, ip: e.target.value })}
-              onBlur={(e) => onConnectionChange({ ...localConnection, ip: e.target.value.trim() })}
+              value={connection.ip}
+              onChange={(e) => setConnection({ ip: e.target.value })}
+              onBlur={(e) => setConnection({ ip: e.target.value.trim() })}
               placeholder={t('settings.ipAddressPlaceholder')}
               className="h-8 text-sm font-mono"
             />
@@ -67,16 +60,16 @@ export function ConnectionSettings({
               type="number"
               min={1}
               max={65535}
-              value={localConnection.port}
+              value={connection.port}
               onChange={(e) => {
                 // Allow any input during typing, validate on blur
-                onConnectionChange({ ...localConnection, port: e.target.value });
+                setConnection({ port: e.target.value });
               }}
               onBlur={(e) => {
                 // Validate and clamp port number on blur
                 const port = parseInt(e.target.value);
                 const validPort = isNaN(port) ? 1888 : Math.max(1, Math.min(65535, port));
-                onConnectionChange({ ...localConnection, port: String(validPort) });
+                setConnection({ port: String(validPort) });
               }}
               placeholder={t('settings.portPlaceholder')}
               className="h-8 text-sm font-mono"

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, useRef, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { MapPin, Search, Loader2, Locate, Layers } from 'lucide-react';
+import { MapPin, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,9 +15,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { geocodingService } from '@/lib/services/geocoding-service';
+import { LocationSearch } from './location-search';
 import type { Coordinates, LocationResult, TileLayerType } from './types';
 
 // Lazy load LeafletMap to avoid SSR issues and improve initial load
@@ -61,12 +60,10 @@ function MapLocationPickerComponent({
   ], [t]);
 
   const [currentLocation, setCurrentLocation] = useState<Coordinates>(initialLocation);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Array<{ id: string; address: string; coordinates: Coordinates }>>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [zoom, setZoom] = useState(10);
   const [tileLayer, setTileLayer] = useState<TileLayerType>(initialTileLayer);
+  const latInputRef = useRef<HTMLInputElement>(null);
+  const lngInputRef = useRef<HTMLInputElement>(null);
 
   // Memoize map height style
   const mapHeight = useMemo(() => 
@@ -74,58 +71,12 @@ function MapLocationPickerComponent({
     [height]
   );
 
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    try {
-      const results = await geocodingService.geocode(searchQuery, { limit: 5, fallback: true });
-      setSearchResults(results.map((r, i) => ({ id: String(i), address: r.displayName, coordinates: r.coordinates })));
-    } catch { 
-      toast.error(t('map.searchFailed') || 'Search failed'); 
-      setSearchResults([]); 
-    } finally { 
-      setIsSearching(false); 
-    }
-  }, [searchQuery, t]);
-
-  const handleSearchResultSelect = useCallback((result: { id: string; address: string; coordinates: Coordinates }) => {
+  const handleLocationSearchSelect = useCallback((result: LocationResult) => {
     setCurrentLocation(result.coordinates);
-    setSearchResults([]);
-    setSearchQuery(result.address);
     setZoom(14);
     onLocationChange(result.coordinates);
-    onLocationSelect?.({ coordinates: result.coordinates, address: result.address, displayName: result.address });
+    onLocationSelect?.(result);
   }, [onLocationChange, onLocationSelect]);
-
-  const handleGetCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) { 
-      toast.error(t('map.geolocationNotSupported') || 'Geolocation not supported'); 
-      return; 
-    }
-    setIsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const location = { latitude: position.coords.latitude, longitude: position.coords.longitude };
-        setCurrentLocation(location);
-        setZoom(14);
-        onLocationChange(location);
-        try {
-          const result = await geocodingService.reverseGeocode(location);
-          onLocationSelect?.({ coordinates: location, address: result.address, displayName: result.displayName });
-          toast.success(t('map.locationAcquired') || 'Location acquired');
-        } catch {
-          const coordsString = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
-          onLocationSelect?.({ coordinates: location, address: coordsString, displayName: coordsString });
-        }
-        setIsLoading(false);
-      }, 
-      (geoError) => { 
-        toast.error(geoError.message); 
-        setIsLoading(false); 
-      }, 
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, [t, onLocationChange, onLocationSelect]);
 
   const handleMapLocationChange = useCallback((location: Coordinates) => {
     setCurrentLocation(location);
@@ -138,16 +89,23 @@ function MapLocationPickerComponent({
     onLocationChange(location);
   }, [onLocationChange]);
 
-  const handleCoordinateChange = useCallback((type: 'latitude' | 'longitude', value: string) => {
-    const numValue = parseFloat(value);
-    if (isNaN(numValue)) return;
-    const clampedValue = type === 'latitude' 
-      ? Math.max(-90, Math.min(90, numValue)) 
-      : Math.max(-180, Math.min(180, numValue));
-    const newLocation = { ...currentLocation, [type]: clampedValue };
+  const commitCoordinateInput = useCallback(() => {
+    const latVal = parseFloat(latInputRef.current?.value ?? '');
+    const lngVal = parseFloat(lngInputRef.current?.value ?? '');
+    if (isNaN(latVal) || isNaN(lngVal)) return;
+    const newLocation = {
+      latitude: Math.max(-90, Math.min(90, latVal)),
+      longitude: Math.max(-180, Math.min(180, lngVal)),
+    };
     setCurrentLocation(newLocation);
     onLocationChange(newLocation);
-  }, [currentLocation, onLocationChange]);
+  }, [onLocationChange]);
+
+  const handleCoordinateKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      commitCoordinateInput();
+    }
+  }, [commitCoordinateInput]);
 
   return (
     <Card className={cn('w-full', className)}>
@@ -181,45 +139,12 @@ function MapLocationPickerComponent({
       </CardHeader>
       <CardContent className='space-y-4'>
         {showSearch && (
-          <div className='space-y-2'>
-            <div className='flex gap-2'>
-              <Input 
-                placeholder={t('map.searchPlaceholder') || 'Search...'} 
-                value={searchQuery} 
-                onChange={(e) => setSearchQuery(e.target.value)} 
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()} 
-                disabled={disabled} 
-              />
-              <Button 
-                onClick={handleSearch} 
-                disabled={!searchQuery.trim() || isSearching || disabled} 
-                size='icon'
-              >
-                {isSearching ? <Loader2 className='h-4 w-4 animate-spin' /> : <Search className='h-4 w-4' />}
-              </Button>
-              <Button 
-                onClick={handleGetCurrentLocation} 
-                disabled={isLoading || disabled} 
-                size='icon' 
-                variant='outline'
-              >
-                {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : <Locate className='h-4 w-4' />}
-              </Button>
-            </div>
-            {searchResults.length > 0 && (
-              <div className='max-h-32 overflow-y-auto border rounded-md'>
-                {searchResults.map((result) => (
-                  <div 
-                    key={result.id} 
-                    className='px-3 py-2 hover:bg-muted cursor-pointer border-b last:border-b-0' 
-                    onClick={() => handleSearchResultSelect(result)}
-                  >
-                    <div className='text-sm font-medium truncate'>{result.address}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <LocationSearch
+            onLocationSelect={handleLocationSearchSelect}
+            disabled={disabled}
+            showCurrentLocation={true}
+            showRecentSearches={true}
+          />
         )}
         <div 
           className={cn('relative border rounded-lg overflow-hidden bg-muted')} 
@@ -241,12 +166,15 @@ function MapLocationPickerComponent({
           <div className='space-y-1'>
             <Label className='text-xs'>{t('map.latitude') || 'Latitude'}</Label>
             <Input 
+              ref={latInputRef}
               type='number' 
               step='any' 
               min='-90' 
               max='90' 
-              value={currentLocation.latitude} 
-              onChange={(e) => handleCoordinateChange('latitude', e.target.value)} 
+              defaultValue={currentLocation.latitude} 
+              key={`lat-${currentLocation.latitude}`}
+              onBlur={commitCoordinateInput}
+              onKeyDown={handleCoordinateKeyDown}
               disabled={disabled} 
               className='font-mono text-sm' 
             />
@@ -254,12 +182,15 @@ function MapLocationPickerComponent({
           <div className='space-y-1'>
             <Label className='text-xs'>{t('map.longitude') || 'Longitude'}</Label>
             <Input 
+              ref={lngInputRef}
               type='number' 
               step='any' 
               min='-180' 
               max='180' 
-              value={currentLocation.longitude} 
-              onChange={(e) => handleCoordinateChange('longitude', e.target.value)} 
+              defaultValue={currentLocation.longitude} 
+              key={`lng-${currentLocation.longitude}`}
+              onBlur={commitCoordinateInput}
+              onKeyDown={handleCoordinateKeyDown}
               disabled={disabled} 
               className='font-mono text-sm' 
             />

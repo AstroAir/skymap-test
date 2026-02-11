@@ -132,6 +132,39 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     }, [startLoading, setStel]);
 
     // ============================================================================
+    // Effect: ResizeObserver for dynamic canvas resize
+    // ============================================================================
+    useEffect(() => {
+      const container = containerRef.current;
+      const canvas = canvasRef.current;
+      if (!container || !canvas) return;
+
+      let rafId: number | null = null;
+
+      const observer = new ResizeObserver(() => {
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          const rect = container.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          const newWidth = Math.round(rect.width * dpr);
+          const newHeight = Math.round(rect.height * dpr);
+          if (canvas.width !== newWidth || canvas.height !== newHeight) {
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+          }
+          rafId = null;
+        });
+      });
+
+      observer.observe(container);
+
+      return () => {
+        observer.disconnect();
+        if (rafId !== null) cancelAnimationFrame(rafId);
+      };
+    }, []);
+
+    // ============================================================================
     // Render
     // ============================================================================
     return (

@@ -17,11 +17,10 @@ import {
   type OnlineSearchSource,
 } from '@/lib/services/online-search-service';
 import {
-  calculateSearchMatch,
-  COMMON_NAME_TO_CATALOG,
-  PHONETIC_VARIATIONS,
-  parseCatalogId,
-  jaroWinklerSimilarity,
+  CELESTIAL_BODIES as CELESTIAL_BODIES_BASE,
+  POPULAR_DSOS as POPULAR_DSOS_BASE,
+  CONSTELLATION_SEARCH_DATA as CONSTELLATIONS_BASE,
+  getMatchScore as getMatchScoreBase,
 } from '@/lib/catalogs';
 import { createLogger } from '@/lib/logger';
 
@@ -138,48 +137,10 @@ export interface UseOnlineSearchReturn {
 // Local Data Sources
 // ============================================================================
 
-const CELESTIAL_BODIES: OnlineSearchResultItem[] = [
-  { Name: 'Sun', Type: 'Star', source: 'local' },
-  { Name: 'Mercury', Type: 'Planet', source: 'local' },
-  { Name: 'Venus', Type: 'Planet', source: 'local' },
-  { Name: 'Moon', Type: 'Moon', source: 'local' },
-  { Name: 'Mars', Type: 'Planet', source: 'local' },
-  { Name: 'Jupiter', Type: 'Planet', source: 'local' },
-  { Name: 'Saturn', Type: 'Planet', source: 'local' },
-  { Name: 'Uranus', Type: 'Planet', source: 'local' },
-  { Name: 'Neptune', Type: 'Planet', source: 'local' },
-  { Name: 'Pluto', Type: 'Planet', source: 'local' },
-];
-
-const POPULAR_DSOS: OnlineSearchResultItem[] = [
-  { Name: 'M31', Type: 'DSO', RA: 10.6847, Dec: 41.2689, 'Common names': 'Andromeda Galaxy', Magnitude: 3.4, Size: "178'x63'", source: 'local' },
-  { Name: 'M42', Type: 'DSO', RA: 83.8221, Dec: -5.3911, 'Common names': 'Orion Nebula', Magnitude: 4.0, Size: "85'x60'", source: 'local' },
-  { Name: 'M45', Type: 'DSO', RA: 56.75, Dec: 24.1167, 'Common names': 'Pleiades', Magnitude: 1.6, Size: "110'", source: 'local' },
-  { Name: 'M1', Type: 'DSO', RA: 83.6333, Dec: 22.0167, 'Common names': 'Crab Nebula', Magnitude: 8.4, Size: "6'x4'", source: 'local' },
-  { Name: 'M51', Type: 'DSO', RA: 202.4696, Dec: 47.1952, 'Common names': 'Whirlpool Galaxy', Magnitude: 8.4, Size: "11'x7'", source: 'local' },
-  { Name: 'M101', Type: 'DSO', RA: 210.8024, Dec: 54.3488, 'Common names': 'Pinwheel Galaxy', Magnitude: 7.9, Size: "29'x27'", source: 'local' },
-  { Name: 'M104', Type: 'DSO', RA: 189.9976, Dec: -11.6231, 'Common names': 'Sombrero Galaxy', Magnitude: 8.0, Size: "9'x4'", source: 'local' },
-  { Name: 'M13', Type: 'DSO', RA: 250.4217, Dec: 36.4613, 'Common names': 'Hercules Cluster', Magnitude: 5.8, Size: "20'", source: 'local' },
-  { Name: 'M57', Type: 'DSO', RA: 283.3962, Dec: 33.0286, 'Common names': 'Ring Nebula', Magnitude: 8.8, Size: "1.4'x1'", source: 'local' },
-  { Name: 'M27', Type: 'DSO', RA: 299.9017, Dec: 22.7211, 'Common names': 'Dumbbell Nebula', Magnitude: 7.5, Size: "8'x6'", source: 'local' },
-  { Name: 'NGC7000', Type: 'DSO', RA: 314.6833, Dec: 44.3167, 'Common names': 'North America Nebula', Magnitude: 4.0, Size: "120'x100'", source: 'local' },
-  { Name: 'NGC6992', Type: 'DSO', RA: 312.7583, Dec: 31.7167, 'Common names': 'Veil Nebula', Magnitude: 7.0, Size: "60'", source: 'local' },
-  { Name: 'IC1396', Type: 'DSO', RA: 324.7458, Dec: 57.4833, 'Common names': 'Elephant Trunk Nebula', Magnitude: 3.5, Size: "170'", source: 'local' },
-  { Name: 'M33', Type: 'DSO', RA: 23.4621, Dec: 30.6599, 'Common names': 'Triangulum Galaxy', Magnitude: 5.7, Size: "73'x45'", source: 'local' },
-  { Name: 'M81', Type: 'DSO', RA: 148.8882, Dec: 69.0653, 'Common names': "Bode's Galaxy", Magnitude: 6.9, Size: "27'x14'", source: 'local' },
-  { Name: 'M82', Type: 'DSO', RA: 148.9685, Dec: 69.6797, 'Common names': 'Cigar Galaxy', Magnitude: 8.4, Size: "11'x5'", source: 'local' },
-];
-
-const CONSTELLATIONS: OnlineSearchResultItem[] = [
-  { Name: 'Orion', Type: 'Constellation', RA: 85.0, Dec: 0.0, 'Common names': 'The Hunter', source: 'local' },
-  { Name: 'Ursa Major', Type: 'Constellation', RA: 165.0, Dec: 55.0, 'Common names': 'Great Bear, Big Dipper', source: 'local' },
-  { Name: 'Cassiopeia', Type: 'Constellation', RA: 15.0, Dec: 60.0, 'Common names': 'The Queen', source: 'local' },
-  { Name: 'Cygnus', Type: 'Constellation', RA: 310.0, Dec: 45.0, 'Common names': 'The Swan', source: 'local' },
-  { Name: 'Leo', Type: 'Constellation', RA: 165.0, Dec: 15.0, 'Common names': 'The Lion', source: 'local' },
-  { Name: 'Scorpius', Type: 'Constellation', RA: 255.0, Dec: -30.0, 'Common names': 'The Scorpion', source: 'local' },
-  { Name: 'Sagittarius', Type: 'Constellation', RA: 285.0, Dec: -30.0, 'Common names': 'The Archer', source: 'local' },
-  { Name: 'Andromeda', Type: 'Constellation', RA: 10.0, Dec: 40.0, 'Common names': 'The Chained Princess', source: 'local' },
-];
+// Derive online search data from shared base data (add source: 'local')
+const CELESTIAL_BODIES: OnlineSearchResultItem[] = CELESTIAL_BODIES_BASE.map(b => ({ ...b, source: 'local' as const }));
+const POPULAR_DSOS: OnlineSearchResultItem[] = POPULAR_DSOS_BASE.map(d => ({ ...d, source: 'local' as const }));
+const CONSTELLATIONS: OnlineSearchResultItem[] = CONSTELLATIONS_BASE.map(c => ({ ...c, source: 'local' as const }));
 
 // ============================================================================
 // Helper Functions
@@ -222,52 +183,9 @@ function onlineResultToSearchItem(result: OnlineSearchResult): OnlineSearchResul
   };
 }
 
+// Delegate to shared getMatchScore from celestial-search-data
 function getMatchScore(item: OnlineSearchResultItem, query: string): number {
-  const queryLower = query.toLowerCase().trim();
-  
-  const commonNameMatches = COMMON_NAME_TO_CATALOG[queryLower];
-  if (commonNameMatches) {
-    const itemNameUpper = item.Name.toUpperCase();
-    if (commonNameMatches.some(cat => itemNameUpper === cat.toUpperCase())) {
-      return 1.8;
-    }
-  }
-  
-  for (const [correctName, variations] of Object.entries(PHONETIC_VARIATIONS)) {
-    if (variations.some(v => queryLower.includes(v) || v.includes(queryLower))) {
-      const catalogMatches = COMMON_NAME_TO_CATALOG[correctName];
-      if (catalogMatches) {
-        const itemNameUpper = item.Name.toUpperCase();
-        if (catalogMatches.some(cat => itemNameUpper === cat.toUpperCase())) {
-          return 1.7;
-        }
-      }
-      if (item['Common names']?.toLowerCase().includes(correctName)) {
-        return 1.6;
-      }
-    }
-  }
-  
-  const parsedCatalog = parseCatalogId(query);
-  if (parsedCatalog) {
-    const itemParsed = parseCatalogId(item.Name);
-    if (itemParsed && 
-        itemParsed.catalog === parsedCatalog.catalog && 
-        itemParsed.number === parsedCatalog.number) {
-      return 2.0;
-    }
-  }
-  
-  if (item['Common names']) {
-    const commonNameLower = item['Common names'].toLowerCase();
-    const jwScore = jaroWinklerSimilarity(queryLower, commonNameLower);
-    if (jwScore > 0.85) {
-      return jwScore * 1.5;
-    }
-  }
-  
-  const result = calculateSearchMatch(query, item.Name, undefined, item['Common names']);
-  return result.score;
+  return getMatchScoreBase(item, query);
 }
 
 // ============================================================================

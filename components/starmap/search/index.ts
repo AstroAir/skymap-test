@@ -12,3 +12,4 @@ export {
   SourceBadge, 
   OnlineStatusIndicator 
 } from './online-search-settings';
+export { getTypeIcon, getCategoryIcon } from './search-utils';

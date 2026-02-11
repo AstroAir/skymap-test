@@ -97,10 +97,22 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
   },
 }));
 
-// Mock AstrometryApiClient
+// Mock AstrometryApiClient and createErrorResult
 jest.mock('@/lib/plate-solving', () => ({
   AstrometryApiClient: jest.fn().mockImplementation(() => ({
     solve: jest.fn(),
+    cancel: jest.fn(),
+  })),
+  createErrorResult: jest.fn((solverName: string, errorMessage: string) => ({
+    success: false,
+    coordinates: null,
+    positionAngle: 0,
+    pixelScale: 0,
+    fov: { width: 0, height: 0 },
+    flipped: false,
+    solverName,
+    solveTime: 0,
+    errorMessage,
   })),
 }));
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
-import { type GridType } from '@/lib/constants/equipment-presets';
+import { type GridType, type EyepiecePreset, type BarlowPreset, type OcularTelescopePreset } from '@/lib/constants/equipment-presets';
 
 // Re-export GridType for backward compatibility
 export type { GridType } from '@/lib/constants/equipment-presets';
@@ -101,6 +101,11 @@ interface EquipmentState {
   customCameras: CameraPreset[];
   customTelescopes: TelescopePreset[];
   
+  // Ocular simulator custom equipment
+  customEyepieces: EyepiecePreset[];
+  customBarlows: BarlowPreset[];
+  customOcularTelescopes: OcularTelescopePreset[];
+  
   // Actions - Equipment selection
   setActiveCamera: (id: string | null) => void;
   setActiveTelescope: (id: string | null) => void;
@@ -149,6 +154,14 @@ interface EquipmentState {
   // Actions - Apply preset
   applyCamera: (camera: CameraPreset) => void;
   applyTelescope: (telescope: TelescopePreset) => void;
+  
+  // Actions - Ocular equipment
+  addCustomEyepiece: (eyepiece: Omit<EyepiecePreset, 'id' | 'isCustom'>) => void;
+  removeCustomEyepiece: (id: string) => void;
+  addCustomBarlow: (barlow: Omit<BarlowPreset, 'id' | 'isCustom'>) => void;
+  removeCustomBarlow: (id: string) => void;
+  addCustomOcularTelescope: (telescope: Omit<OcularTelescopePreset, 'id' | 'isCustom'>) => void;
+  removeCustomOcularTelescope: (id: string) => void;
   
   // Actions - Reset
   resetToDefaults: () => void;
@@ -228,6 +241,9 @@ export const useEquipmentStore = create<EquipmentState>()(
       
       customCameras: [],
       customTelescopes: [],
+      customEyepieces: [],
+      customBarlows: [],
+      customOcularTelescopes: [],
       
       // Equipment selection
       setActiveCamera: (id) => set({ activeCameraId: id }),
@@ -339,6 +355,35 @@ export const useEquipmentStore = create<EquipmentState>()(
         aperture: telescope.aperture,
       }),
       
+      // Ocular equipment
+      addCustomEyepiece: (eyepiece) => {
+        const id = `eyepiece-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        set((state) => ({
+          customEyepieces: [...state.customEyepieces, { ...eyepiece, id, isCustom: true }],
+        }));
+      },
+      removeCustomEyepiece: (id) => set((state) => ({
+        customEyepieces: state.customEyepieces.filter((e) => e.id !== id),
+      })),
+      addCustomBarlow: (barlow) => {
+        const id = `barlow-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        set((state) => ({
+          customBarlows: [...state.customBarlows, { ...barlow, id, isCustom: true }],
+        }));
+      },
+      removeCustomBarlow: (id) => set((state) => ({
+        customBarlows: state.customBarlows.filter((b) => b.id !== id),
+      })),
+      addCustomOcularTelescope: (telescope) => {
+        const id = `ocular-scope-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        set((state) => ({
+          customOcularTelescopes: [...state.customOcularTelescopes, { ...telescope, id, isCustom: true }],
+        }));
+      },
+      removeCustomOcularTelescope: (id) => set((state) => ({
+        customOcularTelescopes: state.customOcularTelescopes.filter((t) => t.id !== id),
+      })),
+      
       // Reset
       resetToDefaults: () => set({
         activeCameraId: null,
@@ -420,6 +465,9 @@ export const useEquipmentStore = create<EquipmentState>()(
         exposureDefaults: state.exposureDefaults,
         customCameras: state.customCameras,
         customTelescopes: state.customTelescopes,
+        customEyepieces: state.customEyepieces,
+        customBarlows: state.customBarlows,
+        customOcularTelescopes: state.customOcularTelescopes,
       }),
     }
   )

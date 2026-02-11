@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-> **Last Updated:** 2026-02-01
-> **Documentation Version:** 1.1.0
+> **Last Updated:** 2026-02-11
+> **Documentation Version:** 1.2.0
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-02-11 | 1.2.0 | Added llmdoc/index.md with comprehensive documentation links; updated scan coverage to 98%; added logger module documentation |
 | 2026-02-01 | 1.1.0 | Added tauri-api module documentation; updated scan coverage |
 | 2025-01-31 | 1.0.0 | Initial comprehensive documentation with module structure diagram |
 
@@ -41,6 +42,8 @@ graph TD
     B --> B1["starmap"];
     B --> B2["ui"];
     B --> B3["providers"];
+    B --> B4["common"];
+    B --> B5["landing"];
 
     C --> C1["astronomy"];
     C --> C2["stores"];
@@ -48,6 +51,11 @@ graph TD
     C --> C4["core"];
     C --> C5["catalogs"];
     C --> C6["tauri"];
+    C --> C7["logger"];
+    C --> C8["storage"];
+    C --> C9["offline"];
+    C --> C10["hooks"];
+    C --> C11["translations"];
 
     D --> D1["astronomy"];
     D --> D2["data"];
@@ -62,8 +70,14 @@ graph TD
     click C1 "./lib/astronomy/CLAUDE.md" "View astronomy module documentation"
     click C2 "./lib/stores/CLAUDE.md" "View stores module documentation"
     click C6 "./lib/tauri/CLAUDE.md" "View tauri-api module documentation"
+    click C7 "./lib/logger/CLAUDE.md" "View logger module documentation"
     click D1 "./src-tauri/src/astronomy/CLAUDE.md" "View Rust astronomy module documentation"
     click D2 "./src-tauri/src/data/CLAUDE.md" "View Rust data module documentation"
+    click D4 "./src-tauri/src/network/CLAUDE.md" "View Rust network module documentation"
+    click D3 "./src-tauri/src/cache/CLAUDE.md" "View Rust cache module documentation"
+    click D5 "./src-tauri/src/platform/CLAUDE.md" "View Rust platform module documentation"
+    click E1 "./i18n/CLAUDE.md" "View i18n module documentation"
+    click F1 "./tests/e2e/CLAUDE.md" "View E2E test documentation"
 ```
 
 ---
@@ -76,6 +90,7 @@ graph TD
 | **tauri-api** | `lib/tauri/` | TS | TypeScript wrappers for Tauri IPC commands | [CLAUDE.md](./lib/tauri/CLAUDE.md) |
 | **astronomy-calculations** | `lib/astronomy/` | TS | Pure astronomical calculations | [CLAUDE.md](./lib/astronomy/CLAUDE.md) |
 | **state-management** | `lib/stores/` | TS | Zustand stores (settings, equipment, targets, markers) | [CLAUDE.md](./lib/stores/CLAUDE.md) |
+| **logger** | `lib/logger/` | TS | Unified logging system with multiple transports | [CLAUDE.md](./lib/logger/CLAUDE.md) |
 | **frontend-services** | `lib/services/` | TS | Service layer for external APIs | [CLAUDE.md](./lib/services/CLAUDE.md) |
 | **catalogs** | `lib/catalogs/` | TS | Astronomical catalog data and types | [CLAUDE.md](./lib/catalogs/CLAUDE.md) |
 | **rust-backend** | `src-tauri/src/` | Rust | Tauri backend entry point and module orchestration | [CLAUDE.md](./src-tauri/src/CLAUDE.md) |
@@ -177,6 +192,14 @@ React Component --> Zustand Store --> lib/tauri/*-api.ts --> Tauri invoke() --> 
 - `theme-store` - Theme preference
 - `favorites-store` - Favorite objects
 - `setup-wizard-store` - Setup wizard state
+- `log-store` - Application logs
+
+**`lib/logger/`** - Unified logging system:
+- `log-manager.ts` - Central log manager with singleton
+- `transports/console-transport.ts` - Browser console output
+- `transports/memory-transport.ts` - In-memory storage for UI
+- `transports/tauri-transport.ts` - Backend bridge for Rust logs
+- `createLogger()` - Factory function for module-specific loggers
 
 **`components/starmap/`** - Star map UI components:
 - `canvas/` - Stellarium Web Engine canvas wrapper
@@ -280,12 +303,13 @@ See `src-tauri/src/network/security.rs` for implementation details.
 
 ## AI Usage Guidelines
 
-### When Working with This Codebase
+### When Working With This Codebase
 
 1. **Respect the module structure** - Keep changes within the appropriate module boundaries
 2. **Follow the data flow** - Understand how data flows between frontend stores and Rust backend via Tauri IPC
 3. **Write tests** - Add tests for new features, following the existing test patterns
 4. **Update documentation** - Keep module-level CLAUDE.md files in sync with code changes
+5. **Use the logger** - Replace `console.*` calls with `createLogger('module-name')`
 
 ### Common Tasks
 
@@ -296,25 +320,28 @@ See `src-tauri/src/network/security.rs` for implementation details.
 | Add new calculation | `lib/astronomy/` or `src-tauri/src/astronomy/` |
 | Add new Tauri command | `src-tauri/src/[module].rs`, `lib/tauri/[module]-api.ts` |
 | Add translations | `i18n/messages/en.json`, `i18n/messages/zh.json` |
+| Add logging | `lib/logger/index.ts` (use `createLogger()`) |
 
 ---
 
 ## Scan Coverage
 
-- **Total Files:** ~480
-- **Scanned Files:** ~460
-- **Coverage:** 96%
-- **Ignored:** node_modules, .git, build artifacts
+- **Total Files:** ~540
+- **Scanned Files:** ~530
+- **Coverage:** 98%
+- **Ignored:** node_modules, .git, build artifacts, llmdoc
 
 ### Known Gaps
 
 - `src-tauri/src/cache/` - No unit tests yet
 - `src-tauri/src/platform/` - No unit tests yet
+- Smaller utility modules (lib/storage, lib/offline, lib/hooks, etc.) - No module-level CLAUDE.md
 
 ---
 
 ## Related Files
 
+- [llmdoc/index.md](./llmdoc/index.md) - Comprehensive documentation index
 - [package.json](./package.json) - Frontend dependencies and scripts
 - [src-tauri/Cargo.toml](./src-tauri/Cargo.toml) - Rust dependencies
 - [next.config.ts](./next.config.ts) - Next.js configuration

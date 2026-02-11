@@ -42,115 +42,24 @@ import {
   Save,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { createLogger } from '@/lib/logger';
-
-const logger = createLogger('ocular-simulator');
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface Eyepiece {
-  id: string;
-  name: string;
-  focalLength: number; // mm
-  afov: number; // apparent field of view in degrees
-  fieldStop?: number; // mm, optional
-}
-
-interface TelescopeConfig {
-  id: string;
-  name: string;
-  focalLength: number; // mm
-  aperture: number; // mm
-  type: 'refractor' | 'reflector' | 'catadioptric';
-}
-
-interface BarlowLens {
-  id: string;
-  name: string;
-  magnification: number;
-}
-
-// ============================================================================
-// Default Data
-// ============================================================================
-
-const DEFAULT_EYEPIECES: Eyepiece[] = [
-  { id: 'e1', name: 'Plössl 32mm', focalLength: 32, afov: 52 },
-  { id: 'e2', name: 'Plössl 25mm', focalLength: 25, afov: 52 },
-  { id: 'e3', name: 'Plössl 17mm', focalLength: 17, afov: 52 },
-  { id: 'e4', name: 'Plössl 10mm', focalLength: 10, afov: 52 },
-  { id: 'e5', name: 'Plössl 6mm', focalLength: 6, afov: 52 },
-  { id: 'e6', name: 'Wide Field 24mm', focalLength: 24, afov: 68 },
-  { id: 'e7', name: 'Wide Field 15mm', focalLength: 15, afov: 68 },
-  { id: 'e8', name: 'Ultra Wide 9mm', focalLength: 9, afov: 82 },
-  { id: 'e9', name: 'Ultra Wide 5mm', focalLength: 5, afov: 82 },
-];
-
-const DEFAULT_TELESCOPES: TelescopeConfig[] = [
-  { id: 't1', name: '80mm f/5 Refractor', focalLength: 400, aperture: 80, type: 'refractor' },
-  { id: 't2', name: '102mm f/7 Refractor', focalLength: 714, aperture: 102, type: 'refractor' },
-  { id: 't3', name: '130mm f/5 Newtonian', focalLength: 650, aperture: 130, type: 'reflector' },
-  { id: 't4', name: '150mm f/5 Newtonian', focalLength: 750, aperture: 150, type: 'reflector' },
-  { id: 't5', name: '200mm f/5 Newtonian', focalLength: 1000, aperture: 200, type: 'reflector' },
-  { id: 't6', name: '8" SCT f/10', focalLength: 2032, aperture: 203, type: 'catadioptric' },
-  { id: 't7', name: '6" Mak f/12', focalLength: 1800, aperture: 150, type: 'catadioptric' },
-];
-
-const DEFAULT_BARLOWS: BarlowLens[] = [
-  { id: 'b0', name: 'None', magnification: 1 },
-  { id: 'b1', name: '2x Barlow', magnification: 2 },
-  { id: 'b2', name: '2.5x Barlow', magnification: 2.5 },
-  { id: 'b3', name: '3x Barlow', magnification: 3 },
-  { id: 'b4', name: '5x Barlow', magnification: 5 },
-];
-
-// ============================================================================
-// LocalStorage Helpers
-// ============================================================================
-
-const STORAGE_KEY_TELESCOPES = 'ocular-simulator-telescopes';
-const STORAGE_KEY_EYEPIECES = 'ocular-simulator-eyepieces';
-const STORAGE_KEY_BARLOWS = 'ocular-simulator-barlows';
-
-function loadFromStorage<T extends { id: string }>(key: string, defaultValue: T[]): T[] {
-  if (typeof window === 'undefined') return defaultValue;
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      const parsed = JSON.parse(stored) as T[];
-      // Merge with defaults to ensure all default items exist
-      const defaultIds = new Set(defaultValue.map(item => item.id));
-      const customItems = parsed.filter(item => !defaultIds.has(item.id));
-      return [...defaultValue, ...customItems];
-    }
-  } catch (e) {
-    logger.warn(`Failed to load ${key} from localStorage`, e);
-  }
-  return defaultValue;
-}
-
-function saveToStorage<T extends { id: string }>(key: string, items: T[], defaultItems: T[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    // Only save custom items (not defaults)
-    const defaultIds = new Set(defaultItems.map(item => item.id));
-    const customItems = items.filter(item => !defaultIds.has(item.id));
-    localStorage.setItem(key, JSON.stringify(customItems));
-  } catch (e) {
-    logger.warn(`Failed to save ${key} to localStorage`, e);
-  }
-}
+import { useEquipmentStore } from '@/lib/stores';
+import {
+  EYEPIECE_PRESETS,
+  BARLOW_PRESETS,
+  OCULAR_TELESCOPE_PRESETS,
+  type EyepiecePreset,
+  type BarlowPreset,
+  type OcularTelescopePreset,
+} from '@/lib/constants/equipment-presets';
 
 // ============================================================================
 // Calculation Functions
 // ============================================================================
 
 function calculateOcularView(
-  telescope: TelescopeConfig,
-  eyepiece: Eyepiece,
-  barlow: BarlowLens
+  telescope: OcularTelescopePreset,
+  eyepiece: EyepiecePreset,
+  barlow: BarlowPreset
 ) {
   const effectiveFocalLength = telescope.focalLength * barlow.magnification;
   const magnification = effectiveFocalLength / eyepiece.focalLength;
@@ -295,16 +204,18 @@ export function OcularSimulator() {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   
-  // Equipment state - load from localStorage on mount
-  const [telescopes, setTelescopes] = useState<TelescopeConfig[]>(() => 
-    loadFromStorage(STORAGE_KEY_TELESCOPES, DEFAULT_TELESCOPES)
-  );
-  const [eyepieces, setEyepieces] = useState<Eyepiece[]>(() => 
-    loadFromStorage(STORAGE_KEY_EYEPIECES, DEFAULT_EYEPIECES)
-  );
-  const [barlows, setBarlows] = useState<BarlowLens[]>(() => 
-    loadFromStorage(STORAGE_KEY_BARLOWS, DEFAULT_BARLOWS)
-  );
+  // Equipment state - from Zustand store (persisted via Tauri storage)
+  const customEyepieces = useEquipmentStore((s) => s.customEyepieces);
+  const customBarlows = useEquipmentStore((s) => s.customBarlows);
+  const customOcularTelescopes = useEquipmentStore((s) => s.customOcularTelescopes);
+  const addCustomEyepiece = useEquipmentStore((s) => s.addCustomEyepiece);
+  const addCustomBarlow = useEquipmentStore((s) => s.addCustomBarlow);
+  const addCustomOcularTelescope = useEquipmentStore((s) => s.addCustomOcularTelescope);
+
+  // Merge built-in presets with user custom items
+  const telescopes = useMemo(() => [...OCULAR_TELESCOPE_PRESETS, ...customOcularTelescopes], [customOcularTelescopes]);
+  const eyepieces = useMemo(() => [...EYEPIECE_PRESETS, ...customEyepieces], [customEyepieces]);
+  const barlows = useMemo(() => [...BARLOW_PRESETS, ...customBarlows], [customBarlows]);
   
   // Selection state
   const [selectedTelescope, setSelectedTelescope] = useState<string>(telescopes[0].id);
@@ -318,18 +229,18 @@ export function OcularSimulator() {
   const [showCustomBarlow, setShowCustomBarlow] = useState(false);
   
   // Custom equipment form
-  const [customTelescope, setCustomTelescope] = useState<Partial<TelescopeConfig>>({
+  const [customTelescope, setCustomTelescope] = useState<Partial<OcularTelescopePreset>>({
     name: '',
     focalLength: 1000,
     aperture: 200,
     type: 'reflector',
   });
-  const [customEyepiece, setCustomEyepiece] = useState<Partial<Eyepiece>>({
+  const [customEyepiece, setCustomEyepiece] = useState<Partial<EyepiecePreset>>({
     name: '',
     focalLength: 10,
     afov: 52,
   });
-  const [customBarlow, setCustomBarlow] = useState<Partial<BarlowLens>>({
+  const [customBarlow, setCustomBarlow] = useState<Partial<BarlowPreset>>({
     name: '',
     magnification: 2,
   });
@@ -359,63 +270,48 @@ export function OcularSimulator() {
   // Add custom telescope
   const handleAddTelescope = useCallback(() => {
     if (customTelescope.name && customTelescope.focalLength && customTelescope.aperture) {
-      const newTelescope: TelescopeConfig = {
-        id: `custom-t-${Date.now()}`,
+      addCustomOcularTelescope({
         name: customTelescope.name,
         focalLength: customTelescope.focalLength,
         aperture: customTelescope.aperture,
         type: customTelescope.type || 'reflector',
-      };
-      const updatedTelescopes = [...telescopes, newTelescope];
-      setTelescopes(updatedTelescopes);
-      saveToStorage(STORAGE_KEY_TELESCOPES, updatedTelescopes, DEFAULT_TELESCOPES);
-      setSelectedTelescope(newTelescope.id);
+      });
       setShowCustomTelescope(false);
       setCustomTelescope({ name: '', focalLength: 1000, aperture: 200, type: 'reflector' });
     }
-  }, [customTelescope, telescopes]);
+  }, [customTelescope, addCustomOcularTelescope]);
   
   // Add custom eyepiece
   const handleAddEyepiece = useCallback(() => {
     if (customEyepiece.name && customEyepiece.focalLength && customEyepiece.afov) {
-      const newEyepiece: Eyepiece = {
-        id: `custom-e-${Date.now()}`,
+      addCustomEyepiece({
         name: customEyepiece.name,
         focalLength: customEyepiece.focalLength,
         afov: customEyepiece.afov,
-      };
-      const updatedEyepieces = [...eyepieces, newEyepiece];
-      setEyepieces(updatedEyepieces);
-      saveToStorage(STORAGE_KEY_EYEPIECES, updatedEyepieces, DEFAULT_EYEPIECES);
-      setSelectedEyepiece(newEyepiece.id);
+      });
       setShowCustomEyepiece(false);
       setCustomEyepiece({ name: '', focalLength: 10, afov: 52 });
     }
-  }, [customEyepiece, eyepieces]);
+  }, [customEyepiece, addCustomEyepiece]);
   
   // Add custom barlow
   const handleAddBarlow = useCallback(() => {
     if (customBarlow.name && customBarlow.magnification) {
-      const newBarlow: BarlowLens = {
-        id: `custom-b-${Date.now()}`,
+      addCustomBarlow({
         name: customBarlow.name,
         magnification: customBarlow.magnification,
-      };
-      const updatedBarlows = [...barlows, newBarlow];
-      setBarlows(updatedBarlows);
-      saveToStorage(STORAGE_KEY_BARLOWS, updatedBarlows, DEFAULT_BARLOWS);
-      setSelectedBarlow(newBarlow.id);
+      });
       setShowCustomBarlow(false);
       setCustomBarlow({ name: '', magnification: 2 });
     }
-  }, [customBarlow, barlows]);
+  }, [customBarlow, addCustomBarlow]);
   
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9">
+            <Button variant="ghost" size="icon" aria-label={t('ocular.simulator')} className="h-9 w-9">
               <Eye className="h-4 w-4" />
             </Button>
           </DialogTrigger>
@@ -479,7 +375,7 @@ export function OcularSimulator() {
                       <Input
                         placeholder={t('ocular.telescopeName')}
                         value={customTelescope.name}
-                        onChange={e => setCustomTelescope(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={e => setCustomTelescope((prev: Partial<OcularTelescopePreset>) => ({ ...prev, name: e.target.value }))}
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -487,7 +383,7 @@ export function OcularSimulator() {
                           <Input
                             type="number"
                             value={customTelescope.focalLength}
-                            onChange={e => setCustomTelescope(prev => ({ ...prev, focalLength: Number(e.target.value) }))}
+                            onChange={e => setCustomTelescope((prev: Partial<OcularTelescopePreset>) => ({ ...prev, focalLength: Number(e.target.value) }))}
                           />
                         </div>
                         <div>
@@ -495,7 +391,7 @@ export function OcularSimulator() {
                           <Input
                             type="number"
                             value={customTelescope.aperture}
-                            onChange={e => setCustomTelescope(prev => ({ ...prev, aperture: Number(e.target.value) }))}
+                            onChange={e => setCustomTelescope((prev: Partial<OcularTelescopePreset>) => ({ ...prev, aperture: Number(e.target.value) }))}
                           />
                         </div>
                       </div>
@@ -542,7 +438,7 @@ export function OcularSimulator() {
                       <Input
                         placeholder={t('ocular.eyepieceName')}
                         value={customEyepiece.name}
-                        onChange={e => setCustomEyepiece(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={e => setCustomEyepiece((prev: Partial<EyepiecePreset>) => ({ ...prev, name: e.target.value }))}
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -550,7 +446,7 @@ export function OcularSimulator() {
                           <Input
                             type="number"
                             value={customEyepiece.focalLength}
-                            onChange={e => setCustomEyepiece(prev => ({ ...prev, focalLength: Number(e.target.value) }))}
+                            onChange={e => setCustomEyepiece((prev: Partial<EyepiecePreset>) => ({ ...prev, focalLength: Number(e.target.value) }))}
                           />
                         </div>
                         <div>
@@ -558,7 +454,7 @@ export function OcularSimulator() {
                           <Input
                             type="number"
                             value={customEyepiece.afov}
-                            onChange={e => setCustomEyepiece(prev => ({ ...prev, afov: Number(e.target.value) }))}
+                            onChange={e => setCustomEyepiece((prev: Partial<EyepiecePreset>) => ({ ...prev, afov: Number(e.target.value) }))}
                           />
                         </div>
                       </div>
@@ -605,7 +501,7 @@ export function OcularSimulator() {
                       <Input
                         placeholder={t('ocular.barlowName')}
                         value={customBarlow.name}
-                        onChange={e => setCustomBarlow(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={e => setCustomBarlow((prev: Partial<BarlowPreset>) => ({ ...prev, name: e.target.value }))}
                       />
                       <div>
                         <Label className="text-xs">{t('ocular.magnification')}</Label>
@@ -613,7 +509,7 @@ export function OcularSimulator() {
                           type="number"
                           step="0.5"
                           value={customBarlow.magnification}
-                          onChange={e => setCustomBarlow(prev => ({ ...prev, magnification: Number(e.target.value) }))}
+                          onChange={e => setCustomBarlow((prev: Partial<BarlowPreset>) => ({ ...prev, magnification: Number(e.target.value) }))}
                         />
                       </div>
                       <Button size="sm" className="w-full" onClick={handleAddBarlow}>

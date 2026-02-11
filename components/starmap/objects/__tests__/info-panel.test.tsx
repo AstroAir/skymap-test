@@ -43,6 +43,7 @@ jest.mock('@/lib/stores', () => ({
 jest.mock('@/lib/hooks', () => ({
   useCelestialName: jest.fn((name: string) => name),
   useCelestialNames: jest.fn((names: string[]) => names || []),
+  useAdaptivePosition: jest.fn(() => ({ left: 12, top: 64 })),
 }));
 
 // Mock astro-utils

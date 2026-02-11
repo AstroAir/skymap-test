@@ -5,7 +5,7 @@
  * Reference: https://astrometry.net/doc/net/api.html
  */
 
-import type { PlateSolveResult } from './types';
+import { createErrorResult, type PlateSolveResult } from './types';
 
 // ============================================================================
 // Types
@@ -223,6 +223,9 @@ export class AstrometryApiClient {
       `${this.config.baseUrl}/api/submissions/${subid}`,
       { signal: this.abortController?.signal }
     );
+    if (!response.ok) {
+      throw new Error(`Failed to get submission status: HTTP ${response.status}`);
+    }
     return response.json();
   }
 
@@ -234,6 +237,9 @@ export class AstrometryApiClient {
       `${this.config.baseUrl}/api/jobs/${jobId}`,
       { signal: this.abortController?.signal }
     );
+    if (!response.ok) {
+      throw new Error(`Failed to get job status: HTTP ${response.status}`);
+    }
     return response.json();
   }
 
@@ -245,6 +251,9 @@ export class AstrometryApiClient {
       `${this.config.baseUrl}/api/jobs/${jobId}/calibration/`,
       { signal: this.abortController?.signal }
     );
+    if (!response.ok) {
+      throw new Error(`Failed to get calibration: HTTP ${response.status}`);
+    }
     return response.json();
   }
 
@@ -256,6 +265,9 @@ export class AstrometryApiClient {
       `${this.config.baseUrl}/api/jobs/${jobId}/objects_in_field/`,
       { signal: this.abortController?.signal }
     );
+    if (!response.ok) {
+      throw new Error(`Failed to get objects in field: HTTP ${response.status}`);
+    }
     const data = await response.json();
     return data.objects_in_field || [];
   }
@@ -268,6 +280,9 @@ export class AstrometryApiClient {
       `${this.config.baseUrl}/api/jobs/${jobId}/annotations/`,
       { signal: this.abortController?.signal }
     );
+    if (!response.ok) {
+      throw new Error(`Failed to get annotations: HTTP ${response.status}`);
+    }
     const data = await response.json();
     return data.annotations || [];
   }
@@ -330,10 +345,21 @@ export class AstrometryApiClient {
       const calibration = await this.getCalibration(jobId);
       const objects = await this.getObjectsInField(jobId);
 
+      // Extract image dimensions for accurate FOV calculation
+      let imageWidth: number | undefined;
+      let imageHeight: number | undefined;
+      if (file instanceof File) {
+        const dims = await this.getImageDimensions(file);
+        imageWidth = dims?.width;
+        imageHeight = dims?.height;
+      }
+
       const result = this.convertCalibrationToResult(
         calibration,
         objects,
-        Date.now() - startTime
+        Date.now() - startTime,
+        imageWidth,
+        imageHeight
       );
 
       onProgress?.({ stage: 'success', result });
@@ -344,17 +370,9 @@ export class AstrometryApiClient {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       onProgress?.({ stage: 'failed', error: errorMessage });
       
-      return {
-        success: false,
-        coordinates: null,
-        positionAngle: 0,
-        pixelScale: 0,
-        fov: { width: 0, height: 0 },
-        flipped: false,
-        solverName: 'astrometry.net',
-        solveTime: Date.now() - startTime,
-        errorMessage,
-      };
+      const result = createErrorResult('astrometry.net', errorMessage);
+      result.solveTime = Date.now() - startTime;
+      return result;
     } finally {
       this.abortController = null;
     }
@@ -368,15 +386,44 @@ export class AstrometryApiClient {
   }
 
   /**
+   * Extract image dimensions from a File object
+   */
+  private getImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.src = url;
+    });
+  }
+
+  /**
    * Convert calibration result to PlateSolveResult
    */
   private convertCalibrationToResult(
     calibration: CalibrationResult,
     objects: string[],
-    solveTime: number
+    solveTime: number,
+    imageWidth?: number,
+    imageHeight?: number
   ): PlateSolveResult {
     const ra = calibration.ra;
     const dec = calibration.dec;
+
+    // Calculate accurate FOV from pixel scale and image dimensions when available
+    const fovWidth = imageWidth && calibration.pixscale
+      ? (calibration.pixscale * imageWidth) / 3600
+      : calibration.radius * 2;
+    const fovHeight = imageHeight && calibration.pixscale
+      ? (calibration.pixscale * imageHeight) / 3600
+      : calibration.radius * 2;
 
     return {
       success: true,
@@ -389,8 +436,8 @@ export class AstrometryApiClient {
       positionAngle: calibration.orientation,
       pixelScale: calibration.pixscale,
       fov: {
-        width: calibration.radius * 2,
-        height: calibration.radius * 2,
+        width: fovWidth,
+        height: fovHeight,
       },
       flipped: calibration.parity < 0,
       solverName: 'astrometry.net',
@@ -462,23 +509,3 @@ export interface UploadOptions {
   parity: 0 | 1 | 2;
 }
 
-// ============================================================================
-// Singleton instance factory
-// ============================================================================
-
-let clientInstance: AstrometryApiClient | null = null;
-
-export function getAstrometryClient(config?: AstrometryConfig): AstrometryApiClient {
-  if (!clientInstance && config) {
-    clientInstance = new AstrometryApiClient(config);
-  }
-  if (!clientInstance) {
-    throw new Error('Astrometry client not initialized. Please provide config.');
-  }
-  return clientInstance;
-}
-
-export function initAstrometryClient(config: AstrometryConfig): AstrometryApiClient {
-  clientInstance = new AstrometryApiClient(config);
-  return clientInstance;
-}

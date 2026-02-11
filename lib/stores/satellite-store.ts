@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { SatelliteType } from '@/lib/core/types';
 
 // ============================================================================
 // Types
@@ -9,7 +10,7 @@ export interface TrackedSatellite {
   id: string;
   name: string;
   noradId: number;
-  type: 'iss' | 'starlink' | 'weather' | 'gps' | 'communication' | 'scientific' | 'amateur' | 'other';
+  type: SatelliteType;
   altitude: number;
   velocity: number;
   inclination: number;

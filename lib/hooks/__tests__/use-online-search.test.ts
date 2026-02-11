@@ -55,6 +55,15 @@ jest.mock('@/lib/catalogs', () => ({
   PHONETIC_VARIATIONS: {},
   parseCatalogId: jest.fn(() => null),
   jaroWinklerSimilarity: jest.fn(() => 0.5),
+  CELESTIAL_BODIES: [
+    { Name: 'Moon', Type: 'Moon', RA: 0, Dec: 0 },
+    { Name: 'Jupiter', Type: 'Planet', RA: 0, Dec: 0 },
+  ],
+  POPULAR_DSOS: [
+    { Name: 'M31', Type: 'DSO', RA: 10.68, Dec: 41.27 },
+  ],
+  CONSTELLATION_SEARCH_DATA: [],
+  getMatchScore: jest.fn(() => 0),
 }));
 
 describe('useOnlineSearch', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Search, MapPin, Loader2, X, Clock, Star, Navigation2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ function LocationSearchComponent({
   initialValue = '',
 }: LocationSearchProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
@@ -128,7 +129,7 @@ function LocationSearchComponent({
     try {
       const searchResults = await geocodingService.geocode(searchQuery, {
         limit: 8,
-        language: 'en',
+        language: locale,
         fallback: true,
       });
       
@@ -151,7 +152,7 @@ function LocationSearchComponent({
         setIsSearching(false);
       }
     }
-  }, []);
+  }, [locale]);
 
   const handleInputChange = useCallback((value: string) => {
     setQuery(value);
@@ -378,7 +379,7 @@ function LocationSearchComponent({
 
                 {results.map((result, index) => (
                   <div
-                    key={`result-${index}`}
+                    key={`${result.coordinates.latitude}-${result.coordinates.longitude}`}
                     className={cn(
                       'flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors',
                       selectedIndex === index ? 'bg-muted' : 'hover:bg-muted/50'
@@ -432,7 +433,7 @@ function LocationSearchComponent({
                       const itemIndex = results.length + (showCurrentLocation ? 1 : 0) + index;
                       return (
                         <div
-                          key={`history-${index}`}
+                          key={`history-${item.timestamp}`}
                           className={cn(
                             'flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors',
                             selectedIndex === itemIndex ? 'bg-muted' : 'hover:bg-muted/50'

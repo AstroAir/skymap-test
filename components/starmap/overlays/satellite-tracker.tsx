@@ -46,286 +46,18 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMountStore, useStellariumStore, useSatelliteStore, type TrackedSatellite } from '@/lib/stores';
-import { parseTLE, calculatePosition, type ObserverLocation } from '@/lib/services/satellite-propagator';
+import type { SatelliteData } from '@/lib/core/types';
+import { type ObserverLocation } from '@/lib/services/satellite-propagator';
+import {
+  fetchSatellitesFromCelesTrak,
+  SAMPLE_SATELLITES,
+  generateSamplePasses,
+  SATELLITE_SOURCES,
+  type CelesTrakSatellitePass,
+} from '@/lib/services/satellite/celestrak-service';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('satellite-tracker');
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface SatelliteData {
-  id: string;
-  name: string;
-  noradId: number;
-  type: 'iss' | 'starlink' | 'weather' | 'gps' | 'communication' | 'scientific' | 'amateur' | 'other';
-  altitude: number;
-  velocity: number;
-  inclination: number;
-  period: number;
-  ra?: number;
-  dec?: number;
-  azimuth?: number;
-  elevation?: number;
-  magnitude?: number;
-  isVisible: boolean;
-  source?: string;
-}
-
-interface SatellitePass {
-  satellite: SatelliteData;
-  startTime: Date;
-  maxTime: Date;
-  endTime: Date;
-  startAz: number;
-  maxAz: number;
-  maxEl: number;
-  endAz: number;
-  magnitude?: number;
-  duration: number;
-}
-
-interface DataSourceConfig {
-  id: string;
-  name: string;
-  enabled: boolean;
-  apiUrl: string;
-}
-
-// ============================================================================
-// Data Sources Configuration
-// ============================================================================
-
-const SATELLITE_SOURCES: DataSourceConfig[] = [
-  { id: 'celestrak', name: 'CelesTrak', enabled: true, apiUrl: 'https://celestrak.org' },
-  { id: 'n2yo', name: 'N2YO', enabled: true, apiUrl: 'https://api.n2yo.com' },
-  { id: 'heavensabove', name: 'Heavens-Above', enabled: false, apiUrl: 'https://heavens-above.com' },
-];
-
-// ============================================================================
-// API Functions
-// ============================================================================
-
-async function fetchSatellitesFromCelesTrak(
-  category: string = 'stations',
-  observer?: ObserverLocation
-): Promise<SatelliteData[]> {
-  try {
-    const response = await fetch(
-      `https://celestrak.org/NORAD/elements/gp.php?GROUP=${category}&FORMAT=json`,
-      { next: { revalidate: 3600 } }
-    );
-    
-    if (!response.ok) throw new Error('CelesTrak API error');
-    
-    const data = await response.json();
-    const now = new Date();
-    
-    return data.map((sat: {
-      OBJECT_NAME: string;
-      NORAD_CAT_ID: number;
-      MEAN_MOTION: number;
-      INCLINATION: number;
-      TLE_LINE1: string;
-      TLE_LINE2: string;
-    }) => {
-      const meanMotion = sat.MEAN_MOTION;
-      const period = 1440 / meanMotion;
-      const altitude = Math.pow((398600.4418 * Math.pow(period * 60 / (2 * Math.PI), 2)), 1/3) - 6371;
-      const velocity = Math.sqrt(398600.4418 / (6371 + altitude));
-      
-      // Try to calculate real position using SGP4
-      let ra: number | undefined;
-      let dec: number | undefined;
-      let azimuth: number | undefined;
-      let elevation: number | undefined;
-      let isVisible = false;
-      
-      if (sat.TLE_LINE1 && sat.TLE_LINE2 && observer) {
-        const satrec = parseTLE({
-          name: sat.OBJECT_NAME,
-          line1: sat.TLE_LINE1,
-          line2: sat.TLE_LINE2,
-        });
-        
-        if (satrec) {
-          const position = calculatePosition(satrec, now, observer);
-          if (position) {
-            ra = position.ra;
-            dec = position.dec;
-            azimuth = position.azimuth;
-            elevation = position.elevation;
-            isVisible = position.isVisible;
-          }
-        }
-      }
-      
-      // Fallback to simulated position if SGP4 fails
-      if (ra === undefined || dec === undefined) {
-        const simPosition = getSimulatedSatellitePosition(sat.NORAD_CAT_ID, sat.INCLINATION, period);
-        ra = simPosition.ra;
-        dec = simPosition.dec;
-      }
-      
-      return {
-        id: `celestrak-${sat.NORAD_CAT_ID}`,
-        name: sat.OBJECT_NAME,
-        noradId: sat.NORAD_CAT_ID,
-        type: categorizeSatellite(sat.OBJECT_NAME, category),
-        altitude: Math.round(altitude),
-        velocity: parseFloat(velocity.toFixed(2)),
-        inclination: sat.INCLINATION,
-        period: parseFloat(period.toFixed(1)),
-        ra,
-        dec,
-        azimuth,
-        elevation,
-        isVisible,
-        source: 'CelesTrak',
-      };
-    });
-  } catch (error) {
-    logger.warn('Failed to fetch from CelesTrak', error);
-    return [];
-  }
-}
-
-function categorizeSatellite(name: string, category: string): SatelliteData['type'] {
-  const upperName = name.toUpperCase();
-  if (upperName.includes('ISS') || upperName.includes('ZARYA') || upperName.includes('TIANGONG')) return 'iss';
-  if (upperName.includes('STARLINK')) return 'starlink';
-  if (upperName.includes('GPS') || upperName.includes('NAVSTAR') || upperName.includes('GLONASS')) return 'gps';
-  if (upperName.includes('NOAA') || upperName.includes('GOES') || upperName.includes('METEO')) return 'weather';
-  if (upperName.includes('HUBBLE') || upperName.includes('JWST') || upperName.includes('CHANDRA')) return 'scientific';
-  if (category === 'amateur') return 'amateur';
-  return 'other';
-}
-
-// ============================================================================
-// Fallback Sample Data
-// ============================================================================
-
-// Generate simulated RA/Dec for satellites based on time
-function getSimulatedSatellitePosition(noradId: number, inclination: number, period: number): { ra: number; dec: number } {
-  const now = Date.now();
-  // Use NORAD ID and time to create unique but deterministic positions
-  const orbitalPhase = ((now / 1000 / 60) % period) / period; // 0-1 based on orbital period
-  const ra = ((noradId * 137.5 + orbitalPhase * 360) % 360);
-  // Dec oscillates based on inclination
-  const dec = Math.sin(orbitalPhase * 2 * Math.PI) * inclination * 0.8;
-  return { ra, dec };
-}
-
-const SAMPLE_SATELLITES: SatelliteData[] = [
-  {
-    id: 'iss',
-    name: 'ISS (ZARYA)',
-    noradId: 25544,
-    type: 'iss',
-    altitude: 420,
-    velocity: 7.66,
-    inclination: 51.6,
-    period: 92.9,
-    magnitude: -3.5,
-    isVisible: true,
-    ra: 45.2,
-    dec: 23.5,
-  },
-  {
-    id: 'hst',
-    name: 'Hubble Space Telescope',
-    noradId: 20580,
-    type: 'scientific',
-    altitude: 540,
-    velocity: 7.59,
-    inclination: 28.5,
-    period: 95.4,
-    magnitude: 1.5,
-    isVisible: false,
-    ra: 120.8,
-    dec: -15.3,
-  },
-  {
-    id: 'tiangong',
-    name: 'Tiangong (CSS)',
-    noradId: 48274,
-    type: 'iss',
-    altitude: 390,
-    velocity: 7.68,
-    inclination: 41.5,
-    period: 91.5,
-    magnitude: -2.0,
-    isVisible: true,
-    ra: 200.5,
-    dec: 35.2,
-  },
-  {
-    id: 'starlink-1',
-    name: 'Starlink-1007',
-    noradId: 44713,
-    type: 'starlink',
-    altitude: 550,
-    velocity: 7.59,
-    inclination: 53.0,
-    period: 95.6,
-    magnitude: 5.5,
-    isVisible: false,
-    ra: 280.3,
-    dec: 42.1,
-  },
-  {
-    id: 'starlink-2',
-    name: 'Starlink-1008',
-    noradId: 44714,
-    type: 'starlink',
-    altitude: 550,
-    velocity: 7.59,
-    inclination: 53.0,
-    period: 95.6,
-    magnitude: 5.5,
-    isVisible: false,
-    ra: 310.7,
-    dec: -28.4,
-  },
-];
-
-// Generate sample passes
-function generateSamplePasses(satellites: SatelliteData[]): SatellitePass[] {
-  const passes: SatellitePass[] = [];
-  const now = new Date();
-  
-  satellites.forEach((sat, index) => {
-    // Generate 1-3 passes per satellite in the next 24 hours
-    const numPasses = 1 + (index % 3);
-    
-    for (let i = 0; i < numPasses; i++) {
-      const startOffset = (index * 2 + i * 6) * 60 * 60 * 1000; // hours offset
-      const startTime = new Date(now.getTime() + startOffset);
-      const duration = 4 + (index % 5); // 4-8 minutes
-      const maxTime = new Date(startTime.getTime() + (duration / 2) * 60 * 1000);
-      const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
-      
-      passes.push({
-        satellite: sat,
-        startTime,
-        maxTime,
-        endTime,
-        startAz: (45 + index * 30) % 360,
-        maxAz: (135 + index * 30) % 360,
-        maxEl: 30 + (index * 15) % 60,
-        endAz: (225 + index * 30) % 360,
-        magnitude: sat.magnitude,
-        duration,
-      });
-    }
-  });
-  
-  // Sort by start time
-  passes.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-  
-  return passes;
-}
 
 // ============================================================================
 // Satellite Card Component (Memoized)
@@ -399,7 +131,7 @@ const SatelliteCard = memo(function SatelliteCard({
               </div>
               <div>
                 <span className="block text-[10px]">{t('satellites.period')}</span>
-                <span className="text-foreground">{satellite.period.toFixed(1)} min</span>
+                <span className="text-foreground">{(satellite.period ?? 0).toFixed(1)} min</span>
               </div>
             </div>
           </div>
@@ -431,7 +163,7 @@ const PassCard = memo(function PassCard({
   pass, 
   onTrack 
 }: { 
-  pass: SatellitePass; 
+  pass: CelesTrakSatellitePass; 
   onTrack: () => void;
 }) {
   const t = useTranslations();
@@ -651,8 +383,8 @@ export function SatelliteTracker() {
       type: satellite.type,
       altitude: satellite.altitude,
       velocity: satellite.velocity,
-      inclination: satellite.inclination,
-      period: satellite.period,
+      inclination: satellite.inclination ?? 0,
+      period: satellite.period ?? 0,
       ra: satellite.ra ?? 0,
       dec: satellite.dec ?? 0,
       azimuth: satellite.azimuth,
@@ -691,7 +423,7 @@ export function SatelliteTracker() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9">
+            <Button variant="ghost" size="icon" aria-label={t('satellites.tracker')} className="h-9 w-9">
               <Satellite className="h-4 w-4" />
             </Button>
           </DialogTrigger>

@@ -21,8 +21,9 @@ import { LocationManager } from '../management/location-manager';
 import { StellariumMount } from '../mount/stellarium-mount';
 import { AstroSessionPanel } from '../planning/astro-session-panel';
 
+import { useEquipmentStore } from '@/lib/stores';
 import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
-import type { MosaicSettings, GridType } from '@/lib/stores';
+import { buildSelectionData } from './selection-utils';
 
 interface RightControlPanelProps {
   stel: boolean;
@@ -30,21 +31,9 @@ interface RightControlPanelProps {
   selectedObject: SelectedObjectData | null;
   showSessionPanel: boolean;
   contextMenuCoords: ClickCoords | null;
-  fovSimEnabled: boolean;
-  sensorWidth: number;
-  sensorHeight: number;
-  focalLength: number;
-  mosaic: MosaicSettings;
-  gridType: GridType;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFovSliderChange: (fov: number) => void;
-  onFovSimEnabledChange: (enabled: boolean) => void;
-  onSensorWidthChange: (width: number) => void;
-  onSensorHeightChange: (height: number) => void;
-  onFocalLengthChange: (length: number) => void;
-  onMosaicChange: (mosaic: MosaicSettings) => void;
-  onGridTypeChange: (type: GridType) => void;
   onLocationChange: (lat: number, lon: number, alt: number) => void;
 }
 
@@ -54,39 +43,27 @@ export const RightControlPanel = memo(function RightControlPanel({
   selectedObject,
   showSessionPanel,
   contextMenuCoords,
-  fovSimEnabled,
-  sensorWidth,
-  sensorHeight,
-  focalLength,
-  mosaic,
-  gridType,
   onZoomIn,
   onZoomOut,
   onFovSliderChange,
-  onFovSimEnabledChange,
-  onSensorWidthChange,
-  onSensorHeightChange,
-  onFocalLengthChange,
-  onMosaicChange,
-  onGridTypeChange,
   onLocationChange,
 }: RightControlPanelProps) {
   const t = useTranslations();
+  const { currentSelection, observationSelection } = buildSelectionData(selectedObject);
 
-  // Build current selection data for ShotList and ObservationLog
-  const currentSelection = selectedObject ? {
-    name: selectedObject.names[0] || 'Unknown',
-    ra: selectedObject.raDeg,
-    dec: selectedObject.decDeg,
-    raString: selectedObject.ra,
-    decString: selectedObject.dec,
-  } : null;
-
-  const observationSelection = selectedObject ? {
-    ...currentSelection!,
-    type: selectedObject.type,
-    constellation: selectedObject.constellation,
-  } : null;
+  // Subscribe to equipment store directly — avoids prop drilling
+  const fovSimEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
+  const setFovSimEnabled = useEquipmentStore((s) => s.setFOVEnabled);
+  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
+  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
+  const focalLength = useEquipmentStore((s) => s.focalLength);
+  const mosaic = useEquipmentStore((s) => s.mosaic);
+  const gridType = useEquipmentStore((s) => s.fovDisplay.gridType);
+  const setSensorWidth = useEquipmentStore((s) => s.setSensorWidth);
+  const setSensorHeight = useEquipmentStore((s) => s.setSensorHeight);
+  const setFocalLength = useEquipmentStore((s) => s.setFocalLength);
+  const setMosaic = useEquipmentStore((s) => s.setMosaic);
+  const setGridType = useEquipmentStore((s) => s.setGridType);
 
   return (
     <>
@@ -129,17 +106,17 @@ export const RightControlPanel = memo(function RightControlPanel({
           <div data-tour-id="fov-button">
             <FOVSimulator
               enabled={fovSimEnabled}
-              onEnabledChange={onFovSimEnabledChange}
+              onEnabledChange={setFovSimEnabled}
               sensorWidth={sensorWidth}
               sensorHeight={sensorHeight}
               focalLength={focalLength}
-              onSensorWidthChange={onSensorWidthChange}
-              onSensorHeightChange={onSensorHeightChange}
-              onFocalLengthChange={onFocalLengthChange}
+              onSensorWidthChange={setSensorWidth}
+              onSensorHeightChange={setSensorHeight}
+              onFocalLengthChange={setFocalLength}
               mosaic={mosaic}
-              onMosaicChange={onMosaicChange}
+              onMosaicChange={setMosaic}
               gridType={gridType}
-              onGridTypeChange={onGridTypeChange}
+              onGridTypeChange={setGridType}
             />
           </div>
           <ExposureCalculator focalLength={focalLength} />

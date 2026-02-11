@@ -39,7 +39,8 @@
     "loading": "Loading star map...",
     "loadingStars": "Loading star catalogs...",
     "loadingEngine": "Initializing engine...",
-    "poweredBy": "Powered by Stellarium Web Engine"
+    "poweredBy": "Powered by Stellarium Web Engine",
+    "skipHint": "Press any key or click to skip"
   },
   "about": {
     "title": "About",
@@ -197,7 +198,9 @@
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out",
     "fov": "FOV",
-    "default": "Default"
+    "default": "Default",
+    "zoomControls": "Zoom Controls",
+    "fovSlider": "Field of View Slider"
   },
   "fov": {
     "fovOverlay": "FOV Overlay",
@@ -276,14 +279,22 @@
     "realTime": "Real-time",
     "timeLapse": "Time lapse",
     "timeRewind": "Time rewind",
+    "play": "Play",
+    "pause": "Pause",
+    "utc": "UTC",
+    "lst": "LST",
     "rise": "Rise",
     "transit": "Transit",
     "set": "Set",
     "jumpTo": "Jump To",
+    "minus1Week": "-1w",
     "minus1Day": "-1d",
     "minus1Hour": "-1h",
+    "minus1Min": "-1m",
+    "plus1Min": "+1m",
     "plus1Hour": "+1h",
-    "plus1Day": "+1d"
+    "plus1Day": "+1d",
+    "plus1Week": "+1w"
   },
   "settings": {
     "displaySettings": "Display Settings",
@@ -359,6 +370,7 @@
     "elevationPlaceholder": "0",
     "manualLocation": "Manual Location Input",
     "autoSaveHint": "Changes in this tab are saved automatically",
+    "resetAllDescription": "This will reset all settings (display, equipment, preferences, theme) to their default values. This action cannot be undone.",
     "instantEffectHint": "Changes take effect immediately",
     "locationInstantHint": "Location changes take effect immediately"
   },
@@ -391,7 +403,14 @@
     "maxAltitude": "Max",
     "darkWindow": "Dark Window",
     "circumpolar": "Circumpolar",
-    "location": "Location"
+    "location": "Location",
+    "civilDusk": "Civil Dusk",
+    "nauticalDusk": "Nautical Dusk",
+    "astroDusk": "Astro Dusk",
+    "astroDawn": "Astro Dawn",
+    "transitTime": "Transit",
+    "imagingScore": "Imaging",
+    "feasibility": "Feasibility"
   },
   "info": {
     "altitude": "Altitude",
@@ -651,7 +670,10 @@
     "mount": "Mount",
     "goToMountPosition": "Go to Mount Position",
     "enableAutoSync": "Enable Auto-Sync",
-    "disableAutoSync": "Disable Auto-Sync"
+    "disableAutoSync": "Disable Auto-Sync",
+    "disconnected": "Disconnected",
+    "altitude": "Alt",
+    "azimuth": "Az"
   },
   "cache": {
     "offlineCache": "Offline Cache",
@@ -1017,6 +1039,29 @@
       "mirrorless": "Mirrorless",
       "other": "Other"
     },
+    "filterTypes": {
+      "luminance": "Luminance",
+      "red": "Red",
+      "green": "Green",
+      "blue": "Blue",
+      "ha": "H-Alpha",
+      "oiii": "OIII",
+      "sii": "SII",
+      "uhcLps": "UHC/LPS",
+      "cls": "CLS",
+      "other": "Other"
+    },
+    "selected": "Equipment selected",
+    "delete": "Delete",
+    "deleteConfirmTitle": "Delete Equipment?",
+    "deleteConfirmDescription": "Are you sure you want to delete \"{name}\"? This action cannot be undone.",
+    "validation": {
+      "apertureRange": "Aperture must be between 10 and 10,000 mm",
+      "focalLengthRange": "Focal length must be between 50 and 50,000 mm",
+      "sensorWidthRange": "Sensor width must be between 1 and 100 mm",
+      "sensorHeightRange": "Sensor height must be between 1 and 100 mm",
+      "factorRange": "Factor must be between 0.1 and 10"
+    },
     "bortleDescriptions": {
       "1": "1 - Excellent dark sky",
       "2": "2 - Typical dark site",
@@ -1049,7 +1094,14 @@
     "gpsNotSupported": "GPS not supported",
     "gpsAcquired": "GPS location acquired",
     "manualInput": "Manual Input",
-    "mapSelection": "Map Selection"
+    "mapSelection": "Map Selection",
+    "updated": "Location updated",
+    "validation": {
+      "latitudeRange": "Latitude must be between -90 and 90",
+      "longitudeRange": "Longitude must be between -180 and 180",
+      "altitudeRange": "Altitude must be between -500 and 9,000 m",
+      "bortleRange": "Bortle class must be between 1 and 9"
+    }
   },
   "map": {
     "locationPicker": "Location Picker",
@@ -1174,14 +1226,6 @@
       "roundRobinDesc": "Rotate between providers"
     }
   },
-  "locationSearch": {
-    "locationPlaceholder": "Search for a location...",
-    "searching": "Searching...",
-    "noResults": "No locations found",
-    "currentLocation": "Current Location",
-    "useGpsLocation": "Use GPS to detect your location",
-    "recentSearches": "Recent Searches"
-  },
   "objectDetail": {
     "overview": "Overview",
     "images": "Images",
@@ -1195,6 +1239,7 @@
     "size": "Size",
     "noImages": "No images available",
     "imageLoadError": "Failed to load image",
+    "goToImage": "Go to image {index}",
     "dataSources": "Data sources",
     "feasibilityBreakdown": "Feasibility Breakdown",
     "loading": "Loading object information...",
@@ -1374,7 +1419,9 @@
         "permissionDenied": "Location permission denied. Please allow in browser settings.",
         "positionUnavailable": "Unable to get position information",
         "timeout": "Location request timed out. Please try again.",
-        "unknownError": "An unknown error occurred while getting location"
+        "unknownError": "An unknown error occurred while getting location",
+        "altitude": "Altitude (m)",
+        "altitudePlaceholder": "e.g. 500"
       },
       "equipment": {
         "title": "Equipment",
@@ -1390,6 +1437,7 @@
         "pixelSizePlaceholder": "e.g. 3.76",
         "configured": "Equipment Configured",
         "sensor": "Sensor",
+        "searchPlaceholder": "Search presets...",
         "skipNote": "You can skip this step and configure equipment later."
       },
       "preferences": {
@@ -1987,6 +2035,7 @@
     "reset": "Reset"
   },
   "mobileToolbar": {
+    "toolbar": "Star Map Toolbar",
     "search": "Search",
     "zoomControl": "Zoom Control",
     "fieldOfView": "Field of View",

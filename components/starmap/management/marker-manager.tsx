@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useTranslations } from 'next-intl';
 import {
   useMarkerStore,
@@ -117,19 +118,25 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
   const [formData, setFormData] = useState<MarkerFormData>(defaultFormData);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
-  const markers = useMarkerStore((state) => state.markers);
-  const groups = useMarkerStore((state) => state.groups);
-  const showMarkers = useMarkerStore((state) => state.showMarkers);
-  const pendingCoords = useMarkerStore((state) => state.pendingCoords);
-  const editingMarkerId = useMarkerStore((state) => state.editingMarkerId);
-  const addMarker = useMarkerStore((state) => state.addMarker);
-  const removeMarker = useMarkerStore((state) => state.removeMarker);
-  const updateMarker = useMarkerStore((state) => state.updateMarker);
-  const toggleMarkerVisibility = useMarkerStore((state) => state.toggleMarkerVisibility);
-  const setShowMarkers = useMarkerStore((state) => state.setShowMarkers);
-  const clearAllMarkers = useMarkerStore((state) => state.clearAllMarkers);
-  const setPendingCoords = useMarkerStore((state) => state.setPendingCoords);
-  const setEditingMarkerId = useMarkerStore((state) => state.setEditingMarkerId);
+  const {
+    markers, groups, showMarkers, pendingCoords, editingMarkerId,
+    addMarker, removeMarker, updateMarker, toggleMarkerVisibility,
+    setShowMarkers, clearAllMarkers, setPendingCoords, setEditingMarkerId,
+  } = useMarkerStore(useShallow((state) => ({
+    markers: state.markers,
+    groups: state.groups,
+    showMarkers: state.showMarkers,
+    pendingCoords: state.pendingCoords,
+    editingMarkerId: state.editingMarkerId,
+    addMarker: state.addMarker,
+    removeMarker: state.removeMarker,
+    updateMarker: state.updateMarker,
+    toggleMarkerVisibility: state.toggleMarkerVisibility,
+    setShowMarkers: state.setShowMarkers,
+    clearAllMarkers: state.clearAllMarkers,
+    setPendingCoords: state.setPendingCoords,
+    setEditingMarkerId: state.setEditingMarkerId,
+  })));
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
 
   // Listen for pending coords from context menu and open add dialog

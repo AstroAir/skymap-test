@@ -33,6 +33,20 @@ export interface PlateSolveResult {
   errorMessage?: string;
 }
 
+export function createErrorResult(solverName: string, errorMessage: string): PlateSolveResult {
+  return {
+    success: false,
+    coordinates: null,
+    positionAngle: 0,
+    pixelScale: 0,
+    fov: { width: 0, height: 0 },
+    flipped: false,
+    solverName,
+    solveTime: 0,
+    errorMessage,
+  };
+}
+
 export interface PlateSolveParameters {
   // Image info
   imageWidth: number;

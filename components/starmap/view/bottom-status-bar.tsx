@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore, useMountStore } from '@/lib/stores';
 import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
@@ -10,38 +10,24 @@ interface BottomStatusBarProps {
   currentFov: number;
 }
 
-// Sub-component: View Center Display - memoized for performance
+// Sub-component: View Center Display - subscribes to store's viewDirection (no independent polling)
 const ViewCenterDisplay = memo(function ViewCenterDisplay() {
   const t = useTranslations();
-  const getCurrentViewDirection = useStellariumStore((state) => state.getCurrentViewDirection);
-  const [viewCenter, setViewCenter] = useState<{ ra: string; dec: string; alt: string; az: string } | null>(null);
+  const viewDirection = useStellariumStore((state) => state.viewDirection);
 
-  useEffect(() => {
-    const updateViewCenter = () => {
-      if (getCurrentViewDirection) {
-        try {
-          const dir = getCurrentViewDirection();
-          const raDeg = rad2deg(dir.ra);
-          const decDeg = rad2deg(dir.dec);
-          const altDeg = rad2deg(dir.alt);
-          const azDeg = rad2deg(dir.az);
-          
-          setViewCenter({
-            ra: degreesToHMS(((raDeg % 360) + 360) % 360),
-            dec: degreesToDMS(decDeg),
-            alt: `${altDeg.toFixed(1)}°`,
-            az: `${(((azDeg % 360) + 360) % 360).toFixed(1)}°`,
-          });
-        } catch {
-          // Ignore errors during initialization
-        }
-      }
+  const viewCenter = useMemo(() => {
+    if (!viewDirection) return null;
+    const raDeg = rad2deg(viewDirection.ra);
+    const decDeg = rad2deg(viewDirection.dec);
+    const altDeg = rad2deg(viewDirection.alt);
+    const azDeg = rad2deg(viewDirection.az);
+    return {
+      ra: degreesToHMS(((raDeg % 360) + 360) % 360),
+      dec: degreesToDMS(decDeg),
+      alt: `${altDeg.toFixed(1)}°`,
+      az: `${(((azDeg % 360) + 360) % 360).toFixed(1)}°`,
     };
-
-    updateViewCenter();
-    const interval = setInterval(updateViewCenter, 500);
-    return () => clearInterval(interval);
-  }, [getCurrentViewDirection]);
+  }, [viewDirection]);
 
   if (!viewCenter) return null;
 

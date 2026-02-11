@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, History, Trash2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ interface NavigationHistoryProps {
   className?: string;
 }
 
-export function NavigationHistory({ onNavigate, className }: NavigationHistoryProps) {
+export const NavigationHistory = memo(function NavigationHistory({ onNavigate, className }: NavigationHistoryProps) {
   const t = useTranslations();
   const {
     history,
@@ -56,7 +56,7 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
     }
   }, [forward, onNavigate]);
 
-  const handleSelectPoint = useCallback((point: NavigationPoint, index: number) => {
+  const handleSelectPoint = useCallback((_point: NavigationPoint, index: number) => {
     // Use goTo to sync currentIndex with the selected history point
     const navigatedPoint = goTo(index);
     if (navigatedPoint && onNavigate) {
@@ -68,7 +68,7 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
   const isForwardEnabled = canGoForward();
 
   return (
-    <div className={cn('flex items-center gap-0.5', className)}>
+    <div className={cn('flex items-center gap-0.5', className)} role="navigation" aria-label={t('navigation.viewHistory')}>
       {/* Back Button */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -78,6 +78,7 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
             className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-30"
             onClick={handleBack}
             disabled={!isBackEnabled}
+            aria-label={t('navigation.back')}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -96,6 +97,7 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
             className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-30"
             onClick={handleForward}
             disabled={!isForwardEnabled}
+            aria-label={t('navigation.forward')}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -114,6 +116,8 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent"
+                aria-label={t('navigation.history')}
+                data-tour-id="navigation-history"
               >
                 <History className="h-4 w-4" />
               </Button>
@@ -210,4 +214,5 @@ export function NavigationHistory({ onNavigate, className }: NavigationHistoryPr
       </Popover>
     </div>
   );
-}
+});
+NavigationHistory.displayName = 'NavigationHistory';

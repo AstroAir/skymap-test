@@ -1,0 +1,350 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Slider } from '@/components/ui/slider';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Moon, Star, Plus, ChevronUp, ChevronDown } from 'lucide-react';
+import {
+  calculateTwilightTimes,
+  calculateTargetVisibility,
+  calculateImagingFeasibility,
+  getMoonPhase,
+  getMoonPhaseName,
+  getMoonIllumination,
+  formatTimeShort,
+} from '@/lib/astronomy/astro-utils';
+import { TranslatedName } from '../../objects/translated-name';
+import {
+  useSkyAtlasStore,
+  DSO_TYPE_LABELS,
+  CONSTELLATION_NAMES,
+} from '@/lib/catalogs';
+import type { WUTObject } from './types';
+
+interface WUTTabProps {
+  latitude: number;
+  longitude: number;
+  onSelectObject: (ra: number, dec: number) => void;
+  onAddToList: (name: string, ra: number, dec: number) => void;
+}
+
+export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUTTabProps) {
+  const t = useTranslations();
+  const [objectType, setObjectType] = useState<'all' | 'galaxy' | 'nebula' | 'cluster' | 'planetary'>('all');
+  const [magnitudeRange, setMagnitudeRange] = useState<[number, number]>([0, 12]);
+  const [minAltitude, setMinAltitude] = useState(30);
+  const [timeWindow, setTimeWindow] = useState<'evening' | 'midnight' | 'morning' | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'score' | 'altitude' | 'transit' | 'magnitude' | 'size'>('score');
+  const [minSize, setMinSize] = useState(0); // arcminutes
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  const { catalog: dsoCatalog } = useSkyAtlasStore();
+  const twilight = useMemo(() => calculateTwilightTimes(latitude, longitude), [latitude, longitude]);
+  
+  // Get WUT objects
+  const wutObjects = useMemo(() => {
+    let objects = dsoCatalog;
+    
+    // Filter by type
+    if (objectType !== 'all') {
+      objects = objects.filter(obj => {
+        const typeStr = obj.type as string;
+        switch (objectType) {
+          case 'galaxy':
+            return typeStr === 'Galaxy';
+          case 'nebula':
+            return ['Nebula', 'EmissionNebula', 'ReflectionNebula', 'DarkNebula', 'SupernovaRemnant'].includes(typeStr);
+          case 'cluster':
+            return ['OpenCluster', 'GlobularCluster', 'StarCluster'].includes(typeStr);
+          case 'planetary':
+            return typeStr === 'PlanetaryNebula';
+          default:
+            return true;
+        }
+      });
+    }
+    
+    // Filter by magnitude
+    objects = objects.filter(obj => {
+      const mag = obj.magnitude ?? 15;
+      return mag >= magnitudeRange[0] && mag <= magnitudeRange[1];
+    });
+    
+    // Filter by size
+    if (minSize > 0) {
+      objects = objects.filter(obj => (obj.sizeMax ?? 0) >= minSize);
+    }
+    
+    
+    // Calculate visibility and scores
+    const wutResults: WUTObject[] = objects.map(obj => {
+      const visibility = calculateTargetVisibility(obj.ra, obj.dec, latitude, longitude, minAltitude);
+      const feasibility = calculateImagingFeasibility(obj.ra, obj.dec, latitude, longitude);
+      
+      return {
+        name: obj.name,
+        type: DSO_TYPE_LABELS[obj.type] || obj.type,
+        ra: obj.ra,
+        dec: obj.dec,
+        magnitude: obj.magnitude,
+        riseTime: visibility.riseTime,
+        transitTime: visibility.transitTime,
+        setTime: visibility.setTime,
+        maxElevation: visibility.transitAltitude,
+        angularSize: obj.sizeMax,
+        constellation: CONSTELLATION_NAMES[obj.constellation] || obj.constellation,
+        score: feasibility.score,
+      };
+    });
+    
+    // Filter by visibility tonight
+    const filtered = wutResults.filter(obj => {
+      // Must have positive imaging time
+      if (obj.maxElevation < minAltitude) return false;
+      
+      // Filter by time window
+      if (timeWindow !== 'all' && obj.transitTime && twilight.astronomicalDusk && twilight.astronomicalDawn) {
+        const transitHour = obj.transitTime.getHours();
+        const duskHour = twilight.astronomicalDusk.getHours();
+        const dawnHour = twilight.astronomicalDawn.getHours();
+        
+        switch (timeWindow) {
+          case 'evening':
+            return transitHour >= duskHour || transitHour <= 23;
+          case 'midnight':
+            return transitHour >= 22 || transitHour <= 2;
+          case 'morning':
+            return transitHour >= 2 && transitHour <= dawnHour;
+        }
+      }
+      
+      return true;
+    });
+    
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'altitude':
+          return b.maxElevation - a.maxElevation;
+        case 'transit':
+          return (a.transitTime?.getTime() ?? 0) - (b.transitTime?.getTime() ?? 0);
+        case 'magnitude':
+          return (a.magnitude ?? 99) - (b.magnitude ?? 99);
+        default:
+          return b.score - a.score;
+      }
+    });
+    
+    return filtered.slice(0, 100);
+  }, [dsoCatalog, objectType, magnitudeRange, minAltitude, minSize, timeWindow, sortBy, latitude, longitude, twilight]);
+  
+  return (
+    <div className="space-y-4">
+      {/* Night Info */}
+      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <Moon className="h-4 w-4 text-amber-400" />
+            <span>{getMoonPhaseName(getMoonPhase())}</span>
+            <span className="text-muted-foreground">({getMoonIllumination(getMoonPhase())}%)</span>
+          </div>
+          <Separator orientation="vertical" className="h-4" />
+          <div className="flex items-center gap-1.5">
+            <Star className="h-4 w-4 text-indigo-400" />
+            <span>{t('astroCalc.darkHours')}: {twilight.darknessDuration.toFixed(1)}h</span>
+          </div>
+        </div>
+        <Badge variant={twilight.isCurrentlyNight ? 'default' : 'secondary'}>
+          {twilight.isCurrentlyNight ? t('astroCalc.night') : t('astroCalc.daylight')}
+        </Badge>
+      </div>
+      
+      {/* Filters */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.objectType')}</Label>
+          <Select value={objectType} onValueChange={(v) => setObjectType(v as typeof objectType)}>
+            <SelectTrigger className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('astroCalc.allTypes')}</SelectItem>
+              <SelectItem value="galaxy">{t('objects.galaxy')}</SelectItem>
+              <SelectItem value="nebula">{t('objects.nebula')}</SelectItem>
+              <SelectItem value="cluster">{t('objects.openCluster')}</SelectItem>
+              <SelectItem value="planetary">{t('objects.planetaryNebula')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.magnitude')}: {magnitudeRange[0]}-{magnitudeRange[1]}</Label>
+          <Slider
+            value={magnitudeRange}
+            onValueChange={(v) => setMagnitudeRange(v as [number, number])}
+            min={0}
+            max={15}
+            step={0.5}
+            className="mt-2"
+          />
+        </div>
+        
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.minAltitude')}: {minAltitude}°</Label>
+          <Slider
+            value={[minAltitude]}
+            onValueChange={([v]) => setMinAltitude(v)}
+            min={10}
+            max={60}
+            step={5}
+            className="mt-2"
+          />
+        </div>
+        
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.timeWindow')}</Label>
+          <Select value={timeWindow} onValueChange={(v) => setTimeWindow(v as typeof timeWindow)}>
+            <SelectTrigger className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('astroCalc.allNight')}</SelectItem>
+              <SelectItem value="evening">{t('astroCalc.evening')}</SelectItem>
+              <SelectItem value="midnight">{t('astroCalc.midnight')}</SelectItem>
+              <SelectItem value="morning">{t('astroCalc.morning')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.sortBy')}</Label>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+            <SelectTrigger className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="score">{t('astroCalc.score')}</SelectItem>
+              <SelectItem value="altitude">{t('astroCalc.maxAltitude')}</SelectItem>
+              <SelectItem value="transit">{t('astroCalc.transitTime')}</SelectItem>
+              <SelectItem value="magnitude">{t('astroCalc.magnitude')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      {/* Advanced Filters */}
+      <div className="flex items-center gap-4">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="text-xs"
+        >
+          {showAdvanced ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+          {t('astroCalc.advancedFilters')}
+        </Button>
+        <Badge variant="outline" className="text-xs">
+          {wutObjects.length} {t('astroCalc.objectsVisible')}
+        </Badge>
+      </div>
+      
+      {showAdvanced && (
+        <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/30">
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('astroCalc.minSize')}: {minSize > 0 ? `${minSize}'` : t('astroCalc.any')}</Label>
+            <Slider
+              value={[minSize]}
+              onValueChange={([v]) => setMinSize(v)}
+              min={0}
+              max={60}
+              step={1}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Results Table */}
+      <ScrollArea className="h-[350px] border rounded-lg">
+        <Table>
+          <TableHeader className="sticky top-0 bg-background">
+            <TableRow>
+              <TableHead>{t('astroCalc.name')}</TableHead>
+              <TableHead>{t('astroCalc.type')}</TableHead>
+              <TableHead>{t('astroCalc.mag')}</TableHead>
+              <TableHead>{t('astroCalc.rise')}</TableHead>
+              <TableHead>{t('astroCalc.transit')}</TableHead>
+              <TableHead>{t('astroCalc.maxEl')}</TableHead>
+              <TableHead>{t('astroCalc.set')}</TableHead>
+              <TableHead>{t('astroCalc.size')}</TableHead>
+              <TableHead>{t('astroCalc.score')}</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {wutObjects.map((obj) => (
+              <TableRow 
+                key={obj.name}
+                className="cursor-pointer hover:bg-accent/50"
+                onClick={() => onSelectObject(obj.ra, obj.dec)}
+              >
+                <TableCell className="font-medium">
+                  <TranslatedName name={obj.name} />
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{obj.type}</TableCell>
+                <TableCell className="text-xs">{obj.magnitude?.toFixed(1) ?? '--'}</TableCell>
+                <TableCell className="font-mono text-xs">{formatTimeShort(obj.riseTime)}</TableCell>
+                <TableCell className="font-mono text-xs">{formatTimeShort(obj.transitTime)}</TableCell>
+                <TableCell className="text-xs">{obj.maxElevation.toFixed(0)}°</TableCell>
+                <TableCell className="font-mono text-xs">{formatTimeShort(obj.setTime)}</TableCell>
+                <TableCell className="text-xs">
+                  {obj.angularSize ? `${obj.angularSize.toFixed(1)}'` : '--'}
+                </TableCell>
+                <TableCell>
+                  <Badge 
+                    variant={obj.score >= 70 ? 'default' : obj.score >= 50 ? 'secondary' : 'outline'}
+                    className="text-xs"
+                  >
+                    {obj.score}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddToList(obj.name, obj.ra, obj.dec);
+                    }}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
+  );
+}

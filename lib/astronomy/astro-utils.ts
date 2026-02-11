@@ -441,6 +441,33 @@ export function neverRises(dec: number, latitude: number): boolean {
 }
 
 /**
+ * Calculate imaging hours within a dark window above minimum altitude
+ */
+export function calculateImagingHours(
+  altitudeData: { points: Array<{ altitude: number; time: Date }> },
+  minAltitude: number,
+  darkStart: Date | null,
+  darkEnd: Date | null
+): number {
+  if (!darkStart || !darkEnd) return 0;
+
+  const darkStartMs = darkStart.getTime();
+  const darkEndMs = darkEnd.getTime();
+
+  let totalHours = 0;
+  const intervalHours = 0.1; // 6 minutes
+
+  for (const point of altitudeData.points) {
+    const timeMs = point.time.getTime();
+    if (timeMs >= darkStartMs && timeMs <= darkEndMs && point.altitude >= minAltitude) {
+      totalHours += intervalHours;
+    }
+  }
+
+  return totalHours;
+}
+
+/**
  * Bortle scale descriptions
  */
 export const BORTLE_SCALE = [

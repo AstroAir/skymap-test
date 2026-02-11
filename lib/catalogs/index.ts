@@ -192,6 +192,18 @@ export {
   type ImagingFeasibility,
 } from './advanced-recommendation-engine';
 
+// Celestial Search Data (shared between search hooks)
+export {
+  CELESTIAL_BODIES,
+  POPULAR_DSOS,
+  MESSIER_CATALOG,
+  CONSTELLATION_SEARCH_DATA,
+  DSO_NAME_INDEX,
+  getMatchScore,
+  getDetailedMatch as getDetailedSearchMatch,
+  fuzzyMatch,
+} from './celestial-search-data';
+
 // DSO Filters (NINA-style)
 export {
   // Filter application

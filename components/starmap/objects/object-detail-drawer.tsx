@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, memo, createElement } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, createElement } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   X, 
@@ -60,7 +60,7 @@ import {
 } from '@/lib/services/object-info-service';
 import type { SelectedObjectData } from '@/lib/core/types';
 import { cn } from '@/lib/utils';
-import { getObjectTypeIcon, getObjectTypeColor } from '@/lib/astronomy/object-type-utils';
+import { getObjectTypeIcon, getObjectTypeColor, getObjectTypeBadgeColor, getFeasibilityColor } from '@/lib/astronomy/object-type-utils';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('object-detail-drawer');
@@ -178,7 +178,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   }, [open]);
 
   // Calculate current astronomical data
-  const astroData = useCallback(() => {
+  const astroData = useMemo(() => {
     if (!selectedObject) return null;
     
     const ra = selectedObject.raDeg;
@@ -236,29 +236,8 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   }, [selectedObject]);
 
 
-  const getFeasibilityColor = (rec: string) => {
-    switch (rec) {
-      case 'excellent': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'good': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      case 'fair': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'poor': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      case 'not_recommended': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-muted text-muted-foreground';
-    }
-  };
 
-  const getTypeColor = (category: string) => {
-    switch (category) {
-      case 'galaxy': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-      case 'nebula': return 'bg-pink-500/20 text-pink-400 border-pink-500/30';
-      case 'cluster': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'star': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'planet': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      default: return 'bg-muted text-muted-foreground';
-    }
-  };
-
-  const currentAstro = astroData();
+  const currentAstro = astroData;
   const displayName = translatedName || selectedObject?.names[0] || 'Unknown';
 
   return (
@@ -290,7 +269,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
           {/* Type Badge and Quick Stats */}
           <div className="flex flex-wrap items-center gap-2 mt-2">
             {objectInfo && (
-              <Badge variant="outline" className={cn('text-xs', getTypeColor(objectInfo.typeCategory))}>
+              <Badge variant="outline" className={cn('text-xs', getObjectTypeBadgeColor(objectInfo.typeCategory))}>
                 {objectInfo.type}
               </Badge>
             )}
@@ -311,7 +290,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                 variant="outline" 
                 className={cn(
                   'text-xs',
-                  getFeasibilityColor(currentAstro.feasibility.recommendation)
+                  getFeasibilityColor(currentAstro.feasibility.recommendation, 'full')
                 )}
               >
                 <TrendingUp className="h-3 w-3 mr-1" />
@@ -355,20 +334,40 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                 )}
 
                 {/* Coordinates */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-muted/30 p-3">
-                    <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium">{t('coordinates.ra')}</span>
-                    </div>
-                    <p className="font-mono text-sm">{selectedObject?.ra}</p>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      {t('coordinates.title')}
+                    </h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs touch-target"
+                      onClick={handleCopyCoordinates}
+                    >
+                      {copied ? (
+                        <><Check className="h-3 w-3 mr-1 text-green-400" />{t('common.copied')}</>
+                      ) : (
+                        <><Copy className="h-3 w-3 mr-1" />{t('common.copy')}</>
+                      )}
+                    </Button>
                   </div>
-                  <div className="rounded-lg bg-muted/30 p-3">
-                    <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium">{t('coordinates.dec')}</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-muted/30 p-3">
+                      <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium">{t('coordinates.ra')}</span>
+                      </div>
+                      <p className="font-mono text-sm">{selectedObject?.ra}</p>
                     </div>
-                    <p className="font-mono text-sm">{selectedObject?.dec}</p>
+                    <div className="rounded-lg bg-muted/30 p-3">
+                      <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium">{t('coordinates.dec')}</span>
+                      </div>
+                      <p className="font-mono text-sm">{selectedObject?.dec}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -430,27 +429,6 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                     </div>
                   </>
                 )}
-
-                {/* Coordinates with Copy Button */}
-                <Separator className="my-3" />
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    {t('coordinates.title')}
-                  </h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs touch-target"
-                    onClick={handleCopyCoordinates}
-                  >
-                    {copied ? (
-                      <><Check className="h-3 w-3 mr-1 text-green-400" />{t('common.copied')}</>
-                    ) : (
-                      <><Copy className="h-3 w-3 mr-1" />{t('common.copy')}</>
-                    )}
-                  </Button>
-                </div>
 
                 {/* External Links */}
                 <Separator className="my-3" />
@@ -566,7 +544,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                         <TooltipTrigger asChild>
                           <div className={cn(
                             'flex items-center justify-between p-3 rounded-lg border',
-                            getFeasibilityColor(currentAstro.feasibility.recommendation)
+                            getFeasibilityColor(currentAstro.feasibility.recommendation, 'full')
                           )}>
                             <div className="flex items-center gap-2">
                               <TrendingUp className="h-4 w-4" />

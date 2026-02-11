@@ -96,6 +96,65 @@ export const TELESCOPE_PRESETS: TelescopePreset[] = [
 ];
 
 // ============================================================================
+// Eyepiece Presets (for Ocular Simulator)
+// ============================================================================
+
+export interface EyepiecePreset {
+  id: string;
+  name: string;
+  focalLength: number; // mm
+  afov: number; // apparent field of view in degrees
+  fieldStop?: number; // mm, optional
+  isCustom?: boolean;
+}
+
+export interface BarlowPreset {
+  id: string;
+  name: string;
+  magnification: number;
+  isCustom?: boolean;
+}
+
+export interface OcularTelescopePreset {
+  id: string;
+  name: string;
+  focalLength: number; // mm
+  aperture: number; // mm
+  type: 'refractor' | 'reflector' | 'catadioptric';
+  isCustom?: boolean;
+}
+
+export const EYEPIECE_PRESETS: EyepiecePreset[] = [
+  { id: 'e1', name: 'Plössl 32mm', focalLength: 32, afov: 52 },
+  { id: 'e2', name: 'Plössl 25mm', focalLength: 25, afov: 52 },
+  { id: 'e3', name: 'Plössl 17mm', focalLength: 17, afov: 52 },
+  { id: 'e4', name: 'Plössl 10mm', focalLength: 10, afov: 52 },
+  { id: 'e5', name: 'Plössl 6mm', focalLength: 6, afov: 52 },
+  { id: 'e6', name: 'Wide Field 24mm', focalLength: 24, afov: 68 },
+  { id: 'e7', name: 'Wide Field 15mm', focalLength: 15, afov: 68 },
+  { id: 'e8', name: 'Ultra Wide 9mm', focalLength: 9, afov: 82 },
+  { id: 'e9', name: 'Ultra Wide 5mm', focalLength: 5, afov: 82 },
+];
+
+export const BARLOW_PRESETS: BarlowPreset[] = [
+  { id: 'b0', name: 'None', magnification: 1 },
+  { id: 'b1', name: '2x Barlow', magnification: 2 },
+  { id: 'b2', name: '2.5x Barlow', magnification: 2.5 },
+  { id: 'b3', name: '3x Barlow', magnification: 3 },
+  { id: 'b4', name: '5x Barlow', magnification: 5 },
+];
+
+export const OCULAR_TELESCOPE_PRESETS: OcularTelescopePreset[] = [
+  { id: 't1', name: '80mm f/5 Refractor', focalLength: 400, aperture: 80, type: 'refractor' },
+  { id: 't2', name: '102mm f/7 Refractor', focalLength: 714, aperture: 102, type: 'refractor' },
+  { id: 't3', name: '130mm f/5 Newtonian', focalLength: 650, aperture: 130, type: 'reflector' },
+  { id: 't4', name: '150mm f/5 Newtonian', focalLength: 750, aperture: 150, type: 'reflector' },
+  { id: 't5', name: '200mm f/5 Newtonian', focalLength: 1000, aperture: 200, type: 'reflector' },
+  { id: 't6', name: '8" SCT f/10', focalLength: 2032, aperture: 203, type: 'catadioptric' },
+  { id: 't7', name: '6" Mak f/12', focalLength: 1800, aperture: 150, type: 'catadioptric' },
+];
+
+// ============================================================================
 // Grid Options
 // ============================================================================
 

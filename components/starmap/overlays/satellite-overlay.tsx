@@ -181,6 +181,8 @@ export function SatelliteOverlay({
       width={containerWidth}
       height={containerHeight}
       style={{ zIndex: 30 }}
+      role="img"
+      aria-label="Satellite overlay"
     >
       <defs>
         {/* Glow filter */}

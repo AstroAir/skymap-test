@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Star } from 'lucide-react';
+import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion';
 
 // Pre-generate star data to avoid impure render - optimized for GPU performance
 function generateStars(count: number) {
@@ -30,32 +31,85 @@ function generateShootingStars(count: number) {
   }));
 }
 
-const STARS = generateStars(80);
-const SHOOTING_STARS = generateShootingStars(4);
+const STARS = generateStars(40);
+const SHOOTING_STARS = generateShootingStars(3);
 
 interface SplashScreenProps {
   onComplete?: () => void;
   minDuration?: number;
+  /** When true, splash will begin its fade-out sequence regardless of minDuration */
+  isReady?: boolean;
 }
 
 export function SplashScreen({ 
   onComplete, 
-  minDuration = 2500 
+  minDuration = 2500,
+  isReady = false,
 }: SplashScreenProps) {
   const t = useTranslations();
-  const [phase, setPhase] = useState<'init' | 'stars' | 'logo' | 'loading' | 'fadeout'>('init');
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [phase, setPhase] = useState<'init' | 'stars' | 'logo' | 'loading' | 'fadeout'>(
+    prefersReducedMotion ? 'loading' : 'init'
+  );
   const [progress, setProgress] = useState(0);
-  
-  // Memoize loading messages for variety
-  const loadingMessages = useMemo(() => [
-    t('splash.loading'),
-    t('splash.loadingStars', { defaultValue: 'Loading star catalogs...' }),
-    t('splash.loadingEngine', { defaultValue: 'Initializing engine...' }),
-  ], [t]);
-  
-  const [loadingMessage, setLoadingMessage] = useState(loadingMessages[0]);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  // Stable loading messages ref to avoid re-triggering effect on locale changes
+  const messagesRef = useRef<string[]>([]);
+  useEffect(() => {
+    messagesRef.current = [
+      t('splash.loading'),
+      t('splash.loadingStars'),
+      t('splash.loadingEngine'),
+    ];
+    setLoadingMessage(messagesRef.current[0]);
+  }, [t]);
+
+  // Skip handler — allows user to dismiss splash early
+  const handleSkip = useCallback(() => {
+    setPhase('fadeout');
+    setTimeout(() => onCompleteRef.current?.(), prefersReducedMotion ? 0 : 400);
+  }, [prefersReducedMotion]);
+
+  // Keyboard skip (Escape / Enter / Space)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleSkip();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleSkip]);
+
+  // React to external isReady signal
+  const isReadyRef = useRef(isReady);
+  useEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
+  useEffect(() => {
+    if (!isReady || phase === 'fadeout') return;
+    // Defer state update to next microtask to avoid sync setState in effect
+    const id = requestAnimationFrame(() => {
+      if (isReadyRef.current) handleSkip();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isReady, phase, handleSkip]);
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      // Reduced motion: skip animation phases, just show loading then complete
+      const timer = setTimeout(() => {
+        onCompleteRef.current?.();
+      }, Math.min(minDuration, 1000));
+      return () => clearTimeout(timer);
+    }
+
     // Phase 0: Initial state (0-100ms)
     const timer0 = setTimeout(() => setPhase('stars'), 100);
     
@@ -68,8 +122,11 @@ export function SplashScreen({
     // Phase 3: Loading progress with messages
     let messageIndex = 0;
     const messageInterval = setInterval(() => {
-      messageIndex = (messageIndex + 1) % loadingMessages.length;
-      setLoadingMessage(loadingMessages[messageIndex]);
+      const msgs = messagesRef.current;
+      if (msgs.length > 0) {
+        messageIndex = (messageIndex + 1) % msgs.length;
+        setLoadingMessage(msgs[messageIndex]);
+      }
     }, 600);
     
     const progressInterval = setInterval(() => {
@@ -91,7 +148,7 @@ export function SplashScreen({
     
     // Complete
     const timer4 = setTimeout(() => {
-      onComplete?.();
+      onCompleteRef.current?.();
     }, minDuration);
     
     return () => {
@@ -103,20 +160,30 @@ export function SplashScreen({
       clearInterval(progressInterval);
       clearInterval(messageInterval);
     };
-  }, [minDuration, onComplete, loadingMessages]);
+  }, [minDuration, prefersReducedMotion]);
 
   const showContent = phase !== 'init';
   const showLogo = phase === 'logo' || phase === 'loading' || phase === 'fadeout';
   const showLoading = phase === 'loading';
+  const isBusy = phase !== 'fadeout';
 
   return (
     <div 
+      role="status"
+      aria-live="polite"
+      aria-busy={isBusy}
+      aria-label={isBusy ? loadingMessage : undefined}
+      data-testid="splash-screen"
+      onClick={handleSkip}
       className={cn(
         'fixed inset-0 z-[100] bg-gradient-to-b from-slate-950 via-slate-900 to-black',
-        'flex flex-col items-center justify-center overflow-hidden safe-area-inset',
+        'flex flex-col items-center justify-center overflow-hidden safe-area-inset cursor-pointer',
         phase === 'fadeout' && 'splash-fade-out pointer-events-none'
       )}
     >
+      <span className="sr-only">
+        {isBusy ? loadingMessage : t('splash.tagline')}
+      </span>
       {/* Animated Star Field Background */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Stars layer with GPU-accelerated animations */}
@@ -129,7 +196,7 @@ export function SplashScreen({
           {STARS.map((star) => (
             <div
               key={`star-${star.id}`}
-              className="absolute rounded-full bg-white splash-star will-change-transform"
+              className="absolute rounded-full bg-white splash-star"
               style={{
                 width: `${star.size}px`,
                 height: `${star.size}px`,
@@ -150,7 +217,7 @@ export function SplashScreen({
               key={`shooting-${star.id}`}
               className={cn(
                 'absolute h-px bg-gradient-to-r from-transparent via-white to-transparent',
-                'splash-shooting-star will-change-transform'
+                'splash-shooting-star'
               )}
               style={{
                 width: '120px',
@@ -168,7 +235,6 @@ export function SplashScreen({
         <div 
           className={cn(
             'absolute w-[500px] h-[500px] rounded-full splash-nebula-glow',
-            'bg-gradient-radial from-violet-600/20 via-blue-500/10 to-transparent',
             'transition-opacity duration-1000',
             showContent ? 'opacity-100' : 'opacity-0'
           )}
@@ -177,6 +243,7 @@ export function SplashScreen({
             top: '35%',
             transform: 'translate(-50%, -50%)',
             filter: 'blur(60px)',
+            background: 'radial-gradient(circle, oklch(0.55 0.25 290 / 0.2), oklch(0.55 0.25 250 / 0.1), transparent)',
           }}
         />
         
@@ -184,7 +251,6 @@ export function SplashScreen({
         <div 
           className={cn(
             'absolute w-[300px] h-[300px] rounded-full',
-            'bg-gradient-radial from-cyan-500/15 via-transparent to-transparent',
             'transition-opacity duration-1000 delay-300',
             showContent ? 'opacity-100' : 'opacity-0'
           )}
@@ -192,6 +258,7 @@ export function SplashScreen({
             right: '10%',
             bottom: '20%',
             filter: 'blur(50px)',
+            background: 'radial-gradient(circle, oklch(0.7 0.15 200 / 0.15), transparent)',
           }}
         />
       </div>
@@ -320,7 +387,20 @@ export function SplashScreen({
         )}
       >
         <p className="text-[11px] sm:text-xs text-slate-600">
-          {t('splash.poweredBy', { defaultValue: 'Powered by Stellarium Web Engine' })}
+          {t('splash.poweredBy')}
+        </p>
+      </div>
+
+      {/* Skip hint */}
+      <div 
+        className={cn(
+          'absolute bottom-20 sm:bottom-24 text-center',
+          'transition-opacity duration-500 delay-1000',
+          showLoading ? 'opacity-60' : 'opacity-0'
+        )}
+      >
+        <p className="text-[10px] text-slate-500">
+          {t('splash.skipHint')}
         </p>
       </div>
     </div>

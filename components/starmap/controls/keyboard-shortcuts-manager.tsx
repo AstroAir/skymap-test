@@ -4,6 +4,7 @@ import { useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useKeyboardShortcuts, STARMAP_SHORTCUT_KEYS, type KeyboardShortcut } from '@/lib/hooks';
 import { useStellariumStore, useSettingsStore, useEquipmentStore } from '@/lib/stores';
+import { utcToMJD } from '@/lib/astronomy/starmap-utils';
 
 interface KeyboardShortcutsManagerProps {
   onToggleSearch?: () => void;
@@ -27,7 +28,6 @@ export function KeyboardShortcutsManager({
   const t = useTranslations('shortcuts');
   const stel = useStellariumStore((state) => state.stel);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
-  const _stellariumSettings = useSettingsStore((state) => state.stellarium);
   const fovEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
   const setFovEnabled = useEquipmentStore((state) => state.setFOVEnabled);
 
@@ -53,8 +53,7 @@ export function KeyboardShortcutsManager({
   const handleResetTime = useCallback(() => {
     if (!stel) return;
     const now = new Date();
-    const mjdBase = new Date(Date.UTC(1858, 10, 17, 0, 0, 0));
-    const mjd = (now.getTime() - mjdBase.getTime()) / 86400000;
+    const mjd = utcToMJD(now);
     Object.assign(stel.core.observer, { utc: mjd });
     Object.assign(stel.core, { time_speed: 1 });
   }, [stel]);

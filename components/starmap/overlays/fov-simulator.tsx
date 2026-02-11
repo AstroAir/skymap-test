@@ -58,7 +58,7 @@ import {
 } from '@/components/ui/collapsible';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
-import { type MosaicSettings } from '@/lib/stores';
+import { useEquipmentStore, type MosaicSettings } from '@/lib/stores';
 import {
   SENSOR_PRESETS,
   TELESCOPE_PRESETS,
@@ -67,6 +67,7 @@ import {
   type TelescopePreset,
   type GridType,
 } from '@/lib/constants/equipment-presets';
+import { NumberStepper } from './number-stepper';
 
 // Re-export types for backward compatibility
 export type { MosaicSettings } from '@/lib/stores';
@@ -91,64 +92,6 @@ interface FOVSimulatorProps {
   onGridTypeChange: (type: GridType) => void;
 }
 
-
-// ============================================================================
-// Utility Components
-// ============================================================================
-
-function NumberStepper({
-  value,
-  onChange,
-  min = 1,
-  max = 10,
-  step = 1,
-  label,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  label?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      {label && <Label className="text-xs text-muted-foreground">{label}</Label>}
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onChange(Math.max(min, value - step))}
-          disabled={value <= min}
-        >
-          -
-        </Button>
-        <Input
-          type="number"
-          value={value}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value) || min;
-            onChange(Math.max(min, Math.min(max, v)));
-          }}
-          className="h-7 w-12 text-center"
-          min={min}
-          max={max}
-          step={step}
-        />
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onChange(Math.min(max, value + step))}
-          disabled={value >= max}
-        >
-          +
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 // ============================================================================
 // Main Component
@@ -179,17 +122,10 @@ export function FOVSimulator({
   const [localPixelSize, setLocalPixelSize] = useState(pixelSize);
   const [localRotation, setLocalRotation] = useState(rotationAngle);
   
-  // Display options state
-  const [overlayOpacity, setOverlayOpacity] = useState(80);
-  const [frameColor, setFrameColor] = useState('#3b82f6');
-  const [frameStyle, setFrameStyle] = useState<'solid' | 'dashed' | 'dotted'>('solid');
-  const [showCoordinateGrid, setShowCoordinateGrid] = useState(true);
-  const [showConstellations, setShowConstellations] = useState(false);
-  const [showConstellationBoundaries, setShowConstellationBoundaries] = useState(false);
-  const [showDSOLabels, setShowDSOLabels] = useState(true);
-  const [rotateSky, setRotateSky] = useState(false);
-  const [preserveAlignment, setPreserveAlignment] = useState(false);
-  const [dragToPosition, setDragToPosition] = useState(true);
+  // Display options from equipment store (persistent, shared with FOVOverlay)
+  const fovDisplay = useEquipmentStore((s) => s.fovDisplay);
+  const setFOVDisplay = useEquipmentStore((s) => s.setFOVDisplay);
+  const { overlayOpacity, frameColor, frameStyle, showCoordinateGrid, showConstellations, showConstellationBoundaries, showDSOLabels, rotateSky, preserveAlignment, dragToPosition } = fovDisplay;
 
   // Calculations
   const fovWidth = useMemo(() => 
@@ -260,8 +196,9 @@ export function FOVSimulator({
             <Button
               variant="ghost"
               size="icon"
+              aria-label={t('fov.simulator')}
               className={cn(
-                'h-10 w-10 touch-target toolbar-btn',
+                'h-9 w-9 touch-target toolbar-btn',
                 enabled 
                   ? 'bg-primary/30 text-primary' 
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -666,21 +603,21 @@ export function FOVSimulator({
                     <span className="text-sm">{t('fov.rotateSky')}</span>
                     <p className="text-xs text-muted-foreground">{t('fov.rotateSkyDesc')}</p>
                   </div>
-                  <Switch checked={rotateSky} onCheckedChange={setRotateSky} />
+                  <Switch checked={rotateSky} onCheckedChange={(v) => setFOVDisplay({ rotateSky: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <span className="text-sm">{t('fov.preserveAlignment')}</span>
                     <p className="text-xs text-muted-foreground">{t('fov.preserveAlignmentDesc')}</p>
                   </div>
-                  <Switch checked={preserveAlignment} onCheckedChange={setPreserveAlignment} />
+                  <Switch checked={preserveAlignment} onCheckedChange={(v) => setFOVDisplay({ preserveAlignment: v })} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <span className="text-sm">{t('fov.dragToPosition')}</span>
                     <p className="text-xs text-muted-foreground">{t('fov.dragToPositionDesc')}</p>
                   </div>
-                  <Switch checked={dragToPosition} onCheckedChange={setDragToPosition} />
+                  <Switch checked={dragToPosition} onCheckedChange={(v) => setFOVDisplay({ dragToPosition: v })} />
                 </div>
               </div>
             </div>
@@ -707,7 +644,7 @@ export function FOVSimulator({
                   </div>
                   <Slider
                     value={[overlayOpacity]}
-                    onValueChange={([v]) => setOverlayOpacity(v)}
+                    onValueChange={([v]) => setFOVDisplay({ overlayOpacity: v })}
                     min={10}
                     max={100}
                     step={5}
@@ -721,19 +658,19 @@ export function FOVSimulator({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showCoordinateGrid')}</span>
-                      <Switch checked={showCoordinateGrid} onCheckedChange={setShowCoordinateGrid} />
+                      <Switch checked={showCoordinateGrid} onCheckedChange={(v) => setFOVDisplay({ showCoordinateGrid: v })} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showConstellations')}</span>
-                      <Switch checked={showConstellations} onCheckedChange={setShowConstellations} />
+                      <Switch checked={showConstellations} onCheckedChange={(v) => setFOVDisplay({ showConstellations: v })} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showConstellationBoundaries')}</span>
-                      <Switch checked={showConstellationBoundaries} onCheckedChange={setShowConstellationBoundaries} />
+                      <Switch checked={showConstellationBoundaries} onCheckedChange={(v) => setFOVDisplay({ showConstellationBoundaries: v })} />
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t('fov.showDSOLabels')}</span>
-                      <Switch checked={showDSOLabels} onCheckedChange={setShowDSOLabels} />
+                      <Switch checked={showDSOLabels} onCheckedChange={(v) => setFOVDisplay({ showDSOLabels: v })} />
                     </div>
                   </div>
                 </div>
@@ -754,7 +691,7 @@ export function FOVSimulator({
                           frameColor === color && 'ring-2 ring-primary ring-offset-2'
                         )}
                         style={{ backgroundColor: color }}
-                        onClick={() => setFrameColor(color)}
+                        onClick={() => setFOVDisplay({ frameColor: color })}
                       />
                     ))}
                   </div>
@@ -766,7 +703,7 @@ export function FOVSimulator({
                   <ToggleGroup 
                     type="single" 
                     value={frameStyle} 
-                    onValueChange={(v) => v && setFrameStyle(v as 'solid' | 'dashed' | 'dotted')}
+                    onValueChange={(v) => v && setFOVDisplay({ frameStyle: v as 'solid' | 'dashed' | 'dotted' })}
                     className="flex gap-1"
                   >
                     <ToggleGroupItem value="solid" className="flex-1 h-8 text-xs">

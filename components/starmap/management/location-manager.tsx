@@ -11,6 +11,7 @@ import {
   Navigation,
   Check,
   Map,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,6 +57,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   const { locations, currentLocation, loading, refresh, setCurrent, isAvailable: isTauriAvailable } = useLocations();
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [inputMethod, setInputMethod] = useState<'manual' | 'map'>('manual');
   
   // Hydration-safe mounting detection using useSyncExternalStore
@@ -106,51 +108,121 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   const locationList = isTauriAvailable ? (locations?.locations ?? []) : webLocations;
   const activeLocation = isTauriAvailable ? currentLocation : webCurrentLocation;
 
+  // Validate location form
+  const validateLocation = (): string | null => {
+    if (!form.name.trim()) return t('locations.fillRequired') || 'Please fill required fields';
+    const lat = parseFloat(form.latitude);
+    const lon = parseFloat(form.longitude);
+    if (isNaN(lat) || lat < -90 || lat > 90)
+      return t('locations.validation.latitudeRange') || 'Latitude must be between -90 and 90';
+    if (isNaN(lon) || lon < -180 || lon > 180)
+      return t('locations.validation.longitudeRange') || 'Longitude must be between -180 and 180';
+    if (form.altitude) {
+      const alt = parseFloat(form.altitude);
+      if (isNaN(alt) || alt < -500 || alt > 9000)
+        return t('locations.validation.altitudeRange') || 'Altitude must be between -500 and 9,000 m';
+    }
+    if (form.bortle_class) {
+      const bc = parseInt(form.bortle_class);
+      if (isNaN(bc) || bc < 1 || bc > 9)
+        return t('locations.validation.bortleRange') || 'Bortle class must be between 1 and 9';
+    }
+    return null;
+  };
+
+  // Start editing a location
+  const handleStartEdit = (loc: WebLocation | { id: string; name: string; latitude: number; longitude: number; altitude: number; bortle_class?: number }) => {
+    setForm({
+      name: loc.name,
+      latitude: loc.latitude.toString(),
+      longitude: loc.longitude.toString(),
+      altitude: loc.altitude.toString(),
+      bortle_class: loc.bortle_class?.toString() || '',
+    });
+    setEditingId(loc.id);
+    setAdding(true);
+    setInputMethod('manual');
+  };
+
   const handleAdd = async () => {
-    if (!form.name || !form.latitude || !form.longitude) {
-      toast.error(t('locations.fillRequired') || 'Please fill required fields');
+    const validationError = validateLocation();
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
+    const lat = parseFloat(form.latitude);
+    const lon = parseFloat(form.longitude);
+    const alt = parseFloat(form.altitude) || 0;
+    const bortle = form.bortle_class ? parseInt(form.bortle_class) : undefined;
+
     if (isTauriAvailable) {
       try {
-        await tauriApi.locations.add({
-          name: form.name,
-          latitude: parseFloat(form.latitude),
-          longitude: parseFloat(form.longitude),
-          altitude: parseFloat(form.altitude) || 0,
-          bortle_class: form.bortle_class ? parseInt(form.bortle_class) : undefined,
-          is_default: !locations?.locations.length,
-          is_current: !locations?.locations.length,
-        });
-        
-        toast.success(t('locations.added') || 'Location added');
+        if (editingId) {
+          const existing = locations?.locations.find(l => l.id === editingId);
+          if (existing) {
+            await tauriApi.locations.update({
+              ...existing,
+              name: form.name,
+              latitude: lat,
+              longitude: lon,
+              altitude: alt,
+              bortle_class: bortle,
+            });
+          }
+          toast.success(t('locations.updated') || 'Location updated');
+        } else {
+          await tauriApi.locations.add({
+            name: form.name,
+            latitude: lat,
+            longitude: lon,
+            altitude: alt,
+            bortle_class: bortle,
+            is_default: !locations?.locations.length,
+            is_current: !locations?.locations.length,
+          });
+          toast.success(t('locations.added') || 'Location added');
+        }
         setForm({ name: '', latitude: '', longitude: '', altitude: '', bortle_class: '' });
         setAdding(false);
+        setEditingId(null);
         refresh();
       } catch (e) {
         toast.error((e as Error).message);
       }
     } else {
-      // Web environment - use localStorage
-      const newLocation: WebLocation = {
-        id: `loc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        name: form.name,
-        latitude: parseFloat(form.latitude),
-        longitude: parseFloat(form.longitude),
-        altitude: parseFloat(form.altitude) || 0,
-        bortle_class: form.bortle_class ? parseInt(form.bortle_class) : undefined,
-        is_default: webLocations.length === 0,
-        is_current: webLocations.length === 0,
-      };
-      saveWebLocations([...webLocations, newLocation]);
-      toast.success(t('locations.added') || 'Location added');
+      if (editingId) {
+        // Web environment - update existing
+        const updated = webLocations.map(l => l.id === editingId ? {
+          ...l, name: form.name, latitude: lat, longitude: lon, altitude: alt, bortle_class: bortle,
+        } : l);
+        saveWebLocations(updated);
+        toast.success(t('locations.updated') || 'Location updated');
+        const loc = updated.find(l => l.id === editingId);
+        if (loc?.is_current && onLocationChange) {
+          onLocationChange(loc.latitude, loc.longitude, loc.altitude);
+        }
+      } else {
+        // Web environment - add new
+        const newLocation: WebLocation = {
+          id: `loc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          name: form.name,
+          latitude: lat,
+          longitude: lon,
+          altitude: alt,
+          bortle_class: bortle,
+          is_default: webLocations.length === 0,
+          is_current: webLocations.length === 0,
+        };
+        saveWebLocations([...webLocations, newLocation]);
+        toast.success(t('locations.added') || 'Location added');
+        if (newLocation.is_current && onLocationChange) {
+          onLocationChange(newLocation.latitude, newLocation.longitude, newLocation.altitude);
+        }
+      }
       setForm({ name: '', latitude: '', longitude: '', altitude: '', bortle_class: '' });
       setAdding(false);
-      
-      if (newLocation.is_current && onLocationChange) {
-        onLocationChange(newLocation.latitude, newLocation.longitude, newLocation.altitude);
-      }
+      setEditingId(null);
     }
   };
 
@@ -234,6 +306,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       bortle_class: '',
     });
     setInputMethod('manual');
+    setEditingId(null);
   };
 
   return (
@@ -300,6 +373,9 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                             <Navigation className="h-4 w-4" />
                           </Button>
                         )}
+                        <Button variant="ghost" size="icon" onClick={() => handleStartEdit(loc)} title={t('common.edit') || 'Edit'}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(loc.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -442,7 +518,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
 
                 <div className="flex gap-2 pt-3 border-t">
                   <Button size="sm" onClick={handleAdd}>
-                    {t('common.save') || 'Save'}
+                    {editingId ? (t('common.update') || 'Update') : (t('common.save') || 'Save')}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => {
                     setAdding(false);

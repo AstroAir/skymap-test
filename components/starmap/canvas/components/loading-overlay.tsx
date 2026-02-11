@@ -23,7 +23,12 @@ export function LoadingOverlay({ loadingState, onRetry }: LoadingOverlayProps) {
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10 px-4 text-center">
+    <div
+      data-testid="stellarium-loading-overlay"
+      role={errorMessage ? 'alert' : 'status'}
+      aria-live="polite"
+      className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10 px-4 text-center"
+    >
       {isLoading && !errorMessage && (
         <Spinner className="h-8 w-8 text-primary mb-4" />
       )}

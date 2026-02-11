@@ -2,10 +2,9 @@
 
 import { useState, useRef, useCallback, forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
-import { useObjectSearch, type ObjectType, useSkyCultureLanguage } from '@/lib/hooks';
-import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
+import { useObjectSearch, type ObjectType, useSkyCultureLanguage, useSelectTarget } from '@/lib/hooks';
+import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import type { SearchResultItem } from '@/lib/core/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +17,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { SearchResultItemRow, getResultId } from './search-result-item';
+import { getTypeIcon, getCategoryIcon } from './search-utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,13 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { createLogger } from '@/lib/logger';
 import {
   Search,
-  Star,
-  Globe,
-  Moon as MoonIcon,
-  Sparkles,
   CircleDot,
   Loader2,
   Filter,
@@ -51,8 +46,6 @@ import {
   CornerDownLeft,
 } from 'lucide-react';
 import { AdvancedSearchDialog } from './advanced-search-dialog';
-
-const logger = createLogger('stellarium-search');
 
 // ============================================================================
 // Types
@@ -79,7 +72,6 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const t = useTranslations();
     const searchInputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const stel = useStellariumStore((state) => state.stel);
     const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
     
     // Use the enhanced search hook
@@ -136,6 +128,30 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       Array.from(groupedResults.values()).flat(),
       [groupedResults]
     );
+
+    // Pre-build itemId → globalIndex map to avoid O(n²) findIndex in render
+    const indexMap = useMemo(() => {
+      const map = new Map<string, number>();
+      flatResults.forEach((r, i) => map.set(getResultId(r), i));
+      return map;
+    }, [flatResults]);
+
+    // Refs for each result item (for scroll-into-view)
+    const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+    // Compute active descendant ID for ARIA
+    const activeDescendantId = useMemo(() => {
+      if (highlightedIndex < 0 || highlightedIndex >= flatResults.length) return undefined;
+      return `search-option-${getResultId(flatResults[highlightedIndex])}`;
+    }, [highlightedIndex, flatResults]);
+
+    // Scroll highlighted item into view
+    useEffect(() => {
+      if (highlightedIndex >= 0) {
+        const el = itemRefs.current.get(highlightedIndex);
+        el?.scrollIntoView({ block: 'nearest' });
+      }
+    }, [highlightedIndex]);
     
     // Memoize handler for adding to target list
     const handleAddToTargetList = useCallback((item: SearchResultItem) => {
@@ -216,59 +232,12 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       });
     }, []);
 
-    // Navigate to target in Stellarium
-    const selectTarget = useCallback(async (item: SearchResultItem) => {
-      if (!stel) return;
-
-      try {
-        // Handle Stellarium objects (Comets, Planets)
-        if (item.StellariumObj) {
-          Object.assign(stel.core, { selection: item.StellariumObj });
-          stel.pointAndLock(item.StellariumObj);
-          addRecentSearch(item.Name);
-          onSelect?.(item);
-          return;
-        }
-
-        // Handle legacy Planets without StellariumObj
-        let ra: number | undefined = item.RA;
-        let dec: number | undefined = item.Dec;
-        
-        if (item.Type && (item.Type === 'Planet' || item.Type === 'Star' || item.Type === 'Moon')) {
-          const planetInfo = stel.getObj(`NAME ${item.Name}`)?.getInfo('pvo', stel.observer) as number[][] | undefined;
-          if (planetInfo) {
-            const cirs = stel.convertFrame(stel.observer, 'ICRF', 'CIRS', planetInfo[0]);
-            ra = rad2deg(stel.anp(stel.c2s(cirs)[0]));
-            dec = rad2deg(stel.anpm(stel.c2s(cirs)[1]));
-          }
-        }
-
-        // Handle coordinate-based objects
-        if (ra !== undefined && dec !== undefined) {
-          const ra_rad = ra * stel.D2R;
-          const dec_rad = dec * stel.D2R;
-          const icrfVec = stel.s2c(ra_rad, dec_rad);
-          const observedVec = stel.convertFrame(stel.observer, 'ICRF', 'CIRS', icrfVec);
-
-          const targetCircle = stel.createObj('circle', {
-            id: 'targetCircle',
-            pos: observedVec,
-            color: [0, 0, 0, 0.1],
-            size: [0.05, 0.05],
-          });
-
-          targetCircle.pos = observedVec;
-          targetCircle.update();
-          Object.assign(stel.core, { selection: targetCircle });
-          stel.pointAndLock(targetCircle);
-        }
-
-        addRecentSearch(item.Name);
-        onSelect?.(item);
-      } catch (error) {
-        logger.error('Error selecting target', error);
-      }
-    }, [stel, onSelect, addRecentSearch]);
+    // Navigate to target in Stellarium (shared hook)
+    const selectTargetCallbacks = useMemo(() => ({
+      onSelect,
+      addRecentSearch,
+    }), [onSelect, addRecentSearch]);
+    const selectTarget = useSelectTarget(selectTargetCallbacks);
 
     // Handle keyboard navigation (must be after selectTarget)
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -339,29 +308,6 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       setFilters({ types: newTypes });
     }, [filters.types, setFilters]);
 
-    // Icon helpers
-    const getTypeIcon = (type?: string) => {
-      switch (type) {
-        case 'Comet': return <Sparkles className="h-4 w-4 text-green-400" />;
-        case 'Planet': return <Globe className="h-4 w-4 text-blue-400" />;
-        case 'DSO': return <CircleDot className="h-4 w-4 text-purple-400" />;
-        case 'Star': return <Star className="h-4 w-4 text-orange-400" />;
-        case 'Moon': return <MoonIcon className="h-4 w-4 text-gray-400" />;
-        case 'Constellation': return <MapPin className="h-4 w-4 text-cyan-400" />;
-        default: return <CircleDot className="h-4 w-4 text-gray-400" />;
-      }
-    };
-
-    // Category icon helper
-    const getCategoryIcon = (label: string) => {
-      switch (label) {
-        case 'Galaxies': return <CircleDot className="h-3 w-3 text-purple-400" />;
-        case 'Nebulae': return <Sparkles className="h-3 w-3 text-pink-400" />;
-        case 'Planets': return <Globe className="h-3 w-3 text-blue-400" />;
-        case 'Clusters': return <Star className="h-3 w-3 text-yellow-400" />;
-        default: return <CircleDot className="h-3 w-3" />;
-      }
-    };
 
 
     const selectedCount = selectedIds.size;
@@ -388,6 +334,9 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
               aria-label={t('starmap.searchObjects')}
               aria-expanded={showResultsPanel}
               aria-autocomplete="list"
+              aria-haspopup="listbox"
+              aria-controls="search-results-listbox"
+              aria-activedescendant={activeDescendantId}
               role="combobox"
             />
             {query && (
@@ -546,7 +495,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         {/* Search Results - Grouped */}
         {showResultsPanel && hasResults && !isSearching && (
           <ScrollArea className="max-h-72">
-            <div className="space-y-2">
+            <div className="space-y-2" role="listbox" id="search-results-listbox">
               {Array.from(groupedResults.entries()).map(([groupName, items]) => (
                 <Collapsible
                   key={groupName}
@@ -570,11 +519,15 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                   <CollapsibleContent className="space-y-0.5 pl-4">
                     {items.map((item) => {
                       const itemId = getResultId(item);
-                      const globalIndex = flatResults.findIndex(r => getResultId(r) === itemId);
+                      const globalIndex = indexMap.get(itemId) ?? -1;
                       
                       return (
                         <SearchResultItemRow
                           key={itemId}
+                          ref={(el: HTMLDivElement | null) => {
+                            if (el) itemRefs.current.set(globalIndex, el);
+                            else itemRefs.current.delete(globalIndex);
+                          }}
                           item={item}
                           itemId={itemId}
                           checked={isSelected(itemId)}
@@ -678,7 +631,22 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                     variant="ghost"
                     size="sm"
                     className="h-7 justify-start text-xs"
-                    onClick={() => handleQueryChange(cat.items[0]?.Name || cat.label)}
+                    onClick={() => {
+                      // Set type filter to match category instead of searching first item's name
+                      const typeMap: Record<string, ObjectType> = {
+                        'Galaxies': 'DSO',
+                        'Nebulae': 'DSO',
+                        'Planets': 'Planet',
+                        'Clusters': 'DSO',
+                      };
+                      const filterType = typeMap[cat.label];
+                      if (filterType) {
+                        setFilters({ types: [filterType] });
+                        handleQueryChange(cat.label.toLowerCase());
+                      } else {
+                        handleQueryChange(cat.items[0]?.Name || cat.label);
+                      }
+                    }}
                   >
                     {getCategoryIcon(cat.label)}
                     <span className="ml-1">{cat.label}</span>

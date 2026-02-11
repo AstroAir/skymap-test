@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
   MapPin, 
   Telescope, 
@@ -21,7 +22,6 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useSetupWizardStore, SETUP_WIZARD_STEPS, type SetupWizardStep } from '@/lib/stores/setup-wizard-store';
-import { useMountStore } from '@/lib/stores/mount-store';
 import { LocationStep } from './steps/location-step';
 import { EquipmentStep } from './steps/equipment-step';
 import { PreferencesStep } from './steps/preferences-step';
@@ -49,26 +49,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const closeWizard = useSetupWizardStore((state) => state.closeWizard);
   const nextStep = useSetupWizardStore((state) => state.nextStep);
   const prevStep = useSetupWizardStore((state) => state.prevStep);
+  const goToStep = useSetupWizardStore((state) => state.goToStep);
   const completeSetup = useSetupWizardStore((state) => state.completeSetup);
   const isFirstStep = useSetupWizardStore((state) => state.isFirstStep);
   const isLastStep = useSetupWizardStore((state) => state.isLastStep);
+  const canProceed = useSetupWizardStore((state) => state.canProceed);
   const getCurrentStepIndex = useSetupWizardStore((state) => state.getCurrentStepIndex);
 
-  const setProfileInfo = useMountStore((state) => state.setProfileInfo);
+  const [mounted, setMounted] = useState(() => typeof window !== 'undefined');
+  // Track animation direction: 1 = forward, -1 = backward
+  const [direction, setDirection] = useState(1);
 
-  // Use a ref for client-side mounting detection to avoid lint warning
-  const [mounted, setMounted] = useState(() => {
-    // This will be false during SSR and true after hydration
-    return typeof window !== 'undefined';
-  });
-
-  // Handle client-side mounting - use layout effect to set before paint
   useEffect(() => {
-    if (!mounted) {
-      // Only needed if initial state was false (during SSR)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setMounted(true);
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!mounted) setMounted(true);
   }, [mounted]);
 
   // Auto-open wizard for first-time users
@@ -83,38 +77,19 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     return () => clearTimeout(timer);
   }, [mounted, hasCompletedSetup, showOnNextVisit, openWizard]);
 
-  useEffect(() => {
-    if (!mounted) return;
-
-    try {
-      const stored = localStorage.getItem('skymap-observer-location');
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as { latitude?: number; longitude?: number; altitude?: number };
-      if (!Number.isFinite(parsed.latitude) || !Number.isFinite(parsed.longitude)) return;
-      if (parsed.latitude! < -90 || parsed.latitude! > 90) return;
-      if (parsed.longitude! < -180 || parsed.longitude! > 180) return;
-
-      const currentProfile = useMountStore.getState().profileInfo;
-      setProfileInfo({
-        AstrometrySettings: {
-          ...currentProfile.AstrometrySettings,
-          Latitude: parsed.latitude!,
-          Longitude: parsed.longitude!,
-          Elevation: parsed.altitude ?? currentProfile.AstrometrySettings.Elevation ?? 0,
-        },
-      });
-    } catch (e) {
-      void e;
-    }
-  }, [mounted, setProfileInfo]);
-
   const handleNext = () => {
+    setDirection(1);
     if (isLastStep()) {
       completeSetup();
       onComplete?.();
     } else {
       nextStep();
     }
+  };
+
+  const handlePrev = () => {
+    setDirection(-1);
+    prevStep();
   };
 
   const handleSkip = () => {
@@ -128,12 +103,42 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }
   };
 
+  const handleStepClick = useCallback((step: SetupWizardStep, index: number) => {
+    const currentIdx = useSetupWizardStore.getState().getCurrentStepIndex();
+    const completed = useSetupWizardStore.getState().completedSteps;
+    // Allow clicking completed steps or steps before current
+    if (completed.includes(step) || index <= currentIdx) {
+      setDirection(index > currentIdx ? 1 : -1);
+      goToStep(step);
+    }
+  }, [goToStep]);
+
+  // Keyboard navigation: ArrowLeft/ArrowRight when not in an input
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setDirection(1);
+        if (!isLastStep()) nextStep();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setDirection(-1);
+        if (!isFirstStep()) prevStep();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, isLastStep, isFirstStep, nextStep, prevStep]);
+
   const currentIndex = getCurrentStepIndex();
   const progress = ((currentIndex + 1) / SETUP_WIZARD_STEPS.length) * 100;
 
   if (!mounted) return null;
 
-  const renderStepContent = () => {
+  const stepContent = (() => {
     switch (currentStep) {
       case 'welcome':
         return <WelcomeStepContent />;
@@ -148,7 +153,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       default:
         return null;
     }
-  };
+  })();
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -164,22 +169,33 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           
           {/* Step indicators */}
           <div className="relative px-6 pt-10 pb-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4" role="tablist" aria-label={t('setupWizard.title')}>
               {SETUP_WIZARD_STEPS.map((step, index) => {
                 const Icon = STEP_ICONS[step];
                 const isActive = step === currentStep;
                 const isCompleted = completedSteps.includes(step);
                 const isPast = index < currentIndex;
+                const isClickable = isCompleted || index <= currentIndex;
                 
                 return (
                   <div key={step} className="flex items-center">
-                    <div
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-current={isActive ? 'step' : undefined}
+                      aria-label={t(`setupWizard.steps.${step}.title`)}
+                      tabIndex={isActive ? 0 : -1}
+                      disabled={!isClickable}
+                      onClick={() => handleStepClick(step, index)}
                       className={cn(
                         'flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300',
                         isActive && 'bg-primary border-primary text-primary-foreground scale-110',
                         isCompleted && !isActive && 'bg-primary/20 border-primary/50 text-primary',
                         isPast && !isCompleted && 'bg-muted border-muted-foreground/30 text-muted-foreground',
-                        !isActive && !isCompleted && !isPast && 'bg-muted/50 border-border text-muted-foreground'
+                        !isActive && !isCompleted && !isPast && 'bg-muted/50 border-border text-muted-foreground',
+                        isClickable && !isActive && 'cursor-pointer hover:scale-105',
+                        !isClickable && 'cursor-default opacity-60'
                       )}
                     >
                       {isCompleted && !isActive ? (
@@ -187,11 +203,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                       ) : (
                         <Icon className="h-5 w-5" />
                       )}
-                    </div>
+                    </button>
                     {index < SETUP_WIZARD_STEPS.length - 1 && (
                       <div
                         className={cn(
-                          'w-12 h-0.5 mx-2 transition-colors duration-300',
+                          'flex-1 min-w-6 h-0.5 mx-1 sm:mx-2 transition-colors duration-300',
                           index < currentIndex ? 'bg-primary/50' : 'bg-border'
                         )}
                       />
@@ -216,9 +232,19 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           </div>
         </div>
 
-        {/* Content area */}
+        {/* Content area with step transition animation */}
         <div className="px-6 py-4 overflow-y-auto max-h-[50vh]">
-          {renderStepContent()}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={currentStep}
+              initial={{ opacity: 0, x: direction * 60 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: direction * -60 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+            >
+              {stepContent}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Footer with navigation */}
@@ -241,7 +267,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={prevStep}
+                onClick={handlePrev}
                 className="gap-1"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -252,6 +278,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             <Button
               size="sm"
               onClick={handleNext}
+              disabled={!canProceed()}
               className="gap-1 bg-primary hover:bg-primary/90"
             >
               {isLastStep() ? (

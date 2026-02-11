@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, act, waitFor } from '@testing-library/react';
 import { TourSpotlight } from '../tour-spotlight';
 
 describe('TourSpotlight', () => {
@@ -93,14 +93,11 @@ describe('TourSpotlight', () => {
     document.body.removeChild(targetElement);
   });
 
-  it('should call onClick when overlay is clicked', async () => {
-    const handleClick = jest.fn();
-    
+  it('should have aria-hidden attribute for accessibility', async () => {
     render(
       <TourSpotlight
         targetSelector="[data-testid='nonexistent']"
         isActive={true}
-        onClick={handleClick}
       />
     );
     
@@ -109,15 +106,9 @@ describe('TourSpotlight', () => {
     });
     
     await waitFor(() => {
-      const overlay = document.querySelector('[class*="fixed inset-0"]');
+      const overlay = document.querySelector('[aria-hidden="true"]');
       expect(overlay).toBeInTheDocument();
     });
-    
-    const clickableArea = document.querySelector('[class*="fixed inset-0"]');
-    if (clickableArea) {
-      fireEvent.click(clickableArea);
-      expect(handleClick).toHaveBeenCalled();
-    }
   });
 
   it('should apply custom className', async () => {

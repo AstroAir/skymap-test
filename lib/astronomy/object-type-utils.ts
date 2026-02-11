@@ -252,6 +252,38 @@ export function getObjectTypeBadgeColor(type?: string | null): string {
   return getObjectTypeDisplay(type).badgeColor;
 }
 
+/** Feasibility recommendation type */
+export type FeasibilityRecommendation = 'excellent' | 'good' | 'fair' | 'poor' | 'not_recommended';
+
+/**
+ * Get color classes for imaging feasibility recommendation
+ * @param recommendation - Feasibility recommendation string
+ * @param variant - 'compact' for InfoPanel (text + bg), 'full' for Drawer (bg + text + border)
+ */
+export function getFeasibilityColor(
+  recommendation: string,
+  variant: 'compact' | 'full' = 'full'
+): string {
+  if (variant === 'compact') {
+    switch (recommendation) {
+      case 'excellent': return 'text-green-400 bg-green-900/30';
+      case 'good': return 'text-emerald-400 bg-emerald-900/30';
+      case 'fair': return 'text-yellow-400 bg-yellow-900/30';
+      case 'poor': return 'text-orange-400 bg-orange-900/30';
+      case 'not_recommended': return 'text-red-400 bg-red-900/30';
+      default: return 'text-muted-foreground';
+    }
+  }
+  switch (recommendation) {
+    case 'excellent': return 'bg-green-500/20 text-green-400 border-green-500/30';
+    case 'good': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    case 'fair': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+    case 'poor': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+    case 'not_recommended': return 'bg-red-500/20 text-red-400 border-red-500/30';
+    default: return 'bg-muted text-muted-foreground';
+  }
+}
+
 /**
  * Legend items for ObjectTypeLegend component
  * Grouped by category for display purposes

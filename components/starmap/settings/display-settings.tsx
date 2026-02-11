@@ -22,30 +22,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useSatelliteStore } from '@/lib/stores';
-import type { StellariumSettings as StellariumSettingsType, SkyCultureLanguage } from '@/lib/core/types';
+import { useSatelliteStore, useSettingsStore } from '@/lib/stores';
+import type { SkyCultureLanguage } from '@/lib/core/types';
 import { StellariumSurveySelector } from './stellarium-survey-selector';
 import { ObjectInfoSourcesConfig } from '../objects/object-info-sources-config';
 import { TourRestartButton } from '../onboarding/welcome-dialog';
 import { SettingsSection, ToggleItem } from './settings-shared';
 import { DISPLAY_SETTINGS, GRID_SETTINGS } from './settings-constants';
 
-interface DisplaySettingsProps {
-  localSettings: StellariumSettingsType;
-  onToggleSetting: (key: keyof StellariumSettingsType) => void;
-  onSurveyChange: (surveyId: string, surveyUrl?: string) => void;
-  onSurveyToggle: (enabled: boolean) => void;
-  onSkyCultureLanguageChange: (value: SkyCultureLanguage) => void;
-}
-
-export function DisplaySettings({
-  localSettings,
-  onToggleSetting,
-  onSurveyChange,
-  onSurveyToggle,
-  onSkyCultureLanguageChange,
-}: DisplaySettingsProps) {
+export function DisplaySettings() {
   const t = useTranslations();
+  
+  const stellarium = useSettingsStore((state) => state.stellarium);
+  const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
+  const setStellariumSetting = useSettingsStore((state) => state.setStellariumSetting);
   
   const showSatellites = useSatelliteStore((state) => state.showSatellites);
   const showSatelliteLabels = useSatelliteStore((state) => state.showLabels);
@@ -65,8 +55,8 @@ export function DisplaySettings({
             key={key}
             id={key}
             label={t(labelKey)}
-            checked={localSettings[key] as boolean}
-            onCheckedChange={() => onToggleSetting(key)}
+            checked={stellarium[key] as boolean}
+            onCheckedChange={() => toggleStellariumSetting(key)}
           />
         ))}
       </SettingsSection>
@@ -83,8 +73,8 @@ export function DisplaySettings({
             key={key}
             id={key}
             label={t(labelKey)}
-            checked={localSettings[key] as boolean}
-            onCheckedChange={() => onToggleSetting(key)}
+            checked={stellarium[key] as boolean}
+            onCheckedChange={() => toggleStellariumSetting(key)}
           />
         ))}
       </SettingsSection>
@@ -106,8 +96,8 @@ export function DisplaySettings({
           </div>
           <Switch
             id="night-mode"
-            checked={localSettings.nightMode}
-            onCheckedChange={() => onToggleSetting('nightMode')}
+            checked={stellarium.nightMode}
+            onCheckedChange={() => toggleStellariumSetting('nightMode')}
           />
         </div>
         <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
@@ -120,8 +110,8 @@ export function DisplaySettings({
           </div>
           <Switch
             id="sensor-control"
-            checked={localSettings.sensorControl}
-            onCheckedChange={() => onToggleSetting('sensorControl')}
+            checked={stellarium.sensorControl}
+            onCheckedChange={() => toggleStellariumSetting('sensorControl')}
           />
         </div>
       </SettingsSection>
@@ -165,8 +155,8 @@ export function DisplaySettings({
         defaultOpen={false}
       >
         <Select
-          value={localSettings.skyCultureLanguage}
-          onValueChange={onSkyCultureLanguageChange}
+          value={stellarium.skyCultureLanguage}
+          onValueChange={(v: SkyCultureLanguage) => setStellariumSetting('skyCultureLanguage', v)}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder={t('settings.selectLanguage')} />
@@ -190,11 +180,14 @@ export function DisplaySettings({
         defaultOpen={false}
       >
         <StellariumSurveySelector
-          surveyEnabled={localSettings.surveyEnabled}
-          surveyId={localSettings.surveyId}
-          surveyUrl={localSettings.surveyUrl}
-          onSurveyChange={onSurveyChange}
-          onSurveyToggle={onSurveyToggle}
+          surveyEnabled={stellarium.surveyEnabled}
+          surveyId={stellarium.surveyId}
+          surveyUrl={stellarium.surveyUrl}
+          onSurveyChange={(surveyId: string, surveyUrl?: string) => {
+            setStellariumSetting('surveyId', surveyId);
+            if (surveyUrl !== undefined) setStellariumSetting('surveyUrl', surveyUrl);
+          }}
+          onSurveyToggle={(enabled: boolean) => setStellariumSetting('surveyEnabled', enabled)}
         />
       </SettingsSection>
 

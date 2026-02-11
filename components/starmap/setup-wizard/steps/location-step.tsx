@@ -59,6 +59,7 @@ export function LocationStep() {
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [manualLat, setManualLat] = useState(location?.latitude?.toString() || '');
   const [manualLon, setManualLon] = useState(location?.longitude?.toString() || '');
+  const [manualAlt, setManualAlt] = useState(location?.altitude?.toString() || '0');
 
   const setLocation = useCallback((loc: ObserverLocation) => {
     setLocationState(loc);
@@ -82,6 +83,7 @@ export function LocationStep() {
       setLocationState(stored);
       setManualLat(stored.latitude.toString());
       setManualLon(stored.longitude.toString());
+      setManualAlt(stored.altitude.toString());
 
       const currentProfile = useMountStore.getState().profileInfo;
       setProfileInfo({
@@ -94,12 +96,6 @@ export function LocationStep() {
       });
     }
   }, [setProfileInfo]);
-
-  useEffect(() => {
-    if (!location) return;
-    setManualLat(location.latitude.toString());
-    setManualLon(location.longitude.toString());
-  }, [location]);
 
   const hasLocation = isValidLocation(location);
 
@@ -118,13 +114,15 @@ export function LocationStep() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const alt = position.coords.altitude || 0;
         setLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-          altitude: position.coords.altitude || 0,
+          altitude: alt,
         });
         setManualLat(position.coords.latitude.toString());
         setManualLon(position.coords.longitude.toString());
+        setManualAlt(alt.toString());
         setIsGettingLocation(false);
       },
       (error) => {
@@ -157,11 +155,12 @@ export function LocationStep() {
     if (!isManualValid()) return;
     const lat = parseFloat(manualLat);
     const lon = parseFloat(manualLon);
+    const alt = parseFloat(manualAlt);
 
     setLocation({
       latitude: lat,
       longitude: lon,
-      altitude: 0,
+      altitude: !isNaN(alt) && alt >= 0 ? alt : 0,
     });
   };
 
@@ -277,6 +276,19 @@ export function LocationStep() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="altitude">{t('setupWizard.steps.location.altitude')}</Label>
+            <Input
+              id="altitude"
+              type="number"
+              step="any"
+              min="0"
+              placeholder={t('setupWizard.steps.location.altitudePlaceholder')}
+              value={manualAlt}
+              onChange={(e) => setManualAlt(e.target.value)}
+            />
+          </div>
+
           <Button
             onClick={handleManualSubmit}
             disabled={!isManualValid()}
@@ -299,7 +311,7 @@ export function LocationStep() {
               {t('setupWizard.steps.location.locationSet')}
             </p>
             <p className="text-xs text-muted-foreground">
-              {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°
+              {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°{location.altitude > 0 ? `, ${location.altitude.toFixed(0)}m` : ''}
             </p>
           </div>
         </div>

@@ -223,11 +223,13 @@ export function formatDateForInput(date: Date): string {
 
 /**
  * Format time for input[type="time"]
+ * Includes seconds for astronomical precision (requires step="1" on input)
  */
 export function formatTimeForInput(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
 }
 
 /**

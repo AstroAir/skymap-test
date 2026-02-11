@@ -4,20 +4,40 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 
-const mockUseSatelliteStore = jest.fn((selector) => {
-  const state = {
-    showSatellites: true,
-    showLabels: true,
-    showOrbits: false,
-    setShowSatellites: jest.fn(),
-    setShowLabels: jest.fn(),
-    setShowOrbits: jest.fn(),
-  };
-  return selector ? selector(state) : state;
-});
+const mockSettingsState = {
+  stellarium: {
+    constellationsLinesVisible: true,
+    constellationArtVisible: false,
+    azimuthalLinesVisible: false,
+    equatorialLinesVisible: false,
+    meridianLinesVisible: false,
+    eclipticLinesVisible: false,
+    atmosphereVisible: false,
+    landscapesVisible: false,
+    dsosVisible: true,
+    surveyEnabled: true,
+    surveyId: 'dss',
+    surveyUrl: undefined,
+    skyCultureLanguage: 'native' as const,
+    nightMode: false,
+    sensorControl: false,
+  },
+  toggleStellariumSetting: jest.fn(),
+  setStellariumSetting: jest.fn(),
+};
+
+const mockSatelliteState = {
+  showSatellites: true,
+  showLabels: true,
+  showOrbits: false,
+  setShowSatellites: jest.fn(),
+  setShowLabels: jest.fn(),
+  setShowOrbits: jest.fn(),
+};
 
 jest.mock('@/lib/stores', () => ({
-  useSatelliteStore: (selector: (state: unknown) => unknown) => mockUseSatelliteStore(selector),
+  useSatelliteStore: (selector: (state: unknown) => unknown) => selector(mockSatelliteState),
+  useSettingsStore: (selector: (state: unknown) => unknown) => selector(mockSettingsState),
 }));
 
 jest.mock('@/components/ui/switch', () => ({
@@ -68,221 +88,59 @@ jest.mock('@/components/starmap/onboarding/welcome-dialog', () => ({
 
 import { DisplaySettings } from '../display-settings';
 
-const mockSettings = {
-  constellationsLinesVisible: true,
-  constellationArtVisible: false,
-  azimuthalLinesVisible: false,
-  equatorialLinesVisible: false,
-  meridianLinesVisible: false,
-  eclipticLinesVisible: false,
-  atmosphereVisible: false,
-  landscapesVisible: false,
-  dsosVisible: true,
-  surveyEnabled: true,
-  surveyId: 'dss',
-  surveyUrl: undefined,
-  skyCultureLanguage: 'native' as const,
-  nightMode: false,
-  sensorControl: false,
-};
-
 describe('DisplaySettings', () => {
-  const mockOnToggleSetting = jest.fn();
-  const mockOnSurveyChange = jest.fn();
-  const mockOnSurveyToggle = jest.fn();
-  const mockOnSkyCultureLanguageChange = jest.fn();
-
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('renders display settings sections', () => {
-    render(
-      <DisplaySettings
-        localSettings={mockSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+    render(<DisplaySettings />);
     expect(screen.getAllByTestId('collapsible').length).toBeGreaterThan(0);
   });
 
   it('renders separators between sections', () => {
-    render(
-      <DisplaySettings
-        localSettings={mockSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+    render(<DisplaySettings />);
     expect(screen.getAllByTestId('separator').length).toBeGreaterThan(0);
   });
 
   it('renders stellarium survey selector', () => {
-    render(
-      <DisplaySettings
-        localSettings={mockSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+    render(<DisplaySettings />);
     expect(screen.getByTestId('stellarium-survey-selector')).toBeInTheDocument();
   });
 
   it('renders object info sources config', () => {
-    render(
-      <DisplaySettings
-        localSettings={mockSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+    render(<DisplaySettings />);
     expect(screen.getByTestId('object-info-sources-config')).toBeInTheDocument();
   });
 
   it('renders tour restart button', () => {
-    render(
-      <DisplaySettings
-        localSettings={mockSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+    render(<DisplaySettings />);
     expect(screen.getByTestId('tour-restart-button')).toBeInTheDocument();
   });
 
   it('renders sky culture language select', () => {
-    render(
-      <DisplaySettings
-        localSettings={mockSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+    render(<DisplaySettings />);
     expect(screen.getAllByTestId('select').length).toBeGreaterThan(0);
   });
 });
 
-describe('DisplaySettings callbacks', () => {
-  const mockOnToggleSetting = jest.fn();
-  const mockOnSurveyChange = jest.fn();
-  const mockOnSurveyToggle = jest.fn();
-  const mockOnSkyCultureLanguageChange = jest.fn();
-
+describe('DisplaySettings state rendering', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders with all settings enabled', () => {
-    const allEnabledSettings = {
-      ...mockSettings,
-      constellationsLinesVisible: true,
-      constellationArtVisible: true,
-      azimuthalLinesVisible: true,
-      equatorialLinesVisible: true,
-      meridianLinesVisible: true,
-      eclipticLinesVisible: true,
-      atmosphereVisible: true,
-      landscapesVisible: true,
-      dsosVisible: true,
-      nightMode: true,
-      sensorControl: true,
-    };
-
-    render(
-      <DisplaySettings
-        localSettings={allEnabledSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+  it('renders with default settings from store', () => {
+    render(<DisplaySettings />);
     expect(screen.getAllByTestId('collapsible').length).toBeGreaterThan(0);
   });
 
-  it('renders with all settings disabled', () => {
-    const allDisabledSettings = {
-      ...mockSettings,
-      constellationsLinesVisible: false,
-      constellationArtVisible: false,
-      azimuthalLinesVisible: false,
-      equatorialLinesVisible: false,
-      meridianLinesVisible: false,
-      eclipticLinesVisible: false,
-      atmosphereVisible: false,
-      landscapesVisible: false,
-      dsosVisible: false,
-      surveyEnabled: false,
-      nightMode: false,
-      sensorControl: false,
-    };
-
-    render(
-      <DisplaySettings
-        localSettings={allDisabledSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
-    expect(screen.getAllByTestId('collapsible').length).toBeGreaterThan(0);
+  it('renders all collapsible sections', () => {
+    render(<DisplaySettings />);
+    expect(screen.getAllByTestId('collapsible').length).toBeGreaterThanOrEqual(5);
   });
 
-  it('handles different sky culture languages', () => {
-    const chineseSettings = { ...mockSettings, skyCultureLanguage: 'zh' as const };
-
-    render(
-      <DisplaySettings
-        localSettings={chineseSettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
-    expect(screen.getAllByTestId('select').length).toBeGreaterThan(0);
-  });
-
-  it('handles custom survey URL', () => {
-    const customSurveySettings = {
-      ...mockSettings,
-      surveyId: 'custom',
-      surveyUrl: 'https://custom-survey.example.com',
-    };
-
-    render(
-      <DisplaySettings
-        localSettings={customSurveySettings}
-        onToggleSetting={mockOnToggleSetting}
-        onSurveyChange={mockOnSurveyChange}
-        onSurveyToggle={mockOnSurveyToggle}
-        onSkyCultureLanguageChange={mockOnSkyCultureLanguageChange}
-      />
-    );
-
+  it('renders stellarium survey selector component', () => {
+    render(<DisplaySettings />);
     expect(screen.getByTestId('stellarium-survey-selector')).toBeInTheDocument();
   });
 });

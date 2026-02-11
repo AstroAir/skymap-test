@@ -121,3 +121,15 @@ export {
 
 // Window state management (Tauri desktop)
 export { useWindowState } from './use-window-state';
+
+// Accessibility
+export { usePrefersReducedMotion } from './use-prefers-reduced-motion';
+
+// UI positioning
+export {
+  useAdaptivePosition,
+  type AdaptivePositionOptions,
+} from './use-adaptive-position';
+
+// Target selection (shared between search components)
+export { useSelectTarget } from './use-select-target';

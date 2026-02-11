@@ -201,7 +201,6 @@ export const usePlateSolverStore = create<PlateSolverState>()(
       name: 'plate-solver-storage',
       partialize: (state) => ({
         config: state.config,
-        onlineApiKey: state.onlineApiKey,
       }),
     }
   )
@@ -226,17 +225,10 @@ export const selectIsLocalSolverAvailable = (state: PlateSolverState): boolean =
   return activeSolver.installed_indexes.length > 0;
 };
 
-export const selectHasInstalledIndexes = (state: PlateSolverState): boolean => {
-  const activeSolver = selectActiveSolver(state);
-  if (!activeSolver) return false;
-  if (activeSolver.solver_type === 'astrometry_net_online') return true;
-  return activeSolver.installed_indexes.length > 0;
-};
-
 export const selectCanSolve = (state: PlateSolverState): boolean => {
   const config = state.config ?? DEFAULT_SOLVER_CONFIG;
   if (config.solver_type === 'astrometry_net_online') {
     return !!state.onlineApiKey;
   }
-  return selectIsLocalSolverAvailable(state) && selectHasInstalledIndexes(state);
+  return selectIsLocalSolverAvailable(state);
 };

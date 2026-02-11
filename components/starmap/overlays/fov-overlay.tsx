@@ -14,6 +14,9 @@ interface FOVOverlayProps {
   onRotationChange?: (angle: number) => void;
   mosaic: MosaicSettings;
   gridType?: GridType;
+  frameColor?: string;
+  frameStyle?: 'solid' | 'dashed' | 'dotted';
+  overlayOpacity?: number; // 0-100
 }
 
 export function FOVOverlay({
@@ -26,6 +29,9 @@ export function FOVOverlay({
   onRotationChange,
   mosaic,
   gridType = 'crosshair',
+  frameColor = '#3b82f6',
+  frameStyle = 'solid',
+  overlayOpacity = 80,
 }: FOVOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -133,34 +139,34 @@ export function FOVOverlay({
             width: `${scaledTotalWidth}px`,
             height: `${scaledTotalHeight}px`,
             transform: `rotate(${rotationAngle}deg)`,
+            opacity: overlayOpacity / 100,
           }}
         >
           {/* Mosaic Panels */}
           {panels.map((panel, idx) => (
             <div
               key={idx}
-              className={`absolute border-2 transition-colors ${
-                panel.isCenter 
-                  ? 'border-primary/80 bg-primary/10' 
-                  : 'border-primary/40 bg-primary/5'
-              }`}
+              className="absolute border-2 transition-colors"
               style={{
                 left: `${panel.x}px`,
                 top: `${panel.y}px`,
                 width: `${scaledPanelWidth}px`,
                 height: `${scaledPanelHeight}px`,
-                boxShadow: panel.isCenter ? '0 0 15px hsl(var(--primary) / 0.3)' : 'none',
+                borderColor: panel.isCenter ? frameColor : `${frameColor}80`,
+                backgroundColor: panel.isCenter ? `${frameColor}1A` : `${frameColor}0D`,
+                borderStyle: frameStyle,
+                boxShadow: panel.isCenter ? `0 0 15px ${frameColor}4D` : 'none',
               }}
             >
               {/* Corner markers for each panel */}
-              <div className="absolute -top-0.5 -left-0.5 w-2 h-2 border-t-2 border-l-2 border-primary/60" />
-              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 border-t-2 border-r-2 border-primary/60" />
-              <div className="absolute -bottom-0.5 -left-0.5 w-2 h-2 border-b-2 border-l-2 border-primary/60" />
-              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 border-b-2 border-r-2 border-primary/60" />
+              <div className="absolute -top-0.5 -left-0.5 w-2 h-2 border-t-2 border-l-2" style={{ borderColor: `${frameColor}99` }} />
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 border-t-2 border-r-2" style={{ borderColor: `${frameColor}99` }} />
+              <div className="absolute -bottom-0.5 -left-0.5 w-2 h-2 border-b-2 border-l-2" style={{ borderColor: `${frameColor}99` }} />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 border-b-2 border-r-2" style={{ borderColor: `${frameColor}99` }} />
               
               {/* Panel number label */}
               {mosaic.enabled && (mosaicCols > 1 || mosaicRows > 1) && (
-                <div className="absolute top-1 left-1 text-[10px] text-primary/70 font-mono">
+                <div className="absolute top-1 left-1 text-[10px] font-mono" style={{ color: `${frameColor}B3` }}>
                   {idx + 1}
                 </div>
               )}
@@ -171,48 +177,48 @@ export function FOVOverlay({
                   {/* Crosshair - always show center cross */}
                   {(gridType === 'crosshair' || gridType === 'thirds' || gridType === 'golden') && (
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                      <div className="w-4 h-0.5 bg-primary/60 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                      <div className="h-4 w-0.5 bg-primary/60 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      <div className="w-4 h-0.5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style={{ backgroundColor: `${frameColor}99` }} />
+                      <div className="h-4 w-0.5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style={{ backgroundColor: `${frameColor}99` }} />
                     </div>
                   )}
                   
                   {/* Rule of Thirds */}
                   {gridType === 'thirds' && (
                     <>
-                      <div className="absolute top-1/3 left-0 right-0 h-px bg-primary/30" />
-                      <div className="absolute top-2/3 left-0 right-0 h-px bg-primary/30" />
-                      <div className="absolute left-1/3 top-0 bottom-0 w-px bg-primary/30" />
-                      <div className="absolute left-2/3 top-0 bottom-0 w-px bg-primary/30" />
+                      <div className="absolute top-1/3 left-0 right-0 h-px" style={{ backgroundColor: `${frameColor}4D` }} />
+                      <div className="absolute top-2/3 left-0 right-0 h-px" style={{ backgroundColor: `${frameColor}4D` }} />
+                      <div className="absolute left-1/3 top-0 bottom-0 w-px" style={{ backgroundColor: `${frameColor}4D` }} />
+                      <div className="absolute left-2/3 top-0 bottom-0 w-px" style={{ backgroundColor: `${frameColor}4D` }} />
                       {/* Intersection points */}
-                      <div className="absolute top-1/3 left-1/3 w-1.5 h-1.5 bg-primary/50 rounded-full -translate-x-1/2 -translate-y-1/2" />
-                      <div className="absolute top-1/3 left-2/3 w-1.5 h-1.5 bg-primary/50 rounded-full -translate-x-1/2 -translate-y-1/2" />
-                      <div className="absolute top-2/3 left-1/3 w-1.5 h-1.5 bg-primary/50 rounded-full -translate-x-1/2 -translate-y-1/2" />
-                      <div className="absolute top-2/3 left-2/3 w-1.5 h-1.5 bg-primary/50 rounded-full -translate-x-1/2 -translate-y-1/2" />
+                      <div className="absolute top-1/3 left-1/3 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ backgroundColor: `${frameColor}80` }} />
+                      <div className="absolute top-1/3 left-2/3 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ backgroundColor: `${frameColor}80` }} />
+                      <div className="absolute top-2/3 left-1/3 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ backgroundColor: `${frameColor}80` }} />
+                      <div className="absolute top-2/3 left-2/3 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ backgroundColor: `${frameColor}80` }} />
                     </>
                   )}
                   
                   {/* Golden Ratio (phi ≈ 0.618) */}
                   {gridType === 'golden' && (
                     <>
-                      <div className="absolute h-px bg-primary/30" style={{ top: '38.2%', left: 0, right: 0 }} />
-                      <div className="absolute h-px bg-primary/30" style={{ top: '61.8%', left: 0, right: 0 }} />
-                      <div className="absolute w-px bg-primary/30" style={{ left: '38.2%', top: 0, bottom: 0 }} />
-                      <div className="absolute w-px bg-primary/30" style={{ left: '61.8%', top: 0, bottom: 0 }} />
+                      <div className="absolute h-px" style={{ top: '38.2%', left: 0, right: 0, backgroundColor: `${frameColor}4D` }} />
+                      <div className="absolute h-px" style={{ top: '61.8%', left: 0, right: 0, backgroundColor: `${frameColor}4D` }} />
+                      <div className="absolute w-px" style={{ left: '38.2%', top: 0, bottom: 0, backgroundColor: `${frameColor}4D` }} />
+                      <div className="absolute w-px" style={{ left: '61.8%', top: 0, bottom: 0, backgroundColor: `${frameColor}4D` }} />
                       {/* Golden spiral approximation points */}
-                      <div className="absolute w-1.5 h-1.5 bg-amber-400/50 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '38.2%', left: '38.2%' }} />
-                      <div className="absolute w-1.5 h-1.5 bg-amber-400/50 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '38.2%', left: '61.8%' }} />
-                      <div className="absolute w-1.5 h-1.5 bg-amber-400/50 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '61.8%', left: '38.2%' }} />
-                      <div className="absolute w-1.5 h-1.5 bg-amber-400/50 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '61.8%', left: '61.8%' }} />
+                      <div className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '38.2%', left: '38.2%', backgroundColor: `${frameColor}80` }} />
+                      <div className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '38.2%', left: '61.8%', backgroundColor: `${frameColor}80` }} />
+                      <div className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '61.8%', left: '38.2%', backgroundColor: `${frameColor}80` }} />
+                      <div className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2" style={{ top: '61.8%', left: '61.8%', backgroundColor: `${frameColor}80` }} />
                     </>
                   )}
                   
                   {/* Diagonal lines */}
                   {gridType === 'diagonal' && (
                     <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-                      <line x1="0" y1="0" x2="100%" y2="100%" stroke="hsl(var(--primary) / 0.3)" strokeWidth="1" />
-                      <line x1="100%" y1="0" x2="0" y2="100%" stroke="hsl(var(--primary) / 0.3)" strokeWidth="1" />
+                      <line x1="0" y1="0" x2="100%" y2="100%" stroke={`${frameColor}4D`} strokeWidth="1" />
+                      <line x1="100%" y1="0" x2="0" y2="100%" stroke={`${frameColor}4D`} strokeWidth="1" />
                       {/* Center point */}
-                      <circle cx="50%" cy="50%" r="3" fill="hsl(var(--primary) / 0.5)" />
+                      <circle cx="50%" cy="50%" r="3" fill={`${frameColor}80`} />
                     </svg>
                   )}
                 </>
@@ -273,14 +279,14 @@ export function FOVOverlay({
                 document.addEventListener('touchend', handleTouchEnd);
               }}
             >
-              <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+              <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: frameColor }}>
                 <RotateCw className="w-2.5 h-2.5 text-white" />
               </div>
             </div>
           )}
 
           {/* FOV label */}
-          <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-xs text-primary whitespace-nowrap bg-background/70 px-2 py-1 rounded flex items-center gap-2">
+          <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-xs whitespace-nowrap bg-background/70 px-2 py-1 rounded flex items-center gap-2" style={{ color: frameColor }}>
             {mosaic.enabled && (mosaicCols > 1 || mosaicRows > 1) ? (
               <span>{mosaicCols}×{mosaicRows} @ {cameraFovWidth.toFixed(1)}°×{cameraFovHeight.toFixed(1)}°</span>
             ) : (

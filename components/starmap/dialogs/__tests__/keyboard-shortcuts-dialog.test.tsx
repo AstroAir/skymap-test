@@ -60,6 +60,29 @@ jest.mock('@/components/ui/tooltip', () => ({
   ),
 }));
 
+jest.mock('@/lib/hooks', () => ({
+  STARMAP_SHORTCUT_KEYS: {
+    ZOOM_IN: '+',
+    ZOOM_OUT: '-',
+    RESET_VIEW: 'r',
+    CENTER_VIEW: 'c',
+    TOGGLE_SEARCH: 'f',
+    TOGGLE_SETTINGS: ',',
+    TOGGLE_SESSION_PANEL: 'p',
+    TOGGLE_FOV: 'o',
+    TOGGLE_CONSTELLATIONS: 'l',
+    TOGGLE_GRID: 'g',
+    TOGGLE_DSO: 'd',
+    TOGGLE_ATMOSPHERE: 'a',
+    PAUSE_TIME: ' ',
+    SPEED_UP: ']',
+    SLOW_DOWN: '[',
+    RESET_TIME: 't',
+    ADD_TO_LIST: 'Enter',
+    CLOSE_PANEL: 'Escape',
+  },
+}));
+
 import { KeyboardShortcutsDialog } from '../keyboard-shortcuts-dialog';
 
 describe('KeyboardShortcutsDialog', () => {
@@ -113,5 +136,33 @@ describe('KeyboardShortcutsDialog', () => {
     // Dialog should indicate it's open
     const dialog = screen.getByTestId('dialog');
     expect(dialog).toHaveAttribute('data-open', 'true');
+  });
+
+  it('does not open on ? when input is focused', () => {
+    render(
+      <div>
+        <input data-testid="test-input" />
+        <KeyboardShortcutsDialog />
+      </div>
+    );
+    
+    const input = screen.getByTestId('test-input');
+    input.focus();
+    
+    fireEvent.keyDown(window, { key: '?', shiftKey: true });
+    
+    const dialog = screen.getByTestId('dialog');
+    expect(dialog).toHaveAttribute('data-open', 'false');
+  });
+
+  it('uses STARMAP_SHORTCUT_KEYS for shortcut display', () => {
+    render(<KeyboardShortcutsDialog />);
+    const badges = screen.getAllByTestId('badge');
+    // Should contain formatted keys from STARMAP_SHORTCUT_KEYS
+    const badgeTexts = badges.map(b => b.textContent);
+    expect(badgeTexts).toContain('+');
+    expect(badgeTexts).toContain('-');
+    expect(badgeTexts).toContain('R');
+    expect(badgeTexts).toContain('Space');
   });
 });

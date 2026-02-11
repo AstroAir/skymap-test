@@ -68,15 +68,13 @@ export function useStellariumZoom({
       
       const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
       const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-      const newFovDeg = Math.max(MIN_FOV, Math.min(MAX_FOV, currentFovDeg * zoomFactor));
-      // Use direct property assignment for better compatibility
-      stelRef.current.core.fov = fovToRad(newFovDeg);
-      onFovChange?.(newFovDeg);
+      const newFovDeg = currentFovDeg * zoomFactor;
+      setEngineFov(newFovDeg);
     };
 
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
-  }, [stelRef, canvasRef, onFovChange]);
+  }, [stelRef, canvasRef, setEngineFov]);
 
   return {
     zoomIn,

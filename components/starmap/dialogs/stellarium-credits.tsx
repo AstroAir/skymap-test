@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -47,6 +48,9 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
             <Database className="h-5 w-5 text-primary" />
             {t('credits.dataCredits')}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('credits.starsDescription')}
+          </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4 text-sm">

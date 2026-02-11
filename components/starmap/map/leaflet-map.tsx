@@ -1,11 +1,20 @@
 'use client';
 
-import { useEffect, useRef, useCallback, memo, useState } from 'react';
+import { useEffect, useRef, useMemo, memo, useCallback } from 'react';
+import L from 'leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import { cn } from '@/lib/utils';
-import type * as Leaflet from 'leaflet';
 import type { Coordinates } from './types';
 import { TILE_LAYER_CONFIGS, type TileLayerType } from './types';
-import { Skeleton } from '@/components/ui/skeleton';
+
+// Fix default marker icon (Leaflet + bundler issue)
+// Icons are copied from node_modules/leaflet/dist/images/ to public/leaflet/
+L.Icon.Default.mergeOptions({
+  iconUrl: '/leaflet/marker-icon.png',
+  iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+  shadowUrl: '/leaflet/marker-shadow.png',
+});
 
 export interface LeafletMapProps {
   center: Coordinates;
@@ -22,6 +31,108 @@ export interface LeafletMapProps {
   maxZoom?: number;
 }
 
+/**
+ * Inner component that syncs map state with props using react-leaflet hooks.
+ * Must be a child of MapContainer.
+ */
+function MapController({
+  center,
+  zoom,
+  disabled,
+  onClick,
+}: {
+  center: Coordinates;
+  zoom: number;
+  disabled: boolean;
+  onClick?: (location: Coordinates) => void;
+}) {
+  const map = useMap();
+  const prevCenterRef = useRef({ lat: center.latitude, lng: center.longitude });
+
+  // Sync center/zoom from props
+  useEffect(() => {
+    const prevLat = prevCenterRef.current.lat;
+    const prevLng = prevCenterRef.current.lng;
+
+    if (
+      Math.abs(prevLat - center.latitude) > 0.0001 ||
+      Math.abs(prevLng - center.longitude) > 0.0001
+    ) {
+      map.setView([center.latitude, center.longitude], zoom, { animate: true });
+      prevCenterRef.current = { lat: center.latitude, lng: center.longitude };
+    }
+  }, [map, center.latitude, center.longitude, zoom]);
+
+  // Sync disabled state
+  useEffect(() => {
+    if (disabled) {
+      map.dragging.disable();
+      map.touchZoom.disable();
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
+      map.zoomControl?.remove();
+    } else {
+      map.dragging.enable();
+      map.touchZoom.enable();
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
+      if (!document.querySelector('.leaflet-control-zoom')) {
+        L.control.zoom().addTo(map);
+      }
+    }
+  }, [map, disabled]);
+
+  // Handle map click
+  useMapEvents({
+    click(e) {
+      if (!disabled) {
+        onClick?.({ latitude: e.latlng.lat, longitude: e.latlng.lng });
+      }
+    },
+  });
+
+  return null;
+}
+
+/**
+ * Draggable marker component that syncs position with props.
+ */
+function DraggableMarker({
+  position,
+  draggable,
+  disabled,
+  onDragEnd,
+}: {
+  position: Coordinates;
+  draggable: boolean;
+  disabled: boolean;
+  onDragEnd?: (location: Coordinates) => void;
+}) {
+  const markerRef = useRef<L.Marker>(null);
+
+  const eventHandlers = useMemo(
+    () => ({
+      dragend() {
+        const marker = markerRef.current;
+        if (marker && !disabled) {
+          const pos = marker.getLatLng();
+          onDragEnd?.({ latitude: pos.lat, longitude: pos.lng });
+        }
+      },
+    }),
+    [disabled, onDragEnd]
+  );
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={[position.latitude, position.longitude]}
+      draggable={draggable && !disabled}
+      eventHandlers={eventHandlers}
+    />
+  );
+}
+
 function LeafletMapComponent({
   center,
   zoom = 10,
@@ -36,299 +147,19 @@ function LeafletMapComponent({
   minZoom = 2,
   maxZoom = 19,
 }: LeafletMapProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const mapRef = useRef<unknown>(null);
-  const markerRef = useRef<unknown>(null);
-  const tileLayerRef = useRef<unknown>(null);
-  const zoomControlRef = useRef<unknown>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const leafletRef = useRef<typeof import('leaflet') | null>(null);
+  const tileConfig = TILE_LAYER_CONFIGS[tileLayer] || TILE_LAYER_CONFIGS.openstreetmap;
 
-  const initialCenterRef = useRef(center);
-  const initialZoomRef = useRef(zoom);
-  const initialTileLayerRef = useRef(tileLayer);
-  const initialShowMarkerRef = useRef(showMarker);
-  const initialMinZoomRef = useRef(minZoom);
-  const initialMaxZoomRef = useRef(maxZoom);
-
-  const currentTileLayerKeyRef = useRef(tileLayer);
-
-  // Store callbacks in refs to avoid recreating map on callback changes
-  const onLocationChangeRef = useRef(onLocationChange);
-  const onClickRef = useRef(onClick);
-  const disabledRef = useRef(disabled);
-  const draggableMarkerRef = useRef(draggableMarker);
-  
-  useEffect(() => {
-    onLocationChangeRef.current = onLocationChange;
-  }, [onLocationChange]);
-  
-  useEffect(() => {
-    onClickRef.current = onClick;
-  }, [onClick]);
-
-  useEffect(() => {
-    disabledRef.current = disabled;
-  }, [disabled]);
-
-  useEffect(() => {
-    draggableMarkerRef.current = draggableMarker;
-  }, [draggableMarker]);
-
-  // Initialize map with dynamic Leaflet import
-  useEffect(() => {
-    if (!containerRef.current) return;
-    if (mapRef.current) return;
-    
-    let mounted = true;
-    
-    const initMap = async () => {
-      // Dynamic import of Leaflet - only runs on client
-      const L = await import('leaflet');
-      
-      // Import CSS by adding link element (CSS modules can't be dynamically imported)
-      if (!document.querySelector('link[href*="leaflet.css"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
+  const handleMarkerDragEnd = useCallback(
+    (location: Coordinates) => {
+      if (!disabled && draggableMarker) {
+        onLocationChange?.(location);
       }
-      
-      if (!mounted || !containerRef.current) return;
-      
-      leafletRef.current = L;
-      
-      // Fix default marker icon
-      const defaultIcon = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41],
-      });
-      L.Marker.prototype.options.icon = defaultIcon;
-      
-      const initialCenter = initialCenterRef.current;
-      currentTileLayerKeyRef.current = initialTileLayerRef.current;
-      const tileConfig = TILE_LAYER_CONFIGS[initialTileLayerRef.current] || TILE_LAYER_CONFIGS.openstreetmap;
-
-      const map = L.map(containerRef.current, {
-        center: [initialCenter.latitude, initialCenter.longitude],
-        zoom: initialZoomRef.current,
-        minZoom: initialMinZoomRef.current,
-        maxZoom: initialMaxZoomRef.current,
-        zoomControl: true,
-        dragging: true,
-        touchZoom: true,
-        scrollWheelZoom: true,
-        doubleClickZoom: true,
-      });
-
-      const baseLayer = L.tileLayer(tileConfig.url, {
-        attribution: tileConfig.attribution,
-        maxZoom: tileConfig.maxZoom,
-        subdomains: tileConfig.subdomains,
-      }).addTo(map);
-
-      tileLayerRef.current = baseLayer;
-      zoomControlRef.current = (map as unknown as { zoomControl?: unknown }).zoomControl;
-
-      if (initialShowMarkerRef.current) {
-        const marker = L.marker([initialCenter.latitude, initialCenter.longitude], {
-          draggable: true,
-        }).addTo(map);
-
-        marker.on('dragend', () => {
-          if (disabledRef.current || !draggableMarkerRef.current) return;
-          const pos = marker.getLatLng();
-          onLocationChangeRef.current?.({ latitude: pos.lat, longitude: pos.lng });
-        });
-
-        markerRef.current = marker;
-      }
-
-      map.on('click', (e: L.LeafletMouseEvent) => {
-        if (disabledRef.current) return;
-        const { lat, lng } = e.latlng;
-        onClickRef.current?.({ latitude: lat, longitude: lng });
-      });
-
-      mapRef.current = map;
-      setIsLoaded(true);
-    };
-    
-    initMap();
-
-    return () => {
-      mounted = false;
-      if (mapRef.current && leafletRef.current) {
-        (mapRef.current as unknown as Leaflet.Map).remove();
-        mapRef.current = null;
-        markerRef.current = null;
-        tileLayerRef.current = null;
-        zoomControlRef.current = null;
-      }
-    };
-  }, []);
-
-  // Update tile layer when prop changes
-  useEffect(() => {
-    if (!mapRef.current || !leafletRef.current) return;
-
-    if (currentTileLayerKeyRef.current === tileLayer) {
-      return;
-    }
-
-    const leaflet = leafletRef.current;
-    const map = mapRef.current as unknown as import('leaflet').Map;
-
-    if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current as unknown as import('leaflet').TileLayer);
-      tileLayerRef.current = null;
-    }
-
-    const tileConfig = TILE_LAYER_CONFIGS[tileLayer] || TILE_LAYER_CONFIGS.openstreetmap;
-    const baseLayer = leaflet.tileLayer(tileConfig.url, {
-      attribution: tileConfig.attribution,
-      maxZoom: tileConfig.maxZoom,
-      subdomains: tileConfig.subdomains,
-    }).addTo(map);
-    tileLayerRef.current = baseLayer;
-    currentTileLayerKeyRef.current = tileLayer;
-  }, [tileLayer]);
-
-  // Update enabled/disabled behavior without re-creating the map
-  useEffect(() => {
-    if (!mapRef.current || !leafletRef.current) return;
-
-    const leaflet = leafletRef.current;
-    const map = mapRef.current as unknown as import('leaflet').Map;
-
-    if (disabled) {
-      map.dragging.disable();
-      map.touchZoom.disable();
-      map.scrollWheelZoom.disable();
-      map.doubleClickZoom.disable();
-
-      const zoomControl = (map as unknown as { zoomControl?: { remove: () => void } }).zoomControl;
-      if (zoomControl) {
-        zoomControl.remove();
-        zoomControlRef.current = zoomControl;
-      }
-    } else {
-      map.dragging.enable();
-      map.touchZoom.enable();
-      map.scrollWheelZoom.enable();
-      map.doubleClickZoom.enable();
-
-      const existingZoomControl = (map as unknown as { zoomControl?: { addTo: (m: import('leaflet').Map) => void } }).zoomControl;
-      if (existingZoomControl) {
-        existingZoomControl.addTo(map);
-      } else if (zoomControlRef.current) {
-        (zoomControlRef.current as unknown as { addTo: (m: import('leaflet').Map) => void }).addTo(map);
-        (map as unknown as { zoomControl?: unknown }).zoomControl = zoomControlRef.current;
-      } else {
-        const newZoomControl = leaflet.control.zoom();
-        newZoomControl.addTo(map);
-        (map as unknown as { zoomControl?: unknown }).zoomControl = newZoomControl;
-        zoomControlRef.current = newZoomControl;
-      }
-    }
-
-    // Marker drag enable/disable
-    if (markerRef.current) {
-      const marker = markerRef.current as unknown as Leaflet.Marker;
-      if (draggableMarker && !disabled) {
-        marker.dragging?.enable();
-      } else {
-        marker.dragging?.disable();
-      }
-    }
-  }, [disabled, draggableMarker]);
-
-  // Create/remove marker based on showMarker
-  useEffect(() => {
-    if (!mapRef.current || !leafletRef.current) return;
-
-    const leaflet = leafletRef.current;
-    const map = mapRef.current as unknown as import('leaflet').Map;
-
-    if (!showMarker) {
-      if (markerRef.current) {
-        map.removeLayer(markerRef.current as unknown as Leaflet.Marker);
-        markerRef.current = null;
-      }
-      return;
-    }
-
-    if (!markerRef.current) {
-      const marker = leaflet.marker([center.latitude, center.longitude], { draggable: true }).addTo(map);
-      marker.on('dragend', () => {
-        if (disabledRef.current || !draggableMarkerRef.current) return;
-        const pos = marker.getLatLng();
-        onLocationChangeRef.current?.({ latitude: pos.lat, longitude: pos.lng });
-      });
-      markerRef.current = marker;
-    }
-  }, [showMarker, center.latitude, center.longitude]);
-
-  // Update zoom constraints
-  useEffect(() => {
-    if (!mapRef.current || !leafletRef.current) return;
-
-    const map = mapRef.current as unknown as Leaflet.Map;
-    map.setMinZoom(minZoom);
-    map.setMaxZoom(maxZoom);
-  }, [minZoom, maxZoom]);
-
-  // Update center and zoom when props change
-  useEffect(() => {
-    if (!mapRef.current || !leafletRef.current) return;
-
-    const map = mapRef.current as unknown as Leaflet.Map;
-    const currentCenter = map.getCenter();
-    const newLat = center.latitude;
-    const newLng = center.longitude;
-
-    if (
-      Math.abs(currentCenter.lat - newLat) > 0.0001 ||
-      Math.abs(currentCenter.lng - newLng) > 0.0001
-    ) {
-      map.setView([newLat, newLng], zoom, { animate: true });
-
-      if (markerRef.current) {
-        (markerRef.current as unknown as Leaflet.Marker).setLatLng([newLat, newLng]);
-      }
-    }
-  }, [center.latitude, center.longitude, zoom]);
-
-  // Update marker position externally
-  const updateMarkerPosition = useCallback((coords: Coordinates) => {
-    if (markerRef.current) {
-      (markerRef.current as unknown as Leaflet.Marker).setLatLng([coords.latitude, coords.longitude]);
-    }
-    if (mapRef.current) {
-      (mapRef.current as unknown as Leaflet.Map).setView([coords.latitude, coords.longitude]);
-    }
-  }, []);
-
-  // Expose methods via ref
-  useEffect(() => {
-    if (containerRef.current) {
-      const container = containerRef.current as HTMLDivElement & {
-        __leafletMap?: unknown;
-        __updateMarker?: (coords: Coordinates) => void;
-      };
-      container.__leafletMap = mapRef.current;
-      container.__updateMarker = updateMarkerPosition;
-    }
-  }, [updateMarkerPosition, isLoaded]);
+    },
+    [disabled, draggableMarker, onLocationChange]
+  );
 
   return (
     <div
-      ref={containerRef}
       className={cn(
         'relative rounded-lg overflow-hidden',
         disabled && 'opacity-50 pointer-events-none',
@@ -336,7 +167,40 @@ function LeafletMapComponent({
       )}
       style={{ height: typeof height === 'number' ? `${height}px` : height }}
     >
-      {!isLoaded && <Skeleton className="w-full h-full absolute inset-0" />}
+      <MapContainer
+        center={[center.latitude, center.longitude]}
+        zoom={zoom}
+        minZoom={minZoom}
+        maxZoom={maxZoom}
+        zoomControl={!disabled}
+        scrollWheelZoom={!disabled}
+        dragging={!disabled}
+        touchZoom={!disabled}
+        doubleClickZoom={!disabled}
+        className="h-full w-full"
+      >
+        <TileLayer
+          key={tileLayer}
+          url={tileConfig.url}
+          attribution={tileConfig.attribution}
+          maxZoom={tileConfig.maxZoom}
+          subdomains={tileConfig.subdomains}
+        />
+        <MapController
+          center={center}
+          zoom={zoom}
+          disabled={disabled}
+          onClick={onClick}
+        />
+        {showMarker && (
+          <DraggableMarker
+            position={center}
+            draggable={draggableMarker}
+            disabled={disabled}
+            onDragEnd={handleMarkerDragEnd}
+          />
+        )}
+      </MapContainer>
     </div>
   );
 }

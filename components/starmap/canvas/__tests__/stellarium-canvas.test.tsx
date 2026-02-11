@@ -64,18 +64,31 @@ jest.mock('@/lib/stores', () => ({
       }),
     }
   ),
-  useMountStore: jest.fn((selector) => {
-    const state = {
-      profileInfo: {
-        AstrometrySettings: {
-          Latitude: 0,
-          Longitude: 0,
-          Elevation: 0,
+  useMountStore: Object.assign(
+    jest.fn((selector) => {
+      const state = {
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 0,
+            Longitude: 0,
+            Elevation: 0,
+          },
         },
-      },
-    };
-    return selector(state);
-  }),
+      };
+      return selector(state);
+    }),
+    {
+      getState: () => ({
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 0,
+            Longitude: 0,
+            Elevation: 0,
+          },
+        },
+      }),
+    }
+  ),
 }));
 
 // Mock StelWebEngine
@@ -188,9 +201,9 @@ describe('StellariumCanvas', () => {
       
       render(<StellariumCanvas />);
       
-      // Should have loading status element
-      const loadingStatus = screen.getByRole('status');
-      expect(loadingStatus).toBeInTheDocument();
+      // Should have loading overlay with data-testid
+      const loadingOverlay = screen.getByTestId('stellarium-loading-overlay');
+      expect(loadingOverlay).toBeInTheDocument();
     });
   });
 
@@ -220,7 +233,7 @@ describe('StellariumCanvas', () => {
       
       // The component handles timeouts internally with auto-retry
       // We verify the loading UI is shown correctly
-      const loadingOverlay = screen.getByRole('status');
+      const loadingOverlay = screen.getByTestId('stellarium-loading-overlay');
       expect(loadingOverlay).toBeInTheDocument();
     });
   });
@@ -287,9 +300,9 @@ describe('StellariumCanvas', () => {
       
       render(<StellariumCanvas />);
       
-      // Should show loading overlay with status
-      const loadingStatus = screen.getByRole('status');
-      expect(loadingStatus).toBeInTheDocument();
+      // Should show loading overlay with data-testid
+      const loadingOverlay = screen.getByTestId('stellarium-loading-overlay');
+      expect(loadingOverlay).toBeInTheDocument();
       
       // Should have a status message (translation key returned by mock)
       const statusText = screen.queryByText(/loadingScript|preparingResources|initializingStarmap/i);

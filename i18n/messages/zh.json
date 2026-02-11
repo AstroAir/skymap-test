@@ -39,7 +39,8 @@
     "loading": "正在加载星图...",
     "loadingStars": "正在加载星表数据...",
     "loadingEngine": "正在初始化引擎...",
-    "poweredBy": "由 Stellarium Web Engine 提供支持"
+    "poweredBy": "由 Stellarium Web Engine 提供支持",
+    "skipHint": "按任意键或点击跳过"
   },
   "about": {
     "title": "关于",
@@ -197,7 +198,9 @@
     "zoomIn": "放大",
     "zoomOut": "缩小",
     "fov": "视场",
-    "default": "默认"
+    "default": "默认",
+    "zoomControls": "缩放控件",
+    "fovSlider": "视场角滑块"
   },
   "fov": {
     "fovOverlay": "视场叠加",
@@ -276,14 +279,22 @@
     "realTime": "实时",
     "timeLapse": "快进",
     "timeRewind": "倒退",
+    "play": "播放",
+    "pause": "暂停",
+    "utc": "UTC",
+    "lst": "恒星时",
     "rise": "升起",
     "transit": "中天",
     "set": "落下",
     "jumpTo": "跳转至",
+    "minus1Week": "-1周",
     "minus1Day": "-1天",
     "minus1Hour": "-1时",
+    "minus1Min": "-1分",
+    "plus1Min": "+1分",
     "plus1Hour": "+1时",
-    "plus1Day": "+1天"
+    "plus1Day": "+1天",
+    "plus1Week": "+1周"
   },
   "settings": {
     "displaySettings": "显示设置",
@@ -359,6 +370,7 @@
     "elevationPlaceholder": "0",
     "manualLocation": "手动输入位置",
     "autoSaveHint": "此标签页的更改会自动保存",
+    "resetAllDescription": "这将重置所有设置（显示、设备、偏好、主题）为默认值。此操作无法撤销。",
     "instantEffectHint": "更改立即生效",
     "locationInstantHint": "位置更改立即生效"
   },
@@ -391,7 +403,14 @@
     "maxAltitude": "最大",
     "darkWindow": "暗夜窗口",
     "circumpolar": "拱极星",
-    "location": "位置"
+    "location": "位置",
+    "civilDusk": "民用黄昏",
+    "nauticalDusk": "航海黄昏",
+    "astroDusk": "天文黄昏",
+    "astroDawn": "天文黎明",
+    "transitTime": "中天",
+    "imagingScore": "拍摄",
+    "feasibility": "可行性"
   },
   "info": {
     "altitude": "高度",
@@ -651,7 +670,10 @@
     "mount": "赤道仪",
     "goToMountPosition": "前往赤道仪位置",
     "enableAutoSync": "启用自动同步",
-    "disableAutoSync": "禁用自动同步"
+    "disableAutoSync": "禁用自动同步",
+    "disconnected": "未连接",
+    "altitude": "高度",
+    "azimuth": "方位"
   },
   "cache": {
     "offlineCache": "离线缓存",
@@ -1017,6 +1039,29 @@
       "mirrorless": "微单",
       "other": "其他"
     },
+    "filterTypes": {
+      "luminance": "明度",
+      "red": "红色",
+      "green": "绿色",
+      "blue": "蓝色",
+      "ha": "H-Alpha",
+      "oiii": "OIII",
+      "sii": "SII",
+      "uhcLps": "UHC/LPS",
+      "cls": "CLS",
+      "other": "其他"
+    },
+    "selected": "设备已选择",
+    "delete": "删除",
+    "deleteConfirmTitle": "删除设备？",
+    "deleteConfirmDescription": "确定要删除「{name}」吗？此操作无法撤销。",
+    "validation": {
+      "apertureRange": "口径必须在 10 至 10,000 mm 之间",
+      "focalLengthRange": "焦距必须在 50 至 50,000 mm 之间",
+      "sensorWidthRange": "传感器宽度必须在 1 至 100 mm 之间",
+      "sensorHeightRange": "传感器高度必须在 1 至 100 mm 之间",
+      "factorRange": "倍率必须在 0.1 至 10 之间"
+    },
     "bortleDescriptions": {
       "1": "1 - 极佳暗空",
       "2": "2 - 典型暗场",
@@ -1049,7 +1094,14 @@
     "gpsNotSupported": "不支持 GPS",
     "gpsAcquired": "已获取 GPS 位置",
     "manualInput": "手动输入",
-    "mapSelection": "地图选点"
+    "mapSelection": "地图选点",
+    "updated": "地点已更新",
+    "validation": {
+      "latitudeRange": "纬度必须在 -90 至 90 之间",
+      "longitudeRange": "经度必须在 -180 至 180 之间",
+      "altitudeRange": "海拔必须在 -500 至 9,000 m 之间",
+      "bortleRange": "波特尔等级必须在 1 至 9 之间"
+    }
   },
   "map": {
     "locationPicker": "位置选择器",
@@ -1174,14 +1226,6 @@
       "roundRobinDesc": "在提供商之间轮流切换"
     }
   },
-  "locationSearch": {
-    "locationPlaceholder": "搜索位置...",
-    "searching": "搜索中...",
-    "noResults": "未找到位置",
-    "currentLocation": "当前位置",
-    "useGpsLocation": "使用 GPS 检测您的位置",
-    "recentSearches": "最近搜索"
-  },
   "objectDetail": {
     "overview": "概览",
     "images": "图像",
@@ -1195,6 +1239,7 @@
     "size": "角尺寸",
     "noImages": "暂无图像",
     "imageLoadError": "图像加载失败",
+    "goToImage": "跳转到第 {index} 张图片",
     "dataSources": "数据来源",
     "feasibilityBreakdown": "评分详情",
     "loading": "正在加载天体信息...",
@@ -1374,7 +1419,9 @@
         "permissionDenied": "定位权限被拒绝，请在浏览器设置中允许",
         "positionUnavailable": "无法获取位置信息",
         "timeout": "定位请求超时，请重试",
-        "unknownError": "获取位置时发生未知错误"
+        "unknownError": "获取位置时发生未知错误",
+        "altitude": "海拔 (m)",
+        "altitudePlaceholder": "例如 500"
       },
       "equipment": {
         "title": "设备配置",
@@ -1390,6 +1437,7 @@
         "pixelSizePlaceholder": "例如 3.76",
         "configured": "设备已配置",
         "sensor": "传感器",
+        "searchPlaceholder": "搜索预设...",
         "skipNote": "您也可以跳过此步骤，稍后在设备管理中配置。"
       },
       "preferences": {
@@ -1987,6 +2035,7 @@
     "reset": "重置"
   },
   "mobileToolbar": {
+    "toolbar": "星图工具栏",
     "search": "搜索",
     "zoomControl": "缩放控制",
     "fieldOfView": "视场角",

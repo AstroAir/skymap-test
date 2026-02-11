@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Bookmark,
@@ -76,7 +76,7 @@ interface ViewBookmarksProps {
   className?: string;
 }
 
-export function ViewBookmarks({
+export const ViewBookmarks = memo(function ViewBookmarks({
   currentRa,
   currentDec,
   currentFov,
@@ -174,6 +174,7 @@ export function ViewBookmarks({
                   'h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent',
                   className
                 )}
+                data-tour-id="view-bookmarks"
               >
                 <Bookmark className="h-4 w-4" />
               </Button>
@@ -408,4 +409,5 @@ export function ViewBookmarks({
       </Dialog>
     </>
   );
-}
+});
+ViewBookmarks.displayName = 'ViewBookmarks';

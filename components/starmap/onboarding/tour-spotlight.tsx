@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useId, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SpotlightRect {
@@ -14,7 +14,6 @@ interface TourSpotlightProps {
   targetSelector: string;
   padding?: number;
   isActive: boolean;
-  onClick?: () => void;
   spotlightRadius?: number;
   className?: string;
 }
@@ -23,27 +22,30 @@ export function TourSpotlight({
   targetSelector,
   padding = 8,
   isActive,
-  onClick,
   spotlightRadius = 8,
   className,
 }: TourSpotlightProps) {
+  const maskId = useId();
   const [rect, setRect] = useState<SpotlightRect | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const rafRef = useRef<number>(0);
 
   const updateRect = useCallback(() => {
-    const element = document.querySelector(targetSelector);
-    if (element) {
-      const domRect = element.getBoundingClientRect();
-      setRect({
-        top: domRect.top - padding,
-        left: domRect.left - padding,
-        width: domRect.width + padding * 2,
-        height: domRect.height + padding * 2,
-      });
-    } else {
-      // Center spotlight for 'center' placement when no element found
-      setRect(null);
-    }
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const element = document.querySelector(targetSelector);
+      if (element) {
+        const domRect = element.getBoundingClientRect();
+        setRect({
+          top: domRect.top - padding,
+          left: domRect.left - padding,
+          width: domRect.width + padding * 2,
+          height: domRect.height + padding * 2,
+        });
+      } else {
+        setRect(null);
+      }
+    });
   }, [targetSelector, padding]);
 
   useEffect(() => {
@@ -52,11 +54,9 @@ export function TourSpotlight({
       return () => clearTimeout(timer);
     }
 
-    // Initial rect calculation - using requestAnimationFrame to avoid sync setState
-    const rafId = requestAnimationFrame(() => {
-      updateRect();
-    });
-    
+    // Initial rect calculation
+    updateRect();
+
     // Delay visibility for smooth animation
     const showTimer = setTimeout(() => setIsVisible(true), 50);
 
@@ -64,18 +64,22 @@ export function TourSpotlight({
     window.addEventListener('resize', updateRect);
     window.addEventListener('scroll', updateRect, true);
 
-    // Observe DOM changes
-    const observer = new MutationObserver(updateRect);
-    observer.observe(document.body, { childList: true, subtree: true });
+    // Use ResizeObserver on target element instead of MutationObserver on body
+    let resizeObserver: ResizeObserver | undefined;
+    const element = document.querySelector(targetSelector);
+    if (element) {
+      resizeObserver = new ResizeObserver(updateRect);
+      resizeObserver.observe(element);
+    }
 
     return () => {
-      cancelAnimationFrame(rafId);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       clearTimeout(showTimer);
       window.removeEventListener('resize', updateRect);
       window.removeEventListener('scroll', updateRect, true);
-      observer.disconnect();
+      resizeObserver?.disconnect();
     };
-  }, [isActive, updateRect]);
+  }, [isActive, updateRect, targetSelector]);
 
   if (!isActive) return null;
 
@@ -88,7 +92,7 @@ export function TourSpotlight({
           isVisible ? 'tour-spotlight-enter' : 'opacity-0',
           className
         )}
-        onClick={onClick}
+        aria-hidden="true"
       >
         {/* Dark overlay with radial gradient */}
         <div 
@@ -108,6 +112,7 @@ export function TourSpotlight({
         isVisible ? 'tour-spotlight-enter' : 'opacity-0',
         className
       )}
+      aria-hidden="true"
     >
       {/* SVG overlay with spotlight cutout */}
       <svg
@@ -115,9 +120,10 @@ export function TourSpotlight({
         style={{ pointerEvents: 'none' }}
       >
         <defs>
-          <mask id="spotlight-mask">
+          <mask id={maskId}>
             <rect x="0" y="0" width="100%" height="100%" fill="white" />
             <rect
+              className="tour-spotlight-rect"
               x={rect.left}
               y={rect.top}
               width={rect.width}
@@ -134,9 +140,8 @@ export function TourSpotlight({
           width="100%"
           height="100%"
           fill="rgba(0, 0, 0, 0.75)"
-          mask="url(#spotlight-mask)"
+          mask={`url(#${maskId})`}
           style={{ pointerEvents: 'auto' }}
-          onClick={onClick}
         />
       </svg>
 
@@ -149,6 +154,7 @@ export function TourSpotlight({
           width: rect.width + 4,
           height: rect.height + 4,
           borderRadius: spotlightRadius + 2,
+          transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       />
 
@@ -161,6 +167,7 @@ export function TourSpotlight({
           width: rect.width + 8,
           height: rect.height + 8,
           borderRadius: spotlightRadius + 4,
+          transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       />
     </div>

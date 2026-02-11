@@ -5,12 +5,22 @@ import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 
 // Mock stores
-let mountState: { mountInfo: { Connected: boolean; Coordinates: { RADegrees: number; Dec: number } } } = {
+let mountState: {
+  mountInfo: { Connected: boolean; Coordinates: { RADegrees: number; Dec: number } };
+  profileInfo: { AstrometrySettings: { Latitude: number; Longitude: number; Elevation: number } };
+} = {
   mountInfo: {
     Connected: false,
     Coordinates: {
       RADegrees: 0,
       Dec: 0,
+    },
+  },
+  profileInfo: {
+    AstrometrySettings: {
+      Latitude: 0,
+      Longitude: 0,
+      Elevation: 0,
     },
   },
 };
@@ -64,6 +74,12 @@ jest.mock('@/components/ui/tooltip', () => ({
   TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+jest.mock('@/components/ui/popover', () => ({
+  Popover: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PopoverTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 import { StellariumMount } from '../stellarium-mount';
 
 const createMockStel = () => {
@@ -107,6 +123,13 @@ describe('StellariumMount', () => {
           Dec: 0,
         },
       },
+      profileInfo: {
+        AstrometrySettings: {
+          Latitude: 0,
+          Longitude: 0,
+          Elevation: 0,
+        },
+      },
     };
 
     stellariumState = {
@@ -122,6 +145,28 @@ describe('StellariumMount', () => {
     render(<StellariumMount />);
     expect(stel.createLayer).not.toHaveBeenCalled();
     expect(stel.createObj).not.toHaveBeenCalled();
+  });
+
+  it('renders disconnected state when mount is not connected', () => {
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('mount.disconnected');
+  });
+
+  it('returns null in compact mode when disconnected', () => {
+    const { container } = render(<StellariumMount compact />);
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('hides circle objects on unmount', () => {
+    const { stel, circle } = createMockStel();
+    stellariumState.stel = stel;
+    mountState.mountInfo.Connected = true;
+
+    const { unmount } = render(<StellariumMount />);
+    unmount();
+
+    expect(circle.size).toEqual([0, 0]);
+    expect(circle.update).toHaveBeenCalled();
   });
 
   it('creates marker once when connected and locks only when autosync enabled', async () => {
@@ -177,6 +222,17 @@ describe('StellariumMount', () => {
       expect(stel.pointAndLock).toHaveBeenCalledTimes(3);
     });
   });
+
+  it('renders in compact mode with popover when connected', () => {
+    const { stel } = createMockStel();
+    stellariumState.stel = stel;
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Coordinates.RADegrees = 45;
+    mountState.mountInfo.Coordinates.Dec = 30;
+
+    const { container, getAllByRole } = render(<StellariumMount compact />);
+    const buttons = getAllByRole('button');
+    expect(buttons.length).toBeGreaterThanOrEqual(1);
+    expect(container.textContent).toContain('mount.mount');
+  });
 });
-
-
