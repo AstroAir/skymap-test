@@ -157,6 +157,13 @@ export { useSelectTarget } from './use-select-target';
 // Target list actions (shared add/batch-add logic)
 export { useTargetListActions } from './use-target-list-actions';
 
+// Object actions (shared slew/add-to-list for InfoPanel & ObjectDetailDrawer)
+export {
+  useObjectActions,
+  type UseObjectActionsOptions,
+  type UseObjectActionsReturn,
+} from './use-object-actions';
+
 // Observing conditions
 export {
   useObservingConditions,
@@ -177,6 +184,8 @@ export {
 } from './use-carousel';
 
 export { useStarField } from './use-star-field';
+
+export { useInView } from './use-in-view';
 
 // Mount overlay
 export {

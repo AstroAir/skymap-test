@@ -37,7 +37,7 @@ export function SystemStatusIndicator({
 
   if (compact) {
     return (
-      <div className={cn("flex items-center gap-2", className)}>
+      <div role="status" aria-live="polite" className={cn("flex items-center gap-2", className)}>
         {/* Connection Status */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -72,7 +72,7 @@ export function SystemStatusIndicator({
   }
 
   return (
-    <div className={cn("flex items-center gap-3 text-[10px] sm:text-xs", className)}>
+    <div role="status" aria-live="polite" className={cn("flex items-center gap-3 text-[10px] sm:text-xs", className)}>
       {/* Connection Status */}
       <Tooltip>
         <TooltipTrigger asChild>

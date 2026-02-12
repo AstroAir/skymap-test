@@ -6,6 +6,7 @@ import {
   fetchMeteorShowers,
   fetchAllAstroEvents,
   fetchAllSatellites,
+  fetchPlanetaryEvents,
   ASTRO_EVENT_SOURCES,
   SATELLITE_SOURCES,
 } from '../astro-data-sources';
@@ -36,6 +37,14 @@ describe('astro-data-sources', () => {
       const localSource = ASTRO_EVENT_SOURCES.find(s => s.id === 'local');
       expect(localSource).toBeDefined();
       expect(localSource?.enabled).toBe(true);
+    });
+
+    it('should include usno, imo, nasa, mpc sources', () => {
+      const ids = ASTRO_EVENT_SOURCES.map(s => s.id);
+      expect(ids).toContain('usno');
+      expect(ids).toContain('imo');
+      expect(ids).toContain('nasa');
+      expect(ids).toContain('mpc');
     });
   });
 
@@ -134,11 +143,37 @@ describe('astro-data-sources', () => {
     });
   });
 
+  describe('fetchPlanetaryEvents', () => {
+    it('should return static planetary events without API key', async () => {
+      const events = await fetchPlanetaryEvents(2025, 0);
+      expect(events.length).toBeGreaterThan(0);
+      // January 2025 has Mars at Opposition
+      const mars = events.find(e => e.name.includes('Mars'));
+      expect(mars).toBeDefined();
+      expect(mars?.type).toBe('planet_opposition');
+    });
+
+    it('should return empty for months with no static events', async () => {
+      const events = await fetchPlanetaryEvents(2025, 3); // April
+      // April 2025 has no static planetary events
+      expect(events.length).toBe(0);
+    });
+
+    it('should use static data as fallback when API key provided but request fails', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('API error'));
+      const events = await fetchPlanetaryEvents(2025, 0, {
+        apiKey: 'test-key',
+        apiUrl: 'https://api.example.com',
+      });
+      // Should fallback to static data
+      expect(events.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('fetchAllAstroEvents', () => {
-    it('should aggregate events from multiple sources', async () => {
-      // Mock successful responses
+    it('should aggregate events from multiple sources (string IDs)', async () => {
       mockFetch.mockResolvedValue({
-        ok: false, // Force fallback to static data
+        ok: false,
       });
 
       const events = await fetchAllAstroEvents(2024, 0, ['imo']);
@@ -148,6 +183,18 @@ describe('astro-data-sources', () => {
       for (let i = 1; i < events.length; i++) {
         expect(events[i].date.getTime()).toBeGreaterThanOrEqual(events[i - 1].date.getTime());
       }
+    });
+
+    it('should accept EventSourceConfig[] and filter by enabled', async () => {
+      const configs = [
+        { id: 'imo', name: 'IMO', apiUrl: '', apiKey: '', enabled: true, priority: 1, cacheMinutes: 60 },
+        { id: 'usno', name: 'USNO', apiUrl: '', apiKey: '', enabled: false, priority: 2, cacheMinutes: 60 },
+      ];
+      const events = await fetchAllAstroEvents(2024, 0, configs);
+      // Only IMO (enabled) should return events
+      events.forEach(event => {
+        expect(event.source).toBe('IMO');
+      });
     });
 
     it('should handle partial failures gracefully', async () => {
@@ -167,13 +214,18 @@ describe('astro-data-sources', () => {
       }
     });
 
-    it('should filter by enabled sources', async () => {
+    it('should filter by enabled sources (legacy string[])', async () => {
       const events = await fetchAllAstroEvents(2024, 0, ['imo']);
       
-      // Should only have meteor shower events from IMO
       events.forEach(event => {
         expect(event.source).toBe('IMO');
       });
+    });
+
+    it('should use defaults when no sources provided', async () => {
+      const events = await fetchAllAstroEvents(2024, 0);
+      // Should still work with default sources
+      expect(Array.isArray(events)).toBe(true);
     });
   });
 
@@ -296,7 +348,12 @@ describe('astro-data-sources', () => {
       const passes = await fetchSatellitePasses(25544, 45.0, -75.0, 0, 2, 300);
 
       expect(passes).toEqual([]);
-      expect(consoleSpy).toHaveBeenCalledWith('N2YO API key not provided');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('N2YO API key not provided'),
+        expect.anything(),
+        expect.anything(),
+        expect.anything()
+      );
       consoleSpy.mockRestore();
     });
 

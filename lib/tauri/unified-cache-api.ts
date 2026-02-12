@@ -42,6 +42,8 @@ export interface UnifiedCacheStats {
   max_size: number;
   max_entries: number;
   hit_rate: number;
+  expired_entries: number;
+  expired_size: number;
   last_cleanup: string | null;
 }
 

@@ -188,6 +188,8 @@ describe('unifiedCacheApi', () => {
         max_size: 524288000, // 500MB
         max_entries: 10000,
         hit_rate: 0.85,
+        expired_entries: 5,
+        expired_size: 1048576,
         last_cleanup: '2025-12-25T10:30:00Z'
       };
       mockInvoke.mockResolvedValueOnce(stats);
@@ -206,6 +208,8 @@ describe('unifiedCacheApi', () => {
         max_size: 524288000,
         max_entries: 10000,
         hit_rate: 0,
+        expired_entries: 0,
+        expired_size: 0,
         last_cleanup: null
       };
       mockInvoke.mockResolvedValueOnce(stats);

@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { MapPinned } from 'lucide-react';
 import { degreesToHMS, degreesToDMS, raDecToAltAz } from '@/lib/astronomy/starmap-utils';
 import {
   calculateTargetVisibility,
@@ -88,8 +89,8 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
   
   return (
     <div className="space-y-4">
-      {/* Target Input */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* Target Input Row 1: Name + Days */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.targetName')}</Label>
           <Input
@@ -99,6 +100,23 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
             className="h-8"
           />
         </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.daysAhead')}</Label>
+          <Select value={dateRange.toString()} onValueChange={(v) => setDateRange(parseInt(v))}>
+            <SelectTrigger className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">{t('astroCalc.daysRange.7d')}</SelectItem>
+              <SelectItem value="14">{t('astroCalc.daysRange.14d')}</SelectItem>
+              <SelectItem value="30">{t('astroCalc.daysRange.30d')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      {/* Target Input Row 2: RA + Dec */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.raLabel')}</Label>
           <Input
@@ -117,41 +135,33 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
             className="h-8 font-mono"
           />
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t('astroCalc.daysAhead')}</Label>
-          <Select value={dateRange.toString()} onValueChange={(v) => setDateRange(parseInt(v))}>
-            <SelectTrigger className="h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">{t('astroCalc.daysRange.7d')}</SelectItem>
-              <SelectItem value="14">{t('astroCalc.daysRange.14d')}</SelectItem>
-              <SelectItem value="30">{t('astroCalc.daysRange.30d')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
       
       {/* Current info with altitude chart */}
-      {ra && dec && (
+      {ra || dec ? (
         <div className="space-y-3">
-          <div className="flex items-center gap-4 text-sm p-3 rounded-lg bg-muted/50">
-            <div>
-              <span className="text-muted-foreground">RA:</span>{' '}
-              <span className="font-mono">{degreesToHMS(ra)}</span>
+          <div className="flex items-center gap-6 text-sm p-3 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">RA</span>
+              <span className="font-mono text-sm">{degreesToHMS(ra)}</span>
             </div>
-            <div>
-              <span className="text-muted-foreground">Dec:</span>{' '}
-              <span className="font-mono">{degreesToDMS(dec)}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">Dec</span>
+              <span className="font-mono text-sm">{degreesToDMS(dec)}</span>
             </div>
-            <div>
-              <span className="text-muted-foreground">{t('astroCalc.maxAltitude')}:</span>{' '}
-              <span>{(90 - Math.abs(latitude - dec)).toFixed(1)}°</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">{t('astroCalc.maxAltitude')}</span>
+              <span className="text-sm font-medium">{(90 - Math.abs(latitude - dec)).toFixed(1)}°</span>
             </div>
           </div>
           
-          {/* Reuse existing AltitudeChart component */}
           <AltitudeChart ra={ra} dec={dec} name={targetName} hoursAhead={12} />
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+          <MapPinned className="h-10 w-10 mb-3 opacity-40" />
+          <p className="text-sm font-medium">{t('astroCalc.enterCoordinates')}</p>
+          <p className="text-xs mt-1">{t('astroCalc.enterCoordinatesHint')}</p>
         </div>
       )}
       

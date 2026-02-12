@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { StellariumView, SplashScreen, SetupWizard } from '@/components/starmap';
+import { LogPanel } from '@/components/common';
 import { useCacheInit, useWindowState } from '@/lib/hooks';
 
 export default function StarmapPage() {
@@ -20,6 +21,7 @@ export default function StarmapPage() {
       )}
       <StellariumView />
       <SetupWizard />
+      <LogPanel />
     </main>
   );
 }

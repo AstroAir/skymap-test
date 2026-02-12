@@ -66,8 +66,9 @@ use cache::{
     save_cached_tile, update_cache_region,
     // Unified cache
     cleanup_unified_cache, clear_unified_cache, delete_unified_cache_entry,
-    get_unified_cache_entry, get_unified_cache_size, get_unified_cache_stats,
-    list_unified_cache_keys, prefetch_url, prefetch_urls, put_unified_cache_entry,
+    flush_unified_cache, get_unified_cache_entry, get_unified_cache_size,
+    get_unified_cache_stats, list_unified_cache_keys, prefetch_url, prefetch_urls,
+    put_unified_cache_entry,
 };
 
 use network::{
@@ -114,6 +115,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // Geolocation plugin (mobile only)
             #[cfg(mobile)]
@@ -234,6 +236,7 @@ pub fn run() {
             list_unified_cache_keys,
             get_unified_cache_stats,
             cleanup_unified_cache,
+            flush_unified_cache,
             prefetch_url,
             prefetch_urls,
             // Astro events

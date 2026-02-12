@@ -5,23 +5,44 @@
  */
 
 import type { NormalizedTelescope, NormalizedCamera } from '@/types/starmap/management';
+import type { Telescope as TauriTelescope, Camera as TauriCamera } from '@/lib/tauri/types';
+import type { TelescopePreset, CameraPreset } from '@/lib/stores/equipment-store';
+
+type TelescopeInput = TauriTelescope | TelescopePreset;
+type CameraInput = TauriCamera | CameraPreset;
+
+function isTauriTelescope(item: TelescopeInput): item is TauriTelescope {
+  return 'focal_length' in item;
+}
+
+function isTauriCamera(item: CameraInput): item is TauriCamera {
+  return 'sensor_width' in item;
+}
 
 /**
  * Normalize telescope data from either Tauri or Web environment
  * into a unified format for rendering.
  */
-export function normalizeTelescopes(items: unknown[], isTauri: boolean): NormalizedTelescope[] {
+export function normalizeTelescopes(items: TelescopeInput[], _isTauri: boolean): NormalizedTelescope[] {
   return items.map((item) => {
-    const t = item as Record<string, unknown>;
-    const aperture = t.aperture as number;
-    const focalLength = isTauri ? (t.focal_length as number) : (t.focalLength as number);
+    if (isTauriTelescope(item)) {
+      return {
+        id: item.id,
+        name: item.name,
+        aperture: item.aperture,
+        focalLength: item.focal_length,
+        focalRatio: item.focal_ratio,
+        isDefault: item.is_default,
+      };
+    }
+    const focalRatio = item.aperture > 0 ? item.focalLength / item.aperture : 0;
     return {
-      id: t.id as string,
-      name: t.name as string,
-      aperture,
-      focalLength,
-      focalRatio: isTauri ? (t.focal_ratio as number) : focalLength / aperture,
-      isDefault: isTauri ? (t.is_default as boolean) : false,
+      id: item.id,
+      name: item.name,
+      aperture: item.aperture,
+      focalLength: item.focalLength,
+      focalRatio,
+      isDefault: false,
     };
   });
 }
@@ -30,15 +51,23 @@ export function normalizeTelescopes(items: unknown[], isTauri: boolean): Normali
  * Normalize camera data from either Tauri or Web environment
  * into a unified format for rendering.
  */
-export function normalizeCameras(items: unknown[], isTauri: boolean): NormalizedCamera[] {
+export function normalizeCameras(items: CameraInput[], _isTauri: boolean): NormalizedCamera[] {
   return items.map((item) => {
-    const c = item as Record<string, unknown>;
+    if (isTauriCamera(item)) {
+      return {
+        id: item.id,
+        name: item.name,
+        sensorWidth: item.sensor_width,
+        sensorHeight: item.sensor_height,
+        isDefault: item.is_default,
+      };
+    }
     return {
-      id: c.id as string,
-      name: c.name as string,
-      sensorWidth: isTauri ? (c.sensor_width as number) : (c.sensorWidth as number),
-      sensorHeight: isTauri ? (c.sensor_height as number) : (c.sensorHeight as number),
-      isDefault: isTauri ? (c.is_default as boolean) : false,
+      id: item.id,
+      name: item.name,
+      sensorWidth: item.sensorWidth,
+      sensorHeight: item.sensorHeight,
+      isDefault: false,
     };
   });
 }

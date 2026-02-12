@@ -36,6 +36,7 @@ interface MapLocationPickerProps {
   height?: string | number;
   disabled?: boolean;
   tileLayer?: TileLayerType;
+  compact?: boolean;
 }
 
 function MapLocationPickerComponent({
@@ -48,6 +49,7 @@ function MapLocationPickerComponent({
   height = 400,
   disabled = false,
   tileLayer: initialTileLayer = 'openstreetmap',
+  compact = false,
 }: MapLocationPickerProps) {
   const t = useTranslations();
 
@@ -108,61 +110,33 @@ function MapLocationPickerComponent({
     }
   }, [commitCoordinateInput]);
 
-  return (
-    <Card className={cn('w-full', className)}>
-      <CardHeader className='pb-3'>
-        <div className="flex items-center justify-between">
-          <CardTitle className='flex items-center gap-2'>
-            <MapPin className='h-5 w-5' />
-            {t('map.locationPicker') || 'Location Picker'}
-          </CardTitle>
-          {showControls && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Layers className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {TILE_LAYER_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => setTileLayer(option.value)}
-                    className={cn(tileLayer === option.value && 'bg-muted')}
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className='space-y-4'>
-        {showSearch && (
-          <LocationSearch
-            onLocationSelect={handleLocationSearchSelect}
-            disabled={disabled}
-            showCurrentLocation={true}
-            showRecentSearches={true}
-          />
-        )}
-        <div 
-          className={cn('relative border rounded-lg overflow-hidden bg-muted')} 
-          style={{ height: typeof height === 'number' ? `${mapHeight}px` : height }}
-        >
-          <LeafletMap
-            center={currentLocation}
-            zoom={zoom}
-            onLocationChange={handleMapLocationChange}
-            onClick={handleMapClick}
-            height={mapHeight}
-            tileLayer={tileLayer}
-            disabled={disabled}
-            showMarker={true}
-            draggableMarker={!disabled}
-          />
-        </div>
+  const mapContent = (
+    <>
+      {showSearch && (
+        <LocationSearch
+          onLocationSelect={handleLocationSearchSelect}
+          disabled={disabled}
+          showCurrentLocation={true}
+          showRecentSearches={true}
+        />
+      )}
+      <div 
+        className={cn('relative border rounded-lg overflow-hidden bg-muted')} 
+        style={{ height: typeof height === 'number' ? `${mapHeight}px` : height }}
+      >
+        <LeafletMap
+          center={currentLocation}
+          zoom={zoom}
+          onLocationChange={handleMapLocationChange}
+          onClick={handleMapClick}
+          height={mapHeight}
+          tileLayer={tileLayer}
+          disabled={disabled}
+          showMarker={true}
+          draggableMarker={!disabled}
+        />
+      </div>
+      {!compact && (
         <div className='grid grid-cols-2 gap-4'>
           <div className='space-y-1'>
             <Label className='text-xs'>{t('map.latitude') || 'Latitude'}</Label>
@@ -197,6 +171,72 @@ function MapLocationPickerComponent({
             />
           </div>
         </div>
+      )}
+    </>
+  );
+
+  if (compact) {
+    return (
+      <div className={cn('w-full space-y-3', className)}>
+        {showControls && (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <Layers className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {TILE_LAYER_OPTIONS.map((option) => (
+                  <DropdownMenuItem
+                    key={option.value}
+                    onClick={() => setTileLayer(option.value)}
+                    className={cn(tileLayer === option.value && 'bg-muted')}
+                  >
+                    {option.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+        {mapContent}
+      </div>
+    );
+  }
+
+  return (
+    <Card className={cn('w-full', className)}>
+      <CardHeader className='pb-3'>
+        <div className="flex items-center justify-between">
+          <CardTitle className='flex items-center gap-2'>
+            <MapPin className='h-5 w-5' />
+            {t('map.locationPicker') || 'Location Picker'}
+          </CardTitle>
+          {showControls && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Layers className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {TILE_LAYER_OPTIONS.map((option) => (
+                  <DropdownMenuItem
+                    key={option.value}
+                    onClick={() => setTileLayer(option.value)}
+                    className={cn(tileLayer === option.value && 'bg-muted')}
+                  >
+                    {option.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        {mapContent}
       </CardContent>
     </Card>
   );

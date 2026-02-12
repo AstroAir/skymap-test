@@ -44,7 +44,6 @@ export interface InfoPanelProps {
 export interface AltitudeChartCompactProps {
   ra: number;
   dec: number;
-  name?: string;
 }
 
 export interface ChartTooltipPayload {
@@ -107,6 +106,17 @@ export interface EditSourceDialogProps {
 export interface AddCustomSourceDialogProps {
   type: 'image' | 'data';
   onAdd: (source: Partial<ImageSourceConfig | DataSourceConfig>) => void;
+}
+
+// ============================================================================
+// RiseTransitSetGrid
+// ============================================================================
+
+export interface RiseTransitSetGridProps {
+  visibility: import('@/lib/core/types').TargetVisibility;
+  /** 'compact' for InfoPanel, 'full' for ObjectDetailDrawer */
+  variant?: 'compact' | 'full';
+  className?: string;
 }
 
 // ============================================================================

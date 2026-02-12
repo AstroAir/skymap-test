@@ -17,8 +17,41 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SkyMap",
-  description: "Interactive star map application",
+  title: {
+    default: "SkyMap - Interactive Star Map & Astronomy Planner",
+    template: "%s | SkyMap",
+  },
+  description:
+    "A powerful astronomy application for stargazing, observation planning, and astrophotography. Explore celestial objects with real-time sky rendering powered by Stellarium Web Engine.",
+  keywords: [
+    "star map",
+    "astronomy",
+    "stargazing",
+    "astrophotography",
+    "observation planning",
+    "stellarium",
+    "celestial",
+    "telescope",
+    "night sky",
+  ],
+  authors: [{ name: "AstroAir" }],
+  creator: "AstroAir",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: "SkyMap",
+    title: "SkyMap - Interactive Star Map & Astronomy Planner",
+    description:
+      "A powerful astronomy application for stargazing, observation planning, and astrophotography. Powered by Stellarium Web Engine.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SkyMap - Interactive Star Map & Astronomy Planner",
+    description:
+      "Explore the universe with real-time sky rendering, observation planning, and astrophotography tools.",
+  },
+  applicationName: "SkyMap",
+  category: "Science & Education",
 };
 
 export default function RootLayout({

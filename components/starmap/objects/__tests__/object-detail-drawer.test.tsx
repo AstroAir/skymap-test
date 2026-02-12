@@ -46,6 +46,21 @@ jest.mock('@/lib/astronomy/astro-utils', () => ({
 // Mock hooks
 jest.mock('@/lib/hooks', () => ({
   useCelestialName: jest.fn((name) => name),
+  useAstroEnvironment: jest.fn(() => ({
+    moonPhaseName: 'First Quarter',
+    moonIllumination: 50,
+    moonAltitude: 30,
+    moonRa: 100,
+    moonDec: 20,
+    sunAltitude: -20,
+    lstString: '00h 00m 00s',
+    twilight: {
+      sunset: new Date(),
+      sunrise: new Date(),
+      astronomicalDusk: new Date(),
+      astronomicalDawn: new Date(),
+    },
+  })),
   useTargetAstroData: jest.fn(() => ({
     altitude: 45,
     azimuth: 180,
@@ -64,7 +79,14 @@ jest.mock('@/lib/hooks', () => ({
       moonScore: 90,
       altitudeScore: 80,
       durationScore: 85,
+      twilightScore: 90,
+      warnings: [],
     },
+  })),
+  useObjectActions: jest.fn(() => ({
+    handleSlew: jest.fn(),
+    handleAddToList: jest.fn(),
+    mountConnected: false,
   })),
 }));
 
@@ -93,9 +115,11 @@ jest.mock('@/lib/stores', () => ({
 }));
 
 import { useMountStore, useTargetListStore } from '@/lib/stores';
+import { useObjectActions } from '@/lib/hooks';
 
 const mockUseMountStore = useMountStore as unknown as jest.Mock;
 const mockUseTargetListStore = useTargetListStore as unknown as jest.Mock;
+const mockUseObjectActions = useObjectActions as unknown as jest.Mock;
 
 // Mock UI components
 jest.mock('@/components/ui/button', () => ({
@@ -737,19 +761,10 @@ describe('ObjectDetailDrawer', () => {
     });
 
     it('renders slew button when mount connected', async () => {
-      mockUseMountStore.mockImplementation((selector) => {
-        const state = {
-          profileInfo: {
-            AstrometrySettings: {
-              Latitude: 40.7128,
-              Longitude: -74.006,
-            },
-          },
-          mountInfo: {
-            Connected: true,
-          },
-        };
-        return selector ? selector(state) : state;
+      mockUseObjectActions.mockReturnValue({
+        handleSlew: jest.fn(),
+        handleAddToList: jest.fn(),
+        mountConnected: true,
       });
 
       render(
@@ -767,11 +782,12 @@ describe('ObjectDetailDrawer', () => {
       expect(screen.getByText(/actions\.slewToObject/)).toBeInTheDocument();
     });
 
-    it('calls addTarget when add button clicked', async () => {
-      const mockAddTarget = jest.fn();
-      mockUseTargetListStore.mockImplementation((selector) => {
-        const state = { addTarget: mockAddTarget };
-        return selector ? selector(state) : state;
+    it('calls handleAddToList when add button clicked', async () => {
+      const mockHandleAddToList = jest.fn();
+      mockUseObjectActions.mockReturnValue({
+        handleSlew: jest.fn(),
+        handleAddToList: mockHandleAddToList,
+        mountConnected: false,
       });
 
       render(
@@ -791,30 +807,15 @@ describe('ObjectDetailDrawer', () => {
         fireEvent.click(addButton);
       });
 
-      expect(mockAddTarget).toHaveBeenCalledWith({
-        name: 'M31',
-        ra: mockSelectedObject.raDeg,
-        dec: mockSelectedObject.decDeg,
-        raString: mockSelectedObject.ra,
-        decString: mockSelectedObject.dec,
-        priority: 'medium',
-      });
+      expect(mockHandleAddToList).toHaveBeenCalled();
     });
 
-    it('calls onSetFramingCoordinates when slew button clicked', async () => {
-      mockUseMountStore.mockImplementation((selector) => {
-        const state = {
-          profileInfo: {
-            AstrometrySettings: {
-              Latitude: 40.7128,
-              Longitude: -74.006,
-            },
-          },
-          mountInfo: {
-            Connected: true,
-          },
-        };
-        return selector ? selector(state) : state;
+    it('calls handleSlew when slew button clicked', async () => {
+      const mockHandleSlew = jest.fn();
+      mockUseObjectActions.mockReturnValue({
+        handleSlew: mockHandleSlew,
+        handleAddToList: jest.fn(),
+        mountConnected: true,
       });
 
       render(
@@ -835,14 +836,7 @@ describe('ObjectDetailDrawer', () => {
         fireEvent.click(slewButton);
       });
 
-      expect(mockOnSetFramingCoordinates).toHaveBeenCalledWith({
-        ra: mockSelectedObject.raDeg,
-        dec: mockSelectedObject.decDeg,
-        raString: mockSelectedObject.ra,
-        decString: mockSelectedObject.dec,
-        name: 'M31',
-      });
-      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+      expect(mockHandleSlew).toHaveBeenCalled();
     });
   });
 
@@ -883,7 +877,7 @@ describe('ObjectDetailDrawer', () => {
       expect(mockGetCachedObjectInfo).not.toHaveBeenCalled();
 
       expect(screen.getByTestId('drawer')).toBeInTheDocument();
-      expect(screen.getByText('Unknown')).toBeInTheDocument();
+      expect(screen.getByText('common.unknown')).toBeInTheDocument();
     });
 
     it('auto-closes drawer when open and selectedObject becomes null', async () => {

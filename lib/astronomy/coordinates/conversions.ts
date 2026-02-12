@@ -141,12 +141,13 @@ export function parseCoordinateString(str: string): number | null {
   }
   
   // Try DMS format with letters
-  const dmsMatch = str.match(/^(-?\d+(?:\.\d+)?)\s*[d°]\s*(\d+(?:\.\d+)?)\s*[m']\s*(\d+(?:\.\d+)?)\s*[s"]?$/);
+  const dmsMatch = str.match(/^([+-]?\d+(?:\.\d+)?)\s*[d°]\s*(\d+(?:\.\d+)?)\s*[m']\s*(\d+(?:\.\d+)?)\s*[s"]?$/);
   if (dmsMatch) {
     const d = parseFloat(dmsMatch[1]);
     const m = parseFloat(dmsMatch[2]);
     const s = parseFloat(dmsMatch[3]);
-    const sign = d < 0 ? -1 : 1;
+    // Use string sign check to handle -0° correctly
+    const sign = dmsMatch[1].startsWith('-') ? -1 : 1;
     return sign * (Math.abs(d) + m / 60 + s / 3600);
   }
   
@@ -156,7 +157,8 @@ export function parseCoordinateString(str: string): number | null {
     const first = parseFloat(colonMatch[1]);
     const second = parseFloat(colonMatch[2]);
     const third = parseFloat(colonMatch[3]);
-    const sign = first < 0 ? -1 : 1;
+    // Use string sign check to handle -0:30:00 correctly
+    const sign = colonMatch[1].startsWith('-') ? -1 : 1;
     return sign * (Math.abs(first) + second / 60 + third / 3600);
   }
   
@@ -220,7 +222,7 @@ export function parseDecCoordinate(value: string): number | null {
   }
 
   // Try parsing DMS format (e.g., "+41°16'09\"" or "+41:16:09")
-  const dmsMatch = trimmed.match(/^([+-]?)(\d+)[°:]\s*(\d+)[':](\s*([\d.]+)["']?)?$/i);
+  const dmsMatch = trimmed.match(/^([+-]?)(\d+)[°:]\s*(\d+)[':](\s*([\d.]+)["']?)?\s*$/i);
   if (dmsMatch) {
     const sign = dmsMatch[1] === '-' ? -1 : 1;
     const d = parseFloat(dmsMatch[2]);

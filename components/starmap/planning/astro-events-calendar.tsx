@@ -59,12 +59,13 @@ import {
   type AstroEvent,
   type EventType,
   fetchAllAstroEvents,
-  ASTRO_EVENT_SOURCES,
 } from '@/lib/services/astro-data-sources';
+import { useEventSourcesStore } from '@/lib/stores';
 import { useAstroEvents } from '@/lib/tauri/hooks';
 import { isTauri } from '@/lib/storage/platform';
 import { convertTauriEvents } from '@/lib/astronomy/event-utils';
 import { createLogger } from '@/lib/logger';
+import { EventDetailDialog } from './event-detail-dialog';
 
 const logger = createLogger('astro-events-calendar');
 
@@ -113,7 +114,7 @@ function getEventColor(type: EventType) {
 // Event Card Component
 // ============================================================================
 
-function EventCard({ event, onGoTo }: { event: AstroEvent; onGoTo?: (ra: number, dec: number) => void }) {
+function EventCard({ event, onGoTo, onClick }: { event: AstroEvent; onGoTo?: (ra: number, dec: number) => void; onClick?: () => void }) {
   const t = useTranslations();
   
   const getVisibilityBadge = (visibility: string) => {
@@ -142,7 +143,10 @@ function EventCard({ event, onGoTo }: { event: AstroEvent; onGoTo?: (ra: number,
   };
   
   return (
-    <Card className="border-border hover:border-primary/50 transition-colors">
+    <Card 
+      className={cn("border-border hover:border-primary/50 transition-colors", onClick && "cursor-pointer")}
+      onClick={onClick}
+    >
       <CardContent className="p-3">
         <div className="flex items-start gap-3">
           {/* Event Icon */}
@@ -203,7 +207,7 @@ function EventCard({ event, onGoTo }: { event: AstroEvent; onGoTo?: (ra: number,
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={() => onGoTo(event.ra!, event.dec!)}
+                  onClick={(e) => { e.stopPropagation(); onGoTo(event.ra!, event.dec!); }}
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
@@ -230,9 +234,10 @@ export function AstroEventsCalendar() {
   const [isLoading, setIsLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [dataSources, setDataSources] = useState(() => 
-    ASTRO_EVENT_SOURCES.map(s => ({ ...s, enabled: s.enabled }))
-  );
+  const [selectedEvent, setSelectedEvent] = useState<AstroEvent | null>(null);
+  
+  const eventSources = useEventSourcesStore((state) => state.sources);
+  const toggleEventSource = useEventSourcesStore((state) => state.toggleSource);
   
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const profileInfo = useMountStore((state) => state.profileInfo);
@@ -255,14 +260,10 @@ export function AstroEventsCalendar() {
     const fetchEvents = async () => {
       setIsLoading(true);
       try {
-        const enabledSourceIds = dataSources
-          .filter(s => s.enabled)
-          .map(s => s.id);
-        
         const fetchedEvents = await fetchAllAstroEvents(
           selectedDate.getFullYear(),
           selectedDate.getMonth(),
-          enabledSourceIds
+          eventSources
         );
         
         // Merge with Tauri events if available
@@ -290,7 +291,7 @@ export function AstroEventsCalendar() {
     };
     
     fetchEvents();
-  }, [open, selectedDate, dataSources, tauriEvents.events]);
+  }, [open, selectedDate, eventSources, tauriEvents.events]);
   
   // Filter events
   const filteredEvents = useMemo(() => {
@@ -298,12 +299,10 @@ export function AstroEventsCalendar() {
     return events.filter((e: AstroEvent) => e.type === filterType);
   }, [events, filterType]);
   
-  // Toggle data source
+  // Toggle data source (uses store)
   const toggleDataSource = useCallback((id: string) => {
-    setDataSources(prev => prev.map(s => 
-      s.id === id ? { ...s, enabled: !s.enabled } : s
-    ));
-  }, []);
+    toggleEventSource(id);
+  }, [toggleEventSource]);
   
   // Refresh data
   const handleRefresh = useCallback(() => {
@@ -353,7 +352,7 @@ export function AstroEventsCalendar() {
         </TooltipContent>
       </Tooltip>
       
-      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[500px] h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
@@ -443,7 +442,7 @@ export function AstroEventsCalendar() {
                 <div className="text-xs font-medium text-muted-foreground mb-2">
                   {t('events.dataSources')}
                 </div>
-                {dataSources.map(source => (
+                {eventSources.map((source) => (
                   <div key={source.id} className="flex items-center justify-between">
                     <Label htmlFor={`source-${source.id}`} className="text-sm">
                       {source.name}
@@ -463,8 +462,8 @@ export function AstroEventsCalendar() {
         <Separator />
         
         {/* Events List */}
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-2 pr-2">
+        <ScrollArea className="flex-1 min-h-0 overflow-hidden">
+          <div className="space-y-2 pr-3 pb-2">
             {isLoading ? (
               <div className="space-y-2 py-2">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -482,6 +481,7 @@ export function AstroEventsCalendar() {
                   key={event.id} 
                   event={event} 
                   onGoTo={event.ra !== undefined ? handleGoTo : undefined}
+                  onClick={() => setSelectedEvent(event)}
                 />
               ))
             )}
@@ -500,6 +500,14 @@ export function AstroEventsCalendar() {
           <span>{filteredEvents.length} {t('events.eventsFound')}</span>
         </div>
       </DialogContent>
+
+      {/* Event Detail Dialog */}
+      <EventDetailDialog
+        event={selectedEvent}
+        open={selectedEvent !== null}
+        onOpenChange={(isOpen) => { if (!isOpen) setSelectedEvent(null); }}
+        onGoTo={handleGoTo}
+      />
     </Dialog>
   );
 }

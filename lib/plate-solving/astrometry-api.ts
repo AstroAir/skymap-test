@@ -6,6 +6,7 @@
  */
 
 import { createErrorResult, type PlateSolveResult } from './types';
+import { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
 
 // ============================================================================
 // Types
@@ -430,8 +431,8 @@ export class AstrometryApiClient {
       coordinates: {
         ra,
         dec,
-        raHMS: this.degreesToHMS(ra),
-        decDMS: this.degreesToDMS(dec),
+        raHMS: formatRA(ra),
+        decDMS: formatDec(dec),
       },
       positionAngle: calibration.orientation,
       pixelScale: calibration.pixscale,
@@ -468,22 +469,6 @@ export class AstrometryApiClient {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private degreesToHMS(degrees: number): string {
-    const hours = degrees / 15;
-    const h = Math.floor(hours);
-    const m = Math.floor((hours - h) * 60);
-    const s = ((hours - h) * 60 - m) * 60;
-    return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}m${s.toFixed(2).padStart(5, '0')}s`;
-  }
-
-  private degreesToDMS(degrees: number): string {
-    const sign = degrees >= 0 ? '+' : '-';
-    const abs = Math.abs(degrees);
-    const d = Math.floor(abs);
-    const m = Math.floor((abs - d) * 60);
-    const s = ((abs - d) * 60 - m) * 60;
-    return `${sign}${d.toString().padStart(2, '0')}°${m.toString().padStart(2, '0')}'${s.toFixed(1).padStart(4, '0')}"`;
-  }
 }
 
 // ============================================================================

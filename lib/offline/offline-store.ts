@@ -288,18 +288,15 @@ export const useOfflineStore = create<OfflineState>()(
     {
       name: 'skymap-offline',
       storage: getZustandStorage(),
+      partialize: (state) => ({
+        autoDownloadOnWifi: state.autoDownloadOnWifi,
+      }),
     }
   )
 );
 
-// Helper function to format bytes
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
+// Re-export formatBytes from cache config to avoid duplication
+export { formatBytes } from '@/lib/cache/config';
 
 // Helper to get layer info
 export function getLayerInfo(layerId: string) {

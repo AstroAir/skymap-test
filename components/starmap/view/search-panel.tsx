@@ -3,6 +3,7 @@
 import { memo, forwardRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, Star, Settings2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,10 +20,11 @@ export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps
     const [showFavorites, setShowFavorites] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
 
-    if (!isOpen) return null;
-
     return (
-      <Card className="absolute top-14 sm:top-16 left-2 sm:left-3 w-[calc(100vw-16px)] sm:w-96 md:w-[420px] sm:max-w-[calc(100vw-24px)] bg-card/95 backdrop-blur-sm border-border z-50 shadow-xl animate-scale-in">
+      <Card className={cn(
+        "absolute top-14 sm:top-16 left-2 sm:left-3 w-[calc(100vw-16px)] sm:w-96 md:w-[420px] sm:max-w-[calc(100vw-24px)] bg-card/95 backdrop-blur-sm border-border z-50 shadow-xl",
+        isOpen ? "animate-scale-in" : "hidden"
+      )}>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-lg text-foreground">{t('starmap.searchObjects')}</CardTitle>
           <div className="flex items-center gap-1">

@@ -6,7 +6,7 @@ import { SkyMarkers } from '../overlays/sky-markers';
 import { SatelliteOverlay } from '../overlays/satellite-overlay';
 
 import { useEquipmentStore } from '@/lib/stores';
-import type { OverlaysContainerProps } from '@/types/starmap/view';
+import type { SkyMarker } from '@/lib/stores/marker-store';
 
 /**
  * Wrapper that reads fovDisplay settings from equipment-store
@@ -29,21 +29,32 @@ function FOVOverlayConnected(props: Omit<ComponentProps<typeof FOVOverlay>, 'fra
   );
 }
 
+interface OverlaysContainerProps {
+  containerBounds: { width: number; height: number } | undefined;
+  currentFov: number;
+  onRotationChange: (angle: number) => void;
+  onMarkerDoubleClick: (marker: SkyMarker) => void;
+  onMarkerEdit: (marker: SkyMarker) => void;
+  onMarkerNavigate: (marker: SkyMarker) => void;
+}
+
 export const OverlaysContainer = memo(function OverlaysContainer({
   containerBounds,
-  fovEnabled,
-  sensorWidth,
-  sensorHeight,
-  focalLength,
   currentFov,
-  rotationAngle,
-  mosaic,
-  gridType,
   onRotationChange,
   onMarkerDoubleClick,
   onMarkerEdit,
   onMarkerNavigate,
 }: OverlaysContainerProps) {
+  // Subscribe directly to equipment store — avoids prop drilling through orchestrator
+  const fovEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
+  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
+  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
+  const focalLength = useEquipmentStore((s) => s.focalLength);
+  const rotationAngle = useEquipmentStore((s) => s.rotationAngle);
+  const mosaic = useEquipmentStore((s) => s.mosaic);
+  const gridType = useEquipmentStore((s) => s.fovDisplay.gridType);
+
   return (
     <>
       {/* FOV Overlay */}

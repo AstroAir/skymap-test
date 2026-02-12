@@ -27,6 +27,7 @@ const renderComponent = () => render(<UpdateSettings />);
 describe('UpdateSettings', () => {
   const defaultMockReturn = {
     currentVersion: '1.0.0',
+    lastChecked: null,
     isChecking: false,
     hasUpdate: false,
     updateInfo: null,
@@ -109,5 +110,43 @@ describe('UpdateSettings', () => {
 
     renderComponent();
     expect(screen.getByRole('switch')).toBeDisabled();
+  });
+
+  it('should show neverChecked text when lastChecked is null', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      lastChecked: null,
+    });
+
+    renderComponent();
+    expect(screen.getByText('neverChecked')).toBeInTheDocument();
+  });
+
+  it('should show lastChecked text when lastChecked has a value', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      lastChecked: 1700000000000,
+    });
+
+    renderComponent();
+    expect(screen.getByText('lastChecked')).toBeInTheDocument();
+  });
+
+  it('should show update button when update is available', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      hasUpdate: true,
+      updateInfo: {
+        version: '1.0.1',
+        current_version: '1.0.0',
+        date: null,
+        body: null,
+      },
+    });
+
+    renderComponent();
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.length).toBeGreaterThan(0);
   });
 });

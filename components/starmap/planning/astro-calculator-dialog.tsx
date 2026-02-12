@@ -21,14 +21,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 import {
   Calculator,
-  Clock,
-  Star,
-  Target,
-  TrendingUp,
-  Sparkles,
-  SunMoon,
   MapPin,
 } from 'lucide-react';
 import { useMountStore, useStellariumStore } from '@/lib/stores';
@@ -98,37 +93,31 @@ export function AstroCalculatorDialog() {
               <Calculator className="h-5 w-5 text-primary" />
               {t('astroCalc.title')}
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
+            <Badge variant="outline" className="font-normal text-xs gap-1.5">
               <MapPin className="h-3 w-3" />
-              <span>{latitude.toFixed(2)}°, {longitude.toFixed(2)}°</span>
-            </div>
+              {latitude.toFixed(2)}°, {longitude.toFixed(2)}°
+            </Badge>
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid w-full grid-cols-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <TabsList className="grid w-full grid-cols-3 grid-rows-2 h-auto gap-0.5 p-1">
             <TabsTrigger value="wut" className="text-xs">
-              <Sparkles className="h-3 w-3 mr-1" />
               {t('astroCalc.wut')}
             </TabsTrigger>
             <TabsTrigger value="positions" className="text-xs">
-              <Target className="h-3 w-3 mr-1" />
               {t('astroCalc.positions')}
             </TabsTrigger>
             <TabsTrigger value="rts" className="text-xs">
-              <TrendingUp className="h-3 w-3 mr-1" />
               {t('astroCalc.rts')}
             </TabsTrigger>
             <TabsTrigger value="ephemeris" className="text-xs">
-              <Clock className="h-3 w-3 mr-1" />
               {t('astroCalc.ephemeris')}
             </TabsTrigger>
             <TabsTrigger value="almanac" className="text-xs">
-              <SunMoon className="h-3 w-3 mr-1" />
               {t('astroCalc.almanac')}
             </TabsTrigger>
             <TabsTrigger value="phenomena" className="text-xs">
-              <Star className="h-3 w-3 mr-1" />
               {t('astroCalc.phenomena')}
             </TabsTrigger>
           </TabsList>

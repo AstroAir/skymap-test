@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { StellariumCanvas } from '../canvas/stellarium-canvas';
@@ -20,6 +21,9 @@ import { OverlaysContainer } from './overlays-container';
 import { CenterCrosshair } from './center-crosshair';
 import { BottomStatusBar } from './bottom-status-bar';
 import { useStellariumViewState } from './use-stellarium-view-state';
+import { UpdateBanner } from '../management/updater/update-banner';
+import { UpdateDialog } from '../management/updater/update-dialog';
+import { isTauri } from '@/lib/tauri/app-control-api';
 
 export function StellariumView() {
   const {
@@ -56,17 +60,8 @@ export function StellariumView() {
     searchRef,
     containerRef,
 
-    // Equipment settings
-    fovSimEnabled,
-    setFovSimEnabled,
-    sensorWidth,
-    sensorHeight,
-    focalLength,
-    rotationAngle,
-    mosaic,
-    gridType,
+    // Equipment settings (only setters needed by handlers)
     setRotationAngle,
-    setMosaic,
 
     // Store states
     stel,
@@ -98,6 +93,8 @@ export function StellariumView() {
     handleMarkerEdit,
     handleMarkerNavigate,
   } = useStellariumViewState();
+
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
 
   return (
     <TooltipProvider>
@@ -137,8 +134,6 @@ export function StellariumView() {
           coords={contextMenuCoords}
           selectedObject={selectedObject}
           mountConnected={mountConnected}
-          fovSimEnabled={fovSimEnabled}
-          mosaic={mosaic}
           stellariumSettings={stellariumSettings}
           onOpenChange={setContextMenuOpen}
           onAddToTargetList={handleAddToTargetList}
@@ -149,9 +144,6 @@ export function StellariumView() {
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onSetFov={handleSetFov}
-          onSetFovSimEnabled={setFovSimEnabled}
-          onSetRotationAngle={setRotationAngle}
-          onSetMosaic={setMosaic}
           onToggleStellariumSetting={toggleStellariumSetting}
           onToggleSearch={toggleSearch}
           onResetView={handleResetView}
@@ -167,14 +159,7 @@ export function StellariumView() {
         {/* Overlays */}
         <OverlaysContainer
           containerBounds={containerBounds}
-          fovEnabled={fovSimEnabled}
-          sensorWidth={sensorWidth}
-          sensorHeight={sensorHeight}
-          focalLength={focalLength}
           currentFov={currentFov}
-          rotationAngle={rotationAngle}
-          mosaic={mosaic}
-          gridType={gridType}
           onRotationChange={setRotationAngle}
           onMarkerDoubleClick={handleMarkerNavigate}
           onMarkerEdit={handleMarkerEdit}
@@ -264,6 +249,17 @@ export function StellariumView() {
 
         {/* Center Crosshair */}
         <CenterCrosshair />
+
+        {/* Update Banner & Dialog (Tauri desktop only) */}
+        {isTauri() && (
+          <>
+            <UpdateBanner
+              className="absolute top-12 left-1/2 -translate-x-1/2 z-40"
+              onOpenDialog={() => setUpdateDialogOpen(true)}
+            />
+            <UpdateDialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen} />
+          </>
+        )}
       </div>
     </TooltipProvider>
   );

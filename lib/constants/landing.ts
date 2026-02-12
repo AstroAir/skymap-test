@@ -43,17 +43,18 @@ export interface TechnologyData {
   name: string;
   category: TechCategory;
   description: string;
+  i18nKey: string;
 }
 
 export const TECHNOLOGIES: TechnologyData[] = [
-  { name: 'Stellarium Web Engine', category: 'core', description: 'Realistic sky rendering engine' },
-  { name: 'Next.js 16', category: 'framework', description: 'React framework with App Router' },
-  { name: 'React 19', category: 'framework', description: 'Latest React with Server Components' },
-  { name: 'TypeScript', category: 'language', description: 'Type-safe JavaScript' },
-  { name: 'Tailwind CSS v4', category: 'styling', description: 'Utility-first CSS framework' },
-  { name: 'Tauri 2.9', category: 'desktop', description: 'Cross-platform desktop apps' },
-  { name: 'Zustand', category: 'state', description: 'Lightweight state management' },
-  { name: 'shadcn/ui', category: 'components', description: 'Beautiful UI components' },
+  { name: 'Stellarium Web Engine', category: 'core', description: 'Realistic sky rendering engine', i18nKey: 'stellariumEngine' },
+  { name: 'Next.js 16', category: 'framework', description: 'React framework with App Router', i18nKey: 'nextjs' },
+  { name: 'React 19', category: 'framework', description: 'Latest React with Server Components', i18nKey: 'react' },
+  { name: 'TypeScript', category: 'language', description: 'Type-safe JavaScript', i18nKey: 'typescript' },
+  { name: 'Tailwind CSS v4', category: 'styling', description: 'Utility-first CSS framework', i18nKey: 'tailwind' },
+  { name: 'Tauri 2.9', category: 'desktop', description: 'Cross-platform desktop apps', i18nKey: 'tauri' },
+  { name: 'Zustand', category: 'state', description: 'Lightweight state management', i18nKey: 'zustand' },
+  { name: 'shadcn/ui', category: 'components', description: 'Beautiful UI components', i18nKey: 'shadcnui' },
 ];
 
 // ============================================================================

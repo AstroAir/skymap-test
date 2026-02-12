@@ -81,7 +81,7 @@ export function Footer() {
           </div>
 
           {/* Links */}
-          <div>
+          <nav aria-label="Footer links">
             <h4 className="font-semibold text-foreground mb-4">{t('links')}</h4>
             <TooltipProvider>
               <ul className="space-y-2">
@@ -90,7 +90,7 @@ export function Footer() {
                 <FooterLink href="https://stellarium.org" icon={BookOpen} label={t('stellarium')} tooltip={t('stellariumTooltip')} external />
               </ul>
             </TooltipProvider>
-          </div>
+          </nav>
 
           {/* Credits */}
           <div>

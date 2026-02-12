@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
+import { Sparkles } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
@@ -216,10 +217,11 @@ export function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: Phe
         </Badge>
       </div>
       
-      <ScrollArea className="h-[420px] border rounded-lg">
+      <ScrollArea className="h-[400px] border rounded-lg">
         {phenomena.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
-            {t('astroCalc.noPhenomena')}
+          <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+            <Sparkles className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm font-medium">{t('astroCalc.noPhenomena')}</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -253,11 +255,11 @@ export function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: Phe
       </ScrollArea>
       
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>☌ {t('astroCalc.conjunction')}</span>
-        <span>☍ {t('astroCalc.opposition')}</span>
-        <span>◐ {t('astroCalc.elongation')}</span>
-        <span>↔ {t('astroCalc.closeApproach')}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="text-[10px] gap-1 font-normal">☌ {t('astroCalc.conjunction')}</Badge>
+        <Badge variant="outline" className="text-[10px] gap-1 font-normal">☍ {t('astroCalc.opposition')}</Badge>
+        <Badge variant="outline" className="text-[10px] gap-1 font-normal">◐ {t('astroCalc.elongation')}</Badge>
+        <Badge variant="outline" className="text-[10px] gap-1 font-normal">↔ {t('astroCalc.closeApproach')}</Badge>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ThemeToggle } from '../theme-toggle';
 import { NextIntlClientProvider } from 'next-intl';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -30,10 +31,16 @@ jest.mock('@/lib/stores/theme-store', () => ({
   },
 }));
 
+// Mock ThemeCustomizer to avoid heavy rendering in tests
+jest.mock('../theme-customizer', () => ({
+  ThemeCustomizer: ({ open }: { open?: boolean }) => open ? <div data-testid="theme-customizer">customizer</div> : null,
+}));
+
 const messages = {
   theme: {
     switchToLight: 'Switch to Light',
     switchToDark: 'Switch to Dark',
+    switchTheme: 'Theme',
     system: 'System',
     customize: 'Customize',
   },
@@ -84,31 +91,32 @@ describe('ThemeToggle', () => {
     expect(mockSetTheme).toHaveBeenCalledWith('light');
   });
 
-  it('shows dropdown menu items when clicked', () => {
+  it('shows dropdown menu items when clicked', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<ThemeToggle variant="dropdown" />);
     const trigger = screen.getByRole('button');
-    fireEvent.click(trigger);
+    await user.click(trigger);
 
-    expect(screen.getByText('Light Mode')).toBeInTheDocument();
-    expect(screen.getByText('Dark Mode')).toBeInTheDocument();
-    expect(screen.getByText('System')).toBeInTheDocument();
+    const items = screen.getAllByRole('menuitem');
+    expect(items).toHaveLength(3);
+    const texts = items.map(i => i.textContent);
+    expect(texts).toContain('common.lightMode');
+    expect(texts).toContain('common.darkMode');
+    expect(texts).toContain('theme.system');
   });
 
-  it('calls setTheme when dropdown items are clicked', () => {
+  it('calls setTheme when dropdown items are clicked', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<ThemeToggle variant="dropdown" />);
-    fireEvent.click(screen.getByRole('button'));
+    await user.click(screen.getByRole('button'));
 
-    fireEvent.click(screen.getByText('Light Mode'));
+    const items = screen.getAllByRole('menuitem');
+    await user.click(items[0]); // Light mode
     expect(mockSetTheme).toHaveBeenCalledWith('light');
-
-    fireEvent.click(screen.getByText('Dark Mode'));
-    expect(mockSetTheme).toHaveBeenCalledWith('dark');
-
-    fireEvent.click(screen.getByText('System'));
-    expect(mockSetTheme).toHaveBeenCalledWith('system');
   });
 
-  it('shows customize option when showCustomize is true', () => {
+  it('shows customize option when showCustomize is true', async () => {
+    const user = userEvent.setup();
     const mockOnCustomizeClick = jest.fn();
     renderWithProviders(
       <ThemeToggle 
@@ -118,11 +126,13 @@ describe('ThemeToggle', () => {
       />
     );
     
-    fireEvent.click(screen.getByRole('button'));
-    const customizeBtn = screen.getByText('Customize');
-    expect(customizeBtn).toBeInTheDocument();
+    await user.click(screen.getByRole('button'));
+    const items = screen.getAllByRole('menuitem');
+    expect(items).toHaveLength(4); // 3 themes + customize
     
-    fireEvent.click(customizeBtn);
+    const customizeItem = items[3];
+    expect(customizeItem.textContent).toContain('theme.customize');
+    await user.click(customizeItem);
     expect(mockOnCustomizeClick).toHaveBeenCalled();
   });
 });

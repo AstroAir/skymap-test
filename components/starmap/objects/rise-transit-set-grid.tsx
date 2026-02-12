@@ -5,14 +5,7 @@ import { useTranslations } from 'next-intl';
 import { ChevronUp, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatTimeShort } from '@/lib/astronomy/astro-utils';
-import type { TargetVisibility } from '@/lib/core/types';
-
-interface RiseTransitSetGridProps {
-  visibility: TargetVisibility;
-  /** 'compact' for InfoPanel, 'full' for ObjectDetailDrawer */
-  variant?: 'compact' | 'full';
-  className?: string;
-}
+import type { RiseTransitSetGridProps } from '@/types/starmap/objects';
 
 export const RiseTransitSetGrid = memo(function RiseTransitSetGrid({
   visibility,

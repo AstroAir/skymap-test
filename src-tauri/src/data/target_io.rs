@@ -182,6 +182,9 @@ fn export_csv(targets: &[TargetExportItem]) -> String {
 }
 
 fn import_csv(content: &str) -> ImportTargetsResult {
+    // Strip UTF-8 BOM if present
+    let content = content.strip_prefix('\u{FEFF}').unwrap_or(content);
+
     let mut targets = Vec::new();
     let mut errors = Vec::new();
     let mut skipped = 0;
@@ -195,20 +198,45 @@ fn import_csv(content: &str) -> ImportTargetsResult {
         };
     }
 
-    for (i, line) in lines.iter().enumerate().skip(1) {
+    // Auto-detect separator: if first line contains tabs, use TSV mode
+    let use_tsv = lines.first().map(|l| l.contains('\t')).unwrap_or(false);
+
+    // Detect header row: skip if it looks like a header (case-insensitive check)
+    let skip_header = lines.first().map(|l| {
+        let lower = l.to_lowercase();
+        lower.contains("name") && (lower.contains("ra") || lower.contains("right"))
+    }).unwrap_or(false);
+    let start_line = if skip_header { 1 } else { 0 };
+
+    for (i, line) in lines.iter().enumerate().skip(start_line) {
         if line.trim().is_empty() { continue; }
-        let fields = parse_csv_line(line);
-        if fields.len() < 4 {
-            errors.push(format!("Line {}: insufficient fields", i + 1));
+
+        let fields = if use_tsv {
+            line.split('\t').map(|s| s.trim().to_string()).collect::<Vec<_>>()
+        } else {
+            parse_csv_line(line)
+        };
+
+        if fields.len() < 3 {
+            errors.push(format!("Line {}: insufficient fields ({})", i + 1, fields.len()));
             skipped += 1;
             continue;
         }
 
         let get_field = |idx: usize| -> &str { fields.get(idx).map(|s| s.as_str()).unwrap_or("") };
         let (ra, dec) = if let (Ok(ra), Ok(dec)) = (get_field(1).parse::<f64>(), get_field(2).parse::<f64>()) {
-            (ra, dec)
-        } else {
+            match validate_coordinates(ra, dec) {
+                Some(coords) => coords,
+                None => { errors.push(format!("Line {}: coords out of range", i + 1)); skipped += 1; continue; }
+            }
+        } else if fields.len() >= 5 {
             match parse_coordinates(get_field(3), get_field(4)) {
+                Some((ra, dec)) => (ra, dec),
+                None => { errors.push(format!("Line {}: invalid coords", i + 1)); skipped += 1; continue; }
+            }
+        } else {
+            // Try parsing first two non-name fields as coordinate strings
+            match parse_coordinates(get_field(1), get_field(2)) {
                 Some((ra, dec)) => (ra, dec),
                 None => { errors.push(format!("Line {}: invalid coords", i + 1)); skipped += 1; continue; }
             }
@@ -216,7 +244,8 @@ fn import_csv(content: &str) -> ImportTargetsResult {
 
         targets.push(TargetExportItem {
             name: get_field(0).to_string(), ra, dec,
-            ra_string: get_field(3).to_string(), dec_string: get_field(4).to_string(),
+            ra_string: if fields.len() > 3 { get_field(3).to_string() } else { String::new() },
+            dec_string: if fields.len() > 4 { get_field(4).to_string() } else { String::new() },
             object_type: fields.get(5).map(|s| s.to_string()).filter(|s| !s.is_empty()),
             constellation: fields.get(6).map(|s| s.to_string()).filter(|s| !s.is_empty()),
             magnitude: fields.get(7).and_then(|s| s.parse().ok()),
@@ -334,6 +363,8 @@ fn parse_ra(s: &str) -> Option<f64> {
         let h: f64 = caps.get(1)?.as_str().parse().ok()?;
         let m: f64 = caps.get(2)?.as_str().parse().ok()?;
         let sec: f64 = caps.get(3)?.as_str().parse().ok()?;
+        // Validate component ranges
+        if h >= 24.0 || m >= 60.0 || sec >= 60.0 { return None; }
         return Some((h + m / 60.0 + sec / 3600.0) * 15.0);
     }
     None
@@ -343,10 +374,14 @@ fn parse_dec(s: &str) -> Option<f64> {
     let s = s.trim();
     if let Ok(deg) = s.parse::<f64>() { return Some(deg); }
     if let Some(caps) = DEC_REGEX.captures(s) {
-        let d: f64 = caps.get(1)?.as_str().parse().ok()?;
+        let d_str = caps.get(1)?.as_str();
+        let d: f64 = d_str.parse().ok()?;
         let m: f64 = caps.get(2)?.as_str().parse().ok()?;
         let sec: f64 = caps.get(3)?.as_str().parse().ok()?;
-        let sign = if d < 0.0 { -1.0 } else { 1.0 };
+        // Validate component ranges
+        if m >= 60.0 || sec >= 60.0 { return None; }
+        // Use string sign check to handle -0° correctly (IEEE 754: -0.0 < 0.0 is false)
+        let sign = if d_str.starts_with('-') { -1.0 } else { 1.0 };
         return Some(sign * (d.abs() + m / 60.0 + sec / 3600.0));
     }
     None

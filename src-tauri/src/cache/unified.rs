@@ -29,6 +29,8 @@ struct CacheIndexState {
     index: CacheIndex,
     dirty: bool,
     last_persist: i64,
+    hits: u64,
+    misses: u64,
 }
 
 impl CacheIndexState {
@@ -37,6 +39,8 @@ impl CacheIndexState {
             index,
             dirty: false,
             last_persist: Utc::now().timestamp_millis(),
+            hits: 0,
+            misses: 0,
         }
     }
 }
@@ -57,6 +61,10 @@ pub struct CacheEntryMeta {
     pub timestamp: i64,
     pub ttl: i64,
     pub etag: Option<String>,
+    #[serde(default)]
+    pub access_count: u64,
+    #[serde(default)]
+    pub last_access: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -78,8 +86,12 @@ pub struct UnifiedCacheResponse {
 pub struct UnifiedCacheStats {
     pub total_entries: usize,
     pub total_size: u64,
+    pub max_size: u64,
+    pub max_entries: usize,
+    pub hit_rate: f64,
     pub expired_entries: usize,
     pub expired_size: u64,
+    pub last_cleanup: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,18 +164,27 @@ fn update_cache_index(app: &AppHandle, index: CacheIndex, force_persist: bool) -
         None => true,
     };
     
+    let (prev_hits, prev_misses) = match &*guard {
+        Some(state) => (state.hits, state.misses),
+        None => (0, 0),
+    };
+    
     if should_persist {
         save_cache_index_to_disk(app, &index)?;
         *guard = Some(CacheIndexState {
             index,
             dirty: false,
             last_persist: now,
+            hits: prev_hits,
+            misses: prev_misses,
         });
     } else {
         *guard = Some(CacheIndexState {
             index,
             dirty: true,
             last_persist: guard.as_ref().map(|s| s.last_persist).unwrap_or(now),
+            hits: prev_hits,
+            misses: prev_misses,
         });
     }
     
@@ -182,6 +203,8 @@ fn flush_cache_index(app: &AppHandle) -> Result<(), StorageError> {
                 index: state.index.clone(),
                 dirty: false,
                 last_persist: Utc::now().timestamp_millis(),
+                hits: state.hits,
+                misses: state.misses,
             });
         }
     }
@@ -199,15 +222,19 @@ fn invalidate_cache_index() {
 
 #[tauri::command]
 pub async fn get_unified_cache_entry(app: AppHandle, key: String) -> Result<Option<UnifiedCacheResponse>, StorageError> {
-    let index = get_cache_index(&app)?;
+    let mut index = get_cache_index(&app)?;
     let meta = match index.entries.get(&key) {
         Some(m) => m.clone(),
-        None => return Ok(None),
+        None => {
+            record_cache_miss();
+            return Ok(None);
+        }
     };
 
     if meta.ttl > 0 {
         let now = Utc::now().timestamp_millis();
         if now > meta.timestamp + meta.ttl {
+            record_cache_miss();
             delete_unified_cache_entry(app, key).await?;
             return Ok(None);
         }
@@ -215,10 +242,20 @@ pub async fn get_unified_cache_entry(app: AppHandle, key: String) -> Result<Opti
 
     let data_path = get_cache_data_dir(&app)?.join(key_to_filename(&key));
     if !data_path.exists() {
+        record_cache_miss();
         // Clean up orphaned index entry
         delete_unified_cache_entry(app, key).await?;
         return Ok(None);
     }
+
+    // Update access tracking
+    let now = Utc::now().timestamp_millis();
+    if let Some(entry) = index.entries.get_mut(&key) {
+        entry.access_count += 1;
+        entry.last_access = now;
+    }
+    update_cache_index(&app, index, false)?;
+    record_cache_hit();
 
     Ok(Some(UnifiedCacheResponse {
         data: fs::read(&data_path)?,
@@ -228,6 +265,80 @@ pub async fn get_unified_cache_entry(app: AppHandle, key: String) -> Result<Opti
     }))
 }
 
+/// Record a cache hit in the in-memory state
+fn record_cache_hit() {
+    if let Ok(mut guard) = get_cache_index_mutex().lock() {
+        if let Some(state) = guard.as_mut() {
+            state.hits += 1;
+        }
+    }
+}
+
+/// Record a cache miss in the in-memory state
+fn record_cache_miss() {
+    if let Ok(mut guard) = get_cache_index_mutex().lock() {
+        if let Some(state) = guard.as_mut() {
+            state.misses += 1;
+        }
+    }
+}
+
+/// Get cache hit rate from in-memory state
+fn get_hit_rate() -> f64 {
+    if let Ok(guard) = get_cache_index_mutex().lock() {
+        if let Some(state) = &*guard {
+            let total = state.hits + state.misses;
+            if total > 0 {
+                return state.hits as f64 / total as f64;
+            }
+        }
+    }
+    0.0
+}
+
+/// Evict the N least-recently-accessed entries from the cache
+fn evict_lru_entries(app: &AppHandle, index: &mut CacheIndex, count: usize) -> Result<u64, StorageError> {
+    let data_dir = get_cache_data_dir(app)?;
+    let mut entries: Vec<(String, i64, u64)> = index.entries.iter()
+        .map(|(k, m)| (k.clone(), m.last_access, m.size_bytes))
+        .collect();
+    entries.sort_by_key(|(_, last_access, _)| *last_access);
+
+    let mut deleted = 0u64;
+    for (key, _, size) in entries.into_iter().take(count) {
+        let path = data_dir.join(key_to_filename(&key));
+        let _ = fs::remove_file(&path);
+        index.entries.remove(&key);
+        index.total_size = index.total_size.saturating_sub(size);
+        deleted += 1;
+    }
+    Ok(deleted)
+}
+
+/// Evict least-recently-accessed entries until at least `target_bytes` are freed
+fn evict_lru_by_size(app: &AppHandle, index: &mut CacheIndex, target_bytes: u64) -> Result<u64, StorageError> {
+    let data_dir = get_cache_data_dir(app)?;
+    let mut entries: Vec<(String, i64, u64)> = index.entries.iter()
+        .map(|(k, m)| (k.clone(), m.last_access, m.size_bytes))
+        .collect();
+    entries.sort_by_key(|(_, last_access, _)| *last_access);
+
+    let mut freed = 0u64;
+    let mut deleted = 0u64;
+    for (key, _, size) in entries {
+        if freed >= target_bytes {
+            break;
+        }
+        let path = data_dir.join(key_to_filename(&key));
+        let _ = fs::remove_file(&path);
+        index.entries.remove(&key);
+        index.total_size = index.total_size.saturating_sub(size);
+        freed += size;
+        deleted += 1;
+    }
+    Ok(deleted)
+}
+
 #[tauri::command]
 pub async fn put_unified_cache_entry(app: AppHandle, key: String, data: Vec<u8>, content_type: String, ttl: i64) -> Result<(), StorageError> {
     let mut index = get_cache_index(&app)?;
@@ -235,14 +346,16 @@ pub async fn put_unified_cache_entry(app: AppHandle, key: String, data: Vec<u8>,
     if index.entries.len() >= security::limits::MAX_CACHE_ENTRIES {
         let _ = cleanup_expired_entries_internal(&app, &mut index);
         if index.entries.len() >= security::limits::MAX_CACHE_ENTRIES {
-            return Err(StorageError::Other(format!("Cache entry limit reached ({})", security::limits::MAX_CACHE_ENTRIES)));
+            let evict_count = index.entries.len() / 10;
+            evict_lru_entries(&app, &mut index, evict_count)?;
         }
     }
 
     if index.total_size + data.len() as u64 > security::limits::MAX_CACHE_TOTAL_SIZE as u64 {
         let _ = cleanup_expired_entries_internal(&app, &mut index);
         if index.total_size + data.len() as u64 > security::limits::MAX_CACHE_TOTAL_SIZE as u64 {
-            return Err(StorageError::Other(format!("Cache size limit reached ({} bytes)", security::limits::MAX_CACHE_TOTAL_SIZE)));
+            let target = (index.total_size + data.len() as u64).saturating_sub(security::limits::MAX_CACHE_TOTAL_SIZE as u64);
+            evict_lru_by_size(&app, &mut index, target)?;
         }
     }
 
@@ -254,8 +367,10 @@ pub async fn put_unified_cache_entry(app: AppHandle, key: String, data: Vec<u8>,
         index.total_size = index.total_size.saturating_sub(old_meta.size_bytes);
     }
 
+    let now = Utc::now().timestamp_millis();
     index.entries.insert(key.clone(), CacheEntryMeta {
-        key, content_type, size_bytes, timestamp: Utc::now().timestamp_millis(), ttl, etag: None,
+        key, content_type, size_bytes, timestamp: now, ttl, etag: None,
+        access_count: 0, last_access: now,
     });
     index.total_size += size_bytes;
     update_cache_index(&app, index, false)?;
@@ -310,7 +425,16 @@ pub async fn get_unified_cache_stats(app: AppHandle) -> Result<UnifiedCacheStats
             expired_size += meta.size_bytes;
         }
     }
-    Ok(UnifiedCacheStats { total_entries: index.entries.len(), total_size: index.total_size, expired_entries: expired_count, expired_size })
+    Ok(UnifiedCacheStats {
+        total_entries: index.entries.len(),
+        total_size: index.total_size,
+        max_size: security::limits::MAX_CACHE_TOTAL_SIZE as u64,
+        max_entries: security::limits::MAX_CACHE_ENTRIES,
+        hit_rate: get_hit_rate(),
+        expired_entries: expired_count,
+        expired_size,
+        last_cleanup: index.last_cleanup.map(|dt| dt.to_rfc3339()),
+    })
 }
 
 fn cleanup_expired_entries_internal(app: &AppHandle, index: &mut CacheIndex) -> Result<u64, StorageError> {
@@ -489,6 +613,8 @@ mod tests {
             timestamp: 1704067200000,
             ttl: 3600000,
             etag: Some("abc123".to_string()),
+            access_count: 0,
+            last_access: 1704067200000,
         };
 
         let json = serde_json::to_string(&meta).unwrap();
@@ -525,6 +651,8 @@ mod tests {
             timestamp: 0,
             ttl: 1000,
             etag: None,
+            access_count: 0,
+            last_access: 0,
         };
 
         let cloned = meta.clone();
@@ -556,6 +684,8 @@ mod tests {
                 timestamp: 0,
                 ttl: 1000,
                 etag: None,
+                access_count: 0,
+                last_access: 0,
             },
         );
         index.total_size = 100;
@@ -618,8 +748,12 @@ mod tests {
         let stats = UnifiedCacheStats {
             total_entries: 100,
             total_size: 1024 * 1024,
+            max_size: 1024 * 1024 * 1024,
+            max_entries: 10000,
+            hit_rate: 0.85,
             expired_entries: 10,
             expired_size: 50000,
+            last_cleanup: None,
         };
 
         let json = serde_json::to_string(&stats).unwrap();
@@ -634,13 +768,18 @@ mod tests {
         let json = r#"{
             "total_entries": 50,
             "total_size": 500000,
+            "max_size": 1073741824,
+            "max_entries": 10000,
+            "hit_rate": 0.75,
             "expired_entries": 5,
-            "expired_size": 25000
+            "expired_size": 25000,
+            "last_cleanup": null
         }"#;
 
         let stats: UnifiedCacheStats = serde_json::from_str(json).unwrap();
         assert_eq!(stats.total_entries, 50);
         assert_eq!(stats.total_size, 500000);
+        assert_eq!(stats.max_entries, 10000);
         assert_eq!(stats.expired_entries, 5);
         assert_eq!(stats.expired_size, 25000);
     }
@@ -703,6 +842,8 @@ mod tests {
             timestamp: 1000,
             ttl: 5000,
             etag: Some("W/\"abc123\"".to_string()),
+            access_count: 0,
+            last_access: 1000,
         };
 
         let json = serde_json::to_string(&meta).unwrap();
@@ -724,6 +865,8 @@ mod tests {
                     timestamp: 0,
                     ttl: 1000,
                     etag: None,
+                    access_count: 0,
+                    last_access: 0,
                 },
             );
         }

@@ -5,8 +5,6 @@
 
 import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
 import type { StellariumSettings as FullStellariumSettings } from '@/lib/core/types/stellarium';
-import type { MosaicSettings, GridType } from '@/lib/stores';
-import type { SkyMarker } from '@/lib/stores/marker-store';
 
 // ============================================================================
 // Selection Types (shared between RightControlPanel and MobileLayout)
@@ -56,31 +54,7 @@ export type ContextMenuStellariumSettings = Pick<FullStellariumSettings,
   'dsosVisible' | 'surveyEnabled' | 'atmosphereVisible'
 >;
 
-export interface CanvasContextMenuProps {
-  open: boolean;
-  position: { x: number; y: number };
-  coords: ClickCoords | null;
-  selectedObject: SelectedObjectData | null;
-  mountConnected: boolean;
-  fovSimEnabled: boolean;
-  mosaic: MosaicSettings;
-  stellariumSettings: ContextMenuStellariumSettings;
-  onOpenChange: (open: boolean) => void;
-  onAddToTargetList: () => void;
-  onNavigateToCoords: () => void;
-  onOpenGoToDialog: () => void;
-  onSetPendingMarkerCoords: (coords: { ra: number; dec: number; raString: string; decString: string }) => void;
-  onSetFramingCoordinates: (data: { ra: number; dec: number; raString: string; decString: string; name: string }) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onSetFov: (fov: number) => void;
-  onSetFovSimEnabled: (enabled: boolean) => void;
-  onSetRotationAngle: (angle: number) => void;
-  onSetMosaic: (mosaic: MosaicSettings) => void;
-  onToggleStellariumSetting: (key: keyof ContextMenuStellariumSettings) => void;
-  onToggleSearch: () => void;
-  onResetView: () => void;
-}
+// CanvasContextMenuProps is defined locally in canvas-context-menu.tsx
 
 // ============================================================================
 // BottomStatusBar
@@ -122,25 +96,7 @@ export interface MobileLayoutProps {
   onGoToCoordinates: (ra: number, dec: number) => void;
 }
 
-// ============================================================================
-// OverlaysContainer
-// ============================================================================
-
-export interface OverlaysContainerProps {
-  containerBounds: { width: number; height: number } | undefined;
-  fovEnabled: boolean;
-  sensorWidth: number;
-  sensorHeight: number;
-  focalLength: number;
-  currentFov: number;
-  rotationAngle: number;
-  mosaic: MosaicSettings;
-  gridType: GridType;
-  onRotationChange: (angle: number) => void;
-  onMarkerDoubleClick: (marker: SkyMarker) => void;
-  onMarkerEdit: (marker: SkyMarker) => void;
-  onMarkerNavigate: (marker: SkyMarker) => void;
-}
+// OverlaysContainerProps is defined locally in overlays-container.tsx
 
 // ============================================================================
 // GoToCoordinatesDialog

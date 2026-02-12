@@ -29,11 +29,16 @@ export function UpdateSettings({ className }: UpdateSettingsProps) {
   
   const {
     currentVersion,
+    lastChecked,
     isChecking,
     hasUpdate,
     updateInfo,
     checkForUpdate,
   } = useUpdater({ autoCheck: autoUpdate });
+
+  const lastCheckedText = lastChecked
+    ? t('lastChecked', { time: new Date(lastChecked).toLocaleString() })
+    : t('neverChecked');
 
   return (
     <div className={className}>
@@ -43,6 +48,9 @@ export function UpdateSettings({ className }: UpdateSettingsProps) {
             <Label className="text-base">{t('title')}</Label>
             <p className="text-sm text-muted-foreground">
               {t('currentVersion', { version: currentVersion || '0.0.0' })}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {lastCheckedText}
             </p>
           </div>
           

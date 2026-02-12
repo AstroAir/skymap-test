@@ -126,9 +126,77 @@ jest.mock('@/components/ui/label', () => ({
   ),
 }));
 
+jest.mock('@/components/ui/select', () => ({
+  Select: ({
+    children,
+    value,
+    onValueChange,
+  }: {
+    children: React.ReactNode;
+    value?: string;
+    onValueChange?: (value: string) => void;
+  }) => (
+    <div data-testid="select" data-value={value}>
+      <select
+        value={value}
+        onChange={(e) => onValueChange?.(e.target.value)}
+        data-testid="select-native"
+      >
+        {children}
+      </select>
+    </div>
+  ),
+  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
+    <option value={value}>{children}</option>
+  ),
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectValue: () => null,
+}));
+
 jest.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="scroll-area">{children}</div>
+  ),
+}));
+
+jest.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({
+    children,
+    open,
+  }: {
+    children: React.ReactNode;
+    open?: boolean;
+  }) => (
+    open ? <div data-testid="alert-dialog">{children}</div> : null
+  ),
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="alert-dialog-content">{children}</div>
+  ),
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="alert-dialog-header">{children}</div>
+  ),
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2 data-testid="alert-dialog-title">{children}</h2>
+  ),
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <p data-testid="alert-dialog-description">{children}</p>
+  ),
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="alert-dialog-footer">{children}</div>
+  ),
+  AlertDialogCancel: ({ children }: { children: React.ReactNode }) => (
+    <button data-testid="alert-dialog-cancel">{children}</button>
+  ),
+  AlertDialogAction: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    className?: string;
+  }) => (
+    <button data-testid="alert-dialog-action" onClick={onClick}>{children}</button>
   ),
 }));
 
@@ -386,14 +454,19 @@ describe('LocationManager', () => {
       const latInput = screen.getByPlaceholderText('39.9042');
       const lonInput = screen.getByPlaceholderText('116.4074');
       const altInput = screen.getByPlaceholderText('100');
-      const bortleInput = screen.getByPlaceholderText('4');
 
       await act(async () => {
         fireEvent.change(nameInput, { target: { value: 'Test Site' } });
         fireEvent.change(latInput, { target: { value: '40.5' } });
         fireEvent.change(lonInput, { target: { value: '-73.5' } });
         fireEvent.change(altInput, { target: { value: '200' } });
-        fireEvent.change(bortleInput, { target: { value: '5' } });
+      });
+
+      // Change bortle class via select
+      const bortleSelects = screen.getAllByTestId('select-native');
+      const bortleSelect = bortleSelects[bortleSelects.length - 1];
+      await act(async () => {
+        fireEvent.change(bortleSelect, { target: { value: '5' } });
       });
 
       const saveButton = screen.getByText(/common\.save/);
@@ -480,8 +553,14 @@ describe('LocationManager', () => {
       );
       expect(deleteButtons.length).toBeGreaterThan(0);
 
+      // Click delete button opens confirmation dialog
       await act(async () => {
-        fireEvent.click(deleteButtons[deleteButtons.length - 1]); // Last ghost button is delete
+        fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+      });
+
+      // Confirm deletion in AlertDialog
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('alert-dialog-action'));
       });
 
       await waitFor(() => {
@@ -520,8 +599,14 @@ describe('LocationManager', () => {
         (btn) => btn.getAttribute('data-variant') === 'ghost'
       );
 
+      // Click delete button opens confirmation dialog
       await act(async () => {
         fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+      });
+
+      // Confirm deletion in AlertDialog
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('alert-dialog-action'));
       });
 
       await waitFor(() => {

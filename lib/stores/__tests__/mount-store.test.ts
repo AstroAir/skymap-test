@@ -118,4 +118,50 @@ describe('useMountStore', () => {
       expect(result.current.currentTab).toBe('settings');
     });
   });
+
+  describe('safetyConfig', () => {
+    it('should have default safety config', () => {
+      const { result } = renderHook(() => useMountStore());
+      expect(result.current.safetyConfig).toBeDefined();
+      expect(result.current.safetyConfig.mountType).toBe('gem');
+      expect(result.current.safetyConfig.minAltitude).toBe(15);
+      expect(result.current.safetyConfig.meridianFlip.enabled).toBe(true);
+    });
+
+    it('should update safety config partially', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.setSafetyConfig({ minAltitude: 25, mountType: 'fork' });
+      });
+      expect(result.current.safetyConfig.minAltitude).toBe(25);
+      expect(result.current.safetyConfig.mountType).toBe('fork');
+      // Other fields should remain at defaults
+      expect(result.current.safetyConfig.hourAngleLimitEast).toBe(-90);
+    });
+
+    it('should update meridian flip config partially', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.setSafetyConfig({
+          meridianFlip: { enabled: true, minutesAfterMeridian: 10, maxMinutesAfterMeridian: 20, pauseBeforeMeridian: 3 },
+        });
+      });
+      expect(result.current.safetyConfig.meridianFlip.minutesAfterMeridian).toBe(10);
+      expect(result.current.safetyConfig.meridianFlip.maxMinutesAfterMeridian).toBe(20);
+      expect(result.current.safetyConfig.meridianFlip.pauseBeforeMeridian).toBe(3);
+    });
+
+    it('should reset safety config to defaults', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.setSafetyConfig({ minAltitude: 50, mountType: 'altaz' });
+      });
+      expect(result.current.safetyConfig.minAltitude).toBe(50);
+      act(() => {
+        result.current.resetSafetyConfig();
+      });
+      expect(result.current.safetyConfig.minAltitude).toBe(15);
+      expect(result.current.safetyConfig.mountType).toBe('gem');
+    });
+  });
 });

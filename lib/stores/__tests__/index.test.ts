@@ -66,4 +66,8 @@ describe('Stores Module Exports', () => {
     expect(stores.findCameraById).toBeDefined();
     expect(stores.findTelescopeById).toBeDefined();
   });
+
+  it('exports useEventSourcesStore', () => {
+    expect(stores.useEventSourcesStore).toBeDefined();
+  });
 });

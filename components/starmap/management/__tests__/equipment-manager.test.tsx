@@ -27,6 +27,8 @@ jest.mock('@/lib/tauri', () => {
         addBarlowReducer: jest.fn(),
         addEyepiece: jest.fn(),
         addFilter: jest.fn(),
+        updateTelescope: jest.fn(),
+        updateCamera: jest.fn(),
         delete: jest.fn(),
         setDefault: jest.fn(),
       },
@@ -381,7 +383,7 @@ describe('EquipmentManager', () => {
       });
 
       // Form should appear with inputs
-      expect(screen.getByPlaceholderText('e.g. Newton 200/1000')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('equipment.telescopeNamePlaceholder')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('200')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('1000')).toBeInTheDocument();
     });
@@ -448,7 +450,7 @@ describe('EquipmentManager', () => {
       });
 
       // Fill form
-      const nameInput = screen.getByPlaceholderText('e.g. Newton 200/1000');
+      const nameInput = screen.getByPlaceholderText('equipment.telescopeNamePlaceholder');
       const apertureInput = screen.getByPlaceholderText('200');
       const focalLengthInput = screen.getByPlaceholderText('1000');
 
@@ -487,7 +489,7 @@ describe('EquipmentManager', () => {
         fireEvent.click(addButton);
       });
 
-      const nameInput = screen.getByPlaceholderText('e.g. Newton 200/1000');
+      const nameInput = screen.getByPlaceholderText('equipment.telescopeNamePlaceholder');
       const apertureInput = screen.getByPlaceholderText('200');
       const focalLengthInput = screen.getByPlaceholderText('1000');
 
@@ -604,7 +606,7 @@ describe('EquipmentManager', () => {
         fireEvent.click(addButton);
       });
 
-      expect(screen.getByPlaceholderText('e.g. ASI294MC Pro')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('equipment.cameraNamePlaceholder')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('23.2')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('15.5')).toBeInTheDocument();
     });
@@ -643,7 +645,7 @@ describe('EquipmentManager', () => {
         fireEvent.click(addButton);
       });
 
-      const nameInput = screen.getByPlaceholderText('e.g. ASI294MC Pro');
+      const nameInput = screen.getByPlaceholderText('equipment.cameraNamePlaceholder');
       const widthInput = screen.getByPlaceholderText('23.2');
       const heightInput = screen.getByPlaceholderText('15.5');
 
@@ -685,7 +687,7 @@ describe('EquipmentManager', () => {
         fireEvent.click(addButton);
       });
 
-      const nameInput = screen.getByPlaceholderText('e.g. ASI294MC Pro');
+      const nameInput = screen.getByPlaceholderText('equipment.cameraNamePlaceholder');
       const widthInput = screen.getByPlaceholderText('23.2');
       const heightInput = screen.getByPlaceholderText('15.5');
 

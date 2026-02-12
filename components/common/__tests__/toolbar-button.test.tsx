@@ -107,6 +107,17 @@ describe('ToolbarGroup', () => {
     expect(screen.getByTestId('child-2')).toBeInTheDocument();
   });
 
+  it('has role="toolbar" and aria-orientation="horizontal"', () => {
+    render(
+      <ToolbarGroup>
+        <div>Child</div>
+      </ToolbarGroup>
+    );
+    const toolbar = screen.getByRole('toolbar');
+    expect(toolbar).toBeInTheDocument();
+    expect(toolbar).toHaveAttribute('aria-orientation', 'horizontal');
+  });
+
   it('applies gap classes', () => {
     const { rerender, container } = render(
       <ToolbarGroup gap="none">

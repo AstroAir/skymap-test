@@ -3,25 +3,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  Download,
   Trash2,
   Cloud,
   CloudOff,
-  Check,
   Loader2,
   HardDrive,
   Package,
   RefreshCw,
   Telescope,
-  AlertTriangle,
-  CheckCircle2,
-  Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,34 +36,24 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import { useOfflineStore, formatBytes, STELLARIUM_LAYERS, offlineCacheManager, convertToHiPSSurvey, type HiPSCacheStatus, type StorageInfo } from '@/lib/offline';
-import { SKY_SURVEYS } from '@/lib/core/constants';
-import { cn } from '@/lib/utils';
+import { useOfflineStore, formatBytes, STELLARIUM_LAYERS, offlineCacheManager, type StorageInfo } from '@/lib/offline';
 import { toast } from 'sonner';
 import { useCache } from '@/lib/tauri/hooks';
-import { unifiedCacheApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
 import { createLogger } from '@/lib/logger';
+
+import { CacheLayersTab } from './cache-layers-tab';
+import { CacheSurveysTab } from './cache-surveys-tab';
+import { CacheUnifiedTab } from './cache-unified-tab';
 
 const logger = createLogger('offline-cache-manager');
 
 export function OfflineCacheManager() {
   const t = useTranslations();
-  const [selectedLayers, setSelectedLayers] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'layers' | 'surveys' | 'unified'>('layers');
-  
-  // HiPS survey cache state
-  const [surveyStatuses, setSurveyStatuses] = useState<Record<string, HiPSCacheStatus>>({});
-  const [downloadingSurveys, setDownloadingSurveys] = useState<string[]>([]);
   
   // Storage info state
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
-  const [repairingLayers, setRepairingLayers] = useState<string[]>([]);
-  
-  // Unified cache state (desktop only)
-  const [unifiedCacheStats, setUnifiedCacheStats] = useState<{ total_entries: number; total_size: number; hit_rate: number } | null>(null);
-  const [unifiedCacheKeys, setUnifiedCacheKeys] = useState<string[]>([]);
-  const [loadingUnified, setLoadingUnified] = useState(false);
   
   // Tauri cache hook for desktop-specific cache management
   const tauriCache = useCache();
@@ -79,15 +63,11 @@ export function OfflineCacheManager() {
     isInitialized,
     layerStatuses,
     isDownloading,
-    currentDownloads,
     autoDownloadOnWifi,
     initialize,
     refreshStatuses,
-    downloadLayer,
     downloadAllLayers,
-    downloadSelectedLayers,
     cancelAllDownloads,
-    clearLayer,
     clearAllCache,
     setAutoDownloadOnWifi,
   } = useOfflineStore();
@@ -102,7 +82,6 @@ export function OfflineCacheManager() {
   // Fetch storage info - use Tauri stats when available
   const refreshStorageInfo = useCallback(async () => {
     try {
-      // If Tauri is available, also refresh Tauri cache
       if (tauriCache.isAvailable) {
         await tauriCache.refresh();
       }
@@ -114,200 +93,11 @@ export function OfflineCacheManager() {
     }
   }, [tauriCache, t]);
 
-  // Refresh storage info on mount and after operations
+  // Refresh storage info on mount
   useEffect(() => {
     refreshStorageInfo();
-  }, [refreshStorageInfo, layerStatuses]);
-
-  // Repair incomplete layer cache
-  const handleRepairLayer = useCallback(async (layerId: string) => {
-    if (repairingLayers.includes(layerId)) return;
-    
-    setRepairingLayers(prev => [...prev, layerId]);
-    toast.loading(t('cache.repairing'), { id: `repair-${layerId}` });
-    
-    try {
-      const result = await offlineCacheManager.verifyAndRepairLayer(layerId);
-      toast.dismiss(`repair-${layerId}`);
-      
-      if (result.verified) {
-        toast.success(t('cache.repairComplete'), {
-          description: result.repaired > 0 
-            ? t('cache.filesRecovered', { count: result.repaired })
-            : t('cache.cacheComplete'),
-        });
-      } else {
-        toast.error(t('cache.repairFailed'), {
-          description: t('cache.filesNotRecovered', { count: result.failed }),
-        });
-      }
-      
-      await refreshStatuses();
-      await refreshStorageInfo();
-    } catch (error) {
-      toast.dismiss(`repair-${layerId}`);
-      toast.error(t('cache.repairFailed'));
-      logger.error('Error repairing layer', error);
-    } finally {
-      setRepairingLayers(prev => prev.filter(id => id !== layerId));
-    }
-  }, [repairingLayers, t, refreshStatuses, refreshStorageInfo]);
-
-  // Fetch survey cache statuses
-  const refreshSurveyStatuses = useCallback(async () => {
-    try {
-      const statuses: Record<string, HiPSCacheStatus> = {};
-      for (const survey of SKY_SURVEYS) {
-        const hipsSurvey = convertToHiPSSurvey(survey);
-        const status = await offlineCacheManager.getHiPSCacheStatus(hipsSurvey);
-        statuses[survey.id] = status;
-      }
-      setSurveyStatuses(statuses);
-    } catch (error) {
-      logger.error('Failed to refresh survey statuses', error);
-      toast.error(t('cache.loadFailed'));
-    }
-  }, [t]);
-
-  // Refresh survey statuses on mount and when tab changes
-  useEffect(() => {
-    if (activeTab === 'surveys') {
-      refreshSurveyStatuses();
-    }
-  }, [activeTab, refreshSurveyStatuses]);
-
-  // Download survey tiles
-  const handleDownloadSurvey = useCallback(async (surveyId: string) => {
-    const survey = SKY_SURVEYS.find(s => s.id === surveyId);
-    if (!survey || downloadingSurveys.includes(surveyId)) return;
-
-    setDownloadingSurveys(prev => [...prev, surveyId]);
-    
-    try {
-      const hipsSurvey = convertToHiPSSurvey(survey);
-      toast.loading(t('survey.downloadingTiles'), { id: `survey-${surveyId}` });
-      
-      const success = await offlineCacheManager.downloadHiPSSurvey(
-        hipsSurvey,
-        3,
-        (progress) => {
-          const percent = Math.round((progress.downloadedFiles / progress.totalFiles) * 100);
-          toast.loading(`${t('survey.downloadingTiles')} ${percent}%`, { id: `survey-${surveyId}` });
-        }
-      );
-      
-      toast.dismiss(`survey-${surveyId}`);
-      
-      if (success) {
-        toast.success(t('survey.downloadComplete'));
-        await refreshSurveyStatuses();
-      } else {
-        toast.error(t('survey.downloadFailed'));
-      }
-    } catch (error) {
-      toast.dismiss(`survey-${surveyId}`);
-      toast.error(t('survey.downloadFailed'));
-      logger.error('Error downloading survey', error);
-    } finally {
-      setDownloadingSurveys(prev => prev.filter(id => id !== surveyId));
-    }
-  }, [downloadingSurveys, t, refreshSurveyStatuses]);
-
-  // Clear survey cache
-  const handleClearSurveyCache = useCallback(async (surveyId: string) => {
-    const success = await offlineCacheManager.clearHiPSCache(surveyId);
-    if (success) {
-      toast.success(t('survey.cacheCleared'));
-      await refreshSurveyStatuses();
-    }
-  }, [t, refreshSurveyStatuses]);
-
-  // Clear all survey caches
-  const handleClearAllSurveyCaches = useCallback(async () => {
-    const success = await offlineCacheManager.clearAllHiPSCaches();
-    if (success) {
-      toast.success(t('survey.cacheCleared'));
-      await refreshSurveyStatuses();
-    }
-  }, [t, refreshSurveyStatuses]);
-
-  // Unified cache functions (desktop only)
-  const refreshUnifiedCache = useCallback(async () => {
-    if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
-    
-    setLoadingUnified(true);
-    try {
-      const [stats, keys] = await Promise.all([
-        unifiedCacheApi.getStats(),
-        unifiedCacheApi.listKeys()
-      ]);
-      setUnifiedCacheStats(stats);
-      setUnifiedCacheKeys(keys);
-    } catch (error) {
-      logger.error('Failed to load unified cache', error);
-      toast.error(t('cache.loadFailed'));
-    } finally {
-      setLoadingUnified(false);
-    }
-  }, [t]);
-
-  const handleClearUnifiedCache = useCallback(async () => {
-    if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
-    
-    try {
-      const deletedCount = await unifiedCacheApi.clearCache();
-      toast.success(t('cache.cleared'), {
-        description: t('cache.entriesRemoved', { count: deletedCount })
-      });
-      await refreshUnifiedCache();
-    } catch (error) {
-      toast.error(t('cache.clearFailed'));
-      logger.error('Failed to clear unified cache', error);
-    }
-  }, [t, refreshUnifiedCache]);
-
-  const handleCleanupUnifiedCache = useCallback(async () => {
-    if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
-    
-    try {
-      const deletedCount = await unifiedCacheApi.cleanup();
-      toast.success(t('cache.cleanupComplete'), {
-        description: t('cache.expiredEntriesRemoved', { count: deletedCount })
-      });
-      await refreshUnifiedCache();
-    } catch (error) {
-      toast.error(t('cache.cleanupFailed'));
-      logger.error('Failed to cleanup unified cache', error);
-    }
-  }, [t, refreshUnifiedCache]);
-
-  // Load unified cache data when tab becomes active
-  useEffect(() => {
-    if (activeTab === 'unified' && isTauri() && unifiedCacheApi.isAvailable()) {
-      refreshUnifiedCache();
-    }
-  }, [activeTab, refreshUnifiedCache]);
-
-  // Toggle layer selection
-  const toggleLayerSelection = (layerId: string) => {
-    setSelectedLayers((prev) => {
-      const next = new Set(prev);
-      if (next.has(layerId)) {
-        next.delete(layerId);
-      } else {
-        next.add(layerId);
-      }
-      return next;
-    });
-  };
-
-  // Download selected layers
-  const handleDownloadSelected = async () => {
-    if (selectedLayers.size > 0) {
-      await downloadSelectedLayers(Array.from(selectedLayers));
-      setSelectedLayers(new Set());
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Calculate total stats
   const totalSize = STELLARIUM_LAYERS.reduce((acc, l) => acc + l.size, 0);
@@ -488,417 +278,17 @@ export function OfflineCacheManager() {
               )}
             </TabsList>
             
-            {/* Data Layers Tab */}
             <TabsContent value="layers" className="mt-2">
-              <ScrollArea className="h-[240px]">
-                <div className="space-y-2 pr-2">
-                  {STELLARIUM_LAYERS.map((layer) => {
-                    const status = layerStatuses.find((s) => s.layerId === layer.id);
-                    const download = currentDownloads[layer.id];
-                    const isCached = status?.cached ?? false;
-                    const isComplete = status?.isComplete ?? false;
-                    const isRepairing = repairingLayers.includes(layer.id);
-                    const hasPartialCache = status && status.cachedFiles > 0 && !isComplete;
-                    const isSelected = selectedLayers.has(layer.id);
-                    const progress = download
-                      ? (download.downloadedFiles / download.totalFiles) * 100
-                      : isCached
-                      ? 100
-                      : status
-                      ? (status.cachedFiles / status.totalFiles) * 100
-                      : 0;
-
-                    return (
-                      <div
-                        key={layer.id}
-                        className={cn(
-                          'p-2 rounded-lg border transition-colors',
-                          isSelected
-                            ? 'border-primary bg-primary/5'
-                            : hasPartialCache
-                            ? 'border-yellow-500/50 bg-yellow-500/5'
-                            : 'border-border bg-muted/30 hover:bg-muted/50'
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div
-                            className="flex-1 cursor-pointer"
-                            onClick={() => toggleLayerSelection(layer.id)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{layer.name}</span>
-                              {isComplete ? (
-                                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                              ) : hasPartialCache ? (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <AlertTriangle className="h-3 w-3 text-yellow-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{t('cache.incompleteDetails', { cached: status?.cachedFiles ?? 0, total: status?.totalFiles ?? 0 })}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : null}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {layer.description}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {status && status.cachedFiles > 0 
-                                ? `${formatBytes(status.cachedBytes)} / ${formatBytes(layer.size)}`
-                                : formatBytes(layer.size)
-                              }
-                            </p>
-                          </div>
-                          
-                          <div className="flex items-center gap-1">
-                            {download ? (
-                              <Badge variant="secondary" className="text-xs">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                {progress.toFixed(0)}%
-                              </Badge>
-                            ) : isRepairing ? (
-                              <Badge variant="secondary" className="text-xs">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                {t('cache.repairing')}
-                              </Badge>
-                            ) : hasPartialCache ? (
-                              <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 text-yellow-500 hover:text-yellow-600"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRepairLayer(layer.id);
-                                      }}
-                                      disabled={!isOnline}
-                                    >
-                                      <Wrench className="h-3 w-3" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{t('cache.repair')}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    clearLayer(layer.id);
-                                  }}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </>
-                            ) : isComplete ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  clearLayer(layer.id);
-                                }}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  downloadLayer(layer.id, false);
-                                }}
-                                disabled={!isOnline || isDownloading}
-                              >
-                                <Download className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {(download || hasPartialCache) && (
-                          <Progress value={progress} className="h-1 mt-2" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-
-              {/* Selection actions */}
-              {selectedLayers.size > 0 && (
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
-                  <span className="text-xs text-muted-foreground">
-                    {t('cache.selected', { count: selectedLayers.size })}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedLayers(new Set())}
-                    >
-                      {t('common.clear')}
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={handleDownloadSelected}
-                      disabled={!isOnline || isDownloading}
-                    >
-                      <Download className="h-3 w-3 mr-1" />
-                      {t('common.download')}
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <CacheLayersTab onStorageChanged={refreshStorageInfo} />
             </TabsContent>
             
-            {/* Sky Surveys Tab */}
             <TabsContent value="surveys" className="mt-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground">
-                  {t('survey.surveysCached', {
-                    cached: Object.values(surveyStatuses).filter(s => s.cached).length,
-                    total: SKY_SURVEYS.length,
-                  })}
-                </span>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={refreshSurveyStatuses}
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                  </Button>
-                  {Object.values(surveyStatuses).some(s => s.cached) && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>{t('survey.clearAllCacheTitle')}</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            {t('survey.clearAllCacheDescription')}
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleClearAllSurveyCaches}>
-                            {t('cache.clearAll')}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
-                </div>
-              </div>
-              
-              <ScrollArea className="h-[220px]">
-                <div className="space-y-2 pr-2">
-                  {SKY_SURVEYS.map((survey) => {
-                    const status = surveyStatuses[survey.id];
-                    const isDownloading = downloadingSurveys.includes(survey.id);
-                    const isCached = status?.cached ?? false;
-                    const progress = status 
-                      ? (status.cachedTiles / Math.max(status.totalTiles, 1)) * 100 
-                      : 0;
-
-                    return (
-                      <div
-                        key={survey.id}
-                        className={cn(
-                          'p-2 rounded-lg border transition-colors',
-                          isCached
-                            ? 'border-green-500/30 bg-green-500/5'
-                            : 'border-border bg-muted/30'
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium truncate">{survey.name}</span>
-                              {isCached && (
-                                <Check className="h-3 w-3 text-green-500 shrink-0" />
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {survey.description}
-                            </p>
-                            {status && status.cachedTiles > 0 && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {t('survey.tilesCachedWithSize', {
-                                  count: status.cachedTiles,
-                                  size: formatBytes(status.cachedBytes),
-                                })}
-                              </p>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-1 shrink-0">
-                            {isDownloading ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                            ) : isCached ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleClearSurveyCache(survey.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            ) : (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => handleDownloadSurvey(survey.id)}
-                                    disabled={!isOnline}
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  {t('survey.downloadForOffline')}
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {isDownloading && (
-                          <Progress value={progress} className="h-1 mt-2" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
+              <CacheSurveysTab isActive={activeTab === 'surveys'} />
             </TabsContent>
             
-            {/* Unified Cache Tab (Desktop only) */}
             {isTauri() && (
               <TabsContent value="unified" className="mt-2">
-                <div className="space-y-3">
-                  {loadingUnified ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                      <span className="ml-2 text-sm text-muted-foreground">{t('cache.loadingUnifiedCache')}</span>
-                    </div>
-                  ) : unifiedCacheStats ? (
-                    <>
-                      {/* Cache Stats */}
-                      <div className="grid grid-cols-3 gap-3 text-sm">
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="font-medium">{unifiedCacheStats.total_entries}</div>
-                          <div className="text-xs text-muted-foreground">{t('cache.entries')}</div>
-                        </div>
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="font-medium">{formatBytes(unifiedCacheStats.total_size)}</div>
-                          <div className="text-xs text-muted-foreground">{t('cache.size')}</div>
-                        </div>
-                        <div className="text-center p-2 bg-muted/30 rounded">
-                          <div className="font-medium">{(unifiedCacheStats.hit_rate * 100).toFixed(1)}%</div>
-                          <div className="text-xs text-muted-foreground">{t('cache.hitRate')}</div>
-                        </div>
-                      </div>
-
-                      {/* Cache Actions */}
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleCleanupUnifiedCache}
-                          className="flex-1"
-                        >
-                          <RefreshCw className="h-4 w-4 mr-1" />
-                          {t('cache.cleanup')}
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1 text-destructive hover:text-destructive"
-                              disabled={unifiedCacheStats.total_entries === 0}
-                            >
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              {t('cache.clearAll')}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{t('cache.clearUnifiedCache')}</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {t('cache.clearUnifiedCacheDescription', {
-                                  count: unifiedCacheStats.total_entries,
-                                  size: formatBytes(unifiedCacheStats.total_size),
-                                })}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleClearUnifiedCache}>
-                                {t('cache.clearAll')}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-
-                      {/* Cache Keys List */}
-                      {unifiedCacheKeys.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">
-                            {t('cache.cachedItems')} ({unifiedCacheKeys.length})
-                          </h4>
-                          <ScrollArea className="h-[160px]">
-                            <div className="space-y-1 pr-2">
-                              {unifiedCacheKeys.slice(0, 20).map((key) => (
-                                <div
-                                  key={key}
-                                  className="text-xs p-2 bg-muted/30 rounded truncate"
-                                  title={key}
-                                >
-                                  {key}
-                                </div>
-                              ))}
-                              {unifiedCacheKeys.length > 20 && (
-                                <div className="text-xs text-muted-foreground text-center py-2">
-                                  {t('cache.moreItems', { count: unifiedCacheKeys.length - 20 })}
-                                </div>
-                              )}
-                            </div>
-                          </ScrollArea>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center py-8">
-                      <HardDrive className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">
-                        {t('cache.unifiedCacheEmpty')}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <CacheUnifiedTab isActive={activeTab === 'unified'} />
               </TabsContent>
             )}
           </Tabs>
@@ -918,5 +308,3 @@ export function OfflineCacheManager() {
       </Card>
   );
 }
-
-

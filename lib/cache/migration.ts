@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { createLogger } from '@/lib/logger';
+import { isTauri } from '@/lib/storage/platform';
 
 const logger = createLogger('cache-migration');
 
@@ -233,6 +234,19 @@ export async function resetAllCaches(): Promise<void> {
     
     for (const key of keysToRemove) {
       localStorage.removeItem(key);
+    }
+  }
+  
+  // Clear Tauri backend caches (file-system based)
+  if (isTauri()) {
+    try {
+      const { unifiedCacheApi } = await import('@/lib/tauri/unified-cache-api');
+      const { cacheApi } = await import('@/lib/tauri/cache-api');
+      await unifiedCacheApi.clearCache();
+      await cacheApi.clearAllCache();
+      logger.debug('Cleared Tauri backend caches');
+    } catch (error) {
+      logger.warn('Failed to clear Tauri backend caches', error);
     }
   }
   

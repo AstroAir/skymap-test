@@ -223,21 +223,34 @@ describe('UnifiedCacheManager', () => {
   });
 
   describe('prefetch', () => {
-    it('fetches and caches URL', async () => {
+    it('fetches and caches URL using network-first strategy', async () => {
       mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
 
       const result = await unifiedCache.prefetch('/stellarium-data/test.json');
       
       expect(result).toBe(true);
       expect(mockFetch).toHaveBeenCalled();
+      // Should cache the response (network-first strategy calls fetchAndCache)
+      expect(mockCache.put).toHaveBeenCalled();
     });
 
     it('returns false on fetch error', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
+      // network-first falls back to cache, which also misses
+      mockCache.match.mockResolvedValue(null);
 
       const result = await unifiedCache.prefetch('/stellarium-data/test.json');
       
       expect(result).toBe(false);
+    });
+
+    it('accepts custom TTL', async () => {
+      mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
+
+      const result = await unifiedCache.prefetch('/stellarium-data/test.json', 60000);
+      
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalled();
     });
   });
 
@@ -295,10 +308,30 @@ describe('UnifiedCacheManager', () => {
   });
 
   describe('getSize', () => {
-    it('returns storage usage', async () => {
+    it('returns total size of cached entries', async () => {
+      // getSize now iterates cache entries and sums blob sizes
+      const mockRequest1 = { url: '/stellarium-data/test1.json' };
+      const mockRequest2 = { url: '/stellarium-data/test2.json' };
+      mockCache.keys.mockResolvedValue([mockRequest1, mockRequest2] as unknown as Request[]);
+      
+      const response1 = new MockResponse('data1', { status: 200 });
+      const response2 = new MockResponse('data22', { status: 200 });
+      mockCache.match
+        .mockResolvedValueOnce(response1)
+        .mockResolvedValueOnce(response2);
+
       const size = await unifiedCache.getSize();
       
       expect(typeof size).toBe('number');
+      expect(size).toBeGreaterThan(0);
+    });
+
+    it('returns 0 when cache is empty', async () => {
+      mockCache.keys.mockResolvedValue([]);
+
+      const size = await unifiedCache.getSize();
+      
+      expect(size).toBe(0);
     });
   });
 

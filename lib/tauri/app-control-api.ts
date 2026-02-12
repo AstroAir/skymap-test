@@ -339,6 +339,26 @@ export async function setWindowOpacity(opacity: number): Promise<void> {
 }
 
 /**
+ * Open an external URL in the system browser (Tauri) or new tab (web)
+ *
+ * Uses @tauri-apps/plugin-opener in desktop mode, window.open in web mode.
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!url) return;
+  if (isTauri()) {
+    try {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(url);
+    } catch (error) {
+      logger.error('Failed to open external URL via Tauri opener plugin', error);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+/**
  * Get available monitors info
  */
 export async function getMonitors(): Promise<Array<{ name: string | null; size: { width: number; height: number }; position: { x: number; y: number } }>> {

@@ -11,3 +11,4 @@ export { TonightRecommendations } from './tonight-recommendations';
 export { StarRating } from './star-rating';
 export { FeasibilityBadge } from './feasibility-badge';
 export { StatCard } from './stat-card';
+export { MountSafetySimulator } from './mount-safety-simulator';

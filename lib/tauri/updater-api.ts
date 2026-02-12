@@ -49,12 +49,28 @@ export async function downloadUpdate(): Promise<UpdateStatus> {
   }
 }
 
-export async function installUpdate(): Promise<void> {
-  await invoke('install_update');
+export async function installUpdate(): Promise<UpdateStatus> {
+  try {
+    await invoke('install_update');
+    return { status: 'idle' };
+  } catch (error) {
+    return {
+      status: 'error',
+      data: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
-export async function downloadAndInstallUpdate(): Promise<void> {
-  await invoke('download_and_install_update');
+export async function downloadAndInstallUpdate(): Promise<UpdateStatus> {
+  try {
+    await invoke('download_and_install_update');
+    return { status: 'idle' };
+  } catch (error) {
+    return {
+      status: 'error',
+      data: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export async function getCurrentVersion(): Promise<string> {

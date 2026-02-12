@@ -107,7 +107,7 @@ export function SensorControlToggle({ className }: SensorControlToggleProps) {
           variant="ghost"
           size="icon"
           className={cn(
-            'h-10 w-10 backdrop-blur-sm transition-colors',
+            'h-9 w-9 backdrop-blur-sm transition-colors',
             sensorControl
               ? 'bg-primary/30 text-primary hover:bg-primary/40'
               : 'bg-background/60 text-foreground hover:bg-background/80',

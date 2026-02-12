@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   X, ChevronDown, ChevronUp, Crosshair, Plus,
@@ -23,13 +23,13 @@ import {
 import { AltitudeChartCompact } from './altitude-chart-compact';
 import { RiseTransitSetGrid } from './rise-transit-set-grid';
 import { FeasibilityBadge } from '../planning/feasibility-badge';
-import { useMountStore, useTargetListStore } from '@/lib/stores';
-import { useCelestialName, useCelestialNames, useAdaptivePosition, useAstroEnvironment, useTargetAstroData } from '@/lib/hooks';
+import { useMountStore } from '@/lib/stores';
+import { useCelestialName, useCelestialNames, useAdaptivePosition, useAstroEnvironment, useTargetAstroData, useObjectActions } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { getObjectTypeIcon, getObjectTypeColor } from '@/lib/astronomy/object-type-utils';
 import type { InfoPanelProps } from '@/types/starmap/objects';
 
-export function InfoPanel({
+export const InfoPanel = memo(function InfoPanel({
   selectedObject,
   onClose,
   onSetFramingCoordinates,
@@ -45,11 +45,15 @@ export function InfoPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   
   const profileInfo = useMountStore((state) => state.profileInfo);
-  const mountConnected = useMountStore((state) => state.mountInfo.Connected);
-  const addTarget = useTargetListStore((state) => state.addTarget);
   
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
+
+  // Shared object actions
+  const { handleSlew, handleAddToList, mountConnected } = useObjectActions({
+    selectedObject,
+    onSetFramingCoordinates,
+  });
 
   // Translate celestial object names
   const primaryName = useCelestialName(selectedObject?.names[0]);
@@ -71,34 +75,23 @@ export function InfoPanel({
     return () => clearInterval(interval);
   }, []);
 
+  // Escape key to close panel
+  useEffect(() => {
+    if (!onClose) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   // Calculate astronomical data using shared hooks
   const astroData = useAstroEnvironment(latitude, longitude, currentTime);
   const targetData = useTargetAstroData(selectedObject, latitude, longitude, astroData.moonRa, astroData.moonDec, currentTime);
 
 
-
-  const handleSlew = useCallback(() => {
-    if (!selectedObject) return;
-    onSetFramingCoordinates?.({
-      ra: selectedObject.raDeg,
-      dec: selectedObject.decDeg,
-      raString: selectedObject.ra,
-      decString: selectedObject.dec,
-      name: selectedObject.names[0] || '',
-    });
-  }, [selectedObject, onSetFramingCoordinates]);
-
-  const handleAddToList = useCallback(() => {
-    if (!selectedObject) return;
-    addTarget({
-      name: selectedObject.names[0] || t('common.unknown'),
-      ra: selectedObject.raDeg,
-      dec: selectedObject.decDeg,
-      raString: selectedObject.ra,
-      decString: selectedObject.dec,
-      priority: 'medium',
-    });
-  }, [selectedObject, addTarget, t]);
 
   const hasCustomPosition = clickPosition && containerBounds;
 
@@ -139,6 +132,7 @@ export function InfoPanel({
                     size="icon"
                     className="h-7 w-7 sm:h-6 sm:w-6 text-muted-foreground hover:text-foreground shrink-0 touch-target"
                     onClick={onClose}
+                    aria-label={t('common.close')}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -301,7 +295,6 @@ export function InfoPanel({
                     <AltitudeChartCompact
                       ra={selectedObject.raDeg}
                       dec={selectedObject.decDeg}
-                      name={selectedObject.names[0]}
                     />
                   </div>
                 </CollapsibleContent>
@@ -312,4 +305,4 @@ export function InfoPanel({
       </Card>
     </TooltipProvider>
   );
-}
+});

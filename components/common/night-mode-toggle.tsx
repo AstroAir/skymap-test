@@ -31,7 +31,7 @@ export function NightModeToggle({ className }: NightModeToggleProps) {
             variant="ghost"
             size="icon"
             className={cn(
-              'h-10 w-10 backdrop-blur-sm transition-colors',
+              'h-9 w-9 backdrop-blur-sm transition-colors',
               nightMode
                 ? 'bg-red-900/50 text-red-400 hover:bg-red-900/70'
                 : 'bg-background/60 text-foreground hover:bg-background/80',
@@ -48,7 +48,7 @@ export function NightModeToggle({ className }: NightModeToggleProps) {
       </Tooltip>
       
       {/* Night mode filter overlay */}
-      {nightMode && <div className="night-mode-filter" />}
+      {nightMode && <div className="night-mode-filter" aria-hidden="true" />}
     </>
   );
 }

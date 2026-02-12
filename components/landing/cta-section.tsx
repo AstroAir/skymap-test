@@ -10,13 +10,13 @@ export function CTASection() {
   const t = useTranslations('landing.cta');
 
   return (
-    <section className="py-24 bg-gradient-to-b from-background via-primary/5 to-background relative overflow-hidden">
+    <section className="py-24 bg-gradient-to-b from-background via-primary/5 to-background relative overflow-hidden" aria-labelledby="cta-title">
       {/* Background decorations */}
       <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-[100px]" />
       <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-secondary/10 rounded-full blur-[80px]" />
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <SectionHeader title={t('title')} subtitle={t('description')} />
+        <SectionHeader id="cta-title" title={t('title')} subtitle={t('description')} />
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href="/starmap">

@@ -20,6 +20,7 @@ pub use offline::{
 pub use unified::{
     CacheEntryMeta, CacheIndex, PrefetchResult, UnifiedCacheResponse, UnifiedCacheStats,
     cleanup_unified_cache, clear_unified_cache, delete_unified_cache_entry,
-    get_unified_cache_entry, get_unified_cache_size, get_unified_cache_stats,
-    list_unified_cache_keys, prefetch_url, prefetch_urls, put_unified_cache_entry,
+    flush_unified_cache, get_unified_cache_entry, get_unified_cache_size,
+    get_unified_cache_stats, list_unified_cache_keys, prefetch_url, prefetch_urls,
+    put_unified_cache_entry,
 };

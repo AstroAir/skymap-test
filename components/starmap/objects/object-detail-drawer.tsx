@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, memo, createElement } from 'react';
+import { useState, useEffect, useCallback, useReducer, memo, createElement } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   X, 
@@ -38,9 +38,10 @@ import {
 import { ObjectImageGallery } from './object-image-gallery';
 import { RiseTransitSetGrid } from './rise-transit-set-grid';
 import { FeasibilityBadge } from '../planning/feasibility-badge';
-import { AltitudeChart } from '../planning/altitude-chart';
-import { useMountStore, useTargetListStore } from '@/lib/stores';
-import { useCelestialName, useTargetAstroData } from '@/lib/hooks';
+import { AltitudeChartCompact } from './altitude-chart-compact';
+import { openExternalUrl } from '@/lib/tauri/app-control-api';
+import { useMountStore } from '@/lib/stores';
+import { useCelestialName, useAstroEnvironment, useTargetAstroData, useObjectActions } from '@/lib/hooks';
 import {
   getCachedObjectInfo,
   enhanceObjectInfo,
@@ -70,18 +71,23 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   const [objectInfo, setObjectInfo] = useState<ObjectDetailedInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const [, setCurrentTime] = useState(new Date()); // Trigger re-render for astro data
+  const [tick, forceUpdate] = useReducer((x: number) => x + 1, 0);
   const [copied, setCopied] = useState(false);
   
   const profileInfo = useMountStore((state) => state.profileInfo);
-  const mountConnected = useMountStore((state) => state.mountInfo.Connected);
-  const addTarget = useTargetListStore((state) => state.addTarget);
   
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
   
   // Translate celestial object name
   const translatedName = useCelestialName(selectedObject?.names[0]);
+
+  // Shared object actions
+  const { handleSlew, handleAddToList, mountConnected } = useObjectActions({
+    selectedObject,
+    onSetFramingCoordinates,
+    onAfterSlew: () => onOpenChange(false),
+  });
 
   // Auto-close drawer when selectedObject becomes null
   useEffect(() => {
@@ -146,38 +152,17 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
     if (!open) return;
     
     const interval = setInterval(() => {
-      setCurrentTime(new Date());
+      forceUpdate();
     }, 30000); // Update every 30 seconds
     
     return () => clearInterval(interval);
   }, [open]);
 
-  // Calculate current astronomical data using shared hook
-  const astroData = useTargetAstroData(selectedObject, latitude, longitude, 0, 0, new Date());
-
-  const handleSlew = useCallback(() => {
-    if (!selectedObject) return;
-    onSetFramingCoordinates?.({
-      ra: selectedObject.raDeg,
-      dec: selectedObject.decDeg,
-      raString: selectedObject.ra,
-      decString: selectedObject.dec,
-      name: selectedObject.names[0] || '',
-    });
-    onOpenChange(false);
-  }, [selectedObject, onSetFramingCoordinates, onOpenChange]);
-
-  const handleAddToList = useCallback(() => {
-    if (!selectedObject) return;
-    addTarget({
-      name: selectedObject.names[0] || t('common.unknown'),
-      ra: selectedObject.raDeg,
-      dec: selectedObject.decDeg,
-      raString: selectedObject.ra,
-      decString: selectedObject.dec,
-      priority: 'medium',
-    });
-  }, [selectedObject, addTarget, t]);
+  // Calculate current astronomical data using shared hooks
+  void tick; // Referenced to suppress unused-variable warning; forceUpdate() triggers re-render
+  const currentTime = new Date();
+  const astroEnv = useAstroEnvironment(latitude, longitude, currentTime);
+  const astroData = useTargetAstroData(selectedObject, latitude, longitude, astroEnv.moonRa, astroEnv.moonDec, currentTime);
 
   const handleCopyCoordinates = useCallback(async () => {
     if (!selectedObject) return;
@@ -396,28 +381,26 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                 <Separator className="my-3" />
                 <div className="flex flex-wrap gap-2">
                   {objectInfo?.simbadUrl && (
-                    <a
-                      href={objectInfo.simbadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => openExternalUrl(objectInfo.simbadUrl!)}
+                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline cursor-pointer"
                     >
                       <Database className="h-3.5 w-3.5" />
                       SIMBAD
                       <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </button>
                   )}
                   {objectInfo?.wikipediaUrl && (
-                    <a
-                      href={objectInfo.wikipediaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => openExternalUrl(objectInfo.wikipediaUrl!)}
+                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline cursor-pointer"
                     >
                       <Info className="h-3.5 w-3.5" />
                       Wikipedia
                       <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </button>
                   )}
                 </div>
 
@@ -440,17 +423,17 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
               </TabsContent>
 
               {/* Observation Tab */}
-              <TabsContent value="observation" className="space-y-4 mt-0">
+              <TabsContent value="observation" className="space-y-3 mt-0">
                 {currentAstro && (
                   <>
                     {/* Rise/Transit/Set */}
                     <RiseTransitSetGrid visibility={currentAstro.visibility} variant="full" />
 
                     {/* Moon Distance & Max Altitude */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg bg-muted/30 p-3">
-                        <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                          <Moon className="h-3.5 w-3.5" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-muted/30 p-2.5">
+                        <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
+                          <Moon className="h-3.5 w-3.5 text-yellow-400/70" />
                           <span className="text-xs font-medium">{t('session.moonDistance')}</span>
                         </div>
                         <p className={cn(
@@ -461,9 +444,9 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                           {currentAstro.moonDistance.toFixed(0)}°
                         </p>
                       </div>
-                      <div className="rounded-lg bg-muted/30 p-3">
-                        <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                          <TrendingUp className="h-3.5 w-3.5" />
+                      <div className="rounded-lg bg-muted/30 p-2.5">
+                        <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
+                          <TrendingUp className="h-3.5 w-3.5 text-primary/70" />
                           <span className="text-xs font-medium">{t('session.maxAltitude')}</span>
                         </div>
                         <p className="font-mono text-sm font-medium">
@@ -472,34 +455,32 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                       </div>
                     </div>
 
-                    {/* Imaging Feasibility */}
-                    <FeasibilityBadge feasibility={currentAstro.feasibility} variant="inline" tooltipSide="top" className="p-3 rounded-lg border" />
-
-                    {/* Dark Imaging Window */}
-                    {currentAstro.visibility.darkImagingHours > 0 && (
-                      <div className="flex items-center gap-2 text-sm text-green-400">
-                        <Clock className="h-4 w-4" />
-                        {t('info.darkImagingWindow', { 
-                          hours: currentAstro.visibility.darkImagingHours.toFixed(1) 
-                        })}
+                    {/* Imaging Feasibility + auxiliary indicators */}
+                    <div className="space-y-2">
+                      <FeasibilityBadge feasibility={currentAstro.feasibility} variant="inline" tooltipSide="top" className="p-2.5 rounded-lg bg-muted/30" />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {currentAstro.visibility.darkImagingHours > 0 && (
+                          <div className="flex items-center gap-1.5 text-xs text-green-400">
+                            <Clock className="h-3.5 w-3.5" />
+                            {t('info.darkImagingWindow', { 
+                              hours: currentAstro.visibility.darkImagingHours.toFixed(1) 
+                            })}
+                          </div>
+                        )}
+                        {currentAstro.visibility.isCircumpolar && (
+                          <Badge variant="outline" className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
+                            {t('session.circumpolar')}
+                          </Badge>
+                        )}
                       </div>
-                    )}
-
-                    {/* Circumpolar indicator */}
-                    {currentAstro.visibility.isCircumpolar && (
-                      <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                        {t('session.circumpolar')}
-                      </Badge>
-                    )}
+                    </div>
                     
-                    {/* Altitude Chart */}
+                    {/* Altitude Chart - responsive */}
                     {selectedObject && (
-                      <div className="mt-4">
-                        <AltitudeChart
+                      <div className="rounded-lg bg-muted/20 border border-border/50">
+                        <AltitudeChartCompact
                           ra={selectedObject.raDeg}
                           dec={selectedObject.decDeg}
-                          name={displayName}
-                          hoursAhead={12}
                         />
                       </div>
                     )}

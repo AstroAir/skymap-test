@@ -13,6 +13,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useInView } from '@/lib/hooks/use-in-view';
 import { SectionHeader } from './section-header';
 import type { LandingFeatureItem } from '@/types/landing';
 
@@ -29,17 +30,18 @@ const features: LandingFeatureItem[] = [
 
 export function FeaturesSection() {
   const t = useTranslations('landing.features');
+  const { ref: gridRef, isInView } = useInView<HTMLDivElement>({ threshold: 0.1 });
 
   return (
-    <section id="features" className="py-24 bg-background relative">
+    <section id="features" className="py-24 bg-background relative" aria-labelledby="features-title">
       {/* Subtle gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-background via-muted/20 to-background pointer-events-none" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeader title={t('title')} subtitle={t('subtitle')} />
+        <SectionHeader id="features-title" title={t('title')} subtitle={t('subtitle')} />
 
         {/* Features grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
@@ -47,9 +49,9 @@ export function FeaturesSection() {
                 key={feature.key}
                 className={cn(
                   'group glass-light border-border/50 hover:border-primary/50 transition-all duration-300 card-hover',
-                  'opacity-0 animate-fade-in'
+                  isInView ? 'opacity-0 animate-fade-in' : 'opacity-0'
                 )}
-                style={{ animationDelay: `${index * 0.1}s`, animationFillMode: 'forwards' }}
+                style={isInView ? { animationDelay: `${index * 0.1}s`, animationFillMode: 'forwards' } : undefined}
               >
                 <CardHeader>
                   <div className="mb-2 p-3 rounded-lg bg-primary/10 w-fit group-hover:bg-primary/20 transition-colors">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, Monitor, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { useTranslations } from 'next-intl';
 import { useThemeStore } from '@/lib/stores/theme-store';
 import { useIsClient } from '@/lib/hooks/use-is-client';
 import { cn } from '@/lib/utils';
+import { ThemeCustomizer } from './theme-customizer';
 
 interface ThemeToggleProps {
   variant?: 'icon' | 'dropdown';
@@ -38,6 +39,7 @@ export function ThemeToggle({
   const { theme, setTheme, resolvedTheme } = useTheme();
   const applyCustomization = useThemeStore((state) => state.applyCustomization);
   const mounted = useIsClient();
+  const [customizerOpen, setCustomizerOpen] = useState(false);
   
   // Re-apply customization when theme changes
   useEffect(() => {
@@ -107,13 +109,16 @@ export function ThemeToggle({
         {showCustomize && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onCustomizeClick}>
+            <DropdownMenuItem onClick={onCustomizeClick ?? (() => setCustomizerOpen(true))}>
               <Palette className="mr-2 h-4 w-4" />
               {t('theme.customize')}
             </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
+      {showCustomize && !onCustomizeClick && (
+        <ThemeCustomizer open={customizerOpen} onOpenChange={setCustomizerOpen} />
+      )}
     </DropdownMenu>
   );
 }

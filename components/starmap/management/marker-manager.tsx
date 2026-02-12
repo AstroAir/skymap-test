@@ -42,6 +42,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -536,20 +541,39 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
 
             <div className="grid gap-2">
               <Label htmlFor="group">{t('markers.group')}</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="group"
-                  value={formData.group}
-                  onChange={(e) => setFormData({ ...formData, group: e.target.value })}
-                  list="groups"
-                  placeholder={t('markers.groupPlaceholder')}
-                />
-                <datalist id="groups">
-                  {groups.map((group) => (
-                    <option key={group} value={group} />
-                  ))}
-                </datalist>
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Input
+                    id="group"
+                    value={formData.group}
+                    onChange={(e) => setFormData({ ...formData, group: e.target.value })}
+                    placeholder={t('markers.groupPlaceholder')}
+                    autoComplete="off"
+                  />
+                </PopoverTrigger>
+                {groups.length > 0 && (
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-1"
+                    align="start"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                  >
+                    <div className="max-h-[120px] overflow-y-auto space-y-0.5">
+                      {groups
+                        .filter((g) => !formData.group || g.toLowerCase().includes(formData.group.toLowerCase()))
+                        .map((group) => (
+                          <button
+                            key={group}
+                            type="button"
+                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
+                            onClick={() => setFormData({ ...formData, group })}
+                          >
+                            {group}
+                          </button>
+                        ))}
+                    </div>
+                  </PopoverContent>
+                )}
+              </Popover>
             </div>
           </div>
           <DialogFooter>

@@ -69,6 +69,7 @@ pub struct PlateSolveResult {
     pub scale: Option<f64>,
     pub width_deg: Option<f64>,
     pub height_deg: Option<f64>,
+    pub flipped: Option<bool>,
     pub error_message: Option<String>,
     pub solve_time_ms: u64,
 }
@@ -173,7 +174,7 @@ pub async fn plate_solve(_app: AppHandle, config: PlateSolverConfig) -> Result<P
         }
         Err(e) => Ok(PlateSolveResult {
             success: false, ra: None, dec: None, rotation: None, scale: None,
-            width_deg: None, height_deg: None,
+            width_deg: None, height_deg: None, flipped: None,
             error_message: Some(e.to_string()),
             solve_time_ms: start.elapsed().as_millis() as u64,
         }),
@@ -369,15 +370,63 @@ async fn solve_with_online_astrometry(_config: &PlateSolverConfig) -> Result<Pla
 fn parse_astap_result(output: &str) -> Result<PlateSolveResult, PlateSolverError> {
     let mut result = PlateSolveResult {
         success: true, ra: None, dec: None, rotation: None, scale: None,
-        width_deg: None, height_deg: None, error_message: None, solve_time_ms: 0,
+        width_deg: None, height_deg: None, flipped: None, error_message: None, solve_time_ms: 0,
     };
 
+    let mut cdelt1: Option<f64> = None;
+    let mut cdelt2: Option<f64> = None;
+    let mut naxis1: Option<f64> = None;
+    let mut naxis2: Option<f64> = None;
+    let mut cd1_1: Option<f64> = None;
+    let mut cd1_2: Option<f64> = None;
+    let mut cd2_1: Option<f64> = None;
+    let mut cd2_2: Option<f64> = None;
+
     for line in output.lines() {
-        if line.starts_with("CRVAL1") { result.ra = parse_value(line); }
-        else if line.starts_with("CRVAL2") { result.dec = parse_value(line); }
-        else if line.starts_with("CROTA2") { result.rotation = parse_value(line); }
-        else if line.starts_with("CDELT1") { result.scale = parse_value(line).map(|v| v.abs() * 3600.0); }
+        let trimmed = line.trim();
+        if trimmed.starts_with("CRVAL1") { result.ra = parse_value(trimmed); }
+        else if trimmed.starts_with("CRVAL2") { result.dec = parse_value(trimmed); }
+        else if trimmed.starts_with("CROTA2") { result.rotation = parse_value(trimmed); }
+        else if trimmed.starts_with("CDELT1") { cdelt1 = parse_value(trimmed); }
+        else if trimmed.starts_with("CDELT2") { cdelt2 = parse_value(trimmed); }
+        else if trimmed.starts_with("NAXIS1") { naxis1 = parse_value(trimmed); }
+        else if trimmed.starts_with("NAXIS2") { naxis2 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD1_1") { cd1_1 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD1_2") { cd1_2 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD2_1") { cd2_1 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD2_2") { cd2_2 = parse_value(trimmed); }
     }
+
+    // Calculate pixel scale and rotation from CD matrix or CDELT
+    if let (Some(c11), Some(c12), Some(c21), Some(c22)) = (cd1_1, cd1_2, cd2_1, cd2_2) {
+        result.scale = Some((c11 * c11 + c21 * c21).sqrt() * 3600.0);
+        if result.rotation.is_none() {
+            result.rotation = Some(c21.atan2(c11).to_degrees());
+        }
+        // Detect flipped: determinant of CD matrix > 0 means parity is flipped
+        let det = c11 * c22 - c12 * c21;
+        result.flipped = Some(det > 0.0);
+    } else if let Some(cd1) = cdelt1 {
+        result.scale = Some(cd1.abs() * 3600.0);
+        // Detect flipped from CDELT signs: normally CDELT1 < 0 and CDELT2 > 0
+        if let Some(cd2) = cdelt2 {
+            result.flipped = Some(cd1 > 0.0 && cd2 > 0.0 || cd1 < 0.0 && cd2 < 0.0);
+        }
+    }
+
+    // Calculate FOV dimensions
+    if let (Some(n1), Some(n2)) = (naxis1, naxis2) {
+        if let (Some(c11), Some(c12), Some(c21), Some(c22)) = (cd1_1, cd1_2, cd2_1, cd2_2) {
+            let scale_x = (c11 * c11 + c21 * c21).sqrt();
+            let scale_y = (c12 * c12 + c22 * c22).sqrt();
+            result.width_deg = Some(scale_x * n1);
+            result.height_deg = Some(scale_y * n2);
+        } else if let (Some(cd1), Some(cd2)) = (cdelt1, cdelt2) {
+            result.width_deg = Some(cd1.abs() * n1);
+            result.height_deg = Some(cd2.abs() * n2);
+        }
+    }
+
     Ok(result)
 }
 
@@ -386,11 +435,103 @@ fn parse_astrometry_result(image_path: &str) -> Result<PlateSolveResult, PlateSo
     if !wcs_path.exists() {
         return Err(PlateSolverError::SolveFailed("WCS file not found".to_string()));
     }
-    // Simplified - would parse FITS WCS header
-    Ok(PlateSolveResult {
+
+    // Parse the FITS WCS header from the .wcs file
+    let data = fs::read(&wcs_path)
+        .map_err(|e| PlateSolverError::SolveFailed(format!("Failed to read WCS file: {}", e)))?;
+
+    let header_str = parse_fits_header_from_bytes(&data);
+
+    let mut result = PlateSolveResult {
         success: true, ra: None, dec: None, rotation: None, scale: None,
-        width_deg: None, height_deg: None, error_message: None, solve_time_ms: 0,
-    })
+        width_deg: None, height_deg: None, flipped: None, error_message: None, solve_time_ms: 0,
+    };
+
+    let mut cdelt1: Option<f64> = None;
+    let mut cdelt2: Option<f64> = None;
+    let mut crota2: Option<f64> = None;
+    let mut naxis1: Option<f64> = None;
+    let mut naxis2: Option<f64> = None;
+    let mut cd1_1: Option<f64> = None;
+    let mut cd1_2: Option<f64> = None;
+    let mut cd2_1: Option<f64> = None;
+    let mut cd2_2: Option<f64> = None;
+
+    for line in header_str.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("CRVAL1") { result.ra = parse_value(trimmed); }
+        else if trimmed.starts_with("CRVAL2") { result.dec = parse_value(trimmed); }
+        else if trimmed.starts_with("CROTA2") { crota2 = parse_value(trimmed); }
+        else if trimmed.starts_with("CDELT1") { cdelt1 = parse_value(trimmed); }
+        else if trimmed.starts_with("CDELT2") { cdelt2 = parse_value(trimmed); }
+        else if trimmed.starts_with("NAXIS1") { naxis1 = parse_value(trimmed); }
+        else if trimmed.starts_with("NAXIS2") { naxis2 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD1_1") { cd1_1 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD1_2") { cd1_2 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD2_1") { cd2_1 = parse_value(trimmed); }
+        else if trimmed.starts_with("CD2_2") { cd2_2 = parse_value(trimmed); }
+    }
+
+    // Calculate rotation and scale from CD matrix or CDELT+CROTA
+    if let (Some(c11), Some(c12), Some(c21), Some(c22)) = (cd1_1, cd1_2, cd2_1, cd2_2) {
+        result.scale = Some((c11 * c11 + c21 * c21).sqrt() * 3600.0);
+        result.rotation = Some(c21.atan2(c11).to_degrees());
+        // Detect flipped: determinant of CD matrix > 0 means parity is flipped
+        let det = c11 * c22 - c12 * c21;
+        result.flipped = Some(det > 0.0);
+        // Calculate FOV
+        if let (Some(n1), Some(n2)) = (naxis1, naxis2) {
+            let scale_x = (c11 * c11 + c21 * c21).sqrt();
+            let scale_y = (c12 * c12 + c22 * c22).sqrt();
+            result.width_deg = Some(scale_x * n1);
+            result.height_deg = Some(scale_y * n2);
+        }
+    } else if let Some(cd1) = cdelt1 {
+        result.scale = Some(cd1.abs() * 3600.0);
+        result.rotation = crota2;
+        if let Some(cd2) = cdelt2 {
+            result.flipped = Some(cd1 > 0.0 && cd2 > 0.0 || cd1 < 0.0 && cd2 < 0.0);
+            if let (Some(n1), Some(n2)) = (naxis1, naxis2) {
+                result.width_deg = Some(cd1.abs() * n1);
+                result.height_deg = Some(cd2.abs() * n2);
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+/// Parse FITS header cards from raw bytes into a string of "KEY = VALUE" lines
+fn parse_fits_header_from_bytes(data: &[u8]) -> String {
+    let mut result = String::new();
+    let card_size = 80;
+    let block_size = 2880;
+    let max_blocks = 100;
+    let mut offset = 0;
+    let mut blocks = 0;
+
+    while offset + card_size <= data.len() && blocks < max_blocks {
+        let card = &data[offset..offset + card_size];
+        // Convert bytes to string (ASCII)
+        let card_str: String = card.iter().map(|&b| {
+            if b >= 0x20 && b <= 0x7E { b as char } else { ' ' }
+        }).collect();
+
+        if card_str.trim_start().starts_with("END") && card_str[3..].trim().is_empty() {
+            break;
+        }
+
+        result.push_str(&card_str);
+        result.push('\n');
+
+        offset += card_size;
+        // Track block boundaries
+        if offset % block_size == 0 {
+            blocks += 1;
+        }
+    }
+
+    result
 }
 
 fn parse_value(line: &str) -> Option<f64> {
@@ -596,7 +737,7 @@ pub async fn solve_image_local(config: SolverConfig, params: SolveParameters) ->
             pixel_scale: r.scale,
             fov_width: r.width_deg,
             fov_height: r.height_deg,
-            flipped: None,
+            flipped: r.flipped,
             solver_name: config.solver_type.clone(),
             solve_time_ms,
             error_message: r.error_message,
@@ -938,6 +1079,7 @@ mod tests {
             scale: Some(1.5),
             width_deg: Some(2.0),
             height_deg: Some(1.5),
+            flipped: Some(false),
             error_message: None,
             solve_time_ms: 1000,
         };
@@ -957,6 +1099,7 @@ mod tests {
             scale: None,
             width_deg: None,
             height_deg: None,
+            flipped: None,
             error_message: Some("Solve failed".to_string()),
             solve_time_ms: 500,
         };

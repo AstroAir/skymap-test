@@ -75,6 +75,17 @@ describe('updater-api', () => {
         data: 'Network error',
       });
     });
+
+    it('should handle non-Error rejection', async () => {
+      mockInvoke.mockRejectedValue('string error');
+
+      const result = await checkForUpdate();
+
+      expect(result).toEqual({
+        status: 'error',
+        data: 'string error',
+      });
+    });
   });
 
   describe('downloadUpdate', () => {
@@ -109,28 +120,46 @@ describe('updater-api', () => {
   });
 
   describe('installUpdate', () => {
-    it('should call install_update command', async () => {
+    it('should return idle status on success', async () => {
       mockInvoke.mockResolvedValue(undefined);
 
-      await installUpdate();
+      const result = await installUpdate();
 
       expect(mockInvoke).toHaveBeenCalledWith('install_update');
+      expect(result).toEqual({ status: 'idle' });
     });
 
-    it('should throw error on failure', async () => {
+    it('should return error status on failure', async () => {
       mockInvoke.mockRejectedValue(new Error('Install failed'));
 
-      await expect(installUpdate()).rejects.toThrow('Install failed');
+      const result = await installUpdate();
+
+      expect(result).toEqual({
+        status: 'error',
+        data: 'Install failed',
+      });
     });
   });
 
   describe('downloadAndInstallUpdate', () => {
-    it('should call download_and_install_update command', async () => {
+    it('should return idle status on success', async () => {
       mockInvoke.mockResolvedValue(undefined);
 
-      await downloadAndInstallUpdate();
+      const result = await downloadAndInstallUpdate();
 
       expect(mockInvoke).toHaveBeenCalledWith('download_and_install_update');
+      expect(result).toEqual({ status: 'idle' });
+    });
+
+    it('should return error status on failure', async () => {
+      mockInvoke.mockRejectedValue(new Error('Download and install failed'));
+
+      const result = await downloadAndInstallUpdate();
+
+      expect(result).toEqual({
+        status: 'error',
+        data: 'Download and install failed',
+      });
     });
   });
 

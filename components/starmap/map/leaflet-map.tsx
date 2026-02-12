@@ -184,7 +184,7 @@ function LeafletMapComponent({
           url={tileConfig.url}
           attribution={tileConfig.attribution}
           maxZoom={tileConfig.maxZoom}
-          subdomains={tileConfig.subdomains}
+          {...(tileConfig.subdomains ? { subdomains: tileConfig.subdomains } : {})}
         />
         <MapController
           center={center}

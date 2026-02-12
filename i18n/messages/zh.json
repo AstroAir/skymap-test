@@ -463,7 +463,8 @@
     "zoomHint": "滚动缩放，滑动调整范围",
     "timeRange": "时间",
     "darkImagingWindow": "{hours}小时暗夜拍摄窗口",
-    "mobileHint": "滑动或捏合调整时间范围"
+    "mobileHint": "滑动或捏合调整时间范围",
+    "altitudeChartLabel": "高度随时间变化图表"
   },
   "feasibility": {
     "excellent": "极佳",
@@ -994,7 +995,33 @@
     "loading": "加载事件中...",
     "eventsFound": "个事件",
     "peak": "峰值: {time}",
-    "until": "持续至 {date}"
+    "until": "持续至 {date}",
+    "planetaryEvents": "行星事件"
+  },
+  "eventDetail": {
+    "visibility": "可见性",
+    "peakTime": "峰值时间",
+    "activeUntil": "活跃至",
+    "description": "描述",
+    "coordinates": "坐标",
+    "magnitude": "星等",
+    "source": "数据来源",
+    "goToLocation": "前往位置"
+  },
+  "eventSources": {
+    "title": "事件数据源",
+    "description": "配置天文事件数据源。启用或禁用数据源，设置 API 密钥，自定义 API 地址。",
+    "addSource": "添加数据源",
+    "editSource": "编辑数据源",
+    "removeSource": "移除",
+    "sourceName": "数据源名称",
+    "apiUrl": "API 地址",
+    "apiKey": "API 密钥",
+    "apiKeyPlaceholder": "输入 API 密钥（可选）",
+    "apiKeyHint": "部分 API 需要认证密钥。您的密钥仅存储在本地。",
+    "testConnection": "测试连接",
+    "connectionSuccess": "连接成功",
+    "connectionFailed": "连接失败"
   },
   "ocular": {
     "simulator": "目镜模拟器",
@@ -1114,6 +1141,8 @@
     "telescopeAdded": "望远镜已添加",
     "cameraAdded": "相机已添加",
     "deleted": "设备已删除",
+    "updated": "设备已更新",
+    "edit": "编辑",
     "barlows": "增倍镜/减焦镜",
     "noBarlows": "暂无增倍镜/减焦镜",
     "addBarlow": "添加增倍镜/减焦镜",
@@ -1368,7 +1397,9 @@
     "dataSources": "数据来源",
     "feasibilityBreakdown": "评分详情",
     "loading": "正在加载天体信息...",
-    "enhancing": "正在获取更多数据..."
+    "enhancing": "正在获取更多数据...",
+    "previousImage": "上一张图片",
+    "nextImage": "下一张图片"
   },
   "sourceConfig": {
     "title": "信息来源",
@@ -1600,6 +1631,7 @@
     "system": "跟随系统",
     "switchToLight": "切换到浅色模式",
     "switchToDark": "切换到深色模式",
+    "switchTheme": "主题",
     "customize": "自定义主题",
     "customizeTheme": "主题自定义",
     "customizeDescription": "个性化您的星图外观",
@@ -1890,7 +1922,12 @@
       "links": "链接",
       "sourceCode": "源代码",
       "documentation": "文档",
-      "dataCredits": "数据来源"
+      "dataCredits": "数据来源",
+      "systemInfo": "系统信息",
+      "os": "操作系统",
+      "arch": "架构",
+      "tauriVersion": "Tauri 版本",
+      "systemInfoUnavailable": "系统信息不可用"
     }
   },
   "updater": {
@@ -1918,7 +1955,10 @@
     "autoUpdate": "自动更新",
     "autoUpdateDescription": "启动时自动检查更新",
     "lastChecked": "上次检查: {time}",
-    "neverChecked": "从未检查"
+    "neverChecked": "从未检查",
+    "skipVersion": "跳过此版本",
+    "downloadSpeed": "{speed}/s",
+    "timeRemaining": "剩余 {time}"
   },
   "titlebar": {
     "minimize": "最小化",
@@ -2040,6 +2080,72 @@
     "overlapsWith": "与以下目标重叠: {list}",
     "fovInfo": "视场: {w}° × {h}°",
     "fRatioLabel": "f/{ratio}"
+  },
+  "mountSafety": {
+    "title": "赤道仪安全模拟",
+    "trigger": "安全检查",
+    "triggerTooltip": "模拟拍摄序列，检查赤道仪安全问题",
+    "close": "关闭",
+    "config": {
+      "title": "赤道仪配置",
+      "mountType": "赤道仪类型",
+      "mountTypeGem": "德式赤道仪 (GEM)",
+      "mountTypeFork": "叉式赤道仪",
+      "mountTypeAltaz": "经纬仪",
+      "minAltitude": "最低高度",
+      "haLimitEast": "时角限位 (东)",
+      "haLimitWest": "时角限位 (西)",
+      "decLimitMin": "赤纬限位 (最小)",
+      "decLimitMax": "赤纬限位 (最大)",
+      "meridianFlip": "子午线翻转",
+      "flipAfter": "过子午线后翻转 (分钟)",
+      "flipMax": "最大容忍时间 (分钟)",
+      "flipPause": "子午线前暂停 (分钟)",
+      "tubeLength": "镜筒长度 (mm)",
+      "cwBarLength": "配重杆长度 (mm)",
+      "reset": "恢复默认设置"
+    },
+    "results": {
+      "safe": "安全",
+      "warnings": "警告",
+      "dangers": "危险",
+      "flips": "子午线翻转",
+      "slewTime": "转向时间",
+      "cableWrapRisk": "线缆缠绕风险",
+      "pierSide": "指向侧",
+      "flipNeeded": "需要翻转",
+      "flipDuringSlew": "转向时翻转",
+      "allClear": "所有检查通过 — 未检测到安全问题",
+      "noTargets": "没有可模拟的目标",
+      "noTargetsHint": "请先添加目标到拍摄列表并生成观测计划"
+    },
+    "diagram": {
+      "title": "时角 / 赤纬安全图",
+      "hourAngle": "时角",
+      "meridian": "子午线"
+    },
+    "issues": {
+      "meridianFlip": "需要在 {flipTimeStr} 进行子午线翻转",
+      "slewMeridianFlip": "从 {from} 到 {to} 的转向过程中需要子午线翻转",
+      "haLimit": "时角 {ha}° 超出{side}方向限位",
+      "decLimit": "赤纬 {dec}° 超出配置的赤纬限位范围",
+      "belowHorizon": "高度角 {altitude}° 低于最低安全高度 {minAltitude}°",
+      "counterweightUp": "配重朝上状态 — 存在设备损坏风险",
+      "cableWrap": "累计 RA 旋转 {rotation}° — 存在线缆缠绕风险",
+      "pierCollision": "望远镜镜筒在子午线附近可能碰撞三脚架",
+      "slewThroughPole": "从 {from} 到 {to} 的转向路径经过天极附近"
+    },
+    "suggestions": {
+      "meridianFlip": "确保赤道仪驱动中已启用子午线翻转",
+      "slewMeridianFlip": "为翻转和重新对准预留额外时间",
+      "haLimit": "重新安排目标拍摄时间或调整赤道仪时角限位",
+      "decLimit": "该目标超出赤道仪的赤纬可达范围",
+      "belowHorizon": "等待目标升高或调整最低高度设置",
+      "counterweightUp": "启用子午线翻转以避免配重朝上跟踪",
+      "cableWrap": "考虑反转序列方向或在目标之间添加归位操作",
+      "pierCollision": "使用子午线前暂停设置，适用于长焦镜筒",
+      "slewThroughPole": "考虑重新排列目标顺序以避免穿越天极"
+    }
   },
   "planRec": {
     "addMoreTargets": "考虑添加更多目标以充分利用夜间时间",
@@ -2183,7 +2289,11 @@
     },
     "advancedFilters": "高级筛选",
     "minSize": "最小大小",
-    "any": "任意"
+    "any": "任意",
+    "noObjectsFound": "未找到天体",
+    "adjustFilters": "尝试调整筛选条件或扩大搜索范围",
+    "enterCoordinates": "请输入目标坐标",
+    "enterCoordinatesHint": "输入赤经和赤纬（度）进行计算"
   },
   "system": {
     "online": "在线",

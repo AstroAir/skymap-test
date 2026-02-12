@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { MapPinned } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import { raDecToAltAzAtTime } from '@/lib/astronomy/coordinates/transforms';
@@ -67,8 +68,8 @@ export function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisT
   
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="grid grid-cols-5 gap-3">
+      {/* Controls Row 1: RA + Dec + Date */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.raLabel')}</Label>
           <Input
@@ -96,6 +97,10 @@ export function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisT
             className="h-8"
           />
         </div>
+      </div>
+      
+      {/* Controls Row 2: Step + Steps */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.stepHours')}</Label>
           <Select value={stepHours.toString()} onValueChange={(v) => setStepHours(parseInt(v))}>
@@ -128,41 +133,49 @@ export function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisT
       </div>
       
       {/* Ephemeris Table */}
-      <ScrollArea className="h-[380px] border rounded-lg">
-        <Table>
-          <TableHeader className="sticky top-0 bg-background">
-            <TableRow>
-              <TableHead>{t('astroCalc.dateTime')}</TableHead>
-              <TableHead>{t('astroCalc.tableRA')}</TableHead>
-              <TableHead>{t('astroCalc.tableDec')}</TableHead>
-              <TableHead>{t('astroCalc.altitude')}</TableHead>
-              <TableHead>{t('astroCalc.azimuth')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ephemeris.map((entry, i) => (
-              <TableRow key={i}>
-                <TableCell className="font-mono text-xs">
-                  {entry.date.toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </TableCell>
-                <TableCell className="font-mono text-xs">{degreesToHMS(entry.ra)}</TableCell>
-                <TableCell className="font-mono text-xs">{degreesToDMS(entry.dec)}</TableCell>
-                <TableCell className={cn(
-                  'text-xs',
-                  entry.altitude > 30 ? 'text-green-500' : entry.altitude > 0 ? 'text-yellow-500' : 'text-red-500'
-                )}>
-                  {entry.altitude.toFixed(1)}°
-                </TableCell>
-                <TableCell className="text-xs">{entry.azimuth.toFixed(1)}°</TableCell>
+      <ScrollArea className="h-[350px] border rounded-lg">
+        {ephemeris.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+            <MapPinned className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm font-medium">{t('astroCalc.enterCoordinates')}</p>
+            <p className="text-xs mt-1">{t('astroCalc.enterCoordinatesHint')}</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead>{t('astroCalc.dateTime')}</TableHead>
+                <TableHead>{t('astroCalc.tableRA')}</TableHead>
+                <TableHead>{t('astroCalc.tableDec')}</TableHead>
+                <TableHead className="text-right">{t('astroCalc.altitude')}</TableHead>
+                <TableHead className="text-right">{t('astroCalc.azimuth')}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {ephemeris.map((entry, i) => (
+                <TableRow key={i}>
+                  <TableCell className="font-mono text-xs">
+                    {entry.date.toLocaleString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{degreesToHMS(entry.ra)}</TableCell>
+                  <TableCell className="font-mono text-xs">{degreesToDMS(entry.dec)}</TableCell>
+                  <TableCell className={cn(
+                    'text-xs text-right tabular-nums',
+                    entry.altitude > 30 ? 'text-green-500' : entry.altitude > 0 ? 'text-yellow-500' : 'text-red-500'
+                  )}>
+                    {entry.altitude.toFixed(1)}°
+                  </TableCell>
+                  <TableCell className="text-xs text-right tabular-nums">{entry.azimuth.toFixed(1)}°</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </ScrollArea>
     </div>
   );

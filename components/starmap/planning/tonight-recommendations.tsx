@@ -47,6 +47,7 @@ import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useMountStore } from '@/lib/stores';
 import { TranslatedName } from '../objects/translated-name';
 import { useAstronomy } from '@/lib/tauri/hooks';
+import { MoonPhaseSVG } from './moon-phase-svg';
 
 
 // ============================================================================
@@ -321,38 +322,9 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
 function MoonPhaseDisplay({ phase, illumination, phaseName }: MoonPhaseDisplayProps) {
   const t = useTranslations();
   
-  // Calculate moon appearance
-  // phase: 0 = new, 0.25 = first quarter, 0.5 = full, 0.75 = last quarter
-  const isWaxing = phase < 0.5;
-  const illuminatedPercent = illumination;
-  
   return (
     <div className="flex items-center gap-3">
-      {/* Moon visualization */}
-      <div className="relative w-10 h-10">
-        {/* Moon base (dark side) */}
-        <div className="absolute inset-0 rounded-full bg-slate-800 border border-slate-600" />
-        
-        {/* Illuminated portion */}
-        <div 
-          className="absolute inset-0 rounded-full overflow-hidden"
-          style={{
-            background: `linear-gradient(${isWaxing ? '90deg' : '270deg'}, 
-              #fef3c7 ${illuminatedPercent}%, 
-              transparent ${illuminatedPercent}%)`,
-          }}
-        />
-        
-        {/* Subtle glow for bright moon */}
-        {illumination > 50 && (
-          <div 
-            className="absolute inset-0 rounded-full"
-            style={{
-              boxShadow: `0 0 ${illumination / 10}px ${illumination / 20}px rgba(254, 243, 199, 0.3)`,
-            }}
-          />
-        )}
-      </div>
+      <MoonPhaseSVG phase={phase} size={40} />
       
       {/* Moon info */}
       <div className="flex-1">
@@ -435,7 +407,7 @@ function TargetCard({
       </div>
       
       {/* Stats row */}
-      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
         <Tooltip>
           <TooltipTrigger className="flex items-center gap-1">
             <Mountain className="h-3 w-3" />
@@ -734,7 +706,7 @@ export function TonightRecommendations() {
         )}
         
         {/* Filter and Sort Controls */}
-        <div className="shrink-0 flex items-center gap-2 flex-wrap">
+        <div className="shrink-0 flex items-center gap-2 flex-wrap overflow-x-auto">
           {/* Filter buttons */}
           <div className="flex items-center gap-1 text-xs">
             <span className="text-muted-foreground mr-1">{t('tonight.filter')}:</span>
@@ -791,7 +763,7 @@ export function TonightRecommendations() {
               <p className="text-sm">{t('tonight.noRecommendations')}</p>
             </div>
           ) : (
-            <ScrollArea className="flex-1 min-h-0">
+            <ScrollArea className="h-[38vh] min-h-[200px]">
               <div className="space-y-2 pr-2">
                 {filteredRecommendations.map((target, index) => (
                   <TargetCard

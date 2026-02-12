@@ -82,7 +82,7 @@ export const TopToolbar = memo(function TopToolbar({
       />
 
       <div className="relative p-2 sm:p-3 flex items-center justify-between" style={{ zIndex: 1 }}>
-        {/* Left: Menu & Search */}
+        {/* Left: Menu, Search, Discovery & Navigation */}
         <div className="flex items-center gap-1.5 pointer-events-auto">
           {/* Mobile Menu */}
           <MobileMenuDrawer stel={stel} />
@@ -109,6 +109,29 @@ export const TopToolbar = memo(function TopToolbar({
               <p>{t('starmap.searchObjects')}</p>
             </TooltipContent>
           </Tooltip>
+
+          {/* Discovery Group - "What to observe" */}
+          <div className="hidden md:flex items-center gap-1.5">
+            <ToolbarGroup gap="none" className="p-0.5" data-tour-id="tonight-button">
+              <TonightRecommendations />
+              <SkyAtlasPanel />
+            </ToolbarGroup>
+
+            {/* Navigation Group - "Where to look" */}
+            <ToolbarGroup gap="none" className="p-0.5">
+              <QuickActionsPanel
+                onZoomToFov={onSetFov}
+                onResetView={onResetView}
+              />
+              <NavigationHistory onNavigate={onNavigate} />
+              <ViewBookmarks
+                currentRa={viewCenterRaDec.ra}
+                currentDec={viewCenterRaDec.dec}
+                currentFov={currentFov}
+                onNavigate={onNavigate}
+              />
+            </ToolbarGroup>
+          </div>
         </div>
 
         {/* Center: Time Display */}
@@ -116,70 +139,46 @@ export const TopToolbar = memo(function TopToolbar({
           {stel && <StellariumClock />}
         </div>
 
-        {/* Right: Settings */}
+        {/* Right: Planning → Instruments → Config → Display → Preferences → View/Help → Window */}
         <div className="flex items-center gap-1.5 pointer-events-auto">
-          {/* Desktop Toolbar */}
+          {/* Desktop Toolbar Groups */}
           <div className="hidden md:flex items-center gap-1.5">
-            {/* Unified Settings Panel */}
-            <ToolbarGroup gap="sm" className="p-0.5" data-tour-id="settings-button">
-              <UnifiedSettings />
-            </ToolbarGroup>
-
-            {/* Display Mode Controls */}
+            {/* Observation Planning Group */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <NightModeToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
-              <SensorControlToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
-              <ThemeToggle className="h-9 w-9" />
-              <LanguageSwitcher className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
-            </ToolbarGroup>
-
-            {/* Main Tools Group */}
-            <ToolbarGroup gap="none" className="p-0.5" data-tour-id="tonight-button">
-              <TonightRecommendations />
-              <SkyAtlasPanel />
-              <AstroCalculatorDialog />
               <SessionPlanner />
               <AstroEventsCalendar />
+              <AstroCalculatorDialog />
+            </ToolbarGroup>
+
+            {/* Instruments & Analysis Group */}
+            <ToolbarGroup gap="none" className="p-0.5">
+              <PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />
+              <OcularSimulator />
               <SatelliteTracker />
             </ToolbarGroup>
 
-            {/* Secondary Tools Group */}
-            <ToolbarGroup gap="none" className="p-0.5">
-              <OcularSimulator />
-              <PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />
+            {/* Configuration Group */}
+            <ToolbarGroup gap="none" className="p-0.5" data-tour-id="settings-button">
+              <UnifiedSettings />
               <EquipmentManager />
             </ToolbarGroup>
 
-            {/* Info Group */}
+            {/* Display Mode Group */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <KeyboardShortcutsDialog />
-              <AboutDialog />
+              <NightModeToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              <SensorControlToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              <ObjectTypeLegend variant="popover" />
+            </ToolbarGroup>
+
+            {/* UI Preferences Group */}
+            <ToolbarGroup gap="none" className="p-0.5">
+              <ThemeToggle className="h-9 w-9" showCustomize />
+              <LanguageSwitcher className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
             </ToolbarGroup>
           </div>
-          
-          {/* Quick Actions & Navigation */}
-          <ToolbarGroup gap="none" className="p-0.5 bg-card/60 backdrop-blur-md border border-border/50 rounded-lg">
-            <QuickActionsPanel
-              onZoomToFov={onSetFov}
-              onResetView={onResetView}
-            />
-            <NavigationHistory onNavigate={onNavigate} />
-            <ViewBookmarks
-              currentRa={viewCenterRaDec.ra}
-              currentDec={viewCenterRaDec.dec}
-              currentFov={currentFov}
-              onNavigate={onNavigate}
-            />
-          </ToolbarGroup>
-          
-          {/* View Controls Group */}
+
+          {/* View & Help Group (always visible) */}
           <ToolbarGroup gap="none" className="p-0.5">
-            <ToolbarButton
-              icon={<RotateCcw className="h-4 w-4" />}
-              label={t('starmap.resetView')}
-              iconOnly
-              onClick={onResetView}
-            />
             <ToolbarButton
               icon={showSessionPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
               label={showSessionPanel ? t('starmap.hideSessionInfo') : t('starmap.showSessionInfo')}
@@ -188,25 +187,28 @@ export const TopToolbar = memo(function TopToolbar({
               onClick={onToggleSessionPanel}
             />
             <ToolbarButton
+              icon={<RotateCcw className="h-4 w-4" />}
+              label={t('starmap.resetView')}
+              iconOnly
+              onClick={onResetView}
+            />
+            <KeyboardShortcutsDialog />
+            <AboutDialog />
+          </ToolbarGroup>
+
+          {/* Window Controls Group */}
+          <ToolbarGroup gap="none" className="p-0.5">
+            <ToolbarButton
               icon={<LogOut className="h-4 w-4" />}
               label={t('starmap.closeStarmap')}
               iconOnly
               className="hover:text-destructive hover:bg-destructive/10"
               onClick={onCloseStarmapClick}
             />
-          </ToolbarGroup>
-
-          {/* Object Type Legend */}
-          <ToolbarGroup gap="none" className="p-0.5">
-            <ObjectTypeLegend variant="popover" />
-          </ToolbarGroup>
-
-          {/* App Controls - Window controls integrated into toolbar */}
-          <div className="hidden md:flex">
-            <ToolbarGroup gap="none" className="p-0.5 ml-1">
+            <div className="hidden md:flex">
               <AppControlMenu variant="inline" />
-            </ToolbarGroup>
-          </div>
+            </div>
+          </ToolbarGroup>
         </div>
       </div>
     </div>

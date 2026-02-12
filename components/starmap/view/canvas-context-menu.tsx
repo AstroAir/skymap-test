@@ -33,9 +33,31 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { useStellariumStore } from '@/lib/stores';
+import { useStellariumStore, useEquipmentStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
-import type { CanvasContextMenuProps } from '@/types/starmap/view';
+import type { ClickCoords, SelectedObjectData } from '@/lib/core/types';
+import type { ContextMenuStellariumSettings } from '@/types/starmap/view';
+
+interface CanvasContextMenuProps {
+  open: boolean;
+  position: { x: number; y: number };
+  coords: ClickCoords | null;
+  selectedObject: SelectedObjectData | null;
+  mountConnected: boolean;
+  stellariumSettings: ContextMenuStellariumSettings;
+  onOpenChange: (open: boolean) => void;
+  onAddToTargetList: () => void;
+  onNavigateToCoords: () => void;
+  onOpenGoToDialog: () => void;
+  onSetPendingMarkerCoords: (coords: { ra: number; dec: number; raString: string; decString: string }) => void;
+  onSetFramingCoordinates: (data: { ra: number; dec: number; raString: string; decString: string; name: string }) => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onSetFov: (fov: number) => void;
+  onToggleStellariumSetting: (key: keyof ContextMenuStellariumSettings) => void;
+  onToggleSearch: () => void;
+  onResetView: () => void;
+}
 
 export const CanvasContextMenu = memo(function CanvasContextMenu({
   open,
@@ -43,8 +65,6 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
   coords,
   selectedObject,
   mountConnected,
-  fovSimEnabled,
-  mosaic,
   stellariumSettings,
   onOpenChange,
   onAddToTargetList,
@@ -55,14 +75,18 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
   onZoomIn,
   onZoomOut,
   onSetFov,
-  onSetFovSimEnabled,
-  onSetRotationAngle,
-  onSetMosaic,
   onToggleStellariumSetting,
   onToggleSearch,
   onResetView,
 }: CanvasContextMenuProps) {
   const t = useTranslations();
+
+  // Subscribe directly to equipment store — avoids prop drilling through orchestrator
+  const fovSimEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
+  const setFovSimEnabled = useEquipmentStore((s) => s.setFOVEnabled);
+  const mosaic = useEquipmentStore((s) => s.mosaic);
+  const setRotationAngle = useEquipmentStore((s) => s.setRotationAngle);
+  const setMosaic = useEquipmentStore((s) => s.setMosaic);
 
   // Copy view center coordinates
   const handleCopyViewCenter = useCallback(() => {
@@ -273,7 +297,7 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
           <DropdownMenuSubContent className="bg-card border-border">
             <DropdownMenuCheckboxItem
               checked={fovSimEnabled}
-              onCheckedChange={onSetFovSimEnabled}
+              onCheckedChange={setFovSimEnabled}
               className="text-foreground"
             >
               {t('fov.showFovOverlay')}
@@ -282,7 +306,7 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
               <>
                 <DropdownMenuSeparator className="bg-border" />
                 <DropdownMenuItem
-                  onClick={() => { onSetRotationAngle(0); onOpenChange(false); }}
+                  onClick={() => { setRotationAngle(0); onOpenChange(false); }}
                   className="text-foreground"
                 >
                   <RotateCw className="h-4 w-4 mr-2" />
@@ -290,7 +314,7 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
                 </DropdownMenuItem>
                 <DropdownMenuCheckboxItem
                   checked={mosaic.enabled}
-                  onCheckedChange={(checked: boolean) => onSetMosaic({ ...mosaic, enabled: checked })}
+                  onCheckedChange={(checked: boolean) => setMosaic({ ...mosaic, enabled: checked })}
                   className="text-foreground"
                 >
                   <Grid3X3 className="h-4 w-4 mr-2" />

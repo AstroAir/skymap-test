@@ -24,15 +24,33 @@ const mockUseStellariumStore = jest.fn((selector) => {
   return selector ? selector(state) : state;
 });
 
+const mockUseEventSourcesStore = jest.fn((selector) => {
+  const state = {
+    sources: [
+      { id: 'usno', name: 'USNO', apiUrl: '', apiKey: '', enabled: true, priority: 1, cacheMinutes: 60 },
+      { id: 'imo', name: 'IMO', apiUrl: '', apiKey: '', enabled: true, priority: 2, cacheMinutes: 60 },
+    ],
+    toggleSource: jest.fn(),
+  };
+  return selector ? selector(state) : state;
+});
+
 jest.mock('@/lib/stores', () => ({
   useMountStore: (selector: (state: unknown) => unknown) => mockUseMountStore(selector),
   useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
+  useEventSourcesStore: (selector: (state: unknown) => unknown) => mockUseEventSourcesStore(selector),
 }));
 
 // Mock astro-data-sources
 jest.mock('@/lib/services/astro-data-sources', () => ({
   fetchAllAstroEvents: jest.fn(() => Promise.resolve([])),
-  ASTRO_EVENT_SOURCES: [],
+}));
+
+// Mock event-detail-dialog
+jest.mock('../event-detail-dialog', () => ({
+  EventDetailDialog: ({ open }: { open: boolean }) => (
+    open ? <div data-testid="event-detail-dialog">Detail</div> : null
+  ),
 }));
 
 jest.mock('@/lib/utils', () => ({
@@ -130,6 +148,17 @@ describe('AstroEventsCalendar', () => {
   it('renders scroll area for events', () => {
     render(<AstroEventsCalendar />);
     expect(screen.getByTestId('scroll-area')).toBeInTheDocument();
+  });
+
+  it('renders data source switches from store', () => {
+    render(<AstroEventsCalendar />);
+    const switches = screen.getAllByTestId('switch');
+    expect(switches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not render event detail dialog by default', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.queryByTestId('event-detail-dialog')).not.toBeInTheDocument();
   });
 });
 

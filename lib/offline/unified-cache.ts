@@ -161,13 +161,22 @@ class WebCacheProvider {
   }
 
   async getSize(): Promise<number> {
-    if (!('storage' in navigator && 'estimate' in navigator.storage)) {
-      return 0;
-    }
+    if (!await this.isAvailable()) return 0;
     
     try {
-      const estimate = await navigator.storage.estimate();
-      return estimate.usage || 0;
+      const cache = await caches.open(this.cacheName);
+      const requests = await cache.keys();
+      let totalSize = 0;
+      
+      for (const request of requests) {
+        const response = await cache.match(request);
+        if (response) {
+          const blob = await response.clone().blob();
+          totalSize += blob.size;
+        }
+      }
+      
+      return totalSize;
     } catch {
       return 0;
     }
@@ -192,8 +201,6 @@ class WebCacheProvider {
 
 class TauriCacheProvider {
   private config: CacheConfig;
-  private metadataCache: Map<string, CacheEntry> = new Map();
-  private initialized = false;
 
   constructor(config: CacheConfig) {
     this.config = config;
@@ -623,7 +630,7 @@ class UnifiedCacheManager {
    */
   async prefetch(url: string, ttl?: number): Promise<boolean> {
     try {
-      await this.fetch(url, { ttl }, 'network-only');
+      await this.fetch(url, { ttl }, 'network-first');
       return true;
     } catch {
       return false;

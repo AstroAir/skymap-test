@@ -58,6 +58,9 @@ import { AccessibilitySettings } from './accessibility-settings';
 import { AboutSettings } from './about-settings';
 import { DataManager } from '../management/data-manager';
 import { SetupWizardButton } from '../setup-wizard';
+import { EventSourcesSettings } from './event-sources-settings';
+import { UpdateSettings } from '../management/updater/update-settings';
+import { isTauri } from '@/lib/tauri/app-control-api';
 
 export function UnifiedSettings() {
   const t = useTranslations();
@@ -200,6 +203,14 @@ export function UnifiedSettings() {
                 <PerformanceSettings />
                 <Separator />
                 <AccessibilitySettings />
+                <Separator />
+                <EventSourcesSettings />
+                {isTauri() && (
+                  <>
+                    <Separator />
+                    <UpdateSettings />
+                  </>
+                )}
               </div>
             </ScrollArea>
           </TabsContent>

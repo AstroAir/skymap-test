@@ -72,6 +72,7 @@ import {
 } from '@/lib/astronomy/astro-utils';
 import { optimizeSchedule } from '@/lib/astronomy/session-scheduler';
 import type { ScheduledTarget, SessionPlan, OptimizationStrategy } from '@/types/starmap/planning';
+import { MountSafetySimulator } from './mount-safety-simulator';
 
 // ============================================================================
 // Timeline Component
@@ -686,6 +687,12 @@ export function SessionPlanner() {
         
         <DialogFooter className="flex justify-between">
           <div className="flex gap-2">
+            <MountSafetySimulator
+              planDate={planDate}
+              strategy={strategy}
+              minAltitude={minAltitude}
+              minImagingTime={minImagingTime}
+            />
             <Button
               variant="outline"
               size="sm"

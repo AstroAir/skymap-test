@@ -63,46 +63,100 @@ export interface FITSMetadata {
 
 const FITS_BLOCK_SIZE = 2880;
 const FITS_CARD_SIZE = 80;
+const MAX_HEADER_BLOCKS = 100;
 
-function parseHeaderCard(card: string): { key: string; value: string | number | boolean | undefined } {
+function parseHeaderCard(card: string): { key: string; value: string | number | boolean | undefined; isContinue?: boolean } {
   const key = card.substring(0, 8).trim();
   
   if (key === '' || key === 'END') {
     return { key, value: undefined };
   }
   
+  // CONTINUE card support (FITS standard for long strings)
+  if (key === 'CONTINUE') {
+    const rest = card.substring(8).trim();
+    if (rest.startsWith("'")) {
+      const strValue = extractStringValue(rest);
+      return { key: 'CONTINUE', value: strValue, isContinue: true };
+    }
+    return { key: 'CONTINUE', value: rest, isContinue: true };
+  }
+  
+  // HIERARCH keyword support (ESO convention: "HIERARCH key.subkey = value")
+  if (key === 'HIERARCH') {
+    const eqIdx = card.indexOf('=', 8);
+    if (eqIdx > 0) {
+      const hierKey = card.substring(8, eqIdx).trim();
+      const valueStr = card.substring(eqIdx + 1).trim();
+      const parsed = parseValueString(valueStr);
+      return { key: hierKey, value: parsed };
+    }
+    return { key, value: card.substring(8).trim() };
+  }
+  
+  // Standard keyword=value format check
   if (card[8] !== '=' || card[9] !== ' ') {
     return { key, value: card.substring(10).trim() };
   }
   
-  let valueStr = card.substring(10).trim();
+  const valueStr = card.substring(10).trim();
+  const parsed = parseValueString(valueStr);
   
-  const commentIdx = valueStr.indexOf(' /');
-  if (commentIdx > 0 && !valueStr.startsWith("'")) {
-    valueStr = valueStr.substring(0, commentIdx).trim();
-  }
-  
-  if (valueStr.startsWith("'")) {
-    const endQuote = valueStr.indexOf("'", 1);
-    if (endQuote > 0) {
-      return { key, value: valueStr.substring(1, endQuote).trim() };
-    }
-    return { key, value: valueStr.substring(1).trim() };
-  }
-  
-  if (valueStr === 'T') return { key, value: true };
-  if (valueStr === 'F') return { key, value: false };
-  
-  const numValue = parseFloat(valueStr);
-  if (!isNaN(numValue)) {
-    return { key, value: numValue };
-  }
-  
-  return { key, value: valueStr };
+  return { key, value: parsed };
 }
 
-function parseHeaderBlock(buffer: ArrayBuffer): { header: FITSHeader; cards: string[]; complete: boolean } {
-  const header: FITSHeader = {};
+function extractStringValue(str: string): string {
+  if (!str.startsWith("'")) return str.trim();
+  // Handle escaped single quotes ('' → ')
+  let result = '';
+  let i = 1;
+  while (i < str.length) {
+    if (str[i] === "'") {
+      if (i + 1 < str.length && str[i + 1] === "'") {
+        result += "'";
+        i += 2;
+      } else {
+        break;
+      }
+    } else {
+      result += str[i];
+      i++;
+    }
+  }
+  return result.trim();
+}
+
+function parseValueString(valueStr: string): string | number | boolean | undefined {
+  if (!valueStr) return undefined;
+  
+  // String value (starts with single quote)
+  if (valueStr.startsWith("'")) {
+    return extractStringValue(valueStr);
+  }
+  
+  // Strip inline comment for non-string values
+  let cleanValue = valueStr;
+  const commentIdx = cleanValue.indexOf(' /');
+  if (commentIdx >= 0) {
+    cleanValue = cleanValue.substring(0, commentIdx).trim();
+  }
+  
+  if (!cleanValue) return undefined;
+  
+  // Boolean values
+  if (cleanValue === 'T') return true;
+  if (cleanValue === 'F') return false;
+  
+  // Numeric values (handle both integer and float, including scientific notation)
+  const numValue = parseFloat(cleanValue);
+  if (!isNaN(numValue)) {
+    return numValue;
+  }
+  
+  return cleanValue;
+}
+
+function parseHeaderBlock(buffer: ArrayBuffer, header: FITSHeader, lastKey: { value: string }): { cards: string[]; complete: boolean } {
   const cards: string[] = [];
   const view = new Uint8Array(buffer);
   let complete = false;
@@ -114,19 +168,29 @@ function parseHeaderBlock(buffer: ArrayBuffer): { header: FITSHeader; cards: str
     const card = String.fromCharCode(...cardBytes);
     cards.push(card);
     
-    const { key, value } = parseHeaderCard(card);
+    const { key, value, isContinue } = parseHeaderCard(card);
     
     if (key === 'END') {
       complete = true;
       break;
     }
     
+    // CONTINUE card: append value to previous key's string
+    if (isContinue && lastKey.value && value !== undefined) {
+      const prev = header[lastKey.value];
+      if (typeof prev === 'string' && typeof value === 'string') {
+        header[lastKey.value] = prev + value;
+      }
+      continue;
+    }
+    
     if (key && value !== undefined) {
       header[key] = value;
+      lastKey.value = key;
     }
   }
   
-  return { header, cards, complete };
+  return { cards, complete };
 }
 
 export async function parseFITSHeader(file: File): Promise<FITSMetadata> {
@@ -140,16 +204,18 @@ export async function parseFITSHeader(file: File): Promise<FITSMetadata> {
         const fullHeader: FITSHeader = {};
         let offset = 0;
         let complete = false;
+        const lastKey = { value: '' };
+        let blockCount = 0;
         
-        while (!complete && offset < buffer.byteLength) {
+        while (!complete && offset < buffer.byteLength && blockCount < MAX_HEADER_BLOCKS) {
           const blockEnd = Math.min(offset + FITS_BLOCK_SIZE, buffer.byteLength);
           const block = buffer.slice(offset, blockEnd);
-          const { header, cards, complete: isComplete } = parseHeaderBlock(block);
+          const { cards, complete: isComplete } = parseHeaderBlock(block, fullHeader, lastKey);
           
-          Object.assign(fullHeader, header);
           allCards = allCards.concat(cards);
           complete = isComplete;
           offset += FITS_BLOCK_SIZE;
+          blockCount++;
         }
         
         const metadata: FITSMetadata = {
@@ -171,7 +237,9 @@ export async function parseFITSHeader(file: File): Promise<FITSMetadata> {
       reject(new Error('Failed to read FITS file'));
     };
     
-    const headerSize = Math.min(file.size, FITS_BLOCK_SIZE * 10);
+    // Read enough of the file to cover headers dynamically
+    // Most headers fit in a few blocks, but allow up to MAX_HEADER_BLOCKS
+    const headerSize = Math.min(file.size, FITS_BLOCK_SIZE * MAX_HEADER_BLOCKS);
     const headerBlob = file.slice(0, headerSize);
     reader.readAsArrayBuffer(headerBlob);
   });
@@ -205,10 +273,29 @@ function extractWCSInfo(header: FITSHeader): WCSInfo | undefined {
     return undefined;
   }
   
-  const cd1_1 = (header['CD1_1'] as number) || (header['CDELT1'] as number) || 0;
-  const cd1_2 = (header['CD1_2'] as number) || 0;
-  const cd2_1 = (header['CD2_1'] as number) || 0;
-  const cd2_2 = (header['CD2_2'] as number) || (header['CDELT2'] as number) || 0;
+  let cd1_1: number, cd1_2: number, cd2_1: number, cd2_2: number;
+  
+  if (header['CD1_1'] !== undefined) {
+    // CD matrix is directly available
+    cd1_1 = (header['CD1_1'] as number) || 0;
+    cd1_2 = (header['CD1_2'] as number) || 0;
+    cd2_1 = (header['CD2_1'] as number) || 0;
+    cd2_2 = (header['CD2_2'] as number) || 0;
+  } else if (header['CDELT1'] !== undefined) {
+    // Construct CD matrix from CDELT + CROTA (legacy WCS convention)
+    const cdelt1 = (header['CDELT1'] as number) || 0;
+    const cdelt2 = (header['CDELT2'] as number) || 0;
+    const crota = (header['CROTA2'] as number) || (header['CROTA1'] as number) || 0;
+    const crotaRad = crota * (Math.PI / 180);
+    
+    cd1_1 = cdelt1 * Math.cos(crotaRad);
+    cd1_2 = -cdelt2 * Math.sin(crotaRad);
+    cd2_1 = cdelt1 * Math.sin(crotaRad);
+    cd2_2 = cdelt2 * Math.cos(crotaRad);
+  } else {
+    // No WCS scale information available
+    return undefined;
+  }
   
   const pixelScale = Math.sqrt(cd1_1 ** 2 + cd2_1 ** 2) * 3600;
   const rotation = Math.atan2(cd2_1, cd1_1) * (180 / Math.PI);
@@ -249,22 +336,7 @@ function extractObservationInfo(header: FITSHeader): FITSObservationInfo {
 // Formatting Utilities
 // ============================================================================
 
-export function formatRA(degrees: number): string {
-  const hours = degrees / 15;
-  const h = Math.floor(hours);
-  const m = Math.floor((hours - h) * 60);
-  const s = ((hours - h) * 60 - m) * 60;
-  return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toFixed(2).padStart(5, '0')}s`;
-}
-
-export function formatDec(degrees: number): string {
-  const sign = degrees >= 0 ? '+' : '-';
-  const abs = Math.abs(degrees);
-  const d = Math.floor(abs);
-  const m = Math.floor((abs - d) * 60);
-  const s = ((abs - d) * 60 - m) * 60;
-  return `${sign}${d.toString().padStart(2, '0')}° ${m.toString().padStart(2, '0')}' ${s.toFixed(1).padStart(4, '0')}"`;
-}
+export { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
 
 export function formatPixelScale(arcsecPerPixel: number): string {
   if (arcsecPerPixel < 1) {
@@ -297,10 +369,11 @@ export async function validateFITSFile(file: File): Promise<boolean> {
     reader.onload = () => {
       const buffer = reader.result as ArrayBuffer;
       const view = new Uint8Array(buffer);
-      const magic = String.fromCharCode(...view.slice(0, 6));
-      resolve(magic === 'SIMPLE');
+      // Check "SIMPLE  =" magic bytes (FITS standard requirement)
+      const magic = String.fromCharCode(...view.slice(0, 9));
+      resolve(magic.startsWith('SIMPLE') && magic.includes('='));
     };
     reader.onerror = () => resolve(false);
-    reader.readAsArrayBuffer(file.slice(0, 10));
+    reader.readAsArrayBuffer(file.slice(0, 80));
   });
 }

@@ -7,11 +7,8 @@ import {
   Telescope,
   Camera,
   Plus,
-  Trash2,
-  Star,
   Loader2,
   Wrench,
-  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,96 +48,46 @@ import {
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useEquipment, tauriApi } from '@/lib/tauri';
-import type { TelescopeType as TScopeType, CameraType as TCamType } from '@/lib/tauri';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
-import { normalizeTelescopes, normalizeCameras } from '@/lib/core/equipment-normalize';
-import { validateTelescopeForm, validateCameraForm } from '@/lib/core/management-validators';
-import type { NormalizedTelescope, NormalizedCamera, EquipmentManagerProps } from '@/types/starmap/management';
-import type { LucideIcon } from 'lucide-react';
+import type { EquipmentManagerProps } from '@/types/starmap/management';
 
-interface EquipmentListItemProps {
-  icon: LucideIcon;
-  name: string;
-  detail: string;
-  isSelected?: boolean;
-  isDefault?: boolean;
-  selectable?: boolean;
-  deleteLabel: string;
-  onSelect?: () => void;
-  onDelete: () => void;
-}
-
-function EquipmentListItem({
-  icon: Icon,
-  name,
-  detail,
-  isSelected,
-  isDefault,
-  selectable,
-  deleteLabel,
-  onSelect,
-  onDelete,
-}: EquipmentListItemProps) {
-  return (
-    <div
-      className={`flex items-center justify-between p-2 border rounded ${selectable ? 'cursor-pointer hover:bg-muted/50' : ''} ${isSelected ? 'border-primary bg-primary/10' : ''}`}
-      onClick={selectable ? onSelect : undefined}
-    >
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4" />
-        <div>
-          <p className="font-medium text-sm">{name}</p>
-          <p className="text-xs text-muted-foreground">{detail}</p>
-        </div>
-        {isSelected && <Check className="h-3 w-3 text-primary" />}
-        {isDefault && <Star className="h-3 w-3 text-yellow-500" />}
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={deleteLabel}
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
+import { EquipmentListItem } from './equipment-list-item';
+import { TelescopeTab } from './equipment-telescope-tab';
+import { CameraTab } from './equipment-camera-tab';
 
 export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   const t = useTranslations();
   const { equipment, loading, refresh, isAvailable: isTauriAvailable } = useEquipment();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('telescopes');
-  const [addingTelescope, setAddingTelescope] = useState(false);
-  const [addingCamera, setAddingCamera] = useState(false);
   const [addingBarlow, setAddingBarlow] = useState(false);
   const [addingFilter, setAddingFilter] = useState(false);
+
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      setAddingBarlow(false);
+      setAddingFilter(false);
+      setDeleteTarget(null);
+    }
+  }, []);
   
-  // Web equipment store (batch selector to reduce re-renders)
+  // Web equipment store (only for delete in web mode)
   const {
-    customCameras, customTelescopes,
-    addCustomCamera, addCustomTelescope,
-    removeCustomCamera, removeCustomTelescope,
-    applyCamera, applyTelescope,
-    activeCameraId, activeTelescopeId,
+    removeCustomCamera,
+    removeCustomTelescope,
+    customTelescopes,
+    customCameras,
   } = useEquipmentStore(useShallow((state) => ({
-    customCameras: state.customCameras,
-    customTelescopes: state.customTelescopes,
-    addCustomCamera: state.addCustomCamera,
-    addCustomTelescope: state.addCustomTelescope,
     removeCustomCamera: state.removeCustomCamera,
     removeCustomTelescope: state.removeCustomTelescope,
-    applyCamera: state.applyCamera,
-    applyTelescope: state.applyTelescope,
-    activeCameraId: state.activeCameraId,
-    activeTelescopeId: state.activeTelescopeId,
+    customTelescopes: state.customTelescopes,
+    customCameras: state.customCameras,
   })));
   
   // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: 'telescope' | 'camera' | 'barlow' | 'filter' } | null>(null);
 
-  // Confirmed delete handler (must be before early return for hooks ordering)
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
     const { id, type } = deleteTarget;
@@ -168,25 +115,6 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
     () => false
   );
 
-  // Telescope form state
-  const [telescopeForm, setTelescopeForm] = useState({
-    name: '',
-    aperture: '',
-    focal_length: '',
-    telescope_type: 'reflector' as TScopeType,
-  });
-
-  // Camera form state
-  const [cameraForm, setCameraForm] = useState({
-    name: '',
-    sensor_width: '',
-    sensor_height: '',
-    pixel_size: '',
-    resolution_x: '',
-    resolution_y: '',
-    camera_type: 'cmos' as TCamType,
-  });
-
   // Barlow form state
   const [barlowForm, setBarlowForm] = useState({
     name: '',
@@ -199,114 +127,6 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
     filter_type: 'luminance' as string,
     bandwidth: '',
   });
-
-  // ============================================================================
-  // Validation Helpers
-  // ============================================================================
-
-  const validateTelescope = (): string | null => {
-    const errorKey = validateTelescopeForm(telescopeForm);
-    return errorKey ? (t(errorKey) || errorKey) : null;
-  };
-
-  const validateCamera = (): string | null => {
-    const errorKey = validateCameraForm(cameraForm);
-    return errorKey ? (t(errorKey) || errorKey) : null;
-  };
-
-  // ============================================================================
-  // Web Environment Handlers
-  // ============================================================================
-
-  const handleWebAddTelescope = () => {
-    const error = validateTelescope();
-    if (error) { toast.error(error); return; }
-
-    addCustomTelescope({
-      name: telescopeForm.name,
-      focalLength: parseFloat(telescopeForm.focal_length),
-      aperture: parseFloat(telescopeForm.aperture),
-      type: telescopeForm.telescope_type,
-    });
-
-    toast.success(t('equipment.telescopeAdded') || 'Telescope added');
-    setTelescopeForm({ name: '', aperture: '', focal_length: '', telescope_type: 'reflector' });
-    setAddingTelescope(false);
-  };
-
-  const handleWebAddCamera = () => {
-    const error = validateCamera();
-    if (error) { toast.error(error); return; }
-
-    addCustomCamera({
-      name: cameraForm.name,
-      sensorWidth: parseFloat(cameraForm.sensor_width),
-      sensorHeight: parseFloat(cameraForm.sensor_height),
-      pixelSize: parseFloat(cameraForm.pixel_size) || 3.76,
-      resolutionX: parseInt(cameraForm.resolution_x) || undefined,
-      resolutionY: parseInt(cameraForm.resolution_y) || undefined,
-    });
-
-    toast.success(t('equipment.cameraAdded') || 'Camera added');
-    setCameraForm({ name: '', sensor_width: '', sensor_height: '', pixel_size: '', resolution_x: '', resolution_y: '', camera_type: 'cmos' });
-    setAddingCamera(false);
-  };
-
-  // ============================================================================
-  // Tauri Environment Handlers
-  // ============================================================================
-
-  const handleAddTelescope = async () => {
-    const error = validateTelescope();
-    if (error) { toast.error(error); return; }
-
-    try {
-      const aperture = parseFloat(telescopeForm.aperture);
-      const focal_length = parseFloat(telescopeForm.focal_length);
-      
-      await tauriApi.equipment.addTelescope({
-        name: telescopeForm.name,
-        aperture,
-        focal_length,
-        focal_ratio: focal_length / aperture,
-        telescope_type: telescopeForm.telescope_type,
-        is_default: !equipment?.telescopes.length,
-      });
-      
-      toast.success(t('equipment.telescopeAdded') || 'Telescope added');
-      setTelescopeForm({ name: '', aperture: '', focal_length: '', telescope_type: 'reflector' });
-      setAddingTelescope(false);
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
-
-  const handleAddCamera = async () => {
-    const error = validateCamera();
-    if (error) { toast.error(error); return; }
-
-    try {
-      await tauriApi.equipment.addCamera({
-        name: cameraForm.name,
-        sensor_width: parseFloat(cameraForm.sensor_width),
-        sensor_height: parseFloat(cameraForm.sensor_height),
-        pixel_size: parseFloat(cameraForm.pixel_size) || 0,
-        resolution_x: parseInt(cameraForm.resolution_x) || 0,
-        resolution_y: parseInt(cameraForm.resolution_y) || 0,
-        camera_type: cameraForm.camera_type,
-        has_cooler: false,
-        is_default: !equipment?.cameras.length,
-      });
-      
-      toast.success(t('equipment.cameraAdded') || 'Camera added');
-      setCameraForm({ name: '', sensor_width: '', sensor_height: '', pixel_size: '', resolution_x: '', resolution_y: '', camera_type: 'cmos' });
-      setAddingCamera(false);
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
 
   const handleAddBarlow = async () => {
     if (!barlowForm.name.trim()) {
@@ -357,44 +177,20 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   };
 
   // Return null during SSR to avoid hydration mismatch
-  // (DialogTrigger asChild adds props that differ from plain Button)
   if (!mounted) {
     return null;
   }
 
-  // Determine data source and normalize to unified types
+  // Determine raw data source
   const rawTelescopes = isTauriAvailable ? equipment?.telescopes ?? [] : customTelescopes;
   const rawCameras = isTauriAvailable ? equipment?.cameras ?? [] : customCameras;
-  const telescopeList = normalizeTelescopes(rawTelescopes, isTauriAvailable);
-  const cameraList = normalizeCameras(rawCameras, isTauriAvailable);
 
-  // Select appropriate handlers based on environment
-  const onAddTelescope = isTauriAvailable ? handleAddTelescope : handleWebAddTelescope;
-  const onAddCamera = isTauriAvailable ? handleAddCamera : handleWebAddCamera;
-
-  // Handle selecting equipment (web only)
-  const handleSelectTelescope = (scope: NormalizedTelescope) => {
-    if (!isTauriAvailable) {
-      const preset = customTelescopes.find(p => p.id === scope.id);
-      if (preset) {
-        applyTelescope(preset);
-        toast.success(t('equipment.selected') || 'Telescope selected');
-      }
-    }
-  };
-
-  const handleSelectCamera = (cam: NormalizedCamera) => {
-    if (!isTauriAvailable) {
-      const preset = customCameras.find(p => p.id === cam.id);
-      if (preset) {
-        applyCamera(preset);
-        toast.success(t('equipment.selected') || 'Camera selected');
-      }
-    }
+  const handleDeleteRequest = (id: string, name: string, type: 'telescope' | 'camera' | 'barlow' | 'filter') => {
+    setDeleteTarget({ id, name, type });
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
@@ -449,204 +245,32 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
               )}
             </TabsList>
 
-            <TabsContent value="telescopes" className="space-y-4">
-              <ScrollArea className="h-[200px]">
-                {telescopeList.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4">
-                    {t('equipment.noTelescopes') || 'No telescopes added'}
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {telescopeList.map((scope) => (
-                      <EquipmentListItem
-                        key={scope.id}
-                        icon={Telescope}
-                        name={scope.name}
-                        detail={`${scope.aperture}mm f/${scope.focalRatio.toFixed(1)}`}
-                        isSelected={!isTauriAvailable && activeTelescopeId === scope.id}
-                        isDefault={scope.isDefault}
-                        selectable={!isTauriAvailable}
-                        deleteLabel={t('equipment.delete')}
-                        onSelect={() => handleSelectTelescope(scope)}
-                        onDelete={() => setDeleteTarget({ id: scope.id, name: scope.name, type: 'telescope' })}
-                      />
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-
-              {addingTelescope ? (
-                <Card className="py-3">
-                  <CardContent className="space-y-3 px-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label>{t('equipment.name') || 'Name'}</Label>
-                      <Input
-                        value={telescopeForm.name}
-                        onChange={(e) => setTelescopeForm({ ...telescopeForm, name: e.target.value })}
-                        placeholder={t('equipment.telescopeNamePlaceholder')}
-                      />
-                    </div>
-                    <div>
-                      <Label>{t('equipment.type') || 'Type'}</Label>
-                      <Select
-                        value={telescopeForm.telescope_type}
-                        onValueChange={(v) => setTelescopeForm({ ...telescopeForm, telescope_type: v as TScopeType })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="refractor">{t('equipment.telescopeTypes.refractor')}</SelectItem>
-                          <SelectItem value="reflector">{t('equipment.telescopeTypes.reflector')}</SelectItem>
-                          <SelectItem value="catadioptric">{t('equipment.telescopeTypes.catadioptric')}</SelectItem>
-                          <SelectItem value="other">{t('equipment.telescopeTypes.other')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label>{t('equipment.aperture') || 'Aperture (mm)'}</Label>
-                      <Input
-                        type="number"
-                        value={telescopeForm.aperture}
-                        onChange={(e) => setTelescopeForm({ ...telescopeForm, aperture: e.target.value })}
-                        placeholder="200"
-                      />
-                    </div>
-                    <div>
-                      <Label>{t('equipment.focalLength') || 'Focal Length (mm)'}</Label>
-                      <Input
-                        type="number"
-                        value={telescopeForm.focal_length}
-                        onChange={(e) => setTelescopeForm({ ...telescopeForm, focal_length: e.target.value })}
-                        placeholder="1000"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={onAddTelescope}>
-                      {t('common.save') || 'Save'}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setAddingTelescope(false)}>
-                      {t('common.cancel') || 'Cancel'}
-                    </Button>
-                  </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Button variant="outline" className="w-full" onClick={() => setAddingTelescope(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t('equipment.addTelescope') || 'Add Telescope'}
-                </Button>
-              )}
+            <TabsContent value="telescopes">
+              <TelescopeTab
+                isTauriAvailable={isTauriAvailable}
+                rawTelescopes={rawTelescopes}
+                onDeleteRequest={(id, name) => handleDeleteRequest(id, name, 'telescope')}
+                onRefresh={refresh}
+              />
             </TabsContent>
 
-            <TabsContent value="cameras" className="space-y-4">
-              <ScrollArea className="h-[200px]">
-                {cameraList.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4">
-                    {t('equipment.noCameras') || 'No cameras added'}
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {cameraList.map((cam) => (
-                      <EquipmentListItem
-                        key={cam.id}
-                        icon={Camera}
-                        name={cam.name}
-                        detail={`${cam.sensorWidth}×${cam.sensorHeight}mm`}
-                        isSelected={!isTauriAvailable && activeCameraId === cam.id}
-                        isDefault={cam.isDefault}
-                        selectable={!isTauriAvailable}
-                        deleteLabel={t('equipment.delete')}
-                        onSelect={() => handleSelectCamera(cam)}
-                        onDelete={() => setDeleteTarget({ id: cam.id, name: cam.name, type: 'camera' })}
-                      />
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-
-              {addingCamera ? (
-                <Card className="py-3">
-                  <CardContent className="space-y-3 px-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label>{t('equipment.name') || 'Name'}</Label>
-                      <Input
-                        value={cameraForm.name}
-                        onChange={(e) => setCameraForm({ ...cameraForm, name: e.target.value })}
-                        placeholder={t('equipment.cameraNamePlaceholder')}
-                      />
-                    </div>
-                    <div>
-                      <Label>{t('equipment.type') || 'Type'}</Label>
-                      <Select
-                        value={cameraForm.camera_type}
-                        onValueChange={(v) => setCameraForm({ ...cameraForm, camera_type: v as TCamType })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cmos">{t('equipment.cameraTypes.cmos')}</SelectItem>
-                          <SelectItem value="ccd">{t('equipment.cameraTypes.ccd')}</SelectItem>
-                          <SelectItem value="dslr">{t('equipment.cameraTypes.dslr')}</SelectItem>
-                          <SelectItem value="mirrorless">{t('equipment.cameraTypes.mirrorless')}</SelectItem>
-                          <SelectItem value="other">{t('equipment.cameraTypes.other')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label>{t('equipment.sensorWidth') || 'Sensor Width (mm)'}</Label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={cameraForm.sensor_width}
-                        onChange={(e) => setCameraForm({ ...cameraForm, sensor_width: e.target.value })}
-                        placeholder="23.2"
-                      />
-                    </div>
-                    <div>
-                      <Label>{t('equipment.sensorHeight') || 'Sensor Height (mm)'}</Label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={cameraForm.sensor_height}
-                        onChange={(e) => setCameraForm({ ...cameraForm, sensor_height: e.target.value })}
-                        placeholder="15.5"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={onAddCamera}>
-                      {t('common.save') || 'Save'}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setAddingCamera(false)}>
-                      {t('common.cancel') || 'Cancel'}
-                    </Button>
-                  </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Button variant="outline" className="w-full" onClick={() => setAddingCamera(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t('equipment.addCamera') || 'Add Camera'}
-                </Button>
-              )}
+            <TabsContent value="cameras">
+              <CameraTab
+                isTauriAvailable={isTauriAvailable}
+                rawCameras={rawCameras}
+                onDeleteRequest={(id, name) => handleDeleteRequest(id, name, 'camera')}
+                onRefresh={refresh}
+              />
             </TabsContent>
 
-            {/* Barlows Tab */}
+            {/* Barlows Tab (Tauri only) */}
             <TabsContent value="barlows" className="space-y-4">
               <ScrollArea className="h-[200px]">
                 {equipment?.barlow_reducers.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4">
-                    {t('equipment.noBarlows') || 'No barlows/reducers added'}
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <Plus className="h-10 w-10 mb-3 opacity-50" />
+                    <p className="text-sm">{t('equipment.noBarlows') || 'No barlows/reducers added'}</p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {equipment?.barlow_reducers.map((barlow) => (
@@ -656,7 +280,7 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                         name={barlow.name}
                         detail={`${barlow.factor}x ${barlow.factor > 1 ? t('equipment.barlowLabel') : t('equipment.reducerLabel')}`}
                         deleteLabel={t('equipment.delete')}
-                        onDelete={() => setDeleteTarget({ id: barlow.id, name: barlow.name, type: 'barlow' })}
+                        onDelete={() => handleDeleteRequest(barlow.id, barlow.name, 'barlow')}
                       />
                     ))}
                   </div>
@@ -666,6 +290,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
               {addingBarlow ? (
                 <Card className="py-3">
                   <CardContent className="space-y-3 px-3">
+                  <form onSubmit={(e) => { e.preventDefault(); handleAddBarlow(); }}>
+                  <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label>{t('equipment.name') || 'Name'}</Label>
@@ -673,6 +299,7 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                         value={barlowForm.name}
                         onChange={(e) => setBarlowForm({ ...barlowForm, name: e.target.value })}
                         placeholder={t('equipment.barlowNamePlaceholder')}
+                        autoFocus
                       />
                     </div>
                     <div>
@@ -687,13 +314,15 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={handleAddBarlow}>
+                    <Button size="sm" type="submit">
                       {t('common.save') || 'Save'}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setAddingBarlow(false)}>
+                    <Button size="sm" variant="outline" type="button" onClick={() => setAddingBarlow(false)}>
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                   </div>
+                  </div>
+                  </form>
                   </CardContent>
                 </Card>
               ) : (
@@ -704,13 +333,14 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
               )}
             </TabsContent>
 
-            {/* Filters Tab */}
+            {/* Filters Tab (Tauri only) */}
             <TabsContent value="filters" className="space-y-4">
               <ScrollArea className="h-[200px]">
                 {equipment?.filters.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4">
-                    {t('equipment.noFilters') || 'No filters added'}
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <Wrench className="h-10 w-10 mb-3 opacity-50" />
+                    <p className="text-sm">{t('equipment.noFilters') || 'No filters added'}</p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {equipment?.filters.map((filter) => (
@@ -720,7 +350,7 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                         name={filter.name}
                         detail={`${filter.filter_type}${filter.bandwidth ? ` (${filter.bandwidth}nm)` : ''}`}
                         deleteLabel={t('equipment.delete')}
-                        onDelete={() => setDeleteTarget({ id: filter.id, name: filter.name, type: 'filter' })}
+                        onDelete={() => handleDeleteRequest(filter.id, filter.name, 'filter')}
                       />
                     ))}
                   </div>
@@ -730,6 +360,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
               {addingFilter ? (
                 <Card className="py-3">
                   <CardContent className="space-y-3 px-3">
+                  <form onSubmit={(e) => { e.preventDefault(); handleAddFilter(); }}>
+                  <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label>{t('equipment.name') || 'Name'}</Label>
@@ -737,6 +369,7 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                         value={filterForm.name}
                         onChange={(e) => setFilterForm({ ...filterForm, name: e.target.value })}
                         placeholder={t('equipment.filterNamePlaceholder')}
+                        autoFocus
                       />
                     </div>
                     <div>
@@ -773,13 +406,15 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={handleAddFilter}>
+                    <Button size="sm" type="submit">
                       {t('common.save') || 'Save'}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setAddingFilter(false)}>
+                    <Button size="sm" variant="outline" type="button" onClick={() => setAddingFilter(false)}>
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                   </div>
+                  </div>
+                  </form>
                   </CardContent>
                 </Card>
               ) : (

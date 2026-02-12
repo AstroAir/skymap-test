@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Moon, Star, Plus, ChevronUp, ChevronDown } from 'lucide-react';
+import { Moon, Star, Plus, ChevronUp, ChevronDown, Telescope } from 'lucide-react';
 import {
   calculateTwilightTimes,
   calculateTargetVisibility,
@@ -179,8 +179,8 @@ export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUT
         </Badge>
       </div>
       
-      {/* Filters */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {/* Filters Row 1: Dropdowns */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.objectType')}</Label>
           <Select value={objectType} onValueChange={(v) => setObjectType(v as typeof objectType)}>
@@ -195,30 +195,6 @@ export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUT
               <SelectItem value="planetary">{t('objects.planetaryNebula')}</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t('astroCalc.magnitude')}: {magnitudeRange[0]}-{magnitudeRange[1]}</Label>
-          <Slider
-            value={magnitudeRange}
-            onValueChange={(v) => setMagnitudeRange(v as [number, number])}
-            min={0}
-            max={15}
-            step={0.5}
-            className="mt-2"
-          />
-        </div>
-        
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t('astroCalc.minAltitude')}: {minAltitude}°</Label>
-          <Slider
-            value={[minAltitude]}
-            onValueChange={([v]) => setMinAltitude(v)}
-            min={10}
-            max={60}
-            step={5}
-            className="mt-2"
-          />
         </div>
         
         <div className="space-y-1.5">
@@ -252,13 +228,48 @@ export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUT
         </div>
       </div>
       
-      {/* Advanced Filters */}
-      <div className="flex items-center gap-4">
+      {/* Filters Row 2: Sliders */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">{t('astroCalc.magnitude')}</Label>
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-mono">
+              {magnitudeRange[0]}-{magnitudeRange[1]}
+            </Badge>
+          </div>
+          <Slider
+            value={magnitudeRange}
+            onValueChange={(v) => setMagnitudeRange(v as [number, number])}
+            min={0}
+            max={15}
+            step={0.5}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">{t('astroCalc.minAltitude')}</Label>
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-mono">
+              {minAltitude}°
+            </Badge>
+          </div>
+          <Slider
+            value={[minAltitude]}
+            onValueChange={([v]) => setMinAltitude(v)}
+            min={10}
+            max={60}
+            step={5}
+          />
+        </div>
+      </div>
+      
+      {/* Advanced Filters + Count */}
+      <div className="flex items-center justify-between">
         <Button 
           variant="ghost" 
           size="sm" 
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="text-xs"
+          className="text-xs h-7 px-2"
         >
           {showAdvanced ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
           {t('astroCalc.advancedFilters')}
@@ -269,9 +280,14 @@ export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUT
       </div>
       
       {showAdvanced && (
-        <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/30">
-          <div className="space-y-1.5">
-            <Label className="text-xs">{t('astroCalc.minSize')}: {minSize > 0 ? `${minSize}'` : t('astroCalc.any')}</Label>
+        <div className="p-3 rounded-lg bg-muted/30">
+          <div className="max-w-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">{t('astroCalc.minSize')}</Label>
+              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-mono">
+                {minSize > 0 ? `${minSize}'` : t('astroCalc.any')}
+              </Badge>
+            </div>
             <Slider
               value={[minSize]}
               onValueChange={([v]) => setMinSize(v)}
@@ -285,65 +301,73 @@ export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUT
       
       {/* Results Table */}
       <ScrollArea className="h-[350px] border rounded-lg">
-        <Table>
-          <TableHeader className="sticky top-0 bg-background">
-            <TableRow>
-              <TableHead>{t('astroCalc.name')}</TableHead>
-              <TableHead>{t('astroCalc.type')}</TableHead>
-              <TableHead>{t('astroCalc.mag')}</TableHead>
-              <TableHead>{t('astroCalc.rise')}</TableHead>
-              <TableHead>{t('astroCalc.transit')}</TableHead>
-              <TableHead>{t('astroCalc.maxEl')}</TableHead>
-              <TableHead>{t('astroCalc.set')}</TableHead>
-              <TableHead>{t('astroCalc.size')}</TableHead>
-              <TableHead>{t('astroCalc.score')}</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {wutObjects.map((obj) => (
-              <TableRow 
-                key={obj.name}
-                className="cursor-pointer hover:bg-accent/50"
-                onClick={() => onSelectObject(obj.ra, obj.dec)}
-              >
-                <TableCell className="font-medium">
-                  <TranslatedName name={obj.name} />
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{obj.type}</TableCell>
-                <TableCell className="text-xs">{obj.magnitude?.toFixed(1) ?? '--'}</TableCell>
-                <TableCell className="font-mono text-xs">{formatTimeShort(obj.riseTime)}</TableCell>
-                <TableCell className="font-mono text-xs">{formatTimeShort(obj.transitTime)}</TableCell>
-                <TableCell className="text-xs">{obj.maxElevation.toFixed(0)}°</TableCell>
-                <TableCell className="font-mono text-xs">{formatTimeShort(obj.setTime)}</TableCell>
-                <TableCell className="text-xs">
-                  {obj.angularSize ? `${obj.angularSize.toFixed(1)}'` : '--'}
-                </TableCell>
-                <TableCell>
-                  <Badge 
-                    variant={obj.score >= 70 ? 'default' : obj.score >= 50 ? 'secondary' : 'outline'}
-                    className="text-xs"
-                  >
-                    {obj.score}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddToList(obj.name, obj.ra, obj.dec);
-                    }}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </TableCell>
+        {wutObjects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+            <Telescope className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm font-medium">{t('astroCalc.noObjectsFound')}</p>
+            <p className="text-xs mt-1">{t('astroCalc.adjustFilters')}</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead>{t('astroCalc.name')}</TableHead>
+                <TableHead>{t('astroCalc.type')}</TableHead>
+                <TableHead className="text-right">{t('astroCalc.mag')}</TableHead>
+                <TableHead>{t('astroCalc.rise')}</TableHead>
+                <TableHead>{t('astroCalc.transit')}</TableHead>
+                <TableHead className="text-right">{t('astroCalc.maxEl')}</TableHead>
+                <TableHead>{t('astroCalc.set')}</TableHead>
+                <TableHead className="text-right hidden lg:table-cell">{t('astroCalc.size')}</TableHead>
+                <TableHead className="text-center">{t('astroCalc.score')}</TableHead>
+                <TableHead className="w-8"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {wutObjects.map((obj) => (
+                <TableRow 
+                  key={obj.name}
+                  className="cursor-pointer hover:bg-accent/50"
+                  onClick={() => onSelectObject(obj.ra, obj.dec)}
+                >
+                  <TableCell className="font-medium text-sm">
+                    <TranslatedName name={obj.name} />
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{obj.type}</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums">{obj.magnitude?.toFixed(1) ?? '--'}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatTimeShort(obj.riseTime)}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatTimeShort(obj.transitTime)}</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums">{obj.maxElevation.toFixed(0)}°</TableCell>
+                  <TableCell className="font-mono text-xs">{formatTimeShort(obj.setTime)}</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums hidden lg:table-cell">
+                    {obj.angularSize ? `${obj.angularSize.toFixed(1)}'` : '--'}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge 
+                      variant={obj.score >= 70 ? 'default' : obj.score >= 50 ? 'secondary' : 'outline'}
+                      className="text-[10px] px-1.5"
+                    >
+                      {obj.score}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="w-8">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddToList(obj.name, obj.ra, obj.dec);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </ScrollArea>
     </div>
   );

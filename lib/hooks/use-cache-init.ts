@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { installFetchInterceptor, unifiedCache, type CacheStrategy } from '@/lib/offline';
 import { PREFETCH_RESOURCES, CACHE_CONFIG } from '@/lib/cache/config';
+import { initializeCacheSystem } from '@/lib/cache/migration';
 import { isTauri } from '@/lib/storage/platform';
 import { unifiedCacheApi } from '@/lib/tauri/unified-cache-api';
 import { createLogger } from '@/lib/logger';
@@ -60,6 +61,15 @@ export function useCacheInit(options: UseCacheInitOptions = {}) {
     if (initialized.current) return;
     initialized.current = true;
 
+    // Run cache migrations on startup
+    initializeCacheSystem().then((result) => {
+      if (result.migratedItems > 0 || result.deletedItems > 0) {
+        logger.info('Cache migration completed', result);
+      }
+    }).catch((error) => {
+      logger.warn('Cache migration failed', error);
+    });
+
     // Install fetch interceptor for automatic caching
     if (enableInterception) {
       installFetchInterceptor(strategy);
@@ -107,10 +117,29 @@ export function useCacheInit(options: UseCacheInitOptions = {}) {
       cleanupFlush = () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }
 
+    // Periodic cleanup of expired cache entries (every 30 minutes)
+    const cleanupInterval = setInterval(async () => {
+      try {
+        if (isTauri()) {
+          const deleted = await unifiedCacheApi.cleanup();
+          if (deleted > 0) {
+            logger.info(`Periodic cleanup removed ${deleted} expired entries`);
+          }
+        } else {
+          // Web: clear expired entries by re-fetching keys and checking TTL
+          const keys = await unifiedCache.keys();
+          logger.debug(`Periodic cleanup check: ${keys.length} cached entries`);
+        }
+      } catch (error) {
+        logger.warn('Periodic cache cleanup failed', error);
+      }
+    }, 30 * 60 * 1000);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       cleanupFlush?.();
+      clearInterval(cleanupInterval);
     };
   }, [strategy, enableInterception, enablePrefetch, additionalPrefetchUrls]);
 }

@@ -5,6 +5,7 @@
 
 import { smartFetch } from './http-fetch';
 import { createLogger } from '@/lib/logger';
+import type { EventSourceConfig } from '@/lib/stores/event-sources-store';
 
 const logger = createLogger('astro-data-sources');
 
@@ -89,45 +90,17 @@ export interface DataSourceConfig {
   priority: number;
 }
 
-// ============================================================================
-// Data Source Configurations
-// ============================================================================
+// Re-export for backward compatibility
+export { useEventSourcesStore, type EventSourceConfig as StoreEventSourceConfig } from '@/lib/stores/event-sources-store';
 
+// Legacy constant kept for callers that haven't migrated
 export const ASTRO_EVENT_SOURCES: DataSourceConfig[] = [
-  {
-    id: 'astronomyapi',
-    name: 'Astronomy API',
-    enabled: true,
-    apiUrl: 'https://api.astronomyapi.com/api/v2',
-    priority: 1,
-  },
-  {
-    id: 'usno',
-    name: 'US Naval Observatory',
-    enabled: true,
-    apiUrl: 'https://aa.usno.navy.mil/api',
-    priority: 2,
-  },
-  {
-    id: 'timeanddate',
-    name: 'Time and Date',
-    enabled: true,
-    apiUrl: 'https://api.timeanddate.com',
-    priority: 3,
-  },
-  {
-    id: 'imo',
-    name: 'International Meteor Organization',
-    enabled: true,
-    apiUrl: 'https://www.imo.net/api',
-    priority: 4,
-  },
-  {
-    id: 'local',
-    name: 'Local Calculations',
-    enabled: true,
-    priority: 99,
-  },
+  { id: 'usno', name: 'US Naval Observatory', enabled: true, apiUrl: 'https://aa.usno.navy.mil/api', priority: 1 },
+  { id: 'imo', name: 'International Meteor Organization', enabled: true, apiUrl: 'https://www.imo.net/api', priority: 2 },
+  { id: 'nasa', name: 'NASA Eclipse', enabled: true, apiUrl: 'https://eclipse.gsfc.nasa.gov', priority: 3 },
+  { id: 'mpc', name: 'Minor Planet Center', enabled: true, apiUrl: 'https://www.minorplanetcenter.net', priority: 4 },
+  { id: 'astronomyapi', name: 'Astronomy API', enabled: false, apiUrl: 'https://api.astronomyapi.com/api/v2', priority: 5 },
+  { id: 'local', name: 'Local Calculations', enabled: true, priority: 99 },
 ];
 
 export const SATELLITE_SOURCES: DataSourceConfig[] = [
@@ -585,48 +558,194 @@ function categorizesSatellite(name: string, category: string): SatelliteData['ty
 }
 
 // ============================================================================
+// Planetary Events Fetcher (Astronomy API)
+// ============================================================================
+
+/**
+ * Fetch planetary events (conjunctions, oppositions, elongations)
+ * Requires an API key from astronomyapi.com
+ */
+export async function fetchPlanetaryEvents(
+  year: number,
+  month: number,
+  config?: { apiUrl?: string; apiKey?: string }
+): Promise<AstroEvent[]> {
+  const apiKey = config?.apiKey;
+  if (!apiKey) {
+    logger.debug('Astronomy API key not configured, using static planetary data');
+    return getStaticPlanetaryEvents(year, month);
+  }
+
+  const apiUrl = config?.apiUrl || 'https://api.astronomyapi.com/api/v2';
+
+  try {
+    const fromDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const toDate = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+
+    const response = await smartFetch(
+      `${apiUrl}/bodies/events?from_date=${fromDate}&to_date=${toDate}`,
+      {
+        timeout: 30000,
+        headers: {
+          'Authorization': `Basic ${apiKey}`,
+        },
+      }
+    );
+
+    if (!response.ok) throw new Error(`Astronomy API error: ${response.status}`);
+
+    const data = await response.json<{
+      data?: { rows?: Array<{
+        body?: { name?: string };
+        events?: Array<{
+          type?: string;
+          eventHighlights?: Array<{ date?: string; bodyDetails?: { elongation?: number } }>;
+        }>;
+      }> };
+    }>();
+
+    const events: AstroEvent[] = [];
+
+    if (data.data?.rows) {
+      data.data.rows.forEach((row) => {
+        const bodyName = row.body?.name || 'Unknown';
+        row.events?.forEach((evt) => {
+          const evtType = evt.type?.toLowerCase() || '';
+          const highlight = evt.eventHighlights?.[0];
+          if (!highlight?.date) return;
+
+          let eventType: EventType = 'planet_conjunction';
+          if (evtType.includes('opposition')) eventType = 'planet_opposition';
+          else if (evtType.includes('elongation')) eventType = 'planet_elongation';
+          else if (evtType.includes('conjunction')) eventType = 'planet_conjunction';
+
+          events.push({
+            id: `astapi-${bodyName}-${evtType}-${highlight.date}`,
+            type: eventType,
+            name: `${bodyName} ${evt.type || evtType}`,
+            date: new Date(highlight.date),
+            description: `${bodyName} reaches ${evtType}${highlight.bodyDetails?.elongation ? ` at ${highlight.bodyDetails.elongation.toFixed(1)}°` : ''}.`,
+            visibility: 'good',
+            source: 'Astronomy API',
+            url: 'https://astronomyapi.com',
+          });
+        });
+      });
+    }
+
+    return events;
+  } catch (error) {
+    logger.warn('Failed to fetch from Astronomy API, using static data', error);
+    return getStaticPlanetaryEvents(year, month);
+  }
+}
+
+/**
+ * Static planetary event data as fallback
+ */
+function getStaticPlanetaryEvents(year: number, month: number): AstroEvent[] {
+  const events: Array<{ date: string; name: string; type: EventType; desc: string }> = [
+    // 2025 notable events
+    { date: '2025-01-16', name: 'Mars at Opposition', type: 'planet_opposition', desc: 'Mars is at its closest and brightest, visible all night.' },
+    { date: '2025-01-18', name: 'Venus Greatest Eastern Elongation', type: 'planet_elongation', desc: 'Venus reaches 47.2° east of the Sun, brilliant in evening sky.' },
+    { date: '2025-03-14', name: 'Jupiter Conjunction with Moon', type: 'planet_conjunction', desc: 'Jupiter appears near the Moon in the evening sky.' },
+    { date: '2025-05-25', name: 'Saturn at Opposition', type: 'planet_opposition', desc: 'Saturn at its closest approach, rings well-presented.' },
+    { date: '2025-06-01', name: 'Mercury Greatest Western Elongation', type: 'planet_elongation', desc: 'Mercury reaches 24.2° west of Sun, visible in morning sky.' },
+    { date: '2025-07-04', name: 'Venus-Jupiter Conjunction', type: 'planet_conjunction', desc: 'Venus and Jupiter appear very close in the dawn sky.' },
+    { date: '2025-09-14', name: 'Neptune at Opposition', type: 'planet_opposition', desc: 'Neptune at its closest approach, visible with telescope.' },
+    { date: '2025-11-21', name: 'Uranus at Opposition', type: 'planet_opposition', desc: 'Uranus at its closest approach, faintly visible to naked eye.' },
+    // 2026
+    { date: '2026-02-12', name: 'Venus Greatest Eastern Elongation', type: 'planet_elongation', desc: 'Venus reaches maximum eastern elongation.' },
+    { date: '2026-05-04', name: 'Mars at Opposition', type: 'planet_opposition', desc: 'Mars closest approach to Earth.' },
+    { date: '2026-08-10', name: 'Saturn at Opposition', type: 'planet_opposition', desc: 'Saturn at its brightest for the year.' },
+  ];
+
+  return events
+    .filter(e => {
+      const d = new Date(e.date);
+      return d.getFullYear() === year && d.getMonth() === month;
+    })
+    .map(e => ({
+      id: `planet-${e.date}`,
+      type: e.type,
+      name: e.name,
+      date: new Date(e.date),
+      description: e.desc,
+      visibility: 'good' as const,
+      source: 'Calculated',
+    }));
+}
+
+// ============================================================================
 // Aggregated Data Fetchers
 // ============================================================================
 
 /**
+ * Source ID to fetcher mapping
+ */
+type SourceFetcher = (year: number, month: number, config?: EventSourceConfig) => Promise<AstroEvent[]>;
+
+const SOURCE_FETCHERS: Record<string, SourceFetcher> = {
+  usno: (year, month) => fetchLunarPhases(year, month),
+  imo: (year, month) => fetchMeteorShowers(year, month),
+  nasa: (year, month) => fetchEclipses(year, month),
+  mpc: () => fetchComets(),
+  astronomyapi: (year, month, config) =>
+    fetchPlanetaryEvents(year, month, {
+      apiUrl: config?.apiUrl,
+      apiKey: config?.apiKey,
+    }),
+};
+
+/**
  * Fetch all astronomical events for a given month from multiple sources
+ * @param year - Calendar year
+ * @param month - 0-indexed month
+ * @param sourcesOrIds - Either EventSourceConfig[] from store or legacy string[] of source IDs
  */
 export async function fetchAllAstroEvents(
-  year: number, 
+  year: number,
   month: number,
-  enabledSources: string[] = ['usno', 'imo', 'nasa', 'mpc']
+  sourcesOrIds?: EventSourceConfig[] | string[]
 ): Promise<AstroEvent[]> {
   const allEvents: AstroEvent[] = [];
-  
+
+  // Normalize input: accept both EventSourceConfig[] and legacy string[]
+  let sources: Array<{ id: string; apiUrl?: string; apiKey?: string }>;
+  if (!sourcesOrIds || sourcesOrIds.length === 0) {
+    sources = [{ id: 'usno' }, { id: 'imo' }, { id: 'nasa' }, { id: 'mpc' }];
+  } else if (typeof sourcesOrIds[0] === 'string') {
+    sources = (sourcesOrIds as string[]).map(id => ({ id }));
+  } else {
+    sources = (sourcesOrIds as EventSourceConfig[]).filter(s => s.enabled);
+  }
+
   const fetchPromises: Promise<AstroEvent[]>[] = [];
-  
-  if (enabledSources.includes('usno')) {
-    fetchPromises.push(fetchLunarPhases(year, month));
+
+  for (const source of sources) {
+    const fetcher = SOURCE_FETCHERS[source.id];
+    if (fetcher) {
+      fetchPromises.push(
+        fetcher(year, month, source as EventSourceConfig).catch((err) => {
+          logger.warn(`Failed to fetch from source ${source.id}`, err);
+          return [] as AstroEvent[];
+        })
+      );
+    }
   }
-  
-  if (enabledSources.includes('imo')) {
-    fetchPromises.push(fetchMeteorShowers(year, month));
-  }
-  
-  if (enabledSources.includes('nasa')) {
-    fetchPromises.push(fetchEclipses(year, month));
-  }
-  
-  if (enabledSources.includes('mpc')) {
-    fetchPromises.push(fetchComets());
-  }
-  
+
   const results = await Promise.allSettled(fetchPromises);
-  
+
   results.forEach(result => {
     if (result.status === 'fulfilled') {
       allEvents.push(...result.value);
     }
   });
-  
+
   // Sort by date
   allEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
-  
+
   return allEvents;
 }
 

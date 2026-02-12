@@ -1101,11 +1101,21 @@ pub fn parse_ra_hms(ra_str: String) -> Result<f64, String> {
             .parse()
             .map_err(|e: std::num::ParseFloatError| e.to_string())?;
 
-        return Ok((h + m / 60.0 + s / 3600.0) * 15.0);
+        // Validate component ranges
+        if h >= 24.0 || m >= 60.0 || s >= 60.0 {
+            return Err(format!("Invalid HMS components: {}h {}m {}s", h, m, s));
+        }
+
+        let deg = (h + m / 60.0 + s / 3600.0) * HOURS_TO_DEG;
+        return Ok(deg);
     }
 
     // Try decimal degrees
-    ra_str.trim().parse::<f64>().map_err(|e| e.to_string())
+    let deg = ra_str.trim().parse::<f64>().map_err(|e| e.to_string())?;
+    if deg < 0.0 || deg >= 360.0 {
+        return Err(format!("RA out of range [0, 360): {}", deg));
+    }
+    Ok(deg)
 }
 
 /// Parse Dec from DMS string
@@ -1113,10 +1123,8 @@ pub fn parse_ra_hms(ra_str: String) -> Result<f64, String> {
 pub fn parse_dec_dms(dec_str: String) -> Result<f64, String> {
     // Try various formats using static compiled regex
     if let Some(caps) = DEC_DMS_REGEX.captures(&dec_str) {
-        let d: f64 = caps
-            .get(1)
-            .unwrap()
-            .as_str()
+        let d_str = caps.get(1).unwrap().as_str();
+        let d: f64 = d_str
             .parse()
             .map_err(|e: std::num::ParseFloatError| e.to_string())?;
         let m: f64 = caps
@@ -1132,12 +1140,27 @@ pub fn parse_dec_dms(dec_str: String) -> Result<f64, String> {
             .parse()
             .map_err(|e: std::num::ParseFloatError| e.to_string())?;
 
-        let sign = if d < 0.0 { -1.0 } else { 1.0 };
-        return Ok(sign * (d.abs() + m / 60.0 + s / 3600.0));
+        // Validate component ranges
+        if m >= 60.0 || s >= 60.0 {
+            return Err(format!("Invalid DMS components: {} {}' {}\"", d, m, s));
+        }
+
+        // Use string sign check to handle -0° correctly (IEEE 754: -0.0 < 0.0 is false)
+        let sign = if d_str.starts_with('-') { -1.0 } else { 1.0 };
+        let result = sign * (d.abs() + m / 60.0 + s / 3600.0);
+
+        if result < -90.0 || result > 90.0 {
+            return Err(format!("Dec out of range [-90, 90]: {}", result));
+        }
+        return Ok(result);
     }
 
     // Try decimal degrees
-    dec_str.trim().parse::<f64>().map_err(|e| e.to_string())
+    let deg = dec_str.trim().parse::<f64>().map_err(|e| e.to_string())?;
+    if deg < -90.0 || deg > 90.0 {
+        return Err(format!("Dec out of range [-90, 90]: {}", deg));
+    }
+    Ok(deg)
 }
 
 // ============================================================================

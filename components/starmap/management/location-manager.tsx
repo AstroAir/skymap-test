@@ -60,6 +60,26 @@ const logger = createLogger('location-manager');
 // Web location storage key
 const WEB_LOCATIONS_KEY = 'starmap-web-locations';
 
+function BortleClassSelect({ value, onChange, t }: { value: string; onChange: (v: string) => void; t: (key: string) => string }) {
+  return (
+    <div>
+      <Label>{t('locations.bortleClass') || 'Bortle Class'}</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue placeholder={t('locations.bortlePlaceholder') || 'Select...'} />
+        </SelectTrigger>
+        <SelectContent>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((b) => (
+            <SelectItem key={b} value={b.toString()}>
+              {b} - {t(`locations.bortle${b}`) || `Class ${b}`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export function LocationManager({ trigger, onLocationChange }: LocationManagerProps) {
   const t = useTranslations();
   const { locations, currentLocation, loading, refresh, setCurrent, isAvailable: isTauriAvailable } = useLocations();
@@ -312,7 +332,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5" />
@@ -328,12 +348,13 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
-          <div className="space-y-4">
-            <ScrollArea className="h-[200px]">
+          <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-1">
+            <ScrollArea className="max-h-[160px]">
               {locationList.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">
-                  {t('locations.noLocations') || 'No locations added'}
-                </p>
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <MapPin className="h-10 w-10 mb-3 opacity-50" />
+                  <p className="text-sm">{t('locations.noLocations') || 'No locations added'}</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {locationList.map((loc) => (
@@ -400,7 +421,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
             </ScrollArea>
 
             {adding ? (
-              <div className="space-y-4 border rounded p-3">
+              <div className="space-y-3 border rounded p-3">
                 <Tabs value={inputMethod} onValueChange={(v) => setInputMethod(v as 'manual' | 'map')} className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="manual" className="flex items-center gap-2">
@@ -413,7 +434,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="manual" className="space-y-3 mt-4">
+                  <TabsContent value="manual" className="space-y-3 mt-3">
                     <div>
                       <Label>{t('locations.name') || 'Name'}</Label>
                       <Input
@@ -454,24 +475,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                           placeholder="100"
                         />
                       </div>
-                      <div>
-                        <Label>{t('locations.bortleClass') || 'Bortle Class'}</Label>
-                        <Select
-                          value={form.bortle_class}
-                          onValueChange={(v) => setForm({ ...form, bortle_class: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('locations.bortlePlaceholder') || 'Select...'} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((b) => (
-                              <SelectItem key={b} value={b.toString()}>
-                                {b} - {t(`locations.bortle${b}`) || `Class ${b}`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm({ ...form, bortle_class: v })} t={t} />
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={handleUseGPS}>
@@ -481,7 +485,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="map" className="mt-4">
+                  <TabsContent value="map" className="mt-3">
                     <div className="space-y-3">
                       <div>
                         <Label>{t('locations.name') || 'Name'}</Label>
@@ -505,9 +509,10 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                           });
                         }}
                         onLocationSelect={handleMapLocationSelect}
-                        height={300}
+                        height={220}
                         showSearch={true}
                         showControls={true}
+                        compact
                       />
                       
                       <div className="grid grid-cols-2 gap-2">
@@ -520,24 +525,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                             placeholder="100"
                           />
                         </div>
-                        <div>
-                          <Label>{t('locations.bortleClass') || 'Bortle Class'}</Label>
-                          <Select
-                            value={form.bortle_class}
-                            onValueChange={(v) => setForm({ ...form, bortle_class: v })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={t('locations.bortlePlaceholder') || 'Select...'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((b) => (
-                                <SelectItem key={b} value={b.toString()}>
-                                  {b} - {t(`locations.bortle${b}`) || `Class ${b}`}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm({ ...form, bortle_class: v })} t={t} />
                       </div>
                     </div>
                   </TabsContent>

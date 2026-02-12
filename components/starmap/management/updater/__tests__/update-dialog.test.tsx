@@ -18,6 +18,13 @@ jest.mock('@/lib/tauri/updater-api', () => ({
     }
     return `${progress.downloaded}`;
   }),
+  formatBytes: jest.fn((bytes) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  }),
 }));
 
 jest.mock('next-intl', () => ({
@@ -39,6 +46,9 @@ jest.mock('next-intl', () => ({
       close: 'Close',
       checkAgain: 'Check Again',
       restartNow: 'Restart Now',
+      skipVersion: 'Skip This Version',
+      downloadSpeed: params?.speed ? `${params.speed}/s` : '',
+      timeRemaining: params?.time ? `${params.time} remaining` : '',
     };
     return translations[key] || key;
   },
@@ -60,9 +70,12 @@ describe('UpdateDialog', () => {
     updateInfo: null,
     progress: null,
     error: null,
+    downloadSpeed: null,
+    estimatedTimeRemaining: null,
     checkForUpdate: jest.fn(),
     downloadAndInstall: jest.fn(),
     dismissUpdate: jest.fn(),
+    skipVersion: jest.fn(),
   };
 
   beforeEach(() => {
@@ -268,5 +281,145 @@ describe('UpdateDialog', () => {
     if (closeButton) fireEvent.click(closeButton);
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('should show skip version button when update is available', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      hasUpdate: true,
+      updateInfo: {
+        version: '1.0.1',
+        current_version: '1.0.0',
+        date: null,
+        body: null,
+      },
+    });
+
+    renderComponent(true);
+
+    const buttons = screen.getAllByRole('button');
+    const skipButton = buttons.find(b => b.textContent?.includes('Skip This Version'));
+    expect(skipButton).toBeDefined();
+  });
+
+  it('should call skipVersion and close dialog when skip button is clicked', () => {
+    const skipVersion = jest.fn();
+    const onOpenChange = jest.fn();
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      hasUpdate: true,
+      updateInfo: {
+        version: '1.0.1',
+        current_version: '1.0.0',
+        date: null,
+        body: null,
+      },
+      skipVersion,
+    });
+
+    renderComponent(true, onOpenChange);
+
+    const buttons = screen.getAllByRole('button');
+    const skipButton = buttons.find(b => b.textContent?.includes('Skip This Version'));
+    if (skipButton) fireEvent.click(skipButton);
+
+    expect(skipVersion).toHaveBeenCalledWith('1.0.1');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('should render release notes as markdown HTML', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      hasUpdate: true,
+      updateInfo: {
+        version: '1.0.1',
+        current_version: '1.0.0',
+        date: null,
+        body: '## Changelog\n- Fixed a bug\n- **Important** improvement',
+      },
+    });
+
+    renderComponent(true);
+
+    // Markdown should be rendered as HTML, not raw markdown
+    expect(screen.queryByText('## Changelog')).not.toBeInTheDocument();
+    // The rendered HTML should contain the items
+    expect(screen.getByText(/Fixed a bug/)).toBeInTheDocument();
+    expect(screen.getByText(/Important/)).toBeInTheDocument();
+  });
+
+  it('should show download speed when downloading with metrics', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      isDownloading: true,
+      hasUpdate: true,
+      progress: {
+        downloaded: 500000,
+        total: 1000000,
+        percent: 50,
+      },
+      downloadSpeed: 1048576,
+      estimatedTimeRemaining: 5,
+    });
+
+    renderComponent(true);
+
+    expect(screen.getByText(/1 MB\/s/)).toBeInTheDocument();
+    expect(screen.getByText(/5s remaining/)).toBeInTheDocument();
+  });
+
+  it('should not show speed/ETA section when metrics are null', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      isDownloading: true,
+      hasUpdate: true,
+      progress: {
+        downloaded: 500000,
+        total: 1000000,
+        percent: 50,
+      },
+      downloadSpeed: null,
+      estimatedTimeRemaining: null,
+    });
+
+    renderComponent(true);
+
+    expect(screen.queryByText(/remaining/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/s/)).not.toBeInTheDocument();
+  });
+
+  it('should not show skip button when downloading', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      isDownloading: true,
+      hasUpdate: true,
+      progress: { downloaded: 0, total: 1000, percent: 0 },
+    });
+
+    renderComponent(true);
+
+    const buttons = screen.getAllByRole('button');
+    const skipButton = buttons.find(b => b.textContent?.includes('Skip This Version'));
+    expect(skipButton).toBeUndefined();
+  });
+
+  it('should not show skip button when ready', () => {
+    mockUseUpdater.mockReturnValue({
+      ...defaultMockReturn,
+      isReady: true,
+      hasUpdate: true,
+      updateInfo: {
+        version: '1.0.1',
+        current_version: '1.0.0',
+        date: null,
+        body: null,
+      },
+    });
+
+    renderComponent(true);
+
+    const buttons = screen.getAllByRole('button');
+    const skipButton = buttons.find(b => b.textContent?.includes('Skip This Version'));
+    expect(skipButton).toBeUndefined();
   });
 });

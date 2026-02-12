@@ -52,21 +52,24 @@ export function ScreenshotCarousel() {
   }, [api]);
 
   return (
-    <section id="screenshots" className="py-24 bg-muted/30 relative overflow-hidden">
+    <section id="screenshots" className="py-24 bg-muted/30 relative overflow-hidden" aria-labelledby="screenshots-title">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <SectionHeader title={t('title')} subtitle={t('subtitle')} />
+        <SectionHeader id="screenshots-title" title={t('title')} subtitle={t('subtitle')} />
 
         <Separator className="max-w-xs mx-auto mb-12 bg-border/50" />
 
         {/* Dot indicators */}
         <TooltipProvider>
-          <div className="flex justify-center gap-3 mb-8">
+          <div className="flex justify-center gap-3 mb-8" role="tablist" aria-label="Screenshot categories">
             {screenshots.map((item, index) => {
               const Icon = item.icon;
               return (
                 <Tooltip key={item.key}>
                   <TooltipTrigger asChild>
                     <button
+                      role="tab"
+                      aria-selected={activeIndex === index}
+                      aria-label={t(`${item.key}.label`)}
                       onClick={() => api?.scrollTo(index)}
                       className={cn(
                         'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',

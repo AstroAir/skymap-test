@@ -56,6 +56,13 @@ describe('formatBytes', () => {
     expect(formatBytes(1024 * 1024 * 1024)).toBe('1 GB');
     expect(formatBytes(2.5 * 1024 * 1024 * 1024)).toBe('2.5 GB');
   });
+
+  it('is re-exported from cache config', () => {
+    // formatBytes is now re-exported from @/lib/cache/config
+    // Verify it uses toFixed(2) precision
+    expect(formatBytes(1536)).toBe('1.5 KB');
+    expect(formatBytes(1000)).toBe('1000 B');
+  });
 });
 
 describe('getLayerInfo', () => {

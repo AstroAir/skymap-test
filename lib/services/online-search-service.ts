@@ -5,6 +5,7 @@
 
 import { smartFetch } from './http-fetch';
 import { createLogger } from '@/lib/logger';
+import { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
 
 const logger = createLogger('online-search-service');
 
@@ -193,25 +194,8 @@ function parseObjectType(typeStr?: string): { type: string; category: ObjectCate
 }
 
 // ============================================================================
-// Coordinate Formatting
+// Coordinate Formatting (delegates to shared module)
 // ============================================================================
-
-function formatRA(raDeg: number): string {
-  const hours = raDeg / 15;
-  const h = Math.floor(hours);
-  const m = Math.floor((hours - h) * 60);
-  const s = ((hours - h) * 60 - m) * 60;
-  return `${h.toString().padStart(2, '0')}h${m.toString().padStart(2, '0')}m${s.toFixed(2).padStart(5, '0')}s`;
-}
-
-function formatDec(decDeg: number): string {
-  const sign = decDeg >= 0 ? '+' : '-';
-  const absD = Math.abs(decDeg);
-  const d = Math.floor(absD);
-  const m = Math.floor((absD - d) * 60);
-  const s = ((absD - d) * 60 - m) * 60;
-  return `${sign}${d.toString().padStart(2, '0')}°${m.toString().padStart(2, '0')}'${s.toFixed(1).padStart(4, '0')}"`;
-}
 
 function generateResultId(name: string, source: OnlineSearchSource): string {
   return `${source}-${name.replace(/\s+/g, '_').toLowerCase()}`;

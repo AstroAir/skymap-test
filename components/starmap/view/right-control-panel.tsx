@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -100,27 +99,25 @@ export const RightControlPanel = memo(function RightControlPanel({
           {/* Tool Buttons - Vertical */}
           <div className="flex flex-col items-center gap-0.5 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-0.5 w-full">
             <MarkerManager initialCoords={contextMenuCoords} />
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <LocationManager
-                    trigger={
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-foreground/80 hover:text-foreground hover:bg-accent h-8 w-8"
-                      >
-                        <MapPin className="h-4 w-4" />
-                      </Button>
-                    }
-                    onLocationChange={onLocationChange}
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="left">
-                  <p>{t('locations.title')}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <LocationManager
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-foreground/80 hover:text-foreground hover:bg-accent h-8 w-8"
+                    >
+                      <MapPin className="h-4 w-4" />
+                    </Button>
+                  }
+                  onLocationChange={onLocationChange}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>{t('locations.title')}</p>
+              </TooltipContent>
+            </Tooltip>
             <div data-tour-id="fov-button">
               <FOVSimulator
                 enabled={fovSimEnabled}

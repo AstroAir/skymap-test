@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { useTranslations } from 'next-intl';
+import { Check } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -19,6 +20,18 @@ import {
   calculateTargetVisibility,
 } from '@/lib/astronomy/astro-utils';
 import type { AltitudeChartCompactProps, ChartTooltipPayload } from '@/types/starmap/objects';
+
+// Chart color palette — centralized for theme consistency
+const CHART_COLORS = {
+  axis: { tick: '#71717a', line: '#3f3f46' },
+  area: { stroke: '#06b6d4', fillStart: '#06b6d4' },
+  threshold: '#22c55e',
+  horizon: '#3f3f46',
+  now: '#f59e0b',
+  transit: '#a855f7',
+  rise: '#22c55e',
+  set: '#ef4444',
+} as const;
 
 // Custom tooltip component for Recharts
 function CustomTooltip({ active, payload, altLabel }: { active?: boolean; payload?: Array<{ payload: ChartTooltipPayload }>; altLabel?: string }) {
@@ -180,7 +193,7 @@ export const AltitudeChartCompact = memo(function AltitudeChartCompact({
   }, [ra, dec, latitude, longitude, hoursAhead]);
 
   return (
-    <div ref={chartRef} className="p-2 cursor-ns-resize touch-pan-y select-none" title={t('chart.zoomHint')}>
+    <div ref={chartRef} className="p-2 cursor-ns-resize touch-pan-y select-none" title={t('chart.zoomHint')} role="img" aria-label={t('chart.altitudeChartLabel')}>
       {/* Zoom indicator with larger touch targets */}
       <div className="flex items-center justify-between mb-2 transition-opacity duration-200">
         <span className="text-[10px] sm:text-[9px] text-muted-foreground transition-all duration-300">
@@ -214,51 +227,51 @@ export const AltitudeChartCompact = memo(function AltitudeChartCompact({
           >
             <defs>
               <linearGradient id="altGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05} />
+                <stop offset="5%" stopColor={CHART_COLORS.area.fillStart} stopOpacity={0.4} />
+                <stop offset="95%" stopColor={CHART_COLORS.area.fillStart} stopOpacity={0.05} />
               </linearGradient>
             </defs>
           
           <XAxis 
             dataKey="hour" 
-            tick={{ fontSize: 9, fill: '#71717a' }}
+            tick={{ fontSize: 9, fill: CHART_COLORS.axis.tick }}
             tickFormatter={(v) => `+${v}h`}
-            axisLine={{ stroke: '#3f3f46' }}
-            tickLine={{ stroke: '#3f3f46' }}
+            axisLine={{ stroke: CHART_COLORS.axis.line }}
+            tickLine={{ stroke: CHART_COLORS.axis.line }}
             domain={[0, hoursAhead]}
             ticks={Array.from({ length: Math.ceil(hoursAhead / 3) + 1 }, (_, i) => i * 3).filter(t => t <= hoursAhead)}
           />
           <YAxis 
             domain={[-10, 90]}
-            tick={{ fontSize: 9, fill: '#71717a' }}
+            tick={{ fontSize: 9, fill: CHART_COLORS.axis.tick }}
             tickFormatter={(v) => `${v}°`}
-            axisLine={{ stroke: '#3f3f46' }}
-            tickLine={{ stroke: '#3f3f46' }}
+            axisLine={{ stroke: CHART_COLORS.axis.line }}
+            tickLine={{ stroke: CHART_COLORS.axis.line }}
             ticks={[0, 30, 60, 90]}
           />
           
           {/* 30° imaging threshold */}
-          <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="4 2" strokeOpacity={0.5} />
+          <ReferenceLine y={30} stroke={CHART_COLORS.threshold} strokeDasharray="4 2" strokeOpacity={0.5} />
           
           {/* Horizon line */}
-          <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
+          <ReferenceLine y={0} stroke={CHART_COLORS.horizon} strokeWidth={1} />
           
           {/* Current time marker */}
-          <ReferenceLine x={0} stroke="#f59e0b" strokeWidth={1.5} />
+          <ReferenceLine x={0} stroke={CHART_COLORS.now} strokeWidth={1.5} />
           
           {/* Transit marker */}
           {chartData.transitIn <= hoursAhead && (
-            <ReferenceLine x={chartData.transitIn} stroke="#a855f7" strokeDasharray="3 2" />
+            <ReferenceLine x={chartData.transitIn} stroke={CHART_COLORS.transit} strokeDasharray="3 2" />
           )}
           
           {/* Rise marker */}
           {chartData.riseHour !== null && (
-            <ReferenceLine x={chartData.riseHour} stroke="#22c55e" strokeDasharray="2 2" />
+            <ReferenceLine x={chartData.riseHour} stroke={CHART_COLORS.rise} strokeDasharray="2 2" />
           )}
           
           {/* Set marker */}
           {chartData.setHour !== null && (
-            <ReferenceLine x={chartData.setHour} stroke="#ef4444" strokeDasharray="2 2" />
+            <ReferenceLine x={chartData.setHour} stroke={CHART_COLORS.set} strokeDasharray="2 2" />
           )}
           
           <RechartsTooltip content={<CustomTooltip altLabel={t('info.altitude')} />} />
@@ -266,7 +279,7 @@ export const AltitudeChartCompact = memo(function AltitudeChartCompact({
           <Area
             type="monotone"
             dataKey="altitudeAbove"
-            stroke="#06b6d4"
+            stroke={CHART_COLORS.area.stroke}
             strokeWidth={2}
             fill="url(#altGradient)"
             animationDuration={500}
@@ -299,7 +312,7 @@ export const AltitudeChartCompact = memo(function AltitudeChartCompact({
       {/* Dark imaging info */}
       {chartData.darkImagingHours > 0 && (
         <div className="mt-2 sm:mt-1 text-[11px] sm:text-[9px] text-green-400 font-medium">
-          ✓ {t('chart.darkImagingWindow', { hours: chartData.darkImagingHours.toFixed(1) })}
+          <Check className="inline h-3 w-3 mr-0.5" /> {t('chart.darkImagingWindow', { hours: chartData.darkImagingHours.toFixed(1) })}
         </div>
       )}
       

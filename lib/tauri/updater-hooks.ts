@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { createLogger } from '@/lib/logger';
 import {
-  UpdateStatus,
   UpdateInfo,
   UpdateProgress,
-  checkForUpdate,
-  downloadUpdate,
-  installUpdate,
-  downloadAndInstallUpdate,
+  checkForUpdate as apiCheckForUpdate,
+  downloadUpdate as apiDownloadUpdate,
+  installUpdate as apiInstallUpdate,
+  downloadAndInstallUpdate as apiDownloadAndInstallUpdate,
   getCurrentVersion,
   clearPendingUpdate,
   onUpdateProgress,
@@ -16,6 +15,16 @@ import {
   isUpdateDownloading,
   isUpdateError,
 } from './updater-api';
+import {
+  useUpdaterStore,
+  selectIsChecking,
+  selectIsDownloading,
+  selectIsReady,
+  selectHasUpdate,
+  selectUpdateInfo,
+  selectProgress,
+  selectError,
+} from '@/lib/stores/updater-store';
 
 const logger = createLogger('updater-hooks');
 
@@ -28,8 +37,12 @@ export interface UseUpdaterOptions {
 }
 
 export interface UseUpdaterReturn {
-  status: UpdateStatus;
+  status: ReturnType<typeof useUpdaterStore.getState>['status'];
   currentVersion: string | null;
+  lastChecked: number | null;
+  skippedVersion: string | null;
+  downloadSpeed: number | null;
+  estimatedTimeRemaining: number | null;
   isChecking: boolean;
   isDownloading: boolean;
   isReady: boolean;
@@ -42,6 +55,7 @@ export interface UseUpdaterReturn {
   installUpdate: () => Promise<void>;
   downloadAndInstall: () => Promise<void>;
   dismissUpdate: () => void;
+  skipVersion: (version: string) => void;
 }
 
 export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
@@ -53,32 +67,57 @@ export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
     onError,
   } = options;
 
-  const [status, setStatus] = useState<UpdateStatus>({ status: 'idle' });
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const status = useUpdaterStore((s) => s.status);
+  const currentVersion = useUpdaterStore((s) => s.currentVersion);
+  const lastChecked = useUpdaterStore((s) => s.lastChecked);
+  const skippedVersion = useUpdaterStore((s) => s.skippedVersion);
+  const downloadSpeed = useUpdaterStore((s) => s.downloadSpeed);
+  const estimatedTimeRemaining = useUpdaterStore((s) => s.estimatedTimeRemaining);
+  const setStatus = useUpdaterStore((s) => s.setStatus);
+  const setCurrentVersion = useUpdaterStore((s) => s.setCurrentVersion);
+  const setLastChecked = useUpdaterStore((s) => s.setLastChecked);
+  const setSkippedVersion = useUpdaterStore((s) => s.setSkippedVersion);
+  const setDownloadMetrics = useUpdaterStore((s) => s.setDownloadMetrics);
+
   const unlistenRef = useRef<(() => void) | null>(null);
-  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const downloadStartRef = useRef<{ time: number; bytes: number } | null>(null);
 
-  const isChecking = status.status === 'checking';
-  const isDownloading = status.status === 'downloading';
-  const isReady = status.status === 'ready';
-  const hasUpdate = status.status === 'available' || status.status === 'ready';
-
-  const updateInfo: UpdateInfo | null =
-    isUpdateAvailable(status) || isUpdateReady(status) ? status.data : null;
-
-  const progress: UpdateProgress | null =
-    isUpdateDownloading(status) ? status.data : null;
-
-  const error: string | null = isUpdateError(status) ? status.data : null;
+  const isChecking = selectIsChecking(useUpdaterStore.getState());
+  const isDownloading = selectIsDownloading(useUpdaterStore.getState());
+  const isReady = selectIsReady(useUpdaterStore.getState());
+  const hasUpdate = selectHasUpdate(useUpdaterStore.getState());
+  const updateInfo = selectUpdateInfo(useUpdaterStore.getState());
+  const progress = selectProgress(useUpdaterStore.getState());
+  const error = selectError(useUpdaterStore.getState());
 
   useEffect(() => {
-    getCurrentVersion()
-      .then(setCurrentVersion)
-      .catch(err => logger.error('Failed to get current version', err));
+    if (!currentVersion) {
+      getCurrentVersion()
+        .then(setCurrentVersion)
+        .catch(err => logger.error('Failed to get current version', err));
+    }
 
     const setupListener = async () => {
       unlistenRef.current = await onUpdateProgress((newStatus) => {
         setStatus(newStatus);
+        if (isUpdateDownloading(newStatus)) {
+          const now = Date.now();
+          const progressData = newStatus.data;
+          if (!downloadStartRef.current) {
+            downloadStartRef.current = { time: now, bytes: progressData.downloaded };
+          } else {
+            const elapsed = (now - downloadStartRef.current.time) / 1000;
+            if (elapsed > 0.5) {
+              const bytesTransferred = progressData.downloaded - downloadStartRef.current.bytes;
+              const speed = bytesTransferred / elapsed;
+              const remaining = progressData.total
+                ? (progressData.total - progressData.downloaded) / Math.max(speed, 1)
+                : null;
+              setDownloadMetrics(speed, remaining);
+            }
+          }
+        }
       });
     };
 
@@ -89,6 +128,7 @@ export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
         unlistenRef.current();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -105,9 +145,19 @@ export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
 
   const handleCheckForUpdate = useCallback(async () => {
     setStatus({ status: 'checking' });
-    const result = await checkForUpdate();
+    const result = await apiCheckForUpdate();
+    setLastChecked(Date.now());
+
+    if (isUpdateAvailable(result)) {
+      const store = useUpdaterStore.getState();
+      if (store.skippedVersion && result.data.version === store.skippedVersion) {
+        setStatus({ status: 'not_available' });
+        return;
+      }
+    }
+
     setStatus(result);
-  }, []);
+  }, [setStatus, setLastChecked]);
 
   useEffect(() => {
     if (!autoCheck) return;
@@ -118,8 +168,18 @@ export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
     const doCheck = async () => {
       if (!mounted) return;
       setStatus({ status: 'checking' });
-      const result = await checkForUpdate();
+      const result = await apiCheckForUpdate();
       if (mounted) {
+        setLastChecked(Date.now());
+
+        if (isUpdateAvailable(result)) {
+          const store = useUpdaterStore.getState();
+          if (store.skippedVersion && result.data.version === store.skippedVersion) {
+            setStatus({ status: 'not_available' });
+            return;
+          }
+        }
+
         setStatus(result);
       }
     };
@@ -137,48 +197,68 @@ export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, [autoCheck, checkInterval]);
+  }, [autoCheck, checkInterval, setStatus, setLastChecked]);
 
   const handleDownloadUpdate = useCallback(async () => {
-    if (!hasUpdate) return;
+    const store = useUpdaterStore.getState();
+    if (!selectHasUpdate(store)) return;
+    downloadStartRef.current = null;
+    setDownloadMetrics(null, null);
     setStatus({ status: 'downloading', data: { downloaded: 0, total: null, percent: 0 } });
-    const result = await downloadUpdate();
+    const result = await apiDownloadUpdate();
+    downloadStartRef.current = null;
     setStatus(result);
-  }, [hasUpdate]);
+  }, [setStatus, setDownloadMetrics]);
 
   const handleInstallUpdate = useCallback(async () => {
-    if (!isReady) return;
+    const store = useUpdaterStore.getState();
+    if (!selectIsReady(store)) return;
     try {
-      await installUpdate();
+      await apiInstallUpdate();
     } catch (err) {
       setStatus({
         status: 'error',
         data: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [isReady]);
+  }, [setStatus]);
 
   const handleDownloadAndInstall = useCallback(async () => {
-    if (!hasUpdate) return;
+    const store = useUpdaterStore.getState();
+    if (!selectHasUpdate(store)) return;
+    downloadStartRef.current = null;
+    setDownloadMetrics(null, null);
     setStatus({ status: 'downloading', data: { downloaded: 0, total: null, percent: 0 } });
     try {
-      await downloadAndInstallUpdate();
+      await apiDownloadAndInstallUpdate();
     } catch (err) {
       setStatus({
         status: 'error',
         data: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [hasUpdate]);
+  }, [setStatus, setDownloadMetrics]);
 
   const dismissUpdate = useCallback(() => {
     clearPendingUpdate();
     setStatus({ status: 'idle' });
-  }, []);
+    downloadStartRef.current = null;
+    setDownloadMetrics(null, null);
+  }, [setStatus, setDownloadMetrics]);
+
+  const skipVersion = useCallback((version: string) => {
+    setSkippedVersion(version);
+    clearPendingUpdate();
+    setStatus({ status: 'idle' });
+  }, [setSkippedVersion, setStatus]);
 
   return {
     status,
     currentVersion,
+    lastChecked,
+    skippedVersion,
+    downloadSpeed,
+    estimatedTimeRemaining,
     isChecking,
     isDownloading,
     isReady,
@@ -191,6 +271,7 @@ export function useUpdater(options: UseUpdaterOptions = {}): UseUpdaterReturn {
     installUpdate: handleInstallUpdate,
     downloadAndInstall: handleDownloadAndInstall,
     dismissUpdate,
+    skipVersion,
   };
 }
 

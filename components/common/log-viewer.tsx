@@ -60,7 +60,6 @@ import { useLogStore } from '@/lib/stores/log-store';
 import {
   LogLevel,
   LogEntry,
-  LOG_LEVEL_NAMES,
   formatTimestamp,
   serializeData,
   formatLogEntryToText,
@@ -87,22 +86,6 @@ const LogLevelIcon: React.FC<{ level: LogLevel; className?: string }> = ({ level
   }
 };
 
-const _LogLevelBadge: React.FC<{ level: LogLevel }> = ({ level }) => {
-  const levelName = LOG_LEVEL_NAMES[level];
-  const variants: Record<string, string> = {
-    debug: 'bg-muted text-muted-foreground',
-    info: 'bg-blue-500/10 text-blue-500',
-    warn: 'bg-yellow-500/10 text-yellow-500',
-    error: 'bg-red-500/10 text-red-500',
-  };
-  
-  return (
-    <Badge variant="outline" className={cn('text-xs font-mono uppercase', variants[levelName])}>
-      {levelName}
-    </Badge>
-  );
-};
-
 const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleExpand }) => {
   const t = useTranslations('logViewer');
   const [copied, setCopied] = useState(false);
@@ -123,6 +106,8 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
         entry.level === LogLevel.ERROR && 'bg-red-500/5',
         entry.level === LogLevel.WARN && 'bg-yellow-500/5'
       )}
+      role={hasDetails ? 'button' : undefined}
+      aria-expanded={hasDetails ? isExpanded : undefined}
     >
       <div
         className="flex items-start gap-2 px-3 py-2 cursor-pointer"
@@ -207,6 +192,8 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
   );
 };
 
+const MemoizedLogEntryRow = React.memo(LogEntryRow);
+
 export interface LogViewerProps {
   className?: string;
   maxHeight?: string | number;
@@ -283,8 +270,13 @@ export function LogViewer({
     }
   }, [setFilter]);
   
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFilter({ search: e.target.value || undefined });
+    const value = e.target.value || undefined;
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setFilter({ search: value });
+    }, 200);
   }, [setFilter]);
   
   return (
@@ -478,7 +470,7 @@ export function LogViewer({
         ) : (
           <div className="divide-y divide-border/50">
             {logs.map((entry) => (
-              <LogEntryRow
+              <MemoizedLogEntryRow
                 key={entry.id}
                 entry={entry}
                 isExpanded={expandedIds.has(entry.id)}

@@ -6,11 +6,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager};
 
 use crate::data::StorageError;
 use crate::network::security::limits;
 use crate::utils::generate_id;
+
+/// Global in-memory cache data for offline tile metadata
+/// Avoids reading cache_meta.json from disk on every operation
+static OFFLINE_CACHE_DATA: OnceLock<Mutex<Option<CacheData>>> = OnceLock::new();
+
+fn get_offline_cache_mutex() -> &'static Mutex<Option<CacheData>> {
+    OFFLINE_CACHE_DATA.get_or_init(|| Mutex::new(None))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheRegion {
@@ -102,20 +111,52 @@ fn get_tile_path(app: &AppHandle, survey_id: &str, zoom: u8, x: u64, y: u64) -> 
     Ok(zoom_dir.join(format!("{}_{}.jpg", x, y)))
 }
 
-fn load_cache_data(app: &AppHandle) -> Result<CacheData, StorageError> {
+fn load_cache_data_from_disk(app: &AppHandle) -> Result<CacheData, StorageError> {
     let path = get_cache_meta_path(app)?;
     if !path.exists() { return Ok(CacheData::default()); }
     Ok(serde_json::from_str(&fs::read_to_string(&path)?)?)
 }
 
-fn save_cache_data(app: &AppHandle, data: &CacheData) -> Result<(), StorageError> {
+fn save_cache_data_to_disk(app: &AppHandle, data: &CacheData) -> Result<(), StorageError> {
     fs::write(&get_cache_meta_path(app)?, serde_json::to_string_pretty(data)?)?;
     Ok(())
 }
 
+/// Get cache data from in-memory cache, loading from disk if needed
+fn get_cache_data(app: &AppHandle) -> Result<CacheData, StorageError> {
+    let mutex = get_offline_cache_mutex();
+    let mut guard = mutex.lock().map_err(|e| StorageError::Other(format!("Lock error: {}", e)))?;
+    
+    if let Some(data) = &*guard {
+        return Ok(data.clone());
+    }
+    
+    let data = load_cache_data_from_disk(app)?;
+    *guard = Some(data.clone());
+    Ok(data)
+}
+
+/// Update cache data in memory and persist to disk
+fn update_cache_data(app: &AppHandle, data: CacheData) -> Result<(), StorageError> {
+    let mutex = get_offline_cache_mutex();
+    let mut guard = mutex.lock().map_err(|e| StorageError::Other(format!("Lock error: {}", e)))?;
+    
+    save_cache_data_to_disk(app, &data)?;
+    *guard = Some(data);
+    Ok(())
+}
+
+/// Invalidate the in-memory cache (forces reload from disk on next access)
+#[allow(dead_code)]
+fn invalidate_offline_cache() {
+    if let Ok(mut guard) = get_offline_cache_mutex().lock() {
+        *guard = None;
+    }
+}
+
 #[tauri::command]
 pub async fn get_cache_stats(app: AppHandle) -> Result<CacheStats, StorageError> {
-    let data = load_cache_data(&app)?;
+    let data = get_cache_data(&app)?;
     let total_regions = data.regions.len();
     let completed_regions = data.regions.iter().filter(|r| r.status == CacheStatus::Completed).count();
     let total_tiles: u64 = data.regions.iter().map(|r| r.tile_count).sum();
@@ -136,12 +177,12 @@ pub async fn get_cache_stats(app: AppHandle) -> Result<CacheStats, StorageError>
 
 #[tauri::command]
 pub async fn list_cache_regions(app: AppHandle) -> Result<Vec<CacheRegion>, StorageError> {
-    Ok(load_cache_data(&app)?.regions)
+    Ok(get_cache_data(&app)?.regions)
 }
 
 #[tauri::command]
 pub async fn create_cache_region(app: AppHandle, args: CreateRegionArgs) -> Result<CacheRegion, StorageError> {
-    let mut data = load_cache_data(&app)?;
+    let mut data = get_cache_data(&app)?;
     let tile_count = estimate_tile_count(args.radius_deg, args.min_zoom, args.max_zoom);
     let region = CacheRegion {
         id: generate_id("region"), name: args.name, center_ra: args.center_ra, center_dec: args.center_dec,
@@ -150,13 +191,13 @@ pub async fn create_cache_region(app: AppHandle, args: CreateRegionArgs) -> Resu
         progress: 0.0, created_at: Utc::now(), updated_at: Utc::now(),
     };
     data.regions.push(region.clone());
-    save_cache_data(&app, &data)?;
+    update_cache_data(&app, data)?;
     Ok(region)
 }
 
 #[tauri::command]
 pub async fn update_cache_region(app: AppHandle, region_id: String, status: Option<CacheStatus>, progress: Option<f64>, size_bytes: Option<u64>) -> Result<CacheRegion, StorageError> {
-    let mut data = load_cache_data(&app)?;
+    let mut data = get_cache_data(&app)?;
     let region = data.regions.iter_mut().find(|r| r.id == region_id)
         .ok_or_else(|| StorageError::StoreNotFound(region_id.clone()))?;
     if let Some(s) = status { region.status = s; }
@@ -164,20 +205,20 @@ pub async fn update_cache_region(app: AppHandle, region_id: String, status: Opti
     if let Some(size) = size_bytes { region.size_bytes = size; }
     region.updated_at = Utc::now();
     let result = region.clone();
-    save_cache_data(&app, &data)?;
+    update_cache_data(&app, data)?;
     Ok(result)
 }
 
 #[tauri::command]
 pub async fn delete_cache_region(app: AppHandle, region_id: String, delete_tiles: bool) -> Result<(), StorageError> {
-    let mut data = load_cache_data(&app)?;
+    let mut data = get_cache_data(&app)?;
     if let Some(region) = data.regions.iter().find(|r| r.id == region_id).cloned() {
         data.regions.retain(|r| r.id != region_id);
         if delete_tiles {
             let prefix = format!("{}_", region.survey_id);
             data.tiles.retain(|k, _| !k.starts_with(&prefix));
         }
-        save_cache_data(&app, &data)?;
+        update_cache_data(&app, data)?;
     }
     Ok(())
 }
@@ -185,7 +226,7 @@ pub async fn delete_cache_region(app: AppHandle, region_id: String, delete_tiles
 #[tauri::command]
 pub async fn save_cached_tile(app: AppHandle, survey_id: String, zoom: u8, x: u64, y: u64, data: Vec<u8>) -> Result<(), StorageError> {
     crate::network::security::validate_size(&data, limits::MAX_TILE_SIZE).map_err(|e| StorageError::Other(e.to_string()))?;
-    let cache_data = load_cache_data(&app)?;
+    let mut cache_data = get_cache_data(&app)?;
     let current_total: u64 = cache_data.tiles.values().map(|t| t.size_bytes).sum();
     if current_total + data.len() as u64 > limits::MAX_CACHE_TOTAL_SIZE as u64 {
         return Err(StorageError::Other(format!("Cache size limit reached ({} bytes)", limits::MAX_CACHE_TOTAL_SIZE)));
@@ -206,12 +247,11 @@ pub async fn save_cached_tile(app: AppHandle, survey_id: String, zoom: u8, x: u6
     // Atomic rename (on most filesystems this is atomic)
     fs::rename(&temp_path, &tile_path)?;
     
-    // Update metadata
-    let mut cache_data = load_cache_data(&app)?;
+    // Update metadata in the same loaded instance (fixes race condition)
     cache_data.tiles.insert(format!("{}_{}_{}_{}", survey_id, zoom, x, y), TileMetadata {
         survey_id, zoom, x, y, size_bytes: data.len() as u64, cached_at: Utc::now(),
     });
-    save_cache_data(&app, &cache_data)?;
+    update_cache_data(&app, cache_data)?;
     Ok(())
 }
 
@@ -235,10 +275,10 @@ pub async fn clear_survey_cache(app: AppHandle, survey_id: String) -> Result<u64
         deleted_count = count_files_recursive(&tiles_dir)?;
         fs::remove_dir_all(&tiles_dir)?;
     }
-    let mut cache_data = load_cache_data(&app)?;
+    let mut cache_data = get_cache_data(&app)?;
     cache_data.tiles.retain(|_, v| v.survey_id != survey_id);
     cache_data.regions.retain(|r| r.survey_id != survey_id);
-    save_cache_data(&app, &cache_data)?;
+    update_cache_data(&app, cache_data)?;
     Ok(deleted_count)
 }
 
@@ -250,7 +290,7 @@ pub async fn clear_all_cache(app: AppHandle) -> Result<u64, StorageError> {
         deleted_count = count_files_recursive(&tiles_dir)?;
         fs::remove_dir_all(&tiles_dir)?;
     }
-    save_cache_data(&app, &CacheData::default())?;
+    update_cache_data(&app, CacheData::default())?;
     Ok(deleted_count)
 }
 

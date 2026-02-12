@@ -124,3 +124,24 @@ export {
   type SearchMode as OnlineSearchMode,
   type SearchSettings,
 } from './search-store';
+
+// Event sources store
+export {
+  useEventSourcesStore,
+  type EventSourceConfig,
+} from './event-sources-store';
+
+// Updater store
+export {
+  useUpdaterStore,
+  selectIsChecking,
+  selectIsDownloading,
+  selectIsReady,
+  selectHasUpdate,
+  selectUpdateInfo,
+  selectProgress,
+  selectError,
+  type UpdaterState,
+  type UpdaterActions,
+  type UpdaterStore,
+} from './updater-store';

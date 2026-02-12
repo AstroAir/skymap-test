@@ -121,6 +121,8 @@ export function ToolbarGroup({ children, className, gap = "sm" }: ToolbarGroupPr
 
   return (
     <div
+      role="toolbar"
+      aria-orientation="horizontal"
       className={cn(
         "flex items-center",
         "bg-card/60 backdrop-blur-md",

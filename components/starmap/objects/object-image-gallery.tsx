@@ -67,6 +67,7 @@ function NavigationArrows({
   onNext: () => void;
   variant?: 'default' | 'fullscreen';
 }) {
+  const t = useTranslations();
   const isFullscreen = variant === 'fullscreen';
   const buttonClass = isFullscreen
     ? 'absolute top-1/2 -translate-y-1/2 z-10 h-12 w-12 bg-black/50 hover:bg-black/70 text-white'
@@ -82,6 +83,7 @@ function NavigationArrows({
         size="icon"
         className={cn(buttonClass, leftPos)}
         onClick={(e) => { e.stopPropagation(); onPrev(); }}
+        aria-label={t('objectDetail.previousImage')}
       >
         <ChevronLeft className={iconClass} />
       </Button>
@@ -90,6 +92,7 @@ function NavigationArrows({
         size="icon"
         className={cn(buttonClass, rightPos)}
         onClick={(e) => { e.stopPropagation(); onNext(); }}
+        aria-label={t('objectDetail.nextImage')}
       >
         <ChevronRight className={iconClass} />
       </Button>
@@ -120,12 +123,10 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
   const prevImagesKeyRef = useRef(imagesKey);
   
   // Reset state when images array changes
-  // Using flushSync pattern via scheduling to avoid lint warning while ensuring reset
+  // Using queueMicrotask to satisfy react-hooks/set-state-in-effect lint rule
   useEffect(() => {
-    // Only reset if images actually changed (not on initial mount)
     if (prevImagesKeyRef.current !== imagesKey) {
       prevImagesKeyRef.current = imagesKey;
-      // Schedule state reset for next tick to avoid synchronous setState in effect
       queueMicrotask(() => {
         setCurrentIndex(0);
         setImageStates({});
@@ -219,10 +220,14 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
     if (!images.length) return;
     const preloadIndices = [currentIndex - 1, currentIndex + 1]
       .filter(i => i >= 0 && i < images.length);
-    preloadIndices.forEach(i => {
+    const preloadImages = preloadIndices.map(i => {
       const img = new Image();
       img.src = images[i].url;
+      return img;
     });
+    return () => {
+      preloadImages.forEach(img => { img.src = ''; });
+    };
   }, [currentIndex, images]);
 
   // Keyboard navigation

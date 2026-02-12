@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
@@ -19,14 +20,45 @@ import {
   CheckCircle2, 
   AlertCircle,
   Loader2,
-  Rocket
+  Rocket,
+  SkipForward,
 } from 'lucide-react';
 import { useUpdater } from '@/lib/tauri/updater-hooks';
-import { formatProgress } from '@/lib/tauri/updater-api';
+import { formatProgress, formatBytes } from '@/lib/tauri/updater-api';
 
 interface UpdateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderMarkdown(text: string): string {
+  const escaped = escapeHtml(text);
+  return escaped
+    .replace(/^### (.+)$/gm, '<h3 class="text-sm font-semibold mt-3 mb-1">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h3 class="text-sm font-semibold mt-3 mb-1">$1</h3>')
+    .replace(/^# (.+)$/gm, '<h3 class="text-base font-bold mt-3 mb-1">$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code class="px-1 py-0.5 rounded bg-muted-foreground/10 text-xs">$1</code>')
+    .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
+    .replace(/^\* (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
+    .replace(/\n{2,}/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.ceil(seconds % 60)}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
 
 export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
@@ -40,9 +72,12 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
     updateInfo,
     progress,
     error,
+    downloadSpeed,
+    estimatedTimeRemaining,
     checkForUpdate,
     downloadAndInstall,
     dismissUpdate,
+    skipVersion,
   } = useUpdater();
 
   const handleClose = () => {
@@ -55,6 +90,19 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
     dismissUpdate();
     onOpenChange(false);
   };
+
+  const handleSkipVersion = () => {
+    if (updateInfo) {
+      skipVersion(updateInfo.version);
+      onOpenChange(false);
+    }
+  };
+
+  const bodyText = updateInfo?.body ?? null;
+  const releaseNotesHtml = useMemo(() => {
+    if (!bodyText) return null;
+    return renderMarkdown(bodyText);
+  }, [bodyText]);
 
   const renderContent = () => {
     if (isChecking) {
@@ -89,6 +137,19 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
               <p className="text-sm text-muted-foreground">
                 {formatProgress(progress)}
               </p>
+              {(downloadSpeed !== null || estimatedTimeRemaining !== null) && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {downloadSpeed !== null && (
+                    <span>{t('downloadSpeed', { speed: formatBytes(downloadSpeed) })}</span>
+                  )}
+                  {downloadSpeed !== null && estimatedTimeRemaining !== null && (
+                    <span className="mx-1">·</span>
+                  )}
+                  {estimatedTimeRemaining !== null && (
+                    <span>{t('timeRemaining', { time: formatEta(estimatedTimeRemaining) })}</span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
           <Progress value={progress.percent} className="h-2" />
@@ -125,13 +186,14 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
             </div>
           </div>
           
-          {updateInfo.body && (
+          {releaseNotesHtml && (
             <ScrollArea className="max-h-48">
               <div className="rounded-lg bg-muted p-3">
                 <p className="text-sm font-medium mb-2">{t('releaseNotes')}</p>
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {updateInfo.body}
-                </div>
+                <div
+                  className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: releaseNotesHtml }}
+                />
               </div>
             </ScrollArea>
           )}
@@ -179,6 +241,10 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
         <DialogFooter className="gap-2 sm:gap-0">
           {hasUpdate && !isDownloading && !isReady && (
             <>
+              <Button variant="ghost" size="sm" onClick={handleSkipVersion}>
+                <SkipForward className="mr-2 h-4 w-4" />
+                {t('skipVersion')}
+              </Button>
               <Button variant="ghost" onClick={handleDismiss}>
                 <X className="mr-2 h-4 w-4" />
                 {t('later')}

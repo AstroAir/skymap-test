@@ -70,4 +70,19 @@ describe('NightModeToggle', () => {
     renderWithProviders(<NightModeToggle />);
     expect(document.documentElement.classList.contains('night-mode')).toBe(true);
   });
+
+  it('renders night-mode filter overlay with aria-hidden when enabled', () => {
+    mockNightMode = true;
+    const { container } = renderWithProviders(<NightModeToggle />);
+    const overlay = container.querySelector('.night-mode-filter');
+    expect(overlay).toBeInTheDocument();
+    expect(overlay).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('does not render overlay when night mode is off', () => {
+    mockNightMode = false;
+    const { container } = renderWithProviders(<NightModeToggle />);
+    const overlay = container.querySelector('.night-mode-filter');
+    expect(overlay).not.toBeInTheDocument();
+  });
 });

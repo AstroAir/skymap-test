@@ -2,7 +2,8 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { LanguageSwitcher } from '../language-switcher';
 import { NextIntlClientProvider } from 'next-intl';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -56,24 +57,26 @@ describe('LanguageSwitcher', () => {
     expect(screen.getByText('English')).toBeInTheDocument();
   });
 
-  it('toggles dropdown and calls setLocale when an option is clicked', () => {
+  it('toggles dropdown and calls setLocale when an option is clicked', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<LanguageSwitcher />);
     
     const trigger = screen.getByRole('button');
-    fireEvent.click(trigger);
+    await user.click(trigger);
     
     const zhOption = screen.getByText('中文');
     expect(zhOption).toBeInTheDocument();
     
-    fireEvent.click(zhOption);
+    await user.click(zhOption);
     expect(mockSetLocale).toHaveBeenCalledWith('zh');
   });
 
-  it('highlights the current locale in the dropdown', () => {
+  it('highlights the current locale in the dropdown', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<LanguageSwitcher />);
     
     const trigger = screen.getByRole('button');
-    fireEvent.click(trigger);
+    await user.click(trigger);
     
     const enOption = screen.getByText('English');
     expect(enOption.closest('div')).toHaveClass('bg-accent');

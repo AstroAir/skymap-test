@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ThemeCustomizer } from '../theme-customizer';
 import { NextIntlClientProvider } from 'next-intl';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -134,16 +135,18 @@ describe('ThemeCustomizer', () => {
     expect(mockSetActivePreset).toHaveBeenCalledWith('preset1');
   });
 
-  it('switches to appearance tab', () => {
+  it('switches to appearance tab', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<ThemeCustomizer open={true} />);
-    fireEvent.click(screen.getByText('theme.appearance'));
+    await user.click(screen.getByText('theme.appearance'));
     expect(screen.getByText('theme.borderRadius')).toBeInTheDocument();
     expect(screen.getByText('theme.animations')).toBeInTheDocument();
   });
 
-  it('switches to typography tab', () => {
+  it('switches to typography tab', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<ThemeCustomizer open={true} />);
-    fireEvent.click(screen.getByText('theme.typography'));
+    await user.click(screen.getByText('theme.typography'));
     expect(screen.getByText('theme.fontFamily')).toBeInTheDocument();
     expect(screen.getByText('theme.fontSize')).toBeInTheDocument();
   });

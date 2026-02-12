@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Telescope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { degreesToHMS, degreesToDMS, raDecToAltAz } from '@/lib/astronomy/starmap-utils';
 import {
@@ -190,8 +190,8 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
   
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Filters Row 1: Catalog + Search */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.catalog')}</Label>
           <Select value={catalog} onValueChange={(v) => setCatalog(v as typeof catalog)}>
@@ -208,30 +208,6 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
         </div>
         
         <div className="space-y-1.5">
-          <Label className="text-xs">{t('astroCalc.magnitudeLimit')}: {magnitudeLimit}</Label>
-          <Slider
-            value={[magnitudeLimit]}
-            onValueChange={([v]) => setMagnitudeLimit(v)}
-            min={4}
-            max={15}
-            step={0.5}
-            className="mt-2"
-          />
-        </div>
-        
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t('astroCalc.minAltitude')}: {minAltitude}°</Label>
-          <Slider
-            value={[minAltitude]}
-            onValueChange={([v]) => setMinAltitude(v)}
-            min={0}
-            max={80}
-            step={5}
-            className="mt-2"
-          />
-        </div>
-        
-        <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.search')}</Label>
           <div className="relative">
             <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
@@ -245,7 +221,42 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
         </div>
       </div>
       
-      <div className="flex items-center gap-4">
+      {/* Filters Row 2: Sliders */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">{t('astroCalc.magnitudeLimit')}</Label>
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-mono">
+              {magnitudeLimit}
+            </Badge>
+          </div>
+          <Slider
+            value={[magnitudeLimit]}
+            onValueChange={([v]) => setMagnitudeLimit(v)}
+            min={4}
+            max={15}
+            step={0.5}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">{t('astroCalc.minAltitude')}</Label>
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-mono">
+              {minAltitude}°
+            </Badge>
+          </div>
+          <Slider
+            value={[minAltitude]}
+            onValueChange={([v]) => setMinAltitude(v)}
+            min={0}
+            max={80}
+            step={5}
+          />
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Checkbox
             id="aboveHorizon"
@@ -262,60 +273,68 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
       </div>
       
       {/* Results Table */}
-      <ScrollArea className="h-[400px] border rounded-lg">
-        <Table>
-          <TableHeader className="sticky top-0 bg-background">
-            <TableRow>
-              <SortableHeader label={t('astroCalc.name')} sortKey="name" currentSort={sortConfig} onSort={handleSort} />
-              <TableHead>{t('astroCalc.type')}</TableHead>
-              <TableHead>{t('astroCalc.tableRA')}</TableHead>
-              <TableHead>{t('astroCalc.tableDec')}</TableHead>
-              <SortableHeader label={t('astroCalc.mag')} sortKey="magnitude" currentSort={sortConfig} onSort={handleSort} />
-              <SortableHeader label={t('astroCalc.alt')} sortKey="altitude" currentSort={sortConfig} onSort={handleSort} />
-              <SortableHeader label={t('astroCalc.transit')} sortKey="transit" currentSort={sortConfig} onSort={handleSort} />
-              <SortableHeader label={t('astroCalc.maxEl')} sortKey="maxElevation" currentSort={sortConfig} onSort={handleSort} />
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {positions.map((obj) => (
-              <TableRow 
-                key={obj.name} 
-                className="cursor-pointer hover:bg-accent/50"
-                onClick={() => onSelectObject(obj.ra, obj.dec)}
-              >
-                <TableCell className="font-medium">
-                  <TranslatedName name={obj.name} />
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{obj.type}</TableCell>
-                <TableCell className="font-mono text-xs">{degreesToHMS(obj.ra)}</TableCell>
-                <TableCell className="font-mono text-xs">{degreesToDMS(obj.dec)}</TableCell>
-                <TableCell className="text-xs">{obj.magnitude?.toFixed(1) ?? '--'}</TableCell>
-                <TableCell className={cn(
-                  'text-xs font-medium',
-                  obj.altitude > 30 ? 'text-green-500' : obj.altitude > 0 ? 'text-yellow-500' : 'text-red-500'
-                )}>
-                  {obj.altitude.toFixed(1)}°
-                </TableCell>
-                <TableCell className="font-mono text-xs">{formatTimeShort(obj.transitTime)}</TableCell>
-                <TableCell className="text-xs">{obj.maxElevation.toFixed(1)}°</TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddToList(obj.name, obj.ra, obj.dec);
-                    }}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </TableCell>
+      <ScrollArea className="h-[350px] border rounded-lg">
+        {positions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+            <Telescope className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm font-medium">{t('astroCalc.noObjectsFound')}</p>
+            <p className="text-xs mt-1">{t('astroCalc.adjustFilters')}</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <SortableHeader label={t('astroCalc.name')} sortKey="name" currentSort={sortConfig} onSort={handleSort} />
+                <TableHead>{t('astroCalc.type')}</TableHead>
+                <TableHead>{t('astroCalc.tableRA')}</TableHead>
+                <TableHead>{t('astroCalc.tableDec')}</TableHead>
+                <SortableHeader label={t('astroCalc.mag')} sortKey="magnitude" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader label={t('astroCalc.alt')} sortKey="altitude" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader label={t('astroCalc.transit')} sortKey="transit" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader label={t('astroCalc.maxEl')} sortKey="maxElevation" currentSort={sortConfig} onSort={handleSort} />
+                <TableHead className="w-8"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {positions.map((obj) => (
+                <TableRow 
+                  key={obj.name} 
+                  className="cursor-pointer hover:bg-accent/50"
+                  onClick={() => onSelectObject(obj.ra, obj.dec)}
+                >
+                  <TableCell className="font-medium text-sm">
+                    <TranslatedName name={obj.name} />
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{obj.type}</TableCell>
+                  <TableCell className="font-mono text-xs">{degreesToHMS(obj.ra)}</TableCell>
+                  <TableCell className="font-mono text-xs">{degreesToDMS(obj.dec)}</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums">{obj.magnitude?.toFixed(1) ?? '--'}</TableCell>
+                  <TableCell className={cn(
+                    'text-xs font-medium text-right tabular-nums',
+                    obj.altitude > 30 ? 'text-green-500' : obj.altitude > 0 ? 'text-yellow-500' : 'text-red-500'
+                  )}>
+                    {obj.altitude.toFixed(1)}°
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{formatTimeShort(obj.transitTime)}</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums">{obj.maxElevation.toFixed(1)}°</TableCell>
+                  <TableCell className="w-8">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddToList(obj.name, obj.ra, obj.dec);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </ScrollArea>
     </div>
   );

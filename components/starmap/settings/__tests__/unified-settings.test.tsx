@@ -154,6 +154,10 @@ jest.mock('@/components/starmap/settings/about-settings', () => ({
   AboutSettings: () => <div data-testid="about-settings">AboutSettings</div>,
 }));
 
+jest.mock('@/components/starmap/settings/event-sources-settings', () => ({
+  EventSourcesSettings: () => <div data-testid="event-sources-settings">EventSourcesSettings</div>,
+}));
+
 jest.mock('@/components/starmap/map', () => ({
   MapProviderSettings: () => <div data-testid="map-provider-settings">MapProviderSettings</div>,
   MapHealthMonitor: () => <div data-testid="map-health-monitor">MapHealthMonitor</div>,
@@ -216,12 +220,13 @@ describe('UnifiedSettings Integration', () => {
       expect(screen.getByTestId('exposure-settings')).toBeInTheDocument();
     });
 
-    it('renders GeneralSettings, AppearanceSettings, PerformanceSettings, AccessibilitySettings in preferences tab', () => {
+    it('renders GeneralSettings, AppearanceSettings, PerformanceSettings, AccessibilitySettings, EventSourcesSettings in preferences tab', () => {
       render(<UnifiedSettings />);
       expect(screen.getByTestId('general-settings')).toBeInTheDocument();
       expect(screen.getByTestId('appearance-settings')).toBeInTheDocument();
       expect(screen.getByTestId('performance-settings')).toBeInTheDocument();
       expect(screen.getByTestId('accessibility-settings')).toBeInTheDocument();
+      expect(screen.getByTestId('event-sources-settings')).toBeInTheDocument();
     });
 
     it('renders data management components in data tab', () => {

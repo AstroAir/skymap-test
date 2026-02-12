@@ -64,21 +64,37 @@ impl Serialize for UpdaterError {
     }
 }
 
-static PENDING_UPDATE: Lazy<Mutex<Option<Update>>> = Lazy::new(|| Mutex::new(None));
+struct PendingUpdate {
+    update: Update,
+    bytes: Option<Vec<u8>>,
+}
+
+static PENDING_UPDATE: Lazy<Mutex<Option<PendingUpdate>>> = Lazy::new(|| Mutex::new(None));
+
+fn extract_update_info(update: &Update) -> UpdateInfo {
+    UpdateInfo {
+        version: update.version.clone(),
+        current_version: update.current_version.clone(),
+        date: update.date.map(format_datetime),
+        body: update.body.clone(),
+    }
+}
 
 #[tauri::command]
 pub async fn check_for_update<R: Runtime>(app: AppHandle<R>) -> Result<UpdateStatus, UpdaterError> {
-    let updater = app.updater().map_err(|e| UpdaterError::CheckFailed(e.to_string()))?;
+    let updater = app.updater_builder()
+        .on_before_exit(|| {
+            log::info!("Updater: application exiting for update installation...");
+        })
+        .build()
+        .map_err(|e| UpdaterError::CheckFailed(e.to_string()))?;
 
     match updater.check().await {
         Ok(Some(update)) => {
-            let info = UpdateInfo {
-                version: update.version.clone(),
-                current_version: update.current_version.clone(),
-                date: update.date.map(format_datetime),
-                body: update.body.clone(),
-            };
-            if let Ok(mut pending) = PENDING_UPDATE.lock() { *pending = Some(update); }
+            let info = extract_update_info(&update);
+            if let Ok(mut pending) = PENDING_UPDATE.lock() {
+                *pending = Some(PendingUpdate { update, bytes: None });
+            }
             Ok(UpdateStatus::Available(info))
         }
         Ok(None) => Ok(UpdateStatus::NotAvailable),
@@ -90,20 +106,15 @@ pub async fn check_for_update<R: Runtime>(app: AppHandle<R>) -> Result<UpdateSta
 pub async fn download_update<R: Runtime>(_app: AppHandle<R>, window: tauri::Window<R>) -> Result<UpdateStatus, UpdaterError> {
     let update = {
         let pending = PENDING_UPDATE.lock().map_err(|_| UpdaterError::NoPendingUpdate)?;
-        pending.clone().ok_or(UpdaterError::NoPendingUpdate)?
+        let p = pending.as_ref().ok_or(UpdaterError::NoPendingUpdate)?;
+        p.update.clone()
     };
 
-    let info = UpdateInfo {
-        version: update.version.clone(),
-        current_version: update.current_version.clone(),
-        date: update.date.map(format_datetime),
-        body: update.body.clone(),
-    };
-
+    let info = extract_update_info(&update);
     let window_clone = window.clone();
     let mut total_downloaded: u64 = 0;
 
-    update.download(
+    let bytes = update.download(
         |chunk_length, content_length| {
             total_downloaded += chunk_length as u64;
             let progress = UpdateProgress {
@@ -115,20 +126,27 @@ pub async fn download_update<R: Runtime>(_app: AppHandle<R>, window: tauri::Wind
         || log::info!("Download finished"),
     ).await.map_err(|e| UpdaterError::DownloadFailed(e.to_string()))?;
 
-    if let Ok(mut pending) = PENDING_UPDATE.lock() { *pending = Some(update); }
+    if let Ok(mut pending) = PENDING_UPDATE.lock() {
+        *pending = Some(PendingUpdate { update, bytes: Some(bytes) });
+    }
     Ok(UpdateStatus::Ready(info))
 }
 
 #[tauri::command]
 pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), UpdaterError> {
-    let update = {
+    let pending_data = {
         let mut pending = PENDING_UPDATE.lock().map_err(|_| UpdaterError::NoPendingUpdate)?;
         pending.take().ok_or(UpdaterError::NoPendingUpdate)?
     };
 
-    update.download_and_install(|_, _| {}, || log::info!("Install completed"))
-        .await.map_err(|e| UpdaterError::InstallFailed(e.to_string()))?;
+    let bytes = pending_data.bytes.ok_or(UpdaterError::InstallFailed(
+        "Update not downloaded yet. Call download_update first.".to_string()
+    ))?;
 
+    pending_data.update.install(bytes)
+        .map_err(|e| UpdaterError::InstallFailed(e.to_string()))?;
+
+    log::info!("Install completed, restarting...");
     app.restart();
 }
 
@@ -136,7 +154,8 @@ pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), Updater
 pub async fn download_and_install_update<R: Runtime>(app: AppHandle<R>, window: tauri::Window<R>) -> Result<(), UpdaterError> {
     let update = {
         let mut pending = PENDING_UPDATE.lock().map_err(|_| UpdaterError::NoPendingUpdate)?;
-        pending.take().ok_or(UpdaterError::NoPendingUpdate)?
+        let p = pending.take().ok_or(UpdaterError::NoPendingUpdate)?;
+        p.update
     };
 
     let window_clone = window.clone();

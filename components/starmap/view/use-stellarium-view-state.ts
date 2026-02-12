@@ -44,23 +44,11 @@ export function useStellariumViewState() {
   const containerRef = useRef<HTMLDivElement>(null);
   const fovChangeRafRef = useRef<number | null>(null);
   const lastFovRef = useRef(currentFov);
-  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
+  const containerBoundsRef = useRef<{ left: number; top: number } | null>(null);
 
-  // Equipment store - centralized FOV settings
-  const fovSimEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
-  const setFovSimEnabled = useEquipmentStore((state) => state.setFOVEnabled);
-  const sensorWidth = useEquipmentStore((state) => state.sensorWidth);
-  const sensorHeight = useEquipmentStore((state) => state.sensorHeight);
-  const focalLength = useEquipmentStore((state) => state.focalLength);
-  const rotationAngle = useEquipmentStore((state) => state.rotationAngle);
-  const mosaic = useEquipmentStore((state) => state.mosaic);
-  const gridType = useEquipmentStore((state) => state.fovDisplay.gridType);
-  const setSensorWidth = useEquipmentStore((state) => state.setSensorWidth);
-  const setSensorHeight = useEquipmentStore((state) => state.setSensorHeight);
-  const setFocalLength = useEquipmentStore((state) => state.setFocalLength);
+  // Equipment store — only subscribe to setters needed in handlers
+  // Display values (fovSimEnabled, sensorWidth, etc.) are subscribed directly by child components
   const setRotationAngle = useEquipmentStore((state) => state.setRotationAngle);
-  const setMosaic = useEquipmentStore((state) => state.setMosaic);
-  const setGridType = useEquipmentStore((state) => state.setGridType);
 
   // Stellarium store
   const stel = useStellariumStore((state) => state.stel);
@@ -118,44 +106,47 @@ export function useStellariumViewState() {
     const el = containerRef.current;
     if (!el) return;
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        setContainerBounds({ width, height });
-      }
+    const updateBounds = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerBounds({ width: rect.width, height: rect.height });
+      containerBoundsRef.current = { left: rect.left, top: rect.top };
+    };
+
+    const observer = new ResizeObserver(() => {
+      updateBounds();
     });
 
     observer.observe(el);
     // Set initial bounds
-    const rect = el.getBoundingClientRect();
-    setContainerBounds({ width: rect.width, height: rect.height });
+    updateBounds();
 
     return () => observer.disconnect();
   }, []);
 
-  // Track last mouse position for info panel placement
+  // Track last click position on container for info panel placement
+  // Uses mousedown (fires once per click) instead of mousemove (fires every frame)
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        lastMousePosRef.current = {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const rect = containerBoundsRef.current;
+      if (rect) {
+        setClickPosition({
           x: e.clientX - rect.left,
           y: e.clientY - rect.top,
-        };
+        });
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    el.addEventListener('mousedown', handleMouseDown);
+    return () => el.removeEventListener('mousedown', handleMouseDown);
   }, []);
 
   // Handle selection change from canvas
   const handleSelectionChange = useCallback((selection: SelectedObjectData | null) => {
     if (selection) {
       setIsSearchOpen(false);
-      if (lastMousePosRef.current) {
-        setClickPosition(lastMousePosRef.current);
-      }
       pushNavigationHistory({
         ra: selection.raDeg,
         dec: selection.decDeg,
@@ -249,14 +240,22 @@ export function useStellariumViewState() {
       x: e.clientX,
       y: e.clientY,
     });
-    setContextMenuOpen(false);
-    requestAnimationFrame(() => {
-      setContextMenuOpen(true);
-    });
+    setContextMenuOpen(true);
   }, []);
 
   // Add to target list
   const handleAddToTargetList = useCallback(() => {
+    // Read equipment values at call time (avoids reactive subscriptions)
+    const eq = useEquipmentStore.getState();
+    const eqData = {
+      sensorWidth: eq.sensorWidth,
+      sensorHeight: eq.sensorHeight,
+      focalLength: eq.focalLength,
+      rotationAngle: eq.rotationAngle,
+      mosaic: eq.mosaic.enabled ? eq.mosaic : undefined,
+      priority: 'medium' as const,
+    };
+
     if (contextMenuCoords) {
       addTarget({
         name: t('actions.defaultTargetName', { coords: contextMenuCoords.raStr }),
@@ -264,12 +263,7 @@ export function useStellariumViewState() {
         dec: contextMenuCoords.dec,
         raString: contextMenuCoords.raStr,
         decString: contextMenuCoords.decStr,
-        sensorWidth,
-        sensorHeight,
-        focalLength,
-        rotationAngle,
-        mosaic: mosaic.enabled ? mosaic : undefined,
-        priority: 'medium',
+        ...eqData,
       });
     } else if (selectedObject) {
       addTarget({
@@ -278,15 +272,10 @@ export function useStellariumViewState() {
         dec: selectedObject.decDeg,
         raString: selectedObject.ra,
         decString: selectedObject.dec,
-        sensorWidth,
-        sensorHeight,
-        focalLength,
-        rotationAngle,
-        mosaic: mosaic.enabled ? mosaic : undefined,
-        priority: 'medium',
+        ...eqData,
       });
     }
-  }, [contextMenuCoords, selectedObject, addTarget, sensorWidth, sensorHeight, focalLength, rotationAngle, mosaic, t]);
+  }, [contextMenuCoords, selectedObject, addTarget, t]);
 
   // Navigate to coords
   const handleNavigateToCoords = useCallback(() => {
@@ -385,21 +374,8 @@ export function useStellariumViewState() {
     searchRef,
     containerRef,
 
-    // Equipment settings
-    fovSimEnabled,
-    setFovSimEnabled,
-    sensorWidth,
-    sensorHeight,
-    focalLength,
-    rotationAngle,
-    mosaic,
-    gridType,
-    setSensorWidth,
-    setSensorHeight,
-    setFocalLength,
+    // Equipment settings (only setters needed by handlers)
     setRotationAngle,
-    setMosaic,
-    setGridType,
 
     // Store states
     stel,

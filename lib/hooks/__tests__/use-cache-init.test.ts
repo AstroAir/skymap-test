@@ -1,16 +1,54 @@
 /**
  * @jest-environment jsdom
  */
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useCacheInit } from '../use-cache-init';
 import { installFetchInterceptor } from '@/lib/offline';
+import { initializeCacheSystem } from '@/lib/cache/migration';
 
 // Mock the unified cache module
 jest.mock('@/lib/offline', () => ({
   installFetchInterceptor: jest.fn(),
+  unifiedCache: {
+    keys: jest.fn().mockResolvedValue([]),
+    prefetch: jest.fn().mockResolvedValue(true),
+    prefetchAll: jest.fn().mockResolvedValue(new Map()),
+  },
+}));
+
+// Mock cache migration
+jest.mock('@/lib/cache/migration', () => ({
+  initializeCacheSystem: jest.fn().mockResolvedValue({
+    success: true,
+    fromVersion: 1,
+    toVersion: 1,
+    migratedItems: 0,
+    deletedItems: 0,
+    errors: [],
+  }),
+}));
+
+// Mock isTauri
+jest.mock('@/lib/storage/platform', () => ({
+  isTauri: jest.fn(() => false),
+}));
+
+// Mock unified cache API
+jest.mock('@/lib/tauri/unified-cache-api', () => ({
+  unifiedCacheApi: {
+    flush: jest.fn().mockResolvedValue(undefined),
+    cleanup: jest.fn().mockResolvedValue(0),
+  },
+}));
+
+// Mock cache config
+jest.mock('@/lib/cache/config', () => ({
+  PREFETCH_RESOURCES: [],
+  CACHE_CONFIG: { unified: { maxSize: 500 * 1024 * 1024 } },
 }));
 
 const mockInstallFetchInterceptor = installFetchInterceptor as jest.Mock;
+const mockInitializeCacheSystem = initializeCacheSystem as jest.Mock;
 
 // Mock navigator.storage
 Object.defineProperty(navigator, 'storage', {
@@ -94,9 +132,45 @@ describe('useCacheInit', () => {
   it('logs cache initialization', () => {
     renderHook(() => useCacheInit());
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      '[Cache] Fetch interceptor installed with strategy:',
-      'cache-first'
+    // Logger uses structured logging via createLogger, not raw console.log
+    // Verify interceptor was installed (the actual logging is handled by the logger transport)
+    expect(mockInstallFetchInterceptor).toHaveBeenCalledWith('cache-first');
+  });
+
+  it('calls initializeCacheSystem on startup', async () => {
+    renderHook(() => useCacheInit());
+
+    // Wait for async operations
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(mockInitializeCacheSystem).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets up periodic cleanup interval', () => {
+    const setIntervalSpy = jest.spyOn(global, 'setInterval');
+
+    renderHook(() => useCacheInit());
+
+    // Should set up a cleanup interval (30 minutes = 1800000ms)
+    expect(setIntervalSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      30 * 60 * 1000
     );
+
+    setIntervalSpy.mockRestore();
+  });
+
+  it('clears periodic cleanup interval on unmount', () => {
+    const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+
+    const { unmount } = renderHook(() => useCacheInit());
+
+    unmount();
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+
+    clearIntervalSpy.mockRestore();
   });
 });

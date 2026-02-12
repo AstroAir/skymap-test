@@ -1,23 +1,48 @@
-import {
-  Navbar,
-  HeroSection,
-  FeaturesSection,
-  ScreenshotCarousel,
-  TechStack,
-  CTASection,
-  Footer,
-} from '@/components/landing';
+import dynamic from 'next/dynamic';
+import { Navbar, HeroSection } from '@/components/landing';
+
+const FeaturesSection = dynamic(() => import('@/components/landing/features-section').then(m => ({ default: m.FeaturesSection })));
+const ScreenshotCarousel = dynamic(() => import('@/components/landing/screenshot-carousel').then(m => ({ default: m.ScreenshotCarousel })));
+const TechStack = dynamic(() => import('@/components/landing/tech-stack').then(m => ({ default: m.TechStack })));
+const CTASection = dynamic(() => import('@/components/landing/cta-section').then(m => ({ default: m.CTASection })));
+const Footer = dynamic(() => import('@/components/landing/footer').then(m => ({ default: m.Footer })));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'SkyMap',
+  applicationCategory: 'EducationalApplication',
+  operatingSystem: 'Windows, macOS, Linux',
+  description:
+    'A powerful astronomy application for stargazing, observation planning, and astrophotography. Powered by Stellarium Web Engine.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  author: {
+    '@type': 'Organization',
+    name: 'AstroAir',
+    url: 'https://github.com/AstroAir',
+  },
+};
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-background">
-      <Navbar />
-      <HeroSection />
-      <FeaturesSection />
-      <ScreenshotCarousel />
-      <TechStack />
-      <CTASection />
-      <Footer />
-    </main>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <main className="min-h-screen bg-background">
+        <Navbar />
+        <HeroSection />
+        <FeaturesSection />
+        <ScreenshotCarousel />
+        <TechStack />
+        <CTASection />
+        <Footer />
+      </main>
+    </>
   );
 }

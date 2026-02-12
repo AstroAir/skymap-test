@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Moon, Sun, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { raDecToAltAz } from '@/lib/astronomy/starmap-utils';
+import { MoonPhaseSVG } from '../moon-phase-svg';
 import {
   calculateTwilightTimes,
   getMoonPhase,
@@ -41,18 +42,18 @@ export function AlmanacTab({ latitude, longitude }: AlmanacTabProps) {
   
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.date')}</Label>
           <Input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="h-8 w-40"
+            className="h-8 w-44"
           />
         </div>
-        <div className="text-xs text-muted-foreground">
-          <span>{t('astroCalc.sunAlt')}: {sunAltAz.altitude.toFixed(1)}°</span>
+        <div className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50">
+          {t('astroCalc.sunAlt')}: <span className={cn('font-mono font-medium', sunAltAz.altitude > 0 ? 'text-amber-500' : 'text-blue-400')}>{sunAltAz.altitude.toFixed(1)}°</span>
         </div>
       </div>
       
@@ -146,7 +147,7 @@ export function AlmanacTab({ latitude, longitude }: AlmanacTabProps) {
           <Calendar className="h-5 w-5 text-primary" />
           <span className="font-medium">{t('astroCalc.moonPhaseCalendar')}</span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-2">
           {Array.from({ length: 14 }, (_, i) => {
             const d = new Date(date);
             d.setDate(d.getDate() + i);
@@ -170,14 +171,7 @@ export function AlmanacTab({ latitude, longitude }: AlmanacTabProps) {
                 <span className="font-medium">
                   {d.getDate()}
                 </span>
-                <div 
-                  className="w-6 h-6 rounded-full mt-1 border"
-                  style={{
-                    background: `linear-gradient(90deg, 
-                      ${illum > 50 ? '#fef3c7' : '#1e293b'} ${illum}%, 
-                      #1e293b ${illum}%)`
-                  }}
-                />
+                <MoonPhaseSVG phase={phase} size={24} className="mt-1" />
                 <span className="text-muted-foreground text-[10px] mt-1">{illum}%</span>
               </div>
             );

@@ -18,7 +18,8 @@ export function AltitudeChart({
   dec,
   name,
   hoursAhead = 12,
-}: AltitudeChartProps) {
+  variant = 'card',
+}: AltitudeChartProps & { variant?: 'card' | 'bare' }) {
   const t = useTranslations();
   const displayName = name || t('astroCalc.defaultTarget');
   const profileInfo = useMountStore((state) => state.profileInfo);
@@ -71,10 +72,10 @@ export function AltitudeChart({
     };
   }, [ra, dec, latitude, longitude, hoursAhead]);
 
-  // Chart dimensions
-  const width = 280;
-  const height = 120;
-  const padding = { top: 10, right: 10, bottom: 25, left: 35 };
+  // Chart dimensions (used as viewBox coordinates, SVG scales responsively)
+  const width = 320;
+  const height = 140;
+  const padding = { top: 12, right: 12, bottom: 25, left: 35 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
@@ -121,16 +122,13 @@ export function AltitudeChart({
   // Transit time marker
   const transitX = chartData.transitIn <= hoursAhead ? xScale(chartData.transitIn) : null;
 
-  return (
-    <Card className="bg-card/95 border-border">
-      <CardHeader className="pb-1 pt-2 px-3">
-        <CardTitle className="text-xs flex items-center gap-1.5 text-primary">
-          <TrendingUp className="h-3 w-3" />
-          {t('chart.altitudeTarget')} ({displayName})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-2">
-        <svg width={width} height={height} className="overflow-visible">
+  const chartContent = (
+    <>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full h-auto overflow-visible"
+        preserveAspectRatio="xMidYMid meet"
+      >
           {/* Grid lines */}
           <g className="text-border">
             {/* Horizontal grid lines at 0°, 30°, 60°, 90° */}
@@ -333,38 +331,55 @@ export function AltitudeChart({
               <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1" />
             </linearGradient>
           </defs>
-        </svg>
+      </svg>
 
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[9px] text-muted-foreground px-1">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-0.5 bg-amber-400" />
-            <span>{t('chart.now')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-0.5 bg-purple-400" />
-            <span>{t('chart.transit')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-0.5 bg-green-500" />
-            <span>{t('chart.rise')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-0.5 bg-red-500" />
-            <span>{t('chart.set')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500/20 border border-green-500/50" />
-            <span>{t('chart.window')}</span>
-          </div>
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[10px] text-muted-foreground px-1">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-0.5 bg-amber-400" />
+          <span>{t('chart.now')}</span>
         </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-0.5 bg-purple-400" />
+          <span>{t('chart.transit')}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-0.5 bg-green-500" />
+          <span>{t('chart.rise')}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-0.5 bg-red-500" />
+          <span>{t('chart.set')}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 bg-green-500/20 border border-green-500/50" />
+          <span>{t('chart.window')}</span>
+        </div>
+      </div>
 
-        {/* Dark imaging time summary */}
-        {chartData.visibility.darkImagingHours > 0 && (
-          <div className="mt-1 text-[9px] text-green-400 px-1">
-            ✓ {chartData.visibility.darkImagingHours.toFixed(1)}h {t('chart.darkImagingAvailable')}
-          </div>
-        )}
+      {/* Dark imaging time summary */}
+      {chartData.visibility.darkImagingHours > 0 && (
+        <div className="mt-1 text-[10px] text-green-400 px-1">
+          ✓ {chartData.visibility.darkImagingHours.toFixed(1)}h {t('chart.darkImagingAvailable')}
+        </div>
+      )}
+    </>
+  );
+
+  if (variant === 'bare') {
+    return <div className="p-2">{chartContent}</div>;
+  }
+
+  return (
+    <Card className="bg-card/95 border-border">
+      <CardHeader className="pb-1 pt-2 px-3">
+        <CardTitle className="text-xs flex items-center gap-1.5 text-primary">
+          <TrendingUp className="h-3 w-3" />
+          {t('chart.altitudeTarget')} ({displayName})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-2">
+        {chartContent}
       </CardContent>
     </Card>
   );

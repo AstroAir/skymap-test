@@ -27,6 +27,7 @@ jest.mock('../updater-api', () => ({
 }));
 
 import { useUpdater, useAutoUpdater } from '../updater-hooks';
+import { useUpdaterStore } from '@/lib/stores/updater-store';
 
 describe('updater-hooks', () => {
   beforeEach(() => {
@@ -34,6 +35,8 @@ describe('updater-hooks', () => {
     jest.useFakeTimers();
     mockGetCurrentVersion.mockResolvedValue('1.0.0');
     mockOnUpdateProgress.mockResolvedValue(jest.fn());
+    // Reset the Zustand store between tests
+    useUpdaterStore.getState().reset();
   });
 
   afterEach(() => {
@@ -270,6 +273,63 @@ describe('updater-hooks', () => {
         expect(result.current.currentVersion).toBe('1.0.0');
       });
     });
+
+    it('should set lastChecked timestamp after checking', async () => {
+      mockCheckForUpdate.mockResolvedValue({ status: 'not_available' });
+
+      const { result } = renderHook(() => useUpdater());
+
+      expect(result.current.lastChecked).toBeNull();
+
+      await act(async () => {
+        await result.current.checkForUpdate();
+      });
+
+      expect(result.current.lastChecked).not.toBeNull();
+      expect(typeof result.current.lastChecked).toBe('number');
+    });
+
+    it('should skip version when skipVersion is called', async () => {
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdate();
+      });
+
+      expect(result.current.hasUpdate).toBe(true);
+
+      act(() => {
+        result.current.skipVersion('1.0.1');
+      });
+
+      expect(result.current.skippedVersion).toBe('1.0.1');
+      expect(mockClearPendingUpdate).toHaveBeenCalled();
+      expect(result.current.status).toEqual({ status: 'idle' });
+    });
+
+    it('should filter out skipped version on check', async () => {
+      // First, skip version 1.0.1
+      useUpdaterStore.getState().setSkippedVersion('1.0.1');
+
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdate();
+      });
+
+      // Should be treated as not available since version is skipped
+      expect(result.current.hasUpdate).toBe(false);
+    });
   });
 
   describe('useAutoUpdater', () => {
@@ -353,7 +413,6 @@ describe('updater-hooks', () => {
 
       // Simulate downloading state
       await act(async () => {
-        // Manually set status to downloading to test progress
         mockDownloadUpdate.mockImplementation(async () => {
           return {
             status: 'downloading',
@@ -363,9 +422,216 @@ describe('updater-hooks', () => {
         await result.current.downloadUpdate();
       });
 
-      // Note: In actual implementation, progress is tracked via events
-      // This test verifies the initial download call works
       expect(mockDownloadUpdate).toHaveBeenCalled();
+    });
+
+    it('should initialize downloadSpeed and estimatedTimeRemaining as null', () => {
+      const { result } = renderHook(() => useUpdater());
+
+      expect(result.current.downloadSpeed).toBeNull();
+      expect(result.current.estimatedTimeRemaining).toBeNull();
+    });
+
+    it('should reset download metrics when starting download', async () => {
+      // Pre-set some metrics in the store
+      useUpdaterStore.getState().setDownloadMetrics(5000, 10);
+      useUpdaterStore.getState().setStatus({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      mockDownloadUpdate.mockResolvedValue({
+        status: 'ready',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.downloadUpdate();
+      });
+
+      // After download completes, speed/eta should be null (reset at start)
+      expect(result.current.downloadSpeed).toBeNull();
+      expect(result.current.estimatedTimeRemaining).toBeNull();
+    });
+  });
+
+  describe('install guard', () => {
+    it('should not call installUpdate if not ready', async () => {
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdate();
+      });
+
+      // Status is 'available', not 'ready'
+      await act(async () => {
+        await result.current.installUpdate();
+      });
+
+      expect(mockInstallUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('downloadAndInstall error handling', () => {
+    it('should set error status when downloadAndInstall throws', async () => {
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+      mockDownloadAndInstallUpdate.mockRejectedValue(new Error('Install crashed'));
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdate();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(result.current.error).toBe('Install crashed');
+    });
+
+    it('should handle non-Error rejection in downloadAndInstall', async () => {
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+      mockDownloadAndInstallUpdate.mockRejectedValue('string error');
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdate();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(result.current.error).toBe('string error');
+    });
+  });
+
+  describe('dismissUpdate reset', () => {
+    it('should reset download metrics when dismissing', async () => {
+      // Put metrics in the store
+      useUpdaterStore.getState().setDownloadMetrics(2048, 5);
+      useUpdaterStore.getState().setStatus({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useUpdater());
+
+      act(() => {
+        result.current.dismissUpdate();
+      });
+
+      expect(result.current.downloadSpeed).toBeNull();
+      expect(result.current.estimatedTimeRemaining).toBeNull();
+      expect(result.current.status).toEqual({ status: 'idle' });
+      expect(mockClearPendingUpdate).toHaveBeenCalled();
+    });
+  });
+
+  describe('callbacks', () => {
+    it('should call onUpdateReady callback when update is ready', async () => {
+      const onUpdateReady = jest.fn();
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+      mockDownloadUpdate.mockResolvedValue({
+        status: 'ready',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useUpdater({ onUpdateReady }));
+
+      await act(async () => {
+        await result.current.checkForUpdate();
+      });
+
+      await act(async () => {
+        await result.current.downloadUpdate();
+      });
+
+      expect(onUpdateReady).toHaveBeenCalledWith({
+        version: '1.0.1',
+        current_version: '1.0.0',
+        date: null,
+        body: null,
+      });
+    });
+  });
+
+  describe('currentVersion caching', () => {
+    it('should not re-fetch currentVersion if already set', async () => {
+      // Pre-set version in store
+      useUpdaterStore.getState().setCurrentVersion('2.0.0');
+
+      renderHook(() => useUpdater());
+
+      // Wait a tick
+      await act(async () => {
+        jest.advanceTimersByTime(0);
+      });
+
+      // Should not call getCurrentVersion since it's already set
+      expect(mockGetCurrentVersion).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('autoCheck with skipped version', () => {
+    it('should filter skipped version during auto check', async () => {
+      useUpdaterStore.getState().setSkippedVersion('1.0.1');
+
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.1', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useAutoUpdater());
+
+      await act(async () => {
+        jest.advanceTimersByTime(0);
+      });
+
+      await waitFor(() => {
+        expect(mockCheckForUpdate).toHaveBeenCalled();
+      });
+
+      expect(result.current.hasUpdate).toBe(false);
+    });
+
+    it('should not filter different version during auto check', async () => {
+      useUpdaterStore.getState().setSkippedVersion('1.0.0');
+
+      mockCheckForUpdate.mockResolvedValue({
+        status: 'available',
+        data: { version: '1.0.2', current_version: '1.0.0', date: null, body: null },
+      });
+
+      const { result } = renderHook(() => useAutoUpdater());
+
+      await act(async () => {
+        jest.advanceTimersByTime(0);
+      });
+
+      await waitFor(() => {
+        expect(mockCheckForUpdate).toHaveBeenCalled();
+      });
+
+      expect(result.current.hasUpdate).toBe(true);
     });
   });
 });

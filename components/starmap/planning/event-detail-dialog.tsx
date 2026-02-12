@@ -1,0 +1,291 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  Calendar,
+  Moon,
+  Sun,
+  Star,
+  Orbit,
+  Eye,
+  Clock,
+  Sparkles,
+  CircleDot,
+  Eclipse,
+  ExternalLink,
+  MapPin,
+  Crosshair,
+  Activity,
+  Info,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { AstroEvent } from '@/lib/services/astro-data-sources';
+
+// ============================================================================
+// Icon & Color Maps (shared with calendar)
+// ============================================================================
+
+const EVENT_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  lunar_phase: Moon,
+  meteor_shower: Sparkles,
+  planet_conjunction: CircleDot,
+  eclipse: Eclipse,
+  planet_opposition: Orbit,
+  planet_elongation: Star,
+  equinox_solstice: Sun,
+  comet: Star,
+  asteroid: CircleDot,
+  supernova: Star,
+  aurora: Sparkles,
+};
+
+const EVENT_COLOR_MAP: Record<string, string> = {
+  lunar_phase: 'text-amber-400 bg-amber-400/10',
+  meteor_shower: 'text-purple-400 bg-purple-400/10',
+  planet_conjunction: 'text-blue-400 bg-blue-400/10',
+  eclipse: 'text-red-400 bg-red-400/10',
+  planet_opposition: 'text-orange-400 bg-orange-400/10',
+  planet_elongation: 'text-cyan-400 bg-cyan-400/10',
+  equinox_solstice: 'text-yellow-400 bg-yellow-400/10',
+  comet: 'text-green-400 bg-green-400/10',
+  asteroid: 'text-stone-400 bg-stone-400/10',
+  supernova: 'text-pink-400 bg-pink-400/10',
+  aurora: 'text-emerald-400 bg-emerald-400/10',
+};
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  lunar_phase: 'Lunar Phase',
+  meteor_shower: 'Meteor Shower',
+  planet_conjunction: 'Planetary Conjunction',
+  eclipse: 'Eclipse',
+  planet_opposition: 'Planet at Opposition',
+  planet_elongation: 'Planet Elongation',
+  equinox_solstice: 'Equinox / Solstice',
+  comet: 'Comet',
+  asteroid: 'Asteroid',
+  supernova: 'Supernova',
+  aurora: 'Aurora',
+};
+
+// ============================================================================
+// Props
+// ============================================================================
+
+interface EventDetailDialogProps {
+  event: AstroEvent | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onGoTo?: (ra: number, dec: number) => void;
+}
+
+// ============================================================================
+// Component
+// ============================================================================
+
+export function EventDetailDialog({
+  event,
+  open,
+  onOpenChange,
+  onGoTo,
+}: EventDetailDialogProps) {
+  const t = useTranslations();
+
+  if (!event) return null;
+
+  const Icon = EVENT_ICON_MAP[event.type] ?? Star;
+  const colorClass = EVENT_COLOR_MAP[event.type] ?? 'text-muted-foreground bg-muted';
+  const typeLabel = EVENT_TYPE_LABELS[event.type] ?? event.type;
+
+  const formatFullDate = (date: Date) =>
+    date.toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+  const getVisibilityInfo = (visibility: string) => {
+    switch (visibility) {
+      case 'excellent':
+        return { label: t('events.excellent'), className: 'bg-green-500/20 text-green-400 border-green-500/30' };
+      case 'good':
+        return { label: t('events.good'), className: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+      case 'fair':
+        return { label: t('events.fair'), className: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
+      case 'poor':
+        return { label: t('events.poor'), className: 'bg-red-500/20 text-red-400 border-red-500/30' };
+      default:
+        return null;
+    }
+  };
+
+  const visibilityInfo = getVisibilityInfo(event.visibility);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px] max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="flex items-center gap-3">
+            <div className={cn('p-2.5 rounded-xl', colorClass)}>
+              <Icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-base truncate">{event.name}</div>
+              <div className="text-xs text-muted-foreground font-normal">{typeLabel}</div>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 min-h-0 overflow-hidden">
+          <div className="space-y-4 pr-3 pb-4">
+            {/* Visibility Badge */}
+            {visibilityInfo && (
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">{t('eventDetail.visibility')}:</span>
+                <Badge variant="outline" className={cn('text-xs', visibilityInfo.className)}>
+                  {visibilityInfo.label}
+                </Badge>
+              </div>
+            )}
+
+            {/* Date & Time */}
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="h-4 w-4 text-primary" />
+                <span className="font-medium">{formatFullDate(event.date)}</span>
+              </div>
+
+              {event.peakTime && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <span>{t('eventDetail.peakTime')}: {formatTime(event.peakTime)}</span>
+                </div>
+              )}
+
+              {event.endDate && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  <span>{t('eventDetail.activeUntil')}: {formatFullDate(event.endDate)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Info className="h-4 w-4 text-muted-foreground" />
+                {t('eventDetail.description')}
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed pl-6">
+                {event.description}
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Coordinates */}
+            {event.ra !== undefined && event.dec !== undefined && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Crosshair className="h-4 w-4 text-muted-foreground" />
+                  {t('eventDetail.coordinates')}
+                </div>
+                <div className="grid grid-cols-2 gap-2 pl-6">
+                  <div className="rounded-md bg-muted/50 p-2">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">RA</div>
+                    <div className="text-sm font-mono">{event.ra.toFixed(4)}°</div>
+                  </div>
+                  <div className="rounded-md bg-muted/50 p-2">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">DEC</div>
+                    <div className="text-sm font-mono">{event.dec.toFixed(4)}°</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Magnitude */}
+            {event.magnitude !== undefined && (
+              <div className="flex items-center gap-2 text-sm">
+                <Star className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">{t('eventDetail.magnitude')}:</span>
+                <span className="font-medium font-mono">{event.magnitude.toFixed(1)}</span>
+              </div>
+            )}
+
+            {/* Source */}
+            {event.source && (
+              <>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{t('eventDetail.source')}:</span>
+                    <Badge variant="outline" className="text-xs">
+                      {event.source}
+                    </Badge>
+                  </div>
+                  {event.url && (
+                    <a
+                      href={event.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Actions */}
+        {event.ra !== undefined && event.dec !== undefined && onGoTo && (
+          <>
+            <Separator />
+            <div className="shrink-0 pt-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      onGoTo(event.ra!, event.dec!);
+                      onOpenChange(false);
+                    }}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    {t('eventDetail.goToLocation')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('events.goToRadiant')}</TooltipContent>
+              </Tooltip>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -44,6 +44,11 @@ jest.mock('@/lib/hooks', () => ({
   useCelestialName: jest.fn((name: string) => name),
   useCelestialNames: jest.fn((names: string[]) => names || []),
   useAdaptivePosition: jest.fn(() => ({ left: 12, top: 64 })),
+  useObjectActions: jest.fn(() => ({
+    handleSlew: jest.fn(),
+    handleAddToList: jest.fn(),
+    mountConnected: false,
+  })),
   useAstroEnvironment: jest.fn(() => ({
     moonPhaseName: 'First Quarter',
     moonIllumination: 50,
@@ -78,6 +83,8 @@ jest.mock('@/lib/hooks', () => ({
       moonScore: 90,
       altitudeScore: 85,
       durationScore: 75,
+      twilightScore: 90,
+      warnings: [],
     },
   })),
 }));

@@ -463,7 +463,8 @@
     "zoomHint": "Scroll to zoom, swipe to adjust range",
     "timeRange": "Time",
     "darkImagingWindow": "{hours}h dark imaging window",
-    "mobileHint": "Swipe or pinch to adjust time range"
+    "mobileHint": "Swipe or pinch to adjust time range",
+    "altitudeChartLabel": "Altitude over time chart"
   },
   "feasibility": {
     "excellent": "Excellent",
@@ -994,7 +995,33 @@
     "loading": "Loading events...",
     "eventsFound": "events",
     "peak": "Peak: {time}",
-    "until": "Until {date}"
+    "until": "Until {date}",
+    "planetaryEvents": "Planetary Events"
+  },
+  "eventDetail": {
+    "visibility": "Visibility",
+    "peakTime": "Peak Time",
+    "activeUntil": "Active Until",
+    "description": "Description",
+    "coordinates": "Coordinates",
+    "magnitude": "Magnitude",
+    "source": "Data Source",
+    "goToLocation": "Go to Location"
+  },
+  "eventSources": {
+    "title": "Event Data Sources",
+    "description": "Configure astronomical event data sources. Enable or disable sources, set API keys, and customize API URLs.",
+    "addSource": "Add Source",
+    "editSource": "Edit Source",
+    "removeSource": "Remove",
+    "sourceName": "Source Name",
+    "apiUrl": "API URL",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter API key (optional)",
+    "apiKeyHint": "Some APIs require an authentication key. Your key is stored locally.",
+    "testConnection": "Test Connection",
+    "connectionSuccess": "Connection successful",
+    "connectionFailed": "Connection failed"
   },
   "ocular": {
     "simulator": "Eyepiece Simulator",
@@ -1114,6 +1141,8 @@
     "telescopeAdded": "Telescope added",
     "cameraAdded": "Camera added",
     "deleted": "Equipment deleted",
+    "updated": "Equipment updated",
+    "edit": "Edit",
     "barlows": "Barlows",
     "noBarlows": "No barlows/reducers added",
     "addBarlow": "Add Barlow/Reducer",
@@ -1368,7 +1397,9 @@
     "dataSources": "Data sources",
     "feasibilityBreakdown": "Feasibility Breakdown",
     "loading": "Loading object information...",
-    "enhancing": "Fetching additional data..."
+    "enhancing": "Fetching additional data...",
+    "previousImage": "Previous image",
+    "nextImage": "Next image"
   },
   "sourceConfig": {
     "title": "Information Sources",
@@ -1600,6 +1631,7 @@
     "system": "System",
     "switchToLight": "Switch to Light Mode",
     "switchToDark": "Switch to Dark Mode",
+    "switchTheme": "Theme",
     "customize": "Customize Theme",
     "customizeTheme": "Theme Customization",
     "customizeDescription": "Personalize the appearance of your star map",
@@ -1890,7 +1922,12 @@
       "links": "Links",
       "sourceCode": "Source Code",
       "documentation": "Documentation",
-      "dataCredits": "Data Credits"
+      "dataCredits": "Data Credits",
+      "systemInfo": "System Info",
+      "os": "Operating System",
+      "arch": "Architecture",
+      "tauriVersion": "Tauri Version",
+      "systemInfoUnavailable": "System info unavailable"
     }
   },
   "updater": {
@@ -1918,7 +1955,10 @@
     "autoUpdate": "Automatic Updates",
     "autoUpdateDescription": "Automatically check for updates on startup",
     "lastChecked": "Last checked: {time}",
-    "neverChecked": "Never checked"
+    "neverChecked": "Never checked",
+    "skipVersion": "Skip This Version",
+    "downloadSpeed": "{speed}/s",
+    "timeRemaining": "{time} remaining"
   },
   "titlebar": {
     "minimize": "Minimize",
@@ -2040,6 +2080,72 @@
     "overlapsWith": "Overlaps with: {list}",
     "fovInfo": "FOV: {w}° × {h}°",
     "fRatioLabel": "f/{ratio}"
+  },
+  "mountSafety": {
+    "title": "Mount Safety Simulator",
+    "trigger": "Safety Check",
+    "triggerTooltip": "Simulate sequence to check for mount safety issues",
+    "close": "Close",
+    "config": {
+      "title": "Mount Configuration",
+      "mountType": "Mount Type",
+      "mountTypeGem": "German Equatorial (GEM)",
+      "mountTypeFork": "Fork Mount",
+      "mountTypeAltaz": "Alt-Azimuth",
+      "minAltitude": "Min Altitude",
+      "haLimitEast": "HA Limit East",
+      "haLimitWest": "HA Limit West",
+      "decLimitMin": "Dec Limit Min",
+      "decLimitMax": "Dec Limit Max",
+      "meridianFlip": "Meridian Flip",
+      "flipAfter": "Flip After (min)",
+      "flipMax": "Max After (min)",
+      "flipPause": "Pause Before (min)",
+      "tubeLength": "Tube Length (mm)",
+      "cwBarLength": "CW Bar Length (mm)",
+      "reset": "Reset to Defaults"
+    },
+    "results": {
+      "safe": "Safe",
+      "warnings": "Warnings",
+      "dangers": "Dangers",
+      "flips": "Meridian Flips",
+      "slewTime": "Slew Time",
+      "cableWrapRisk": "Cable Wrap Risk",
+      "pierSide": "Pier Side",
+      "flipNeeded": "Flip Required",
+      "flipDuringSlew": "Flip During Slew",
+      "allClear": "All checks passed — no safety issues detected",
+      "noTargets": "No targets to simulate",
+      "noTargetsHint": "Add targets to your shot list and generate a session plan first"
+    },
+    "diagram": {
+      "title": "HA / Dec Safety Diagram",
+      "hourAngle": "Hour Angle",
+      "meridian": "Meridian"
+    },
+    "issues": {
+      "meridianFlip": "Meridian flip required at {flipTimeStr}",
+      "slewMeridianFlip": "Meridian flip during slew from {from} to {to}",
+      "haLimit": "Hour angle {ha}° exceeds {side} limit",
+      "decLimit": "Declination {dec}° exceeds configured limits",
+      "belowHorizon": "Altitude {altitude}° is below minimum {minAltitude}°",
+      "counterweightUp": "Counterweight-up condition — risk of equipment damage",
+      "cableWrap": "Cumulative RA rotation {rotation}° — cable wrap risk",
+      "pierCollision": "Telescope tube may collide with pier near meridian",
+      "slewThroughPole": "Slew from {from} to {to} passes near celestial pole"
+    },
+    "suggestions": {
+      "meridianFlip": "Ensure meridian flip is enabled in mount driver",
+      "slewMeridianFlip": "Allow extra time for flip and re-centering between targets",
+      "haLimit": "Reschedule target or adjust HA limits in mount settings",
+      "decLimit": "This target is outside your mount's declination range",
+      "belowHorizon": "Wait for target to rise higher or adjust minimum altitude",
+      "counterweightUp": "Enable meridian flip to avoid counterweight-up tracking",
+      "cableWrap": "Consider reversing sequence direction or adding a park between targets",
+      "pierCollision": "Use pause-before-meridian setting for long telescope tubes",
+      "slewThroughPole": "Consider reordering targets to avoid pole crossing"
+    }
   },
   "planRec": {
     "addMoreTargets": "Consider adding more targets to fill the night",
@@ -2183,7 +2289,11 @@
     },
     "advancedFilters": "Advanced Filters",
     "minSize": "Min Size",
-    "any": "Any"
+    "any": "Any",
+    "noObjectsFound": "No objects found",
+    "adjustFilters": "Try adjusting filters or expanding the search criteria",
+    "enterCoordinates": "Enter target coordinates",
+    "enterCoordinatesHint": "Input RA and Dec in degrees to calculate"
   },
   "system": {
     "online": "Online",

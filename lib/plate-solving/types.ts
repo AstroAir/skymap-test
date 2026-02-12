@@ -242,6 +242,10 @@ export interface FITSWCSHeader {
   CD1_2: number;
   CD2_1: number;
   CD2_2: number;
+  CDELT1: number;
+  CDELT2: number;
+  CROTA1: number;
+  CROTA2: number;
   CTYPE1: string;
   CTYPE2: string;
   NAXIS1: number;
@@ -256,10 +260,28 @@ export function parseWCSFromFITS(header: Partial<FITSWCSHeader>): WorldCoordinat
     return null;
   }
   
-  const cd1_1 = header.CD1_1 ?? 0;
-  const cd1_2 = header.CD1_2 ?? 0;
-  const cd2_1 = header.CD2_1 ?? 0;
-  const cd2_2 = header.CD2_2 ?? 0;
+  let cd1_1: number, cd1_2: number, cd2_1: number, cd2_2: number;
+  
+  if (header.CD1_1 !== undefined) {
+    // CD matrix is directly available
+    cd1_1 = header.CD1_1 ?? 0;
+    cd1_2 = header.CD1_2 ?? 0;
+    cd2_1 = header.CD2_1 ?? 0;
+    cd2_2 = header.CD2_2 ?? 0;
+  } else if (header.CDELT1 !== undefined) {
+    // Construct CD matrix from CDELT + CROTA (legacy WCS convention)
+    const cdelt1 = header.CDELT1 ?? 0;
+    const cdelt2 = header.CDELT2 ?? 0;
+    const crota = header.CROTA2 ?? header.CROTA1 ?? 0;
+    const crotaRad = crota * (Math.PI / 180);
+    
+    cd1_1 = cdelt1 * Math.cos(crotaRad);
+    cd1_2 = -cdelt2 * Math.sin(crotaRad);
+    cd2_1 = cdelt1 * Math.sin(crotaRad);
+    cd2_2 = cdelt2 * Math.cos(crotaRad);
+  } else {
+    return null;
+  }
   
   // Calculate pixel scale (arcsec/pixel)
   const pixelScale = Math.sqrt(cd1_1 ** 2 + cd2_1 ** 2) * 3600;
