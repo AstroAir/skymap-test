@@ -2,9 +2,8 @@
 
 import { useState, useRef, useCallback, forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useObjectSearch, type ObjectType, useSkyCultureLanguage, useSelectTarget } from '@/lib/hooks';
-import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
+import { useTargetListActions } from '@/lib/hooks/use-target-list-actions';
 import type { SearchResultItem } from '@/lib/core/types';
 import type { StellariumSearchRef, StellariumSearchProps } from '@/types/starmap/search';
 import { getResultId } from '@/lib/core/search-utils';
@@ -12,14 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { SearchResultItemRow } from './search-result-item';
 import { getTypeIcon, getCategoryIcon } from './search-utils';
+import { MultiSelectToolbar } from './multi-select-toolbar';
+import { GroupedResultsList } from './grouped-results-list';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,13 +32,8 @@ import {
   CircleDot,
   Loader2,
   Filter,
-  CheckSquare,
-  Square,
   X,
   Clock,
-  ChevronDown,
-  ChevronRight,
-  ListPlus,
   SlidersHorizontal,
   Trash2,
   MapPin,
@@ -56,7 +50,6 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const t = useTranslations();
     const searchInputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
     
     // Use the enhanced search hook
     const {
@@ -84,7 +77,6 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       searchStats,
     } = useObjectSearch();
     
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['DSO', 'Planet']));
     const [isFocused, setIsFocused] = useState(false);
     const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -137,18 +129,13 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       }
     }, [highlightedIndex]);
     
-    // Memoize handler for adding to target list
-    const handleAddToTargetList = useCallback((item: SearchResultItem) => {
-      if (item.RA !== undefined && item.Dec !== undefined) {
-        addTargetsBatch([{
-          name: item.Name,
-          ra: item.RA,
-          dec: item.Dec,
-          raString: degreesToHMS(item.RA),
-          decString: degreesToDMS(item.Dec),
-        }]);
-      }
-    }, [addTargetsBatch]);
+    // Shared target list actions
+    const targetListOptions = useMemo(() => ({
+      getSelectedItems,
+      clearSelection,
+      onBatchAdd,
+    }), [getSelectedItems, clearSelection, onBatchAdd]);
+    const { handleAddToTargetList, handleBatchAdd } = useTargetListActions(targetListOptions);
 
     // Handle click outside to close search results
     useEffect(() => {
@@ -203,19 +190,6 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       }
     }, [onSelect, onFocusChange]);
 
-    // Toggle group expansion
-    const toggleGroup = useCallback((group: string) => {
-      setExpandedGroups(prev => {
-        const next = new Set(prev);
-        if (next.has(group)) {
-          next.delete(group);
-        } else {
-          next.add(group);
-        }
-        return next;
-      });
-    }, []);
-
     // Navigate to target in Stellarium (shared hook)
     const selectTargetCallbacks = useMemo(() => ({
       onSelect,
@@ -260,28 +234,6 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           break;
       }
     }, [isFocused, flatResults, highlightedIndex, selectTarget, onFocusChange]);
-
-    // Handle batch add to target list
-    const handleBatchAdd = useCallback(() => {
-      const selected = getSelectedItems();
-      if (selected.length === 0) return;
-      
-      const batchItems = selected
-        .filter(item => item.RA !== undefined && item.Dec !== undefined)
-        .map(item => ({
-          name: item.Name,
-          ra: item.RA!,
-          dec: item.Dec!,
-          raString: degreesToHMS(item.RA!),
-          decString: degreesToDMS(item.Dec!),
-        }));
-      
-      if (batchItems.length > 0) {
-        addTargetsBatch(batchItems);
-        clearSelection();
-        onBatchAdd?.(selected);
-      }
-    }, [getSelectedItems, addTargetsBatch, clearSelection, onBatchAdd]);
 
     // Type filter toggle
     const toggleTypeFilter = useCallback((type: ObjectType) => {
@@ -372,7 +324,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                 >
                   <span className="flex items-center gap-2">
                     {getTypeIcon(type)}
-                    {type}
+                    {t(`objects.${type.toLowerCase()}`)}
                   </span>
                 </DropdownMenuCheckboxItem>
               ))}
@@ -436,100 +388,33 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
 
         {/* Multi-select toolbar */}
         {showResultsPanel && enableMultiSelect && hasResults && (
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => selectedCount > 0 ? clearSelection() : selectAll()}
-              >
-                {selectedCount > 0 ? (
-                  <>
-                    <CheckSquare className="h-3 w-3 mr-1" />
-                    {t('search.clearSelection')}
-                  </>
-                ) : (
-                  <>
-                    <Square className="h-3 w-3 mr-1" />
-                    {t('search.selectAll')}
-                  </>
-                )}
-              </Button>
-              {selectedCount > 0 && (
-                <span className="text-muted-foreground">
-                  {t('search.selectedCount', { count: selectedCount })}
-                </span>
-              )}
-            </div>
-            {selectedCount > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={handleBatchAdd}
-              >
-                <ListPlus className="h-3 w-3 mr-1" />
-                {t('search.addToList')}
-              </Button>
-            )}
-          </div>
+          <MultiSelectToolbar
+            selectedCount={selectedCount}
+            onToggleSelectAll={() => selectedCount > 0 ? clearSelection() : selectAll()}
+            onBatchAdd={handleBatchAdd}
+          />
         )}
 
         {/* Search Results - Grouped */}
         {showResultsPanel && hasResults && !isSearching && (
           <ScrollArea className="max-h-72">
-            <div className="space-y-2" role="listbox" id="search-results-listbox">
-              {Array.from(groupedResults.entries()).map(([groupName, items]) => (
-                <Collapsible
-                  key={groupName}
-                  open={expandedGroups.has(groupName)}
-                  onOpenChange={() => toggleGroup(groupName)}
-                  className="space-y-1"
-                >
-                  <CollapsibleTrigger className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted-foreground hover:text-foreground py-1">
-                    {expandedGroups.has(groupName) ? (
-                      <ChevronDown className="h-3 w-3" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3" />
-                    )}
-                    {getTypeIcon(groupName)}
-                    <span className="ml-1">{groupName}</span>
-                    <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
-                      {items.length}
-                    </Badge>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent className="space-y-0.5 pl-4">
-                    {items.map((item) => {
-                      const itemId = getResultId(item);
-                      const globalIndex = indexMap.get(itemId) ?? -1;
-                      
-                      return (
-                        <SearchResultItemRow
-                          key={itemId}
-                          ref={(el: HTMLDivElement | null) => {
-                            if (el) itemRefs.current.set(globalIndex, el);
-                            else itemRefs.current.delete(globalIndex);
-                          }}
-                          item={item}
-                          itemId={itemId}
-                          checked={isSelected(itemId)}
-                          isHighlighted={globalIndex === highlightedIndex}
-                          showCheckbox={enableMultiSelect}
-                          skyCultureLanguage={skyCultureLanguage}
-                          onSelect={selectTarget}
-                          onToggleSelection={toggleSelection}
-                          onMouseEnter={setHighlightedIndex}
-                          onAddToTargetList={handleAddToTargetList}
-                          globalIndex={globalIndex}
-                        />
-                      );
-                    })}
-                  </CollapsibleContent>
-                </Collapsible>
-              ))}
-            </div>
+            <GroupedResultsList
+              groupedResults={groupedResults}
+              isSelected={isSelected}
+              skyCultureLanguage={skyCultureLanguage}
+              onSelect={selectTarget}
+              onToggleSelection={toggleSelection}
+              onAddToTargetList={handleAddToTargetList}
+              showCheckbox={enableMultiSelect}
+              indexMap={indexMap}
+              highlightedIndex={highlightedIndex}
+              onMouseEnter={setHighlightedIndex}
+              itemRefCallback={(index, el) => {
+                if (el) itemRefs.current.set(index, el);
+                else itemRefs.current.delete(index);
+              }}
+              listboxId="search-results-listbox"
+            />
           </ScrollArea>
         )}
 
@@ -618,22 +503,22 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                     onClick={() => {
                       // Set type filter to match category instead of searching first item's name
                       const typeMap: Record<string, ObjectType> = {
-                        'Galaxies': 'DSO',
-                        'Nebulae': 'DSO',
-                        'Planets': 'Planet',
-                        'Clusters': 'DSO',
+                        'galaxies': 'DSO',
+                        'nebulae': 'DSO',
+                        'planets': 'Planet',
+                        'clusters': 'DSO',
                       };
                       const filterType = typeMap[cat.label];
                       if (filterType) {
                         setFilters({ types: [filterType] });
-                        handleQueryChange(cat.label.toLowerCase());
+                        handleQueryChange(cat.label);
                       } else {
                         handleQueryChange(cat.items[0]?.Name || cat.label);
                       }
                     }}
                   >
                     {getCategoryIcon(cat.label)}
-                    <span className="ml-1">{cat.label}</span>
+                    <span className="ml-1">{t(`search.categories.${cat.label.toLowerCase()}`)}</span>
                     <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
                       {cat.items.length}
                     </Badge>

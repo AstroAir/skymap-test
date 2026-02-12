@@ -6,6 +6,7 @@ import { Telescope, Camera, Check, ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import {
   Collapsible,
   CollapsibleContent,
@@ -323,20 +324,18 @@ export function EquipmentStep() {
 
       {/* Current equipment summary */}
       {hasEquipment && (
-        <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30">
-          <div className="flex items-center gap-2 mb-2">
-            <Check className="w-4 h-4 text-green-500" />
-            <span className="text-sm font-medium">{t('setupWizard.steps.equipment.configured')}</span>
-          </div>
-          <div className="text-xs text-muted-foreground space-y-1">
+        <Alert className="bg-green-500/10 border-green-500/30">
+          <Check className="h-4 w-4 text-green-500" />
+          <AlertTitle>{t('setupWizard.steps.equipment.configured')}</AlertTitle>
+          <AlertDescription className="text-muted-foreground space-y-1">
             {telescopeConfigured && (
               <p>{t('fov.focalLength')}: {focalLength}mm</p>
             )}
             {cameraConfigured && (
               <p>{t('setupWizard.steps.equipment.sensor')}: {sensorWidth}×{sensorHeight}mm</p>
             )}
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Skip note */}

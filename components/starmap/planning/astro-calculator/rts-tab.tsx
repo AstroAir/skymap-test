@@ -83,7 +83,7 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
   }, [ra, dec, latitude, longitude, dateRange]);
   
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   };
   
   return (
@@ -100,7 +100,7 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">RA (°)</Label>
+          <Label className="text-xs">{t('astroCalc.raLabel')}</Label>
           <Input
             value={targetRA}
             onChange={(e) => setTargetRA(e.target.value)}
@@ -109,7 +109,7 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Dec (°)</Label>
+          <Label className="text-xs">{t('astroCalc.decLabel')}</Label>
           <Input
             value={targetDec}
             onChange={(e) => setTargetDec(e.target.value)}
@@ -124,9 +124,9 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">7 days</SelectItem>
-              <SelectItem value="14">14 days</SelectItem>
-              <SelectItem value="30">30 days</SelectItem>
+              <SelectItem value="7">{t('astroCalc.daysRange.7d')}</SelectItem>
+              <SelectItem value="14">{t('astroCalc.daysRange.14d')}</SelectItem>
+              <SelectItem value="30">{t('astroCalc.daysRange.30d')}</SelectItem>
             </SelectContent>
           </Select>
         </div>

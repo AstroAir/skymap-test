@@ -550,10 +550,10 @@ export function useObjectSearch(): UseObjectSearchReturn {
   const popularObjects = useMemo(() => POPULAR_DSOS.slice(0, 10), []);
   
   const quickCategories = useMemo(() => [
-    { label: 'Galaxies', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Galaxy')) },
-    { label: 'Nebulae', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Nebula')) },
-    { label: 'Planets', items: CELESTIAL_BODIES.filter(b => b.Type === 'Planet') },
-    { label: 'Clusters', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Cluster')) },
+    { label: 'galaxies', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Galaxy')) },
+    { label: 'nebulae', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Nebula')) },
+    { label: 'planets', items: CELESTIAL_BODIES.filter(b => b.Type === 'Planet') },
+    { label: 'clusters', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Cluster')) },
   ], []);
   
   return {

@@ -40,7 +40,9 @@ import {
   ChevronUp,
   Settings,
   Save,
+  AlertTriangle,
 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { useEquipmentStore } from '@/lib/stores';
 import {
@@ -534,14 +536,20 @@ export function OcularSimulator() {
                 
                 {/* Warnings */}
                 {viewData.isOverMagnified && (
-                  <div className="p-2 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-400">
-                    ⚠️ {t('ocular.overMagnifiedWarning')}
-                  </div>
+                  <Alert variant="destructive" className="bg-red-500/10 border-red-500/30">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-sm text-red-400">
+                      {t('ocular.overMagnifiedWarning')}
+                    </AlertDescription>
+                  </Alert>
                 )}
                 {viewData.exitPupil > 7 && (
-                  <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-sm text-yellow-400">
-                    ⚠️ {t('ocular.largePupilWarning')}
-                  </div>
+                  <Alert className="bg-yellow-500/10 border-yellow-500/30">
+                    <AlertTriangle className="h-4 w-4 text-yellow-400" />
+                    <AlertDescription className="text-sm text-yellow-400">
+                      {t('ocular.largePupilWarning')}
+                    </AlertDescription>
+                  </Alert>
                 )}
               </CollapsibleContent>
             </Collapsible>

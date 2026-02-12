@@ -8,7 +8,6 @@ import {
   Calendar,
   Clock,
   MapPin,
-  Star,
   Eye,
   Search,
   Trash2,
@@ -18,6 +17,8 @@ import {
   Thermometer,
   Wind,
 } from 'lucide-react';
+import { StarRating } from './star-rating';
+import { StatCard } from './stat-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -140,12 +141,16 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
         newSessionLocation || undefined
       );
       
-      if (newSessionNotes) {
-        await tauriApi.observationLog.updateSession({
-          ...session,
-          notes: newSessionNotes,
-        });
-      }
+      // Always update session with weather conditions and notes
+      await tauriApi.observationLog.updateSession({
+        ...session,
+        seeing: newSessionSeeing,
+        transparency: newSessionTransparency,
+        notes: [
+          newSessionNotes,
+          `Bortle: ${newSessionBortle}`,
+        ].filter(Boolean).join('\n') || undefined,
+      });
       
       toast.success(t('observationLog.sessionCreated'));
       setShowNewSession(false);
@@ -157,7 +162,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       logger.error('Failed to create session', error);
       toast.error(t('observationLog.createFailed'));
     }
-  }, [newSessionDate, newSessionLocation, newSessionNotes, t, loadData]);
+  }, [newSessionDate, newSessionLocation, newSessionNotes, newSessionSeeing, newSessionTransparency, newSessionBortle, t, loadData]);
 
   // Add observation to session
   const handleAddObservation = useCallback(async () => {
@@ -252,20 +257,6 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     }
   };
 
-  // Rating stars
-  const renderRating = (rating: number | undefined) => {
-    if (!rating) return null;
-    return (
-      <div className="flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Star
-            key={i}
-            className={`h-3 w-3 ${i <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`}
-          />
-        ))}
-      </div>
-    );
-  };
 
   const activeSession = sessions.find(s => !s.end_time);
 
@@ -292,7 +283,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
           </TooltipContent>
         </Tooltip>
 
-        <DrawerContent className="w-[85vw] max-w-[400px] sm:max-w-[450px] md:max-w-[500px] h-full bg-card border-border drawer-content">
+        <DrawerContent className="w-[85vw] max-w-[360px] sm:max-w-[420px] md:max-w-[480px] h-full bg-card border-border drawer-content">
           <DrawerHeader>
             <DrawerTitle className="text-foreground flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-primary" />
@@ -309,13 +300,13 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
             <Tabs defaultValue="sessions" className="flex-1">
               <TabsList className="mx-4 grid w-[calc(100%-2rem)] grid-cols-3">
                 <TabsTrigger value="sessions">
-                  {t('observationLog.sessions') || 'Sessions'}
+                  {t('observationLog.sessions')}
                 </TabsTrigger>
                 <TabsTrigger value="search">
-                  {t('observationLog.search') || 'Search'}
+                  {t('observationLog.search')}
                 </TabsTrigger>
                 <TabsTrigger value="stats">
-                  {t('observationLog.stats') || 'Stats'}
+                  {t('observationLog.stats')}
                 </TabsTrigger>
               </TabsList>
 
@@ -328,7 +319,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                     onClick={() => setShowNewSession(true)}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    {t('observationLog.newSession') || 'New Session'}
+                    {t('observationLog.newSession')}
                   </Button>
 
                   {/* Active Session Indicator */}
@@ -338,7 +329,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
                           <span className="text-sm font-medium text-green-400">
-                            {t('observationLog.activeSession') || 'Active Session'}
+                            {t('observationLog.activeSession')}
                           </span>
                         </div>
                         <Button
@@ -347,11 +338,11 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                           className="h-7 text-xs"
                           onClick={() => handleEndSession(activeSession.id)}
                         >
-                          {t('observationLog.endSession') || 'End'}
+                          {t('observationLog.endSession')}
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {formatDate(activeSession.date)} • {activeSession.observations.length} observations
+                        {formatDate(activeSession.date)} • {activeSession.observations.length} {t('observationLog.observations')}
                       </p>
                     </div>
                   )}
@@ -359,16 +350,16 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                   <Separator />
 
                   {/* Sessions List */}
-                  <ScrollArea className="h-[calc(100vh-350px)]">
+                  <ScrollArea className="flex-1 min-h-0">
                     {loading ? (
                       <div className="text-center py-8 text-muted-foreground">
-                        {t('common.loading') || 'Loading...'}
+                        {t('common.loading')}
                       </div>
                     ) : sessions.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">{t('observationLog.noSessions') || 'No observation sessions yet'}</p>
-                        <p className="text-xs mt-1">{t('observationLog.createFirst') || 'Create your first session to start logging'}</p>
+                        <p className="text-sm">{t('observationLog.noSessions')}</p>
+                        <p className="text-xs mt-1">{t('observationLog.createFirst')}</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -391,7 +382,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                   <span className="font-medium">{formatDate(session.date)}</span>
                                   {!session.end_time && (
                                     <Badge className="bg-green-500 text-white text-[10px] h-4">
-                                      Active
+                                      {t('observationLog.activeSession')}
                                     </Badge>
                                   )}
                                 </div>
@@ -406,7 +397,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                   {formatTime(session.start_time)} - {formatTime(session.end_time)}
                                   <span>•</span>
                                   <Eye className="h-3 w-3" />
-                                  {session.observations.length} obs
+                                  {session.observations.length} {t('observationLog.addObs')}
                                 </div>
                               </div>
                               <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${
@@ -417,6 +408,24 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                             {/* Expanded Session Details */}
                             {selectedSession?.id === session.id && (
                               <div className="mt-3 pt-3 border-t border-border space-y-2">
+                                {/* Conditions */}
+                                {(session.seeing || session.transparency) && (
+                                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                    {session.seeing && (
+                                      <span className="flex items-center gap-1">
+                                        <Wind className="h-3 w-3" />
+                                        {t('observationLog.seeing')}: {session.seeing}/5
+                                      </span>
+                                    )}
+                                    {session.transparency && (
+                                      <span className="flex items-center gap-1">
+                                        <Eye className="h-3 w-3" />
+                                        {t('observationLog.transparency')}: {session.transparency}/5
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
                                 {session.notes && (
                                   <p className="text-xs text-muted-foreground">{session.notes}</p>
                                 )}
@@ -424,16 +433,16 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                 {/* Observations */}
                                 {session.observations.length > 0 && (
                                   <div className="space-y-1">
-                                    <p className="text-xs font-medium">{t('observationLog.observations') || 'Observations'}:</p>
+                                    <p className="text-xs font-medium">{t('observationLog.observations')}:</p>
                                     {session.observations.slice(0, 5).map((obs) => (
                                       <div key={obs.id} className="flex items-center justify-between text-xs p-1 rounded bg-background/50">
                                         <span className="truncate">{obs.object_name}</span>
-                                        {renderRating(obs.rating)}
+                                        {obs.rating ? <StarRating value={obs.rating} /> : null}
                                       </div>
                                     ))}
                                     {session.observations.length > 5 && (
                                       <p className="text-[10px] text-muted-foreground">
-                                        +{session.observations.length - 5} more
+                                        {t('observationLog.moreObservations', { count: session.observations.length - 5 })}
                                       </p>
                                     )}
                                   </div>
@@ -452,7 +461,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                       }}
                                     >
                                       <Plus className="h-3 w-3 mr-1" />
-                                      {t('observationLog.addObs') || 'Add Obs'}
+                                      {t('observationLog.addObs')}
                                     </Button>
                                   )}
                                   <Button
@@ -482,7 +491,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                 <div className="space-y-4">
                   <div className="flex gap-2">
                     <Input
-                      placeholder={t('observationLog.searchPlaceholder') || 'Search objects...'}
+                      placeholder={t('observationLog.searchPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -492,11 +501,11 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                     </Button>
                   </div>
 
-                  <ScrollArea className="h-[calc(100vh-300px)]">
+                  <ScrollArea className="flex-1 min-h-0">
                     {searchResults.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">{t('observationLog.searchHint') || 'Search your observation history'}</p>
+                        <p className="text-sm">{t('observationLog.searchHint')}</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -511,7 +520,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                   </Badge>
                                 )}
                               </div>
-                              {renderRating(obs.rating)}
+                              {obs.rating ? <StarRating value={obs.rating} /> : null}
                             </div>
                             {obs.notes && (
                               <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{obs.notes}</p>
@@ -532,27 +541,15 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                 {stats ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-lg bg-muted/50 border border-border text-center">
-                        <p className="text-2xl font-bold text-primary">{stats.total_sessions}</p>
-                        <p className="text-xs text-muted-foreground">{t('observationLog.totalSessions') || 'Sessions'}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/50 border border-border text-center">
-                        <p className="text-2xl font-bold text-primary">{stats.total_observations}</p>
-                        <p className="text-xs text-muted-foreground">{t('observationLog.totalObs') || 'Observations'}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/50 border border-border text-center">
-                        <p className="text-2xl font-bold text-primary">{stats.unique_objects}</p>
-                        <p className="text-xs text-muted-foreground">{t('observationLog.uniqueObjects') || 'Unique Objects'}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/50 border border-border text-center">
-                        <p className="text-2xl font-bold text-primary">{stats.total_hours.toFixed(1)}h</p>
-                        <p className="text-xs text-muted-foreground">{t('observationLog.totalHours') || 'Total Hours'}</p>
-                      </div>
+                      <StatCard value={stats.total_sessions} label={t('observationLog.totalSessions')} className="border border-border p-3" />
+                      <StatCard value={stats.total_observations} label={t('observationLog.totalObs')} className="border border-border p-3" />
+                      <StatCard value={stats.unique_objects} label={t('observationLog.uniqueObjects')} className="border border-border p-3" />
+                      <StatCard value={`${stats.total_hours.toFixed(1)}h`} label={t('observationLog.totalHours')} className="border border-border p-3" />
                     </div>
 
                     {stats.objects_by_type.length > 0 && (
                       <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                        <p className="text-sm font-medium mb-2">{t('observationLog.byType') || 'By Type'}</p>
+                        <p className="text-sm font-medium mb-2">{t('observationLog.byType')}</p>
                         <div className="space-y-1">
                           {stats.objects_by_type.slice(0, 5).map(([type, count]) => (
                             <div key={type} className="flex items-center justify-between text-xs">
@@ -567,7 +564,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">{t('observationLog.noStats') || 'No statistics available yet'}</p>
+                    <p className="text-sm">{t('observationLog.noStats')}</p>
                   </div>
                 )}
               </TabsContent>
@@ -580,14 +577,14 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       <Dialog open={showNewSession} onOpenChange={setShowNewSession}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>{t('observationLog.newSession') || 'New Observation Session'}</DialogTitle>
+            <DialogTitle>{t('observationLog.newSession')}</DialogTitle>
             <DialogDescription>
-              {t('observationLog.newSessionDesc') || 'Start a new observation session for tonight.'}
+              {t('observationLog.newSessionDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>{t('observationLog.date') || 'Date'}</Label>
+              <Label>{t('observationLog.date')}</Label>
               <Input
                 type="date"
                 value={newSessionDate}
@@ -595,9 +592,9 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label>{t('observationLog.location') || 'Location'}</Label>
+              <Label>{t('observationLog.location')}</Label>
               <Input
-                placeholder={t('observationLog.locationPlaceholder') || 'Observation site name...'}
+                placeholder={t('observationLog.locationPlaceholder')}
                 value={newSessionLocation}
                 onChange={(e) => setNewSessionLocation(e.target.value)}
               />
@@ -606,64 +603,64 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
             <div className="space-y-3 p-3 rounded-lg bg-muted/50">
               <Label className="flex items-center gap-2">
                 <Cloud className="h-4 w-4" />
-                {t('observationLog.conditions') || 'Observing Conditions'}
+                {t('observationLog.conditions')}
               </Label>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs flex items-center gap-1">
                     <Wind className="h-3 w-3" />
-                    {t('observationLog.seeing') || 'Seeing'}
+                    {t('observationLog.seeing')}
                   </Label>
                   <Select value={String(newSessionSeeing)} onValueChange={(v) => setNewSessionSeeing(Number(v))}>
                     <SelectTrigger className="h-8">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">1 - Poor</SelectItem>
-                      <SelectItem value="2">2 - Fair</SelectItem>
-                      <SelectItem value="3">3 - Average</SelectItem>
-                      <SelectItem value="4">4 - Good</SelectItem>
-                      <SelectItem value="5">5 - Excellent</SelectItem>
+                      <SelectItem value="1">1 - {t('observationLog.poor')}</SelectItem>
+                      <SelectItem value="2">2 - {t('observationLog.fair')}</SelectItem>
+                      <SelectItem value="3">3 - {t('observationLog.average')}</SelectItem>
+                      <SelectItem value="4">4 - {t('observationLog.good')}</SelectItem>
+                      <SelectItem value="5">5 - {t('observationLog.excellent')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs flex items-center gap-1">
                     <Eye className="h-3 w-3" />
-                    {t('observationLog.transparency') || 'Transparency'}
+                    {t('observationLog.transparency')}
                   </Label>
                   <Select value={String(newSessionTransparency)} onValueChange={(v) => setNewSessionTransparency(Number(v))}>
                     <SelectTrigger className="h-8">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">1 - Poor</SelectItem>
-                      <SelectItem value="2">2 - Fair</SelectItem>
-                      <SelectItem value="3">3 - Average</SelectItem>
-                      <SelectItem value="4">4 - Good</SelectItem>
-                      <SelectItem value="5">5 - Excellent</SelectItem>
+                      <SelectItem value="1">1 - {t('observationLog.poor')}</SelectItem>
+                      <SelectItem value="2">2 - {t('observationLog.fair')}</SelectItem>
+                      <SelectItem value="3">3 - {t('observationLog.average')}</SelectItem>
+                      <SelectItem value="4">4 - {t('observationLog.good')}</SelectItem>
+                      <SelectItem value="5">5 - {t('observationLog.excellent')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs flex items-center gap-1">
                     <Thermometer className="h-3 w-3" />
-                    {t('observationLog.bortle') || 'Bortle Class'}
+                    {t('observationLog.bortle')}
                   </Label>
                   <Select value={String(newSessionBortle)} onValueChange={(v) => setNewSessionBortle(Number(v))}>
                     <SelectTrigger className="h-8">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">1 - Excellent</SelectItem>
-                      <SelectItem value="2">2 - Dark</SelectItem>
-                      <SelectItem value="3">3 - Rural</SelectItem>
-                      <SelectItem value="4">4 - Rural/Suburban</SelectItem>
-                      <SelectItem value="5">5 - Suburban</SelectItem>
-                      <SelectItem value="6">6 - Bright Suburban</SelectItem>
-                      <SelectItem value="7">7 - Suburban/Urban</SelectItem>
-                      <SelectItem value="8">8 - City</SelectItem>
-                      <SelectItem value="9">9 - Inner City</SelectItem>
+                      <SelectItem value="1">1 - {t('observationLog.bortle1')}</SelectItem>
+                      <SelectItem value="2">2 - {t('observationLog.bortle2')}</SelectItem>
+                      <SelectItem value="3">3 - {t('observationLog.bortle3')}</SelectItem>
+                      <SelectItem value="4">4 - {t('observationLog.bortle4')}</SelectItem>
+                      <SelectItem value="5">5 - {t('observationLog.bortle5')}</SelectItem>
+                      <SelectItem value="6">6 - {t('observationLog.bortle6')}</SelectItem>
+                      <SelectItem value="7">7 - {t('observationLog.bortle7')}</SelectItem>
+                      <SelectItem value="8">8 - {t('observationLog.bortle8')}</SelectItem>
+                      <SelectItem value="9">9 - {t('observationLog.bortle9')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -671,9 +668,9 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
             </div>
             
             <div className="space-y-2">
-              <Label>{t('observationLog.notes') || 'Notes'}</Label>
+              <Label>{t('observationLog.notes')}</Label>
               <Textarea
-                placeholder={t('observationLog.notesPlaceholder') || 'Additional notes, equipment used...'}
+                placeholder={t('observationLog.notesPlaceholder')}
                 value={newSessionNotes}
                 onChange={(e) => setNewSessionNotes(e.target.value)}
                 rows={2}
@@ -682,10 +679,10 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewSession(false)}>
-              {t('common.cancel') || 'Cancel'}
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleCreateSession}>
-              {t('observationLog.startSession') || 'Start Session'}
+              {t('observationLog.startSession')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -695,14 +692,14 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       <Dialog open={showAddObservation} onOpenChange={setShowAddObservation}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>{t('observationLog.addObservation') || 'Add Observation'}</DialogTitle>
+            <DialogTitle>{t('observationLog.addObservation')}</DialogTitle>
             <DialogDescription>
-              {t('observationLog.addObsDesc') || 'Record an observation for this session.'}
+              {t('observationLog.addObsDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>{t('observationLog.objectName') || 'Object Name'}</Label>
+              <Label>{t('observationLog.objectName')}</Label>
               <Input
                 placeholder={currentSelection?.name || 'M31, NGC 7000...'}
                 value={obsObjectName}
@@ -710,66 +707,54 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
               />
               {currentSelection && !obsObjectName && (
                 <p className="text-xs text-muted-foreground">
-                  Using selected: {currentSelection.name}
+                  {t('observationLog.usingSelected', { name: currentSelection.name })}
                 </p>
               )}
             </div>
             <div className="space-y-2">
-              <Label>{t('observationLog.objectType') || 'Type'}</Label>
+              <Label>{t('observationLog.objectType')}</Label>
               <Select value={obsObjectType} onValueChange={setObsObjectType}>
                 <SelectTrigger>
-                  <SelectValue placeholder={currentSelection?.type || 'Select type...'} />
+                  <SelectValue placeholder={currentSelection?.type || t('observationLog.selectType')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="galaxy">Galaxy</SelectItem>
-                  <SelectItem value="nebula">Nebula</SelectItem>
-                  <SelectItem value="cluster">Cluster</SelectItem>
-                  <SelectItem value="planetary">Planetary Nebula</SelectItem>
-                  <SelectItem value="star">Star</SelectItem>
-                  <SelectItem value="double">Double Star</SelectItem>
-                  <SelectItem value="planet">Planet</SelectItem>
-                  <SelectItem value="moon">Moon</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="galaxy">{t('objects.galaxy')}</SelectItem>
+                  <SelectItem value="nebula">{t('objects.nebula')}</SelectItem>
+                  <SelectItem value="cluster">{t('observationLog.cluster')}</SelectItem>
+                  <SelectItem value="planetary">{t('objects.planetaryNebula')}</SelectItem>
+                  <SelectItem value="star">{t('objects.star')}</SelectItem>
+                  <SelectItem value="double">{t('objects.doubleStar')}</SelectItem>
+                  <SelectItem value="planet">{t('objects.planet')}</SelectItem>
+                  <SelectItem value="moon">{t('objects.moon')}</SelectItem>
+                  <SelectItem value="other">{t('observationLog.other')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{t('observationLog.rating') || 'Rating'}</Label>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Button
-                      key={i}
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setObsRating(i)}
-                    >
-                      <Star className={`h-5 w-5 ${i <= obsRating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />
-                    </Button>
-                  ))}
-                </div>
+                <Label>{t('observationLog.rating')}</Label>
+                <StarRating value={obsRating} onChange={setObsRating} size="md" />
               </div>
               <div className="space-y-2">
-                <Label>{t('observationLog.difficulty') || 'Difficulty'}</Label>
+                <Label>{t('observationLog.difficulty')}</Label>
                 <Select value={String(obsDifficulty)} onValueChange={(v) => setObsDifficulty(Number(v))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 - Easy</SelectItem>
+                    <SelectItem value="1">1 - {t('observationLog.easy')}</SelectItem>
                     <SelectItem value="2">2</SelectItem>
-                    <SelectItem value="3">3 - Medium</SelectItem>
+                    <SelectItem value="3">3 - {t('observationLog.medium')}</SelectItem>
                     <SelectItem value="4">4</SelectItem>
-                    <SelectItem value="5">5 - Hard</SelectItem>
+                    <SelectItem value="5">5 - {t('observationLog.hard')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{t('observationLog.notes') || 'Notes'}</Label>
+              <Label>{t('observationLog.notes')}</Label>
               <Textarea
-                placeholder={t('observationLog.obsNotesPlaceholder') || 'What did you observe? Details, impressions...'}
+                placeholder={t('observationLog.obsNotesPlaceholder')}
                 value={obsNotes}
                 onChange={(e) => setObsNotes(e.target.value)}
                 rows={3}
@@ -778,10 +763,10 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddObservation(false)}>
-              {t('common.cancel') || 'Cancel'}
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleAddObservation}>
-              {t('observationLog.addObservation') || 'Add Observation'}
+              {t('observationLog.addObservation')}
             </Button>
           </DialogFooter>
         </DialogContent>

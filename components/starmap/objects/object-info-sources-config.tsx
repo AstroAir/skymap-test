@@ -97,26 +97,24 @@ function StatusBadge({
   const Icon = config.icon;
   
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="outline" className={cn('text-xs gap-1', config.color)}>
-            <Icon className={cn('h-3 w-3', status === 'checking' && 'animate-spin')} />
-            {responseTime !== undefined && status === 'online' && (
-              <span className="font-mono">{responseTime}ms</span>
-            )}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{config.label}</p>
-          {responseTime !== undefined && (
-            <p className="text-xs text-muted-foreground">
-              {t('sourceConfig.responseTime')}: {responseTime}ms
-            </p>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className={cn('text-xs gap-1', config.color)}>
+          <Icon className={cn('h-3 w-3', status === 'checking' && 'animate-spin')} />
+          {responseTime !== undefined && status === 'online' && (
+            <span className="font-mono">{responseTime}ms</span>
           )}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{config.label}</p>
+        {responseTime !== undefined && (
+          <p className="text-xs text-muted-foreground">
+            {t('sourceConfig.responseTime')}: {responseTime}ms
+          </p>
+        )}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -341,7 +339,7 @@ function AddCustomSourceDialog({
         baseUrl,
         urlTemplate: urlTemplate || '?ra={ra}&dec={dec}&size={size}',
         credit: credit || name,
-        description: description || `Custom image source: ${name}`,
+        description: description || t('sourceConfig.customImageSourceDefault', { name }),
       } as Partial<ImageSourceConfig>);
     } else {
       onAdd({
@@ -352,7 +350,7 @@ function AddCustomSourceDialog({
         baseUrl,
         apiEndpoint: urlTemplate || '/api',
         timeout: 5000,
-        description: description || `Custom data source: ${name}`,
+        description: description || t('sourceConfig.customDataSourceDefault', { name }),
       } as Partial<DataSourceConfig>);
     }
     
@@ -535,6 +533,7 @@ export function ObjectInfoSourcesConfig() {
   const onlineDataCount = dataSources.filter(s => s.enabled && s.status === 'online').length;
   
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -828,6 +827,7 @@ export function ObjectInfoSourcesConfig() {
         />
       )}
     </div>
+    </TooltipProvider>
   );
 }
 

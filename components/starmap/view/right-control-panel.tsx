@@ -1,8 +1,9 @@
 'use client';
 
-import React, { memo } from 'react';
+import React, { memo, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { MapPin } from 'lucide-react';
+import { MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -10,6 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 import { ZoomControls } from '../controls/zoom-controls';
 import { FOVSimulator } from '../overlays/fov-simulator';
@@ -53,85 +55,121 @@ export const RightControlPanel = memo(function RightControlPanel({
   const setMosaic = useEquipmentStore((s) => s.setMosaic);
   const setGridType = useEquipmentStore((s) => s.setGridType);
 
+  const [collapsed, setCollapsed] = useState(false);
+  const toggleCollapsed = useCallback(() => setCollapsed(prev => !prev), []);
+
   return (
     <>
       {/* Right Side Controls - Desktop Only - Vertically Centered */}
-      <div className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto animate-slide-in-right max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-hide py-2 overscroll-contain">
-        {/* Zoom Controls */}
-        <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-[72px]" data-tour-id="zoom-controls">
-          <ZoomControls
-            fov={currentFov}
-            onZoomIn={onZoomIn}
-            onZoomOut={onZoomOut}
-            onFovChange={onFovSliderChange}
-          />
-        </div>
+      <div className="hidden sm:flex items-center absolute right-3 top-1/2 -translate-y-1/2 z-30 pointer-events-auto animate-fade-in">
+        {/* Collapse Toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 mr-1 bg-card/60 backdrop-blur-md border border-border/50 rounded-full shrink-0"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? t('sidePanel.expand') : t('sidePanel.collapse')}
+            >
+              {collapsed ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p>{collapsed ? t('sidePanel.expand') : t('sidePanel.collapse')}</p>
+          </TooltipContent>
+        </Tooltip>
 
-        {/* Tool Buttons - Vertical */}
-        <div className="flex flex-col items-center gap-1 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-1 w-[72px]">
-          <MarkerManager initialCoords={contextMenuCoords} />
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <LocationManager
-                  trigger={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-foreground/80 hover:text-foreground hover:bg-accent h-9 w-9"
-                    >
-                      <MapPin className="h-4 w-4" />
-                    </Button>
-                  }
-                  onLocationChange={onLocationChange}
-                />
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>{t('locations.title') || 'Observation Locations'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <div data-tour-id="fov-button">
-            <FOVSimulator
-              enabled={fovSimEnabled}
-              onEnabledChange={setFovSimEnabled}
-              sensorWidth={sensorWidth}
-              sensorHeight={sensorHeight}
-              focalLength={focalLength}
-              onSensorWidthChange={setSensorWidth}
-              onSensorHeightChange={setSensorHeight}
-              onFocalLengthChange={setFocalLength}
-              mosaic={mosaic}
-              onMosaicChange={setMosaic}
-              gridType={gridType}
-              onGridTypeChange={setGridType}
+        {/* Panel Content - slides right when collapsed */}
+        <div className={cn(
+          "transition-all duration-300 ease-out",
+          collapsed && "translate-x-[calc(100%+16px)] opacity-0 pointer-events-none"
+        )}>
+        <ScrollArea className="max-h-[calc(100vh-160px)] overscroll-contain">
+        <div className="flex flex-col items-center gap-1.5 py-1.5 w-[52px]">
+          {/* Zoom Controls */}
+          <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-full" data-tour-id="zoom-controls">
+            <ZoomControls
+              fov={currentFov}
+              onZoomIn={onZoomIn}
+              onZoomOut={onZoomOut}
+              onFovChange={onFovSliderChange}
             />
           </div>
-          <ExposureCalculator focalLength={focalLength} />
-          <div data-tour-id="shotlist-button">
-            <ShotList currentSelection={currentSelection} />
-          </div>
-          <ObservationLog currentSelection={observationSelection} />
-        </div>
 
-        {/* Mount Controls */}
-        {stel && (
-          <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50">
-            <StellariumMount />
+          {/* Tool Buttons - Vertical */}
+          <div className="flex flex-col items-center gap-0.5 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-0.5 w-full">
+            <MarkerManager initialCoords={contextMenuCoords} />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <LocationManager
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-foreground/80 hover:text-foreground hover:bg-accent h-8 w-8"
+                      >
+                        <MapPin className="h-4 w-4" />
+                      </Button>
+                    }
+                    onLocationChange={onLocationChange}
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>{t('locations.title')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <div data-tour-id="fov-button">
+              <FOVSimulator
+                enabled={fovSimEnabled}
+                onEnabledChange={setFovSimEnabled}
+                sensorWidth={sensorWidth}
+                sensorHeight={sensorHeight}
+                focalLength={focalLength}
+                onSensorWidthChange={setSensorWidth}
+                onSensorHeightChange={setSensorHeight}
+                onFocalLengthChange={setFocalLength}
+                mosaic={mosaic}
+                onMosaicChange={setMosaic}
+                gridType={gridType}
+                onGridTypeChange={setGridType}
+              />
+            </div>
+            <ExposureCalculator focalLength={focalLength} />
+            <div data-tour-id="shotlist-button">
+              <ShotList currentSelection={currentSelection} />
+            </div>
+            <ObservationLog currentSelection={observationSelection} />
           </div>
-        )}
+
+          {/* Mount Controls */}
+          {stel && (
+            <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-full">
+              <StellariumMount />
+            </div>
+          )}
+        </div>
+        </ScrollArea>
+        </div>
       </div>
 
       {/* Floating Astro Session Panel - Show conditions for selected object */}
       {selectedObject && showSessionPanel && (
-        <div className="hidden sm:block absolute right-[90px] top-20 pointer-events-auto animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="bg-card/90 backdrop-blur-md rounded-lg border border-border/50 p-3 w-[300px] max-h-[calc(100vh-180px)] overflow-y-auto scrollbar-hide shadow-lg">
+        <div className={cn(
+          "hidden sm:block absolute top-20 pointer-events-auto animate-in fade-in slide-in-from-right-4 duration-300",
+          collapsed ? "right-10" : "right-[72px]"
+        )}>
+          <ScrollArea className="max-h-[calc(100vh-180px)]">
+          <div className="bg-card/90 backdrop-blur-md rounded-lg border border-border/50 p-3 w-[300px] shadow-lg">
             <AstroSessionPanel
               selectedRa={selectedObject.raDeg}
               selectedDec={selectedObject.decDeg}
               selectedName={selectedObject.names[0]}
             />
           </div>
+          </ScrollArea>
         </div>
       )}
     </>

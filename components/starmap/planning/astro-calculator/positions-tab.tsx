@@ -268,8 +268,8 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
             <TableRow>
               <SortableHeader label={t('astroCalc.name')} sortKey="name" currentSort={sortConfig} onSort={handleSort} />
               <TableHead>{t('astroCalc.type')}</TableHead>
-              <TableHead>RA</TableHead>
-              <TableHead>Dec</TableHead>
+              <TableHead>{t('astroCalc.tableRA')}</TableHead>
+              <TableHead>{t('astroCalc.tableDec')}</TableHead>
               <SortableHeader label={t('astroCalc.mag')} sortKey="magnitude" currentSort={sortConfig} onSort={handleSort} />
               <SortableHeader label={t('astroCalc.alt')} sortKey="altitude" currentSort={sortConfig} onSort={handleSort} />
               <SortableHeader label={t('astroCalc.transit')} sortKey="transit" currentSort={sortConfig} onSort={handleSort} />

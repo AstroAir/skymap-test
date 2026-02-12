@@ -4,10 +4,11 @@ import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   Languages,
-  Check,
+  Info,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -115,12 +116,12 @@ export function PreferencesStep() {
       </div>
 
       {/* Quick tip */}
-      <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-        <Check className="w-4 h-4 text-blue-500 mt-0.5" />
-        <p className="text-xs text-muted-foreground">
+      <Alert className="bg-blue-500/10 border-blue-500/30">
+        <Info className="h-4 w-4 text-blue-500" />
+        <AlertDescription className="text-muted-foreground">
           {t('setupWizard.steps.preferences.tipMessage')}
-        </p>
-      </div>
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

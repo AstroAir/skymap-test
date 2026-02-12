@@ -266,6 +266,7 @@ export function MobileZoomControl({
   onZoomOut,
   className,
 }: MobileZoomControlProps) {
+  const t = useTranslations();
   return (
     <div className={cn(
       "flex items-center gap-1 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-1",
@@ -276,6 +277,7 @@ export function MobileZoomControl({
         size="icon"
         className="h-8 w-8"
         onClick={onZoomOut}
+        aria-label={t('zoom.zoomOut')}
       >
         <ZoomOut className="h-4 w-4" />
       </Button>
@@ -287,6 +289,7 @@ export function MobileZoomControl({
         size="icon"
         className="h-8 w-8"
         onClick={onZoomIn}
+        aria-label={t('zoom.zoomIn')}
       >
         <ZoomIn className="h-4 w-4" />
       </Button>

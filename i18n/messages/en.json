@@ -32,7 +32,9 @@
     "refresh": "Refresh",
     "percent": "%",
     "pixels": "px",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "update": "Update",
+    "retry": "Retry"
   },
   "splash": {
     "tagline": "Explore the Universe",
@@ -55,7 +57,33 @@
     "licensesDescription": "This application uses the following open source libraries:",
     "depsDescription": "Key dependencies used in this project:",
     "totalDeps": "{count} packages",
-    "appDescription": "A modern web-based astronomy application powered by Stellarium Web Engine"
+    "appDescription": "A modern web-based astronomy application powered by Stellarium Web Engine",
+    "licenseDesc": {
+      "stellarium": "Core rendering engine for the star map",
+      "nextjs": "React framework for production",
+      "react": "UI library",
+      "tailwind": "Utility-first CSS framework",
+      "shadcn": "UI component library",
+      "zustand": "State management",
+      "nextIntl": "Internationalization",
+      "lucide": "Icon library"
+    },
+    "depType": {
+      "core": "Core",
+      "dev": "Dev",
+      "style": "Style",
+      "state": "State",
+      "i18n": "i18n",
+      "ui": "UI",
+      "util": "Util"
+    },
+    "credit": {
+      "hipsSurveys": "HiPS Surveys",
+      "starCatalog": "Star Catalog",
+      "deepSkyObjects": "Deep Sky Objects",
+      "constellationData": "Constellation Data",
+      "planetTextures": "Planet Textures"
+    }
   },
   "home": {
     "title": "To get started, edit the page.tsx file.",
@@ -149,7 +177,8 @@
     "centerViewHere": "Center View Here",
     "goToTarget": "Go to target",
     "startImaging": "Start imaging",
-    "markComplete": "Mark complete"
+    "markComplete": "Mark complete",
+    "defaultTargetName": "Target @ {coords}"
   },
   "tonight": {
     "recommendations": "Tonight's Picks",
@@ -200,7 +229,8 @@
     "fov": "FOV",
     "default": "Default",
     "zoomControls": "Zoom Controls",
-    "fovSlider": "Field of View Slider"
+    "fovSlider": "Field of View Slider",
+    "fovPreset": "{value}° FOV"
   },
   "fov": {
     "fovOverlay": "FOV Overlay",
@@ -411,7 +441,9 @@
     "astroDawn": "Astro Dawn",
     "transitTime": "Transit",
     "imagingScore": "Imaging",
-    "feasibility": "Feasibility"
+    "feasibility": "Feasibility",
+    "altLabel": "Alt:",
+    "azLabel": "Az:"
   },
   "info": {
     "altitude": "Altitude",
@@ -483,7 +515,21 @@
     "exportFailed": "Export failed",
     "importSuccess": "Import successful",
     "importFailed": "Import failed",
-    "noTargetsImported": "No targets were imported"
+    "noTargetsImported": "No targets were imported",
+    "addTarget": "Add: {name}",
+    "importDescription": "{imported} targets imported, {skipped} skipped",
+    "feasibility": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "not_recommended": "Not Recommended"
+    },
+    "priority": {
+      "low": "low",
+      "medium": "medium",
+      "high": "high"
+    }
   },
   "observationLog": {
     "title": "Observation Log",
@@ -532,7 +578,29 @@
     "sessionEnded": "Session ended",
     "endFailed": "Failed to end session",
     "sessionDeleted": "Session deleted",
-    "deleteFailed": "Failed to delete session"
+    "deleteFailed": "Failed to delete session",
+    "poor": "Poor",
+    "fair": "Fair",
+    "average": "Average",
+    "good": "Good",
+    "excellent": "Excellent",
+    "bortle1": "Excellent",
+    "bortle2": "Dark",
+    "bortle3": "Rural",
+    "bortle4": "Rural/Suburban",
+    "bortle5": "Suburban",
+    "bortle6": "Bright Suburban",
+    "bortle7": "Suburban/Urban",
+    "bortle8": "City",
+    "bortle9": "Inner City",
+    "cluster": "Cluster",
+    "other": "Other",
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard",
+    "usingSelected": "Using selected: {name}",
+    "selectType": "Select type...",
+    "moreObservations": "+{count} more"
   },
   "search": {
     "filterByType": "Filter by Type",
@@ -599,7 +667,13 @@
     "simbadDescription": "SIMBAD astronomical database",
     "sesameDescription": "CDS name resolver",
     "vizierDescription": "VizieR catalog library",
-    "nedDescription": "NASA Extragalactic Database"
+    "nedDescription": "NASA Extragalactic Database",
+    "categories": {
+      "galaxies": "Galaxies",
+      "nebulae": "Nebulae",
+      "planets": "Planets",
+      "clusters": "Clusters"
+    }
   },
   "exposure": {
     "exposureCalculator": "Exposure Calculator",
@@ -665,7 +739,33 @@
     "sessionSummary": "Session Summary",
     "storageRequired": "Storage Required",
     "meetsRecommended": "Meets recommended integration time",
-    "belowRecommended": "Below recommended ({current}m vs {recommended}m)"
+    "belowRecommended": "Below recommended ({current}m vs {recommended}m)",
+    "snrLevel": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor"
+    },
+    "gainLabel": "Gain: {value}",
+    "ditherLabel": "Dither: {value}",
+    "seeingOptions": {
+      "1": "1 - Poor",
+      "2": "2 - Fair",
+      "3": "3 - Average",
+      "4": "4 - Good",
+      "5": "5 - Excellent"
+    },
+    "bortleOptions": {
+      "1": "1 - Excellent",
+      "2": "2 - Dark",
+      "3": "3 - Rural",
+      "4": "4 - Rural/Suburban",
+      "5": "5 - Suburban",
+      "6": "6 - Bright Suburban",
+      "7": "7 - Suburban/Urban",
+      "8": "8 - City",
+      "9": "9 - Inner City"
+    }
   },
   "mount": {
     "mount": "Mount",
@@ -814,13 +914,19 @@
     "dataCredits": "Data Credits",
     "stars": "Stars",
     "starsDescription": "Combination of the following catalogues:",
+    "gaiaLabel": "Gaia DR2",
     "gaiaDescription": "This work has made use of data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC).",
+    "hipparcosLabel": "Hipparcos",
     "hipparcosDescription": "The Hipparcos star catalog from ESA (European Space Agency) and the Hipparcos mission.",
+    "brightStarsLabel": "Bright Stars Catalogue",
     "brightStarsDescription": "Bright Star Catalogue, 5th Revised Ed. (Hoffleit+, 1991)",
     "deepSkyObjects": "Deep Sky Objects",
     "dsoDescription": "Combination of the following catalogues:",
+    "hyperledaLabel": "HyperLeda database",
     "hyperledaDescription": "Makarov et al. 2014, A&A, 570, A13",
+    "simbadLabel": "Simbad",
     "simbadDescription": "SIMBAD astronomical database, operated at CDS, Strasbourg",
+    "openNgcLabel": "Open NGC Database",
     "openNgcDescription": "Mattia Verga",
     "caldwellDescription": "Caldwell Catalogue: from Wikipedia",
     "backgroundImage": "Background Image",
@@ -886,7 +992,9 @@
     "offline": "Offline",
     "dataSources": "Data Sources",
     "loading": "Loading events...",
-    "eventsFound": "events"
+    "eventsFound": "events",
+    "peak": "Peak: {time}",
+    "until": "Until {date}"
   },
   "ocular": {
     "simulator": "Eyepiece Simulator",
@@ -1052,6 +1160,10 @@
       "cls": "CLS",
       "other": "Other"
     },
+    "barlowLabel": "Barlow",
+    "reducerLabel": "Reducer",
+    "barlowNamePlaceholder": "e.g. 2x Barlow",
+    "filterNamePlaceholder": "e.g. Ha Filter",
     "selected": "Equipment selected",
     "delete": "Delete",
     "deleteConfirmTitle": "Delete Equipment?",
@@ -1097,6 +1209,18 @@
     "manualInput": "Manual Input",
     "mapSelection": "Map Selection",
     "updated": "Location updated",
+    "deleteConfirmTitle": "Delete Location?",
+    "deleteConfirmDescription": "Are you sure you want to delete \"{name}\"? This action cannot be undone.",
+    "bortlePlaceholder": "Select...",
+    "bortle1": "Excellent dark sky",
+    "bortle2": "Typical dark sky",
+    "bortle3": "Rural sky",
+    "bortle4": "Rural/suburban transition",
+    "bortle5": "Suburban sky",
+    "bortle6": "Bright suburban sky",
+    "bortle7": "Suburban/urban transition",
+    "bortle8": "City sky",
+    "bortle9": "Inner city sky",
     "validation": {
       "latitudeRange": "Latitude must be between -90 and 90",
       "longitudeRange": "Longitude must be between -180 and 180",
@@ -1293,7 +1417,9 @@
     "priority": "Priority",
     "priorityDescription": "Lower numbers have higher priority and are tried first",
     "priorityHint": "Priority order",
-    "sourceType": "Type"
+    "sourceType": "Type",
+    "customImageSourceDefault": "Custom image source: {name}",
+    "customDataSourceDefault": "Custom data source: {name}"
   },
   "onboarding": {
     "stepOf": "{current} of {total}",
@@ -1631,7 +1757,13 @@
     "failedToLoadIndexes": "Failed to load indexes",
     "downloadFailed": "Download failed",
     "failedToDeleteIndex": "Failed to delete index",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "cancelled": "Solve cancelled by user",
+    "cancel": "Cancel",
+    "noSolversDetected": "No solvers detected. Click refresh to scan again.",
+    "localSolverFallback": "Local Solver",
+    "autoPlaceholder": "0 = Auto",
+    "indexPathNotAvailable": "Index path not available"
   },
   "geolocation": {
     "title": "Device Location",
@@ -1824,7 +1956,8 @@
     "historyCount": "{count} locations visited",
     "justNow": "Just now",
     "minutesAgo": "{count}m ago",
-    "hoursAgo": "{count}h ago"
+    "hoursAgo": "{count}h ago",
+    "fovLabel": "FOV"
   },
   "favorites": {
     "favorites": "Favorites",
@@ -1840,7 +1973,15 @@
     "quickTags": "Quick tags",
     "customTag": "Add custom tag...",
     "addToFavorites": "Add to Favorites",
-    "removeFromFavorites": "Remove from Favorites"
+    "removeFromFavorites": "Remove from Favorites",
+    "tags": {
+      "imaging": "Imaging",
+      "visual": "Visual",
+      "must-see": "Must See",
+      "difficult": "Difficult",
+      "seasonal": "Seasonal",
+      "priority": "Priority"
+    }
   },
   "bookmarks": {
     "viewBookmarks": "View Bookmarks",
@@ -1858,6 +1999,9 @@
     "icon": "Icon",
     "color": "Color",
     "currentPosition": "Current Position",
+    "raLabel": "RA",
+    "decLabel": "Dec",
+    "fovLabel": "FOV",
     "saveBookmark": "Save Bookmark"
   },
   "sessionPlanner": {
@@ -1883,11 +2027,51 @@
     "schedule": "Schedule",
     "scheduled": "scheduled",
     "noTargets": "No targets to schedule",
-    "addTargetsHint": "Add targets to your shot list first",
+    "addTargetsHint": "Add targets to your shot list first, or browse tonight's recommendations",
+    "browseRecommendations": "Browse Recommendations",
+    "openShotList": "Open Shot List",
     "noNightTonight": "No astronomical night tonight",
     "copyPlan": "Copy Plan",
     "planCopied": "Session plan copied to clipboard",
-    "equipment": "Equipment"
+    "equipment": "Equipment",
+    "maxAlt": "Max {value}°",
+    "fromMoon": "{value}° from moon",
+    "transitAt": "Transit {time}",
+    "overlapsWith": "Overlaps with: {list}",
+    "fovInfo": "FOV: {w}° × {h}°",
+    "fRatioLabel": "f/{ratio}"
+  },
+  "planRec": {
+    "addMoreTargets": "Consider adding more targets to fill the night",
+    "tooManyForOneNight": "Too many targets for one night — consider spreading across multiple sessions",
+    "brightMoon": "Bright moon tonight — consider narrowband imaging",
+    "prioritize": "Prioritize: {names}",
+    "unusedDarkTime": "{duration} of unused dark time — consider adding targets",
+    "tooManyTargets": "Too many targets — consider spreading across multiple nights",
+    "suggestedOrder": "Suggested order: {order}"
+  },
+  "tonightRec": {
+    "compWarning": "{text}",
+    "excellentAirmass": "Excellent airmass ({value})",
+    "goodAirmass": "Good airmass ({value})",
+    "highAirmass": "High airmass ({value}) — atmospheric distortion",
+    "bestSeason": "Best season for this target",
+    "notOptimalSeason": "Not the optimal season",
+    "transitDuringDark": "Transits during dark hours",
+    "darkMoon": "Dark moon phase",
+    "farFromMoon": "Far from moon",
+    "moonInterference": "Significant moon interference",
+    "longWindow": "{hours}h imaging window",
+    "limitedTime": "Limited imaging time",
+    "circumpolar": "Circumpolar — always visible",
+    "beginnerFriendly": "Great for beginners",
+    "challenging": "Challenging target",
+    "largeTarget": "Large target — easy framing",
+    "smallTarget": "Small target — needs long focal length",
+    "highSB": "High surface brightness",
+    "lowSB": "Low surface brightness — needs dark skies",
+    "veryBright": "Very bright target",
+    "faint": "Faint target — needs longer exposure"
   },
   "astroCalc": {
     "title": "Astronomical Calculator",
@@ -1987,7 +2171,15 @@
       "7d": "7 days",
       "14d": "14 days",
       "30d": "30 days",
+      "60d": "60 days",
       "90d": "90 days"
+    },
+    "eventType": {
+      "conjunction": "Conjunction",
+      "opposition": "Opposition",
+      "elongation": "Elongation",
+      "occultation": "Occultation",
+      "close_approach": "Close Approach"
     },
     "advancedFilters": "Advanced Filters",
     "minSize": "Min Size",
@@ -2097,7 +2289,15 @@
     "pauseResumeTime": "Pause/resume time",
     "speedUpTime": "Speed up time",
     "slowDownTime": "Slow down time",
-    "resetTime": "Reset to current time"
+    "resetTime": "Reset to current time",
+    "customize": "Customize shortcuts",
+    "doneEditing": "Done editing",
+    "editDescription": "Click a key binding to change it. Press Esc to cancel.",
+    "clickToEdit": "Click a shortcut to edit",
+    "pressKey": "Press key...",
+    "pressKeyOrEsc": "Press a key combination, or Esc to cancel",
+    "resetToDefault": "Reset to default",
+    "resetAll": "Reset all"
   },
   "canvas": {
     "initializing": "Initializing...",
@@ -2106,7 +2306,14 @@
     "initializingStarmap": "Initializing star map...",
     "retrying": "Retrying ({current}/{max})...",
     "retry": "Retry",
-    "loadFailed": "Failed to load star map"
+    "loadFailed": "Failed to load star map",
+    "scriptLoadFailed": "Script load failed",
+    "scriptLoadTimedOut": "Script load timed out",
+    "canvasNotAvailable": "Canvas not available",
+    "engineScriptNotLoaded": "Engine script not loaded",
+    "canvasContainerNotReady": "Canvas container not ready",
+    "engineScriptTimedOut": "Engine script timed out",
+    "starmapInitTimedOut": "Star map initialization timed out"
   },
   "logViewer": {
     "title": "Application Logs",
@@ -2125,6 +2332,9 @@
     "showing": "Showing {count} of {total}",
     "noLogs": "No logs yet",
     "errors": "errors",
+    "copy": "Copy",
+    "data": "Data:",
+    "stackTrace": "Stack Trace:",
     "debug": "Debug",
     "info": "Info",
     "warn": "Warning",
@@ -2135,7 +2345,8 @@
       "features": "Features",
       "screenshots": "Screenshots",
       "technology": "Technology",
-      "launchApp": "Launch App"
+      "launchApp": "Launch App",
+      "github": "GitHub"
     },
     "hero": {
       "badge": "Powered by Stellarium Web Engine",
@@ -2145,7 +2356,8 @@
       "launchTooltip": "Open the interactive star map",
       "learnMore": "Learn More",
       "learnMoreTooltip": "Explore features and capabilities",
-      "poweredBy": "Powered by Stellarium Web Engine"
+      "poweredBy": "Powered by Stellarium Web Engine",
+      "scrollToFeatures": "Scroll to features"
     },
     "features": {
       "title": "Powerful Features",
@@ -2207,7 +2419,17 @@
       "title": "Built with Modern Technology",
       "subtitle": "Leveraging the latest web and desktop technologies for the best experience",
       "engineTitle": "Stellarium Web Engine",
-      "engineDescription": "The world's most accurate open-source planetarium software"
+      "engineDescription": "The world's most accurate open-source planetarium software",
+      "items": {
+        "stellariumEngine": "Realistic sky rendering engine",
+        "nextjs": "React framework with App Router",
+        "react": "Latest React with Server Components",
+        "typescript": "Type-safe JavaScript",
+        "tailwind": "Utility-first CSS framework",
+        "tauri": "Cross-platform desktop apps",
+        "zustand": "Lightweight state management",
+        "shadcnui": "Beautiful UI components"
+      }
     },
     "cta": {
       "title": "Start Your Astronomical Journey",
@@ -2220,6 +2442,11 @@
       "description": "A modern astronomy application for stargazing and observation planning.",
       "links": "Quick Links",
       "starmap": "Star Map",
+      "starmapTooltip": "Open the interactive star map",
+      "github": "GitHub",
+      "githubTooltip": "View source code on GitHub",
+      "stellarium": "Stellarium",
+      "stellariumTooltip": "Visit Stellarium official website",
       "credits": "Data Credits",
       "stellariumEngine": "Stellarium Web Engine",
       "gaiaData": "ESA Gaia Mission",

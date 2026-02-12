@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tooltip,
   TooltipContent,
@@ -49,7 +50,6 @@ import {
   RefreshCw,
   ExternalLink,
   Settings,
-  Loader2,
   Wifi,
   WifiOff,
 } from 'lucide-react';
@@ -68,6 +68,46 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('astro-events-calendar');
 
+// ============================================================================
+// Event Type Icon & Color Maps
+// ============================================================================
+
+const EVENT_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  lunar_phase: Moon,
+  meteor_shower: Sparkles,
+  planet_conjunction: CircleDot,
+  eclipse: Eclipse,
+  planet_opposition: Orbit,
+  planet_elongation: Star,
+  equinox_solstice: Sun,
+  comet: Star,
+  asteroid: CircleDot,
+  supernova: Star,
+  aurora: Sparkles,
+};
+
+const EVENT_COLOR_MAP: Record<string, string> = {
+  lunar_phase: 'text-amber-400 bg-amber-400/10',
+  meteor_shower: 'text-purple-400 bg-purple-400/10',
+  planet_conjunction: 'text-blue-400 bg-blue-400/10',
+  eclipse: 'text-red-400 bg-red-400/10',
+  planet_opposition: 'text-orange-400 bg-orange-400/10',
+  planet_elongation: 'text-cyan-400 bg-cyan-400/10',
+  equinox_solstice: 'text-yellow-400 bg-yellow-400/10',
+  comet: 'text-green-400 bg-green-400/10',
+  asteroid: 'text-stone-400 bg-stone-400/10',
+  supernova: 'text-pink-400 bg-pink-400/10',
+  aurora: 'text-emerald-400 bg-emerald-400/10',
+};
+
+function getEventIcon(type: EventType) {
+  const Icon = EVENT_ICON_MAP[type] ?? Star;
+  return <Icon className="h-4 w-4" />;
+}
+
+function getEventColor(type: EventType) {
+  return EVENT_COLOR_MAP[type] ?? 'text-muted-foreground bg-muted';
+}
 
 // ============================================================================
 // Event Card Component
@@ -75,40 +115,6 @@ const logger = createLogger('astro-events-calendar');
 
 function EventCard({ event, onGoTo }: { event: AstroEvent; onGoTo?: (ra: number, dec: number) => void }) {
   const t = useTranslations();
-  
-  const getEventIcon = (type: EventType) => {
-    switch (type) {
-      case 'lunar_phase': return <Moon className="h-4 w-4" />;
-      case 'meteor_shower': return <Sparkles className="h-4 w-4" />;
-      case 'planet_conjunction': return <CircleDot className="h-4 w-4" />;
-      case 'eclipse': return <Eclipse className="h-4 w-4" />;
-      case 'planet_opposition': return <Orbit className="h-4 w-4" />;
-      case 'planet_elongation': return <Star className="h-4 w-4" />;
-      case 'equinox_solstice': return <Sun className="h-4 w-4" />;
-      case 'comet': return <Star className="h-4 w-4" />;
-      case 'asteroid': return <CircleDot className="h-4 w-4" />;
-      case 'supernova': return <Star className="h-4 w-4" />;
-      case 'aurora': return <Sparkles className="h-4 w-4" />;
-      default: return <Star className="h-4 w-4" />;
-    }
-  };
-  
-  const getEventColor = (type: EventType) => {
-    switch (type) {
-      case 'lunar_phase': return 'text-amber-400 bg-amber-400/10';
-      case 'meteor_shower': return 'text-purple-400 bg-purple-400/10';
-      case 'planet_conjunction': return 'text-blue-400 bg-blue-400/10';
-      case 'eclipse': return 'text-red-400 bg-red-400/10';
-      case 'planet_opposition': return 'text-orange-400 bg-orange-400/10';
-      case 'planet_elongation': return 'text-cyan-400 bg-cyan-400/10';
-      case 'equinox_solstice': return 'text-yellow-400 bg-yellow-400/10';
-      case 'comet': return 'text-green-400 bg-green-400/10';
-      case 'asteroid': return 'text-stone-400 bg-stone-400/10';
-      case 'supernova': return 'text-pink-400 bg-pink-400/10';
-      case 'aurora': return 'text-emerald-400 bg-emerald-400/10';
-      default: return 'text-muted-foreground bg-muted';
-    }
-  };
   
   const getVisibilityBadge = (visibility: string) => {
     switch (visibility) {
@@ -155,13 +161,13 @@ function EventCard({ event, onGoTo }: { event: AstroEvent; onGoTo?: (ra: number,
               <Clock className="h-3 w-3" />
               <span>{formatDate(event.date)}</span>
               {event.peakTime && (
-                <span className="text-primary">Peak: {formatTime(event.peakTime)}</span>
+                <span className="text-primary">{t('events.peak', { time: formatTime(event.peakTime) })}</span>
               )}
             </div>
             
             {event.endDate && (
               <div className="text-xs text-muted-foreground mb-1">
-                Until {formatDate(event.endDate)}
+                {t('events.until', { date: formatDate(event.endDate) })}
               </div>
             )}
             
@@ -460,9 +466,10 @@ export function AstroEventsCalendar() {
         <ScrollArea className="flex-1 min-h-0">
           <div className="space-y-2 pr-2">
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
-                <p className="text-sm">{t('events.loading')}</p>
+              <div className="space-y-2 py-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 w-full rounded-lg" />
+                ))}
               </div>
             ) : filteredEvents.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">

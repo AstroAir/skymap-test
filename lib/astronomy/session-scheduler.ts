@@ -4,7 +4,7 @@
  */
 
 import type { TargetItem } from '@/lib/stores/target-list-store';
-import type { ScheduledTarget, SessionPlan, OptimizationStrategy } from '@/types/starmap/planning';
+import type { ScheduledTarget, SessionPlan, OptimizationStrategy, I18nMessage } from '@/types/starmap/planning';
 import {
   type TwilightTimes,
   calculateTargetVisibility,
@@ -14,6 +14,7 @@ import {
   getMoonIllumination,
   angularSeparation,
   formatDuration,
+  getJulianDateFromDate,
 } from './astro-utils';
 
 // ============================================================================
@@ -27,19 +28,21 @@ export function optimizeSchedule(
   twilight: TwilightTimes,
   strategy: OptimizationStrategy,
   minAltitude: number,
-  minImagingTime: number // minutes
+  minImagingTime: number, // minutes
+  date: Date = new Date()
 ): SessionPlan {
-  const moonPos = getMoonPosition();
-  const moonPhase = getMoonPhase();
+  const jd = getJulianDateFromDate(date);
+  const moonPos = getMoonPosition(jd);
+  const moonPhase = getMoonPhase(jd);
   const moonIllum = getMoonIllumination(moonPhase);
   
   // Calculate visibility for all targets
   const targetData = targets.map(target => {
     const visibility = calculateTargetVisibility(
-      target.ra, target.dec, latitude, longitude, minAltitude
+      target.ra, target.dec, latitude, longitude, minAltitude, date
     );
     const feasibility = calculateImagingFeasibility(
-      target.ra, target.dec, latitude, longitude
+      target.ra, target.dec, latitude, longitude, date
     );
     const moonDist = angularSeparation(target.ra, target.dec, moonPos.ra, moonPos.dec);
     
@@ -202,28 +205,28 @@ export function optimizeSchedule(
     : 0;
   
   // Generate recommendations and warnings
-  const recommendations: string[] = [];
-  const warnings: string[] = [];
+  const recommendations: I18nMessage[] = [];
+  const warnings: I18nMessage[] = [];
   
   if (nightCoverage < 50) {
-    recommendations.push('Consider adding more targets to fill the night');
+    recommendations.push({ key: 'planRec.addMoreTargets' });
   }
   if (nightCoverage > 120) {
-    warnings.push('Too many targets for one night - consider spreading across multiple sessions');
+    warnings.push({ key: 'planRec.tooManyForOneNight' });
   }
   if (moonIllum > 70) {
-    warnings.push('Bright moon tonight - consider narrowband imaging');
+    warnings.push({ key: 'planRec.brightMoon' });
   }
   
   const excellentTargets = scheduled.filter(s => s.feasibility.recommendation === 'excellent');
   if (excellentTargets.length > 0) {
-    recommendations.push(`Prioritize: ${excellentTargets.map(t => t.target.name).join(', ')}`);
+    recommendations.push({ key: 'planRec.prioritize', params: { names: excellentTargets.map(t => t.target.name).join(', ') } });
   }
   
   if (gaps.length > 0) {
     const totalGapTime = gaps.reduce((sum, g) => sum + g.duration, 0);
     if (totalGapTime > 1) {
-      recommendations.push(`${formatDuration(totalGapTime)} of unused dark time - consider adding targets`);
+      recommendations.push({ key: 'planRec.unusedDarkTime', params: { duration: formatDuration(totalGapTime) } });
     }
   }
   

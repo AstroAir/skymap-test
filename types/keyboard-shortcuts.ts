@@ -8,6 +8,8 @@ export interface ShortcutItem {
   key: string;
   descriptionKey: string;
   modifier?: string;
+  /** Links this display item to a customizable action in the keybinding store */
+  actionId?: string;
 }
 
 export interface ShortcutGroupDefinition {

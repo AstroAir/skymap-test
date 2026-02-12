@@ -45,11 +45,11 @@ export function SolveResultCard({ result, onGoTo }: SolveResultCardProps) {
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>RA: {result.coordinates.raHMS}</span>
+              <span>{t('coordinates.ra')}: {result.coordinates.raHMS}</span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>Dec: {result.coordinates.decDMS}</span>
+              <span>{t('coordinates.dec')}: {result.coordinates.decDMS}</span>
             </div>
             <div className="flex items-center gap-2">
               <RotateCw className="h-4 w-4 text-muted-foreground" />

@@ -2,6 +2,8 @@
 
 import { useTranslations } from 'next-intl';
 import { Check, Rocket } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 export function CompleteStep() {
   const t = useTranslations();
@@ -23,23 +25,27 @@ export function CompleteStep() {
         <p className="text-muted-foreground mb-4">
           {t('setupWizard.steps.complete.description')}
         </p>
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm">
+        <Badge variant="outline" className="gap-2 px-4 py-2 bg-primary/10 text-primary border-primary/30">
           <Rocket className="w-4 h-4" />
           {t('setupWizard.steps.complete.readyToExplore')}
-        </div>
+        </Badge>
       </div>
 
       {/* Tips */}
-      <div className="text-left bg-muted/50 rounded-lg p-4 space-y-2">
-        <h4 className="text-sm font-medium text-foreground">
-          {t('setupWizard.steps.complete.quickTips')}
-        </h4>
-        <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-          <li>{t('setupWizard.steps.complete.tip1')}</li>
-          <li>{t('setupWizard.steps.complete.tip2')}</li>
-          <li>{t('setupWizard.steps.complete.tip3')}</li>
-        </ul>
-      </div>
+      <Card className="text-left bg-muted/50 border-border/50 py-4 gap-3">
+        <CardHeader className="px-4 py-0">
+          <CardTitle className="text-sm">
+            {t('setupWizard.steps.complete.quickTips')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4">
+          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+            <li>{t('setupWizard.steps.complete.tip1')}</li>
+            <li>{t('setupWizard.steps.complete.tip2')}</li>
+            <li>{t('setupWizard.steps.complete.tip3')}</li>
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }

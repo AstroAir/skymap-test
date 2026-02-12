@@ -29,6 +29,14 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -153,7 +161,7 @@ export function PlateSolverUnified({
     if (!isDesktop || !canSolveLocal) return;
     if (config.solver_type === 'astrometry_net_online') {
       setResult(createErrorResult(
-        activeSolver?.name || 'Local Solver',
+        activeSolver?.name || t('plateSolving.localSolverFallback'),
         t('plateSolving.localSolverNotReady') || 'Local solver not ready.',
       ));
       return;
@@ -198,8 +206,8 @@ export function PlateSolverUnified({
       setLocalProgress(100);
       setLocalMessage(t('plateSolving.failed') || 'Failed');
       setResult(createErrorResult(
-        activeSolver?.name || 'Local Solver',
-        error instanceof Error ? error.message : 'Unknown error',
+        activeSolver?.name || t('plateSolving.localSolverFallback'),
+        error instanceof Error ? error.message : t('plateSolving.unknownError'),
       ));
     } finally {
       if (cleanup) {
@@ -246,7 +254,7 @@ export function PlateSolverUnified({
         if (attempt >= maxAttempts - 1) {
           setResult(createErrorResult(
             'astrometry.net',
-            error instanceof Error ? error.message : 'Unknown error',
+            error instanceof Error ? error.message : t('plateSolving.unknownError'),
           ));
         } else {
           await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
@@ -256,7 +264,7 @@ export function PlateSolverUnified({
     }
 
     setSolving(false);
-  }, [onlineApiKey, options, onSolveComplete, config]);
+  }, [onlineApiKey, options, onSolveComplete, config, t]);
 
   // Handle image capture with optional FITS WCS hints
   const handleImageCapture = useCallback(async (file: File, metadata?: ImageMetadata) => {
@@ -282,7 +290,7 @@ export function PlateSolverUnified({
     cancelClientRef.current = null;
     setSolving(false);
     setResult(createErrorResult(
-      solveMode === 'local' ? (activeSolver?.name || 'Local Solver') : 'astrometry.net',
+      solveMode === 'local' ? (activeSolver?.name || t('plateSolving.localSolverFallback')) : 'astrometry.net',
       t('plateSolving.cancelled') || 'Solve cancelled by user',
     ));
   }, [solveMode, activeSolver, t]);
@@ -308,7 +316,27 @@ export function PlateSolverUnified({
     return <Cpu className="h-4 w-4" />;
   };
 
+  // Shared API key input section
+  const renderApiKeyInput = () => (
+    <div className="space-y-2">
+      <Label htmlFor="apiKey">
+        {t('plateSolving.apiKey') || 'Astrometry.net API Key'}
+      </Label>
+      <Input
+        id="apiKey"
+        type="password"
+        value={onlineApiKey}
+        onChange={(e) => setOnlineApiKey(e.target.value)}
+        placeholder={t('plateSolving.apiKeyPlaceholder') || 'Enter your API key'}
+      />
+      <p className="text-xs text-muted-foreground">
+        {t('plateSolving.apiKeyHint') || 'Get your free API key at nova.astrometry.net'}
+      </p>
+    </div>
+  );
+
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
@@ -346,38 +374,40 @@ export function PlateSolverUnified({
               <TabsContent value="local" className="space-y-4 mt-4">
                 {/* Active Solver Info */}
                 {activeSolver && (
-                  <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                    <div className="flex items-center gap-2">
-                      {getSolverIcon()}
-                      <div>
-                        <div className="font-medium text-sm">{activeSolver.name}</div>
-                        {activeSolver.version && (
-                          <div className="text-xs text-muted-foreground">{activeSolver.version}</div>
-                        )}
+                  <Card className="py-3 gap-0">
+                    <CardContent className="flex items-center justify-between px-4 py-0">
+                      <div className="flex items-center gap-2">
+                        {getSolverIcon()}
+                        <div>
+                          <div className="font-medium text-sm">{activeSolver.name}</div>
+                          {activeSolver.version && (
+                            <div className="text-xs text-muted-foreground">{activeSolver.version}</div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {activeSolver.is_available ? (
-                        <Badge variant="default" className="bg-green-600 text-xs">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          {t('plateSolving.ready') || 'Ready'}
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="text-xs">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          {t('plateSolving.notInstalled') || 'Not Installed'}
-                        </Badge>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setShowSettings(true)}
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                      <div className="flex items-center gap-2">
+                        {activeSolver.is_available ? (
+                          <Badge variant="default" className="bg-green-600 text-xs">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            {t('plateSolving.ready') || 'Ready'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-xs">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            {t('plateSolving.notInstalled') || 'Not Installed'}
+                          </Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setShowSettings(true)}
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* Index Status */}
@@ -407,43 +437,13 @@ export function PlateSolverUnified({
               </TabsContent>
 
               <TabsContent value="online" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">
-                    {t('plateSolving.apiKey') || 'Astrometry.net API Key'}
-                  </Label>
-                  <Input
-                    id="apiKey"
-                    type="password"
-                    value={onlineApiKey}
-                    onChange={(e) => setOnlineApiKey(e.target.value)}
-                    placeholder={t('plateSolving.apiKeyPlaceholder') || 'Enter your API key'}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('plateSolving.apiKeyHint') || 'Get your free API key at nova.astrometry.net'}
-                  </p>
-                </div>
+                {renderApiKeyInput()}
               </TabsContent>
             </Tabs>
           )}
 
           {/* Online-only mode for web */}
-          {!isDesktop && (
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">
-                {t('plateSolving.apiKey') || 'Astrometry.net API Key'}
-              </Label>
-              <Input
-                id="apiKey"
-                type="password"
-                value={onlineApiKey}
-                onChange={(e) => setOnlineApiKey(e.target.value)}
-                placeholder={t('plateSolving.apiKeyPlaceholder') || 'Enter your API key'}
-              />
-              <p className="text-xs text-muted-foreground">
-                {t('plateSolving.apiKeyHint') || 'Get your free API key at nova.astrometry.net'}
-              </p>
-            </div>
-          )}
+          {!isDesktop && renderApiKeyInput()}
 
           {/* Advanced Options */}
           <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
@@ -476,7 +476,7 @@ export function PlateSolverUnified({
                         setOptions(prev => ({ ...prev, downsampleFactor: val }));
                       }
                     }}
-                    placeholder="0 = Auto"
+                    placeholder={t('plateSolving.autoPlaceholder')}
                   />
                 </div>
                 <div className="space-y-1">
@@ -555,19 +555,25 @@ export function PlateSolverUnified({
           )}
         </div>
 
-        {/* Settings Dialog */}
-        <Dialog open={showSettings} onOpenChange={setShowSettings}>
-          <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {t('plateSolving.solverSettings') || 'Solver Settings'}
-              </DialogTitle>
-            </DialogHeader>
-            <SolverSettings onClose={() => setShowSettings(false)} />
-          </DialogContent>
-        </Dialog>
       </DialogContent>
     </Dialog>
+
+    {/* Settings Sheet */}
+    <Sheet open={showSettings} onOpenChange={setShowSettings}>
+      <SheetContent side="right" className="sm:max-w-[500px] p-0">
+        <SheetHeader className="p-4 border-b">
+          <SheetTitle>
+            {t('plateSolving.solverSettings') || 'Solver Settings'}
+          </SheetTitle>
+        </SheetHeader>
+        <ScrollArea className="h-[calc(100vh-5rem)]">
+          <div className="p-4">
+            <SolverSettings onClose={() => setShowSettings(false)} />
+          </div>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }
 

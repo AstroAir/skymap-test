@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -29,7 +28,6 @@ import {
 } from '@/components/ui/collapsible';
 import {
   Satellite,
-  Search,
   Eye,
   Clock,
   MapPin,
@@ -57,6 +55,8 @@ import {
   SATELLITE_SOURCES,
 } from '@/lib/services/satellite/celestrak-service';
 import { createLogger } from '@/lib/logger';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SearchInput } from '@/components/ui/search-input';
 
 const logger = createLogger('satellite-tracker');
 
@@ -459,10 +459,7 @@ export function SatelliteTracker() {
             <ScrollArea className="h-[400px]">
               <div className="space-y-2 pr-2">
                 {upcomingPasses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Satellite className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">{t('satellites.noPasses')}</p>
-                  </div>
+                  <EmptyState icon={Satellite} message={t('satellites.noPasses')} />
                 ) : (
                   upcomingPasses.map((pass, index) => (
                     <PassCard 
@@ -481,15 +478,12 @@ export function SatelliteTracker() {
             <div className="space-y-3 mb-3">
               {/* Search & Status */}
               <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder={t('satellites.searchPlaceholder')}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8 h-9"
-                  />
-                </div>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder={t('satellites.searchPlaceholder')}
+                  className="flex-1"
+                />
                 {isOnline ? (
                   <Badge variant="outline" className="text-green-500 border-green-500/50 shrink-0">
                     <Wifi className="h-3 w-3 mr-1" />
@@ -564,15 +558,9 @@ export function SatelliteTracker() {
             <ScrollArea className="h-[300px]">
               <div className="space-y-2 pr-2">
                 {isLoading ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
-                    <p className="text-sm">{t('satellites.loading')}</p>
-                  </div>
+                  <EmptyState icon={Loader2} message={t('satellites.loading')} iconClassName="animate-spin" />
                 ) : filteredSatellites.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Satellite className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">{t('satellites.noSatellites')}</p>
-                  </div>
+                  <EmptyState icon={Satellite} message={t('satellites.noSatellites')} />
                 ) : (
                   filteredSatellites.map(satellite => (
                     <SatelliteCard 

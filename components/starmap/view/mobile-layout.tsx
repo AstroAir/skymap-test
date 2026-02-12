@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+import { ToolbarSeparator } from '@/components/common/toolbar-button';
 import { ZoomControls } from '../controls/zoom-controls';
 import { FOVSimulator } from '../overlays/fov-simulator';
 import { ExposureCalculator } from '../planning/exposure-calculator';
@@ -81,8 +82,7 @@ export const MobileLayout = memo(function MobileLayout({
           />
         </div>
         
-        {/* Divider */}
-        <div className="w-px h-6 bg-border/50 mx-0.5 shrink-0" />
+        <ToolbarSeparator />
         
         {/* Imaging Tools */}
         <div className="flex items-center gap-0.5 shrink-0">
@@ -103,8 +103,7 @@ export const MobileLayout = memo(function MobileLayout({
           <ExposureCalculator focalLength={focalLength} />
         </div>
         
-        {/* Divider */}
-        <div className="w-px h-6 bg-border/50 mx-0.5 shrink-0" />
+        <ToolbarSeparator />
         
         {/* Planning Tools */}
         <div className="flex items-center gap-0.5 shrink-0">
@@ -112,8 +111,7 @@ export const MobileLayout = memo(function MobileLayout({
           <ObservationLog currentSelection={observationSelection} />
         </div>
         
-        {/* Divider */}
-        <div className="w-px h-6 bg-border/50 mx-0.5 shrink-0" />
+        <ToolbarSeparator />
         
         {/* Mount & Advanced */}
         <div className="flex items-center gap-0.5 shrink-0">

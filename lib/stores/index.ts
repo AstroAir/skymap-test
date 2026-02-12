@@ -98,6 +98,16 @@ export {
   type BookmarkIcon,
 } from './bookmarks-store';
 
+// Keybinding store
+export {
+  useKeybindingStore,
+  DEFAULT_KEYBINDINGS,
+  formatKeyBinding,
+  eventToKeyBinding,
+  type KeyBinding,
+  type ShortcutActionId,
+} from './keybinding-store';
+
 // Search store (online/offline, favorites, cache)
 export {
   useSearchStore,

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { STAR_POSITIONS } from '@/lib/constants';
@@ -142,11 +143,12 @@ export function LoadingSkeleton({ className, variant = 'card' }: LoadingSkeleton
  * Full-screen loading overlay for initial load
  */
 export function FullScreenLoader({ message }: { message?: string }) {
+  const t = useTranslations();
   return (
     <div
       role="status"
       aria-busy
-      aria-label={message || 'Loading'}
+      aria-label={message || t('common.loading')}
       data-testid="full-screen-loader"
       className="fixed inset-0 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm z-50"
     >
@@ -171,6 +173,7 @@ export function FullScreenLoader({ message }: { message?: string }) {
  * Inline loading indicator for buttons or small areas
  */
 export function InlineLoader({ size = 'default' }: { size?: 'sm' | 'default' | 'lg' }) {
+  const t = useTranslations();
   const sizeClasses = {
     sm: 'h-3 w-3 border',
     default: 'h-4 w-4 border-2',
@@ -180,13 +183,13 @@ export function InlineLoader({ size = 'default' }: { size?: 'sm' | 'default' | '
   return (
     <div
       role="status"
-      aria-label="Loading"
+      aria-label={t('common.loading')}
       className={cn(
         'animate-spin rounded-full border-primary border-t-transparent',
         sizeClasses[size]
       )}
     >
-      <span className="sr-only">Loading</span>
+      <span className="sr-only">{t('common.loading')}</span>
     </div>
   );
 }
@@ -195,11 +198,12 @@ export function InlineLoader({ size = 'default' }: { size?: 'sm' | 'default' | '
  * Starmap-specific loading skeleton
  */
 export function StarmapLoadingSkeleton() {
+  const t = useTranslations();
   return (
     <div
       role="status"
       aria-busy
-      aria-label="Loading star map"
+      aria-label={t('splash.loading')}
       data-testid="starmap-loading-skeleton"
       className="relative w-full h-full bg-black"
     >

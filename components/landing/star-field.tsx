@@ -1,11 +1,13 @@
 'use client';
 
 import { useRef } from 'react';
+import { useTheme } from 'next-themes';
 import { useStarField } from '@/lib/hooks/use-star-field';
 
 export function StarField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  useStarField(canvasRef);
+  const { resolvedTheme } = useTheme();
+  useStarField(canvasRef, resolvedTheme === 'dark');
 
   return (
     <canvas

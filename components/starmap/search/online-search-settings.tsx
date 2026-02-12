@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Popover,
   PopoverContent,
@@ -132,22 +133,27 @@ function OnlineSearchSettingsContent({
       {/* Search Mode Toggle */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">{t('search.searchMode')}</Label>
-        <div className="flex gap-1">
-          {(['local', 'hybrid', 'online'] as const).map((mode) => (
-            <Button
-              key={mode}
-              variant={currentSearchMode === mode ? 'default' : 'outline'}
-              size="sm"
-              className="flex-1 h-7 text-xs"
-              onClick={() => setSearchMode(mode)}
-            >
-              {mode === 'local' && <WifiOff className="h-3 w-3 mr-1" />}
-              {mode === 'hybrid' && <RefreshCw className="h-3 w-3 mr-1" />}
-              {mode === 'online' && <Wifi className="h-3 w-3 mr-1" />}
-              {t(`search.mode.${mode}`)}
-            </Button>
-          ))}
-        </div>
+        <ToggleGroup
+          type="single"
+          value={currentSearchMode}
+          onValueChange={(value) => { if (value) setSearchMode(value as 'local' | 'hybrid' | 'online'); }}
+          variant="outline"
+          size="sm"
+          className="w-full"
+        >
+          <ToggleGroupItem value="local" className="flex-1 h-7 text-xs">
+            <WifiOff className="h-3 w-3 mr-1" />
+            {t('search.mode.local')}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="hybrid" className="flex-1 h-7 text-xs">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            {t('search.mode.hybrid')}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="online" className="flex-1 h-7 text-xs">
+            <Wifi className="h-3 w-3 mr-1" />
+            {t('search.mode.online')}
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
       
       <Separator />
@@ -180,9 +186,9 @@ function OnlineSearchSettingsContent({
                       </Badge>
                     )}
                   </div>
-                  {info?.description && (
+                  {info?.id && (
                     <p className="text-[10px] text-muted-foreground line-clamp-1">
-                      {info.description}
+                      {t(`search.${info.id}Description` as Parameters<typeof t>[0])}
                     </p>
                   )}
                 </div>

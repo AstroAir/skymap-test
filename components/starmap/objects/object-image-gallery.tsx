@@ -20,6 +20,83 @@ import {
 import { cn } from '@/lib/utils';
 import type { ObjectImageGalleryProps, ImageState } from '@/types/starmap/objects';
 
+/** Dots pagination indicator */
+function DotsPagination({
+  count,
+  currentIndex,
+  onSelect,
+  variant = 'default',
+  className,
+}: {
+  count: number;
+  currentIndex: number;
+  onSelect: (index: number) => void;
+  variant?: 'default' | 'fullscreen';
+  className?: string;
+}) {
+  const t = useTranslations();
+  if (count <= 1) return null;
+
+  return (
+    <div className={cn('absolute left-1/2 -translate-x-1/2 flex gap-2', variant === 'default' && 'sm:gap-1.5', className)}>
+      {Array.from({ length: count }, (_, index) => (
+        <button
+          key={index}
+          aria-label={t('objectDetail.goToImage', { index: index + 1 })}
+          className={cn(
+            'rounded-full transition-all',
+            variant === 'default' ? 'w-3 h-3 sm:w-2 sm:h-2 touch-target' : 'w-3 h-3',
+            index === currentIndex
+              ? 'bg-white scale-110'
+              : variant === 'default' ? 'bg-white/50 hover:bg-white/70' : 'bg-white/40 hover:bg-white/60',
+          )}
+          onClick={(e) => { e.stopPropagation(); onSelect(index); }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Navigation arrows for image gallery */
+function NavigationArrows({
+  onPrev,
+  onNext,
+  variant = 'default',
+}: {
+  onPrev: () => void;
+  onNext: () => void;
+  variant?: 'default' | 'fullscreen';
+}) {
+  const isFullscreen = variant === 'fullscreen';
+  const buttonClass = isFullscreen
+    ? 'absolute top-1/2 -translate-y-1/2 z-10 h-12 w-12 bg-black/50 hover:bg-black/70 text-white'
+    : 'absolute top-1/2 -translate-y-1/2 h-10 w-10 sm:h-8 sm:w-8 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target';
+  const iconClass = isFullscreen ? 'h-8 w-8' : 'h-6 w-6 sm:h-5 sm:w-5';
+  const leftPos = isFullscreen ? 'left-2' : 'left-1';
+  const rightPos = isFullscreen ? 'right-2' : 'right-1';
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(buttonClass, leftPos)}
+        onClick={(e) => { e.stopPropagation(); onPrev(); }}
+      >
+        <ChevronLeft className={iconClass} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(buttonClass, rightPos)}
+        onClick={(e) => { e.stopPropagation(); onNext(); }}
+      >
+        <ChevronRight className={iconClass} />
+      </Button>
+    </>
+  );
+}
+
 export const ObjectImageGallery = memo(function ObjectImageGallery({
   images,
   objectName,
@@ -236,24 +313,7 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
 
           {/* Navigation Arrows - Always visible on mobile, hover on desktop */}
           {images.length > 1 && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute left-1 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-8 sm:w-8 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target"
-                onClick={(e) => { e.stopPropagation(); goToPrev(); }}
-              >
-                <ChevronLeft className="h-6 w-6 sm:h-5 sm:w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-8 sm:w-8 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target"
-                onClick={(e) => { e.stopPropagation(); goToNext(); }}
-              >
-                <ChevronRight className="h-6 w-6 sm:h-5 sm:w-5" />
-              </Button>
-            </>
+            <NavigationArrows onPrev={goToPrev} onNext={goToNext} variant="default" />
           )}
 
           {/* Fullscreen Button - Always visible on mobile */}
@@ -267,23 +327,7 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
           </Button>
 
           {/* Dots Indicator - Larger on mobile */}
-          {images.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-2 sm:gap-1.5">
-              {images.map((_, index) => (
-                <button
-                  key={index}
-                  aria-label={t('objectDetail.goToImage', { index: index + 1 })}
-                  className={cn(
-                    'w-3 h-3 sm:w-2 sm:h-2 rounded-full transition-all touch-target',
-                    index === currentIndex 
-                      ? 'bg-white scale-110' 
-                      : 'bg-white/50 hover:bg-white/70'
-                  )}
-                  onClick={(e) => { e.stopPropagation(); setCurrentIndex(index); }}
-                />
-              ))}
-            </div>
-          )}
+          <DotsPagination count={images.length} currentIndex={currentIndex} onSelect={setCurrentIndex} variant="default" className="bottom-2" />
         </div>
 
         {/* Image Info */}
@@ -321,24 +365,7 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
 
             {/* Navigation Arrows */}
             {images.length > 1 && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-12 w-12 bg-black/50 hover:bg-black/70 text-white"
-                  onClick={goToPrev}
-                >
-                  <ChevronLeft className="h-8 w-8" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-12 w-12 bg-black/50 hover:bg-black/70 text-white"
-                  onClick={goToNext}
-                >
-                  <ChevronRight className="h-8 w-8" />
-                </Button>
-              </>
+              <NavigationArrows onPrev={goToPrev} onNext={goToNext} variant="fullscreen" />
             )}
 
             {/* Image */}
@@ -394,23 +421,7 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
             </div>
 
             {/* Dots Indicator */}
-            {images.length > 1 && (
-              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-2">
-                {images.map((_, index) => (
-                  <button
-                    key={index}
-                    aria-label={t('objectDetail.goToImage', { index: index + 1 })}
-                    className={cn(
-                      'w-3 h-3 rounded-full transition-all',
-                      index === currentIndex 
-                        ? 'bg-white scale-110' 
-                        : 'bg-white/40 hover:bg-white/60'
-                    )}
-                    onClick={() => setCurrentIndex(index)}
-                  />
-                ))}
-              </div>
-            )}
+            <DotsPagination count={images.length} currentIndex={currentIndex} onSelect={setCurrentIndex} variant="fullscreen" className="bottom-20" />
           </div>
         </DialogContent>
       </Dialog>

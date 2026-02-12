@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { storage, isTauri, readFileAsText } from '@/lib/storage';
 import { storageApi } from '@/lib/tauri';
@@ -246,44 +247,48 @@ export function DataManager({ trigger }: DataManagerProps) {
 
         <div className="space-y-4">
           {/* Storage Stats */}
-          <div className="rounded-lg border p-4 space-y-2">
-            <h4 className="font-medium text-sm">
-              {t('dataManager.storageInfo') || 'Storage Information'}
-            </h4>
-            {loading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t('common.loading') || 'Loading...'}
-              </div>
-            ) : stats ? (
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>
-                  <span className="font-medium">
-                    {t('dataManager.totalSize') || 'Total Size'}:
-                  </span>{' '}
-                  {formatBytes(stats.total_size)}
-                </p>
-                <p>
-                  <span className="font-medium">
-                    {t('dataManager.storeCount') || 'Stores'}:
-                  </span>{' '}
-                  {stats.store_count}
-                </p>
-                {isDesktop && (
-                  <p className="text-xs truncate" title={stats.directory}>
+          <Card className="py-3">
+            <CardHeader className="px-4 py-0">
+              <CardTitle className="text-sm">
+                {t('dataManager.storageInfo') || 'Storage Information'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 py-0">
+              {loading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t('common.loading') || 'Loading...'}
+                </div>
+              ) : stats ? (
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>
                     <span className="font-medium">
-                      {t('dataManager.location') || 'Location'}:
+                      {t('dataManager.totalSize') || 'Total Size'}:
                     </span>{' '}
-                    {stats.directory}
+                    {formatBytes(stats.total_size)}
                   </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {t('dataManager.noData') || 'No data available'}
-              </p>
-            )}
-          </div>
+                  <p>
+                    <span className="font-medium">
+                      {t('dataManager.storeCount') || 'Stores'}:
+                    </span>{' '}
+                    {stats.store_count}
+                  </p>
+                  {isDesktop && (
+                    <p className="text-xs truncate" title={stats.directory}>
+                      <span className="font-medium">
+                        {t('dataManager.location') || 'Location'}:
+                      </span>{' '}
+                      {stats.directory}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {t('dataManager.noData') || 'No data available'}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Actions */}
           <div className="grid grid-cols-2 gap-2">

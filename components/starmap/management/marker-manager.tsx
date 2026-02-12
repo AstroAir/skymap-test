@@ -46,6 +46,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   MapPinned,
   Plus,
@@ -58,6 +59,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkerIconDisplay } from '@/lib/constants/marker-icons';
+import type { MarkerIcon } from '@/lib/stores';
 import type { MarkerFormData, MarkerManagerProps } from '@/types/starmap/management';
 
 const defaultFormData: MarkerFormData = {
@@ -490,32 +492,39 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
 
             <div className="grid gap-2">
               <Label>{t('markers.icon')}</Label>
-              <div className="flex gap-1 flex-wrap">
+              <ToggleGroup
+                type="single"
+                value={formData.icon}
+                onValueChange={(value) => value && setFormData({ ...formData, icon: value as MarkerIcon })}
+                className="flex-wrap justify-start"
+              >
                 {MARKER_ICONS.map((icon) => {
                   const IconComponent = MarkerIconDisplay[icon];
                   return (
-                    <Button
+                    <ToggleGroupItem
                       key={icon}
-                      variant={formData.icon === icon ? 'default' : 'outline'}
-                      size="icon"
+                      value={icon}
+                      aria-label={icon}
                       className="h-9 w-9"
-                      onClick={() => setFormData({ ...formData, icon })}
                     >
                       <IconComponent className="h-4 w-4" />
-                    </Button>
+                    </ToggleGroupItem>
                   );
                 })}
-              </div>
+              </ToggleGroup>
             </div>
 
             <div className="grid gap-2">
               <Label>{t('markers.color')}</Label>
               <div className="flex gap-1 flex-wrap">
                 {MARKER_COLORS.map((color) => (
-                  <button
+                  <Button
                     key={color}
+                    variant="ghost"
+                    size="icon"
+                    aria-label={color}
                     className={cn(
-                      'h-8 w-8 rounded-full border-2 transition-transform hover:scale-110',
+                      'h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 p-0',
                       formData.color === color ? 'border-primary scale-110' : 'border-transparent'
                     )}
                     style={{ backgroundColor: color }}

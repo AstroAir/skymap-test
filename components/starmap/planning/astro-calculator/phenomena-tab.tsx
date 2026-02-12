@@ -195,7 +195,7 @@ export function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: Phe
                 <SelectItem value="7">{t('astroCalc.daysRange.7d')}</SelectItem>
                 <SelectItem value="14">{t('astroCalc.daysRange.14d')}</SelectItem>
                 <SelectItem value="30">{t('astroCalc.daysRange.30d')}</SelectItem>
-                <SelectItem value="60">60 {t('astroCalc.events')}</SelectItem>
+                <SelectItem value="60">{t('astroCalc.daysRange.60d')}</SelectItem>
                 <SelectItem value="90">{t('astroCalc.daysRange.90d')}</SelectItem>
               </SelectContent>
             </Select>
@@ -233,11 +233,11 @@ export function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: Phe
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{event.details}</span>
                       <Badge variant={event.importance === 'high' ? 'default' : 'secondary'} className="text-[10px]">
-                        {event.type.replace('_', ' ')}
+                        {t(`astroCalc.eventType.${event.type}`)}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {event.date.toLocaleDateString('en-US', {
+                      {event.date.toLocaleDateString(undefined, {
                         weekday: 'short',
                         month: 'short',
                         day: 'numeric',

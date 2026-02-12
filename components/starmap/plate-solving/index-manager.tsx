@@ -28,8 +28,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Tabs,
   TabsContent,
@@ -160,7 +169,7 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
     try {
       const basePath = config.index_path ?? (await getDefaultIndexPath(currentSolverType));
       if (!basePath) {
-        throw new Error('Index path not available');
+        throw new Error(t('plateSolving.indexPathNotAvailable'));
       }
 
       const destPath = await join(basePath, index.file_name);
@@ -372,6 +381,7 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
@@ -521,32 +531,34 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
         </Tabs>
       </DialogContent>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t('plateSolving.deleteIndex') || 'Delete Index'}
-            </DialogTitle>
-            <DialogDescription>
-              {t('plateSolving.deleteIndexConfirm') ||
-                `Are you sure you want to delete "${deleteConfirm?.name}"? This action cannot be undone.`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
-              {t('common.cancel') || 'Cancel'}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
-            >
-              {t('common.delete') || 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Dialog>
+
+    {/* Delete Confirmation AlertDialog */}
+    <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t('plateSolving.deleteIndex') || 'Delete Index'}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t('plateSolving.deleteIndexConfirm') ||
+              `Are you sure you want to delete "${deleteConfirm?.name}"? This action cannot be undone.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            {t('common.cancel') || 'Cancel'}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+          >
+            {t('common.delete') || 'Delete'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 

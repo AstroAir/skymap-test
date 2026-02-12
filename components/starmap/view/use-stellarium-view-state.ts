@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useStellariumStore, useFramingStore, useMountStore, useEquipmentStore, useMarkerStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useSettingsStore } from '@/lib/stores/settings-store';
@@ -13,6 +14,7 @@ import type { StellariumSearchRef } from '../search/stellarium-search';
 
 export function useStellariumViewState() {
   const router = useRouter();
+  const t = useTranslations();
 
   // UI state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -157,12 +159,12 @@ export function useStellariumViewState() {
       pushNavigationHistory({
         ra: selection.raDeg,
         dec: selection.decDeg,
-        fov: currentFov,
+        fov: lastFovRef.current,
         name: selection.names[0],
       });
     }
     setSelectedObject(selection);
-  }, [currentFov, pushNavigationHistory]);
+  }, [pushNavigationHistory]);
 
   // Handle FOV change with rAF throttling
   const handleFovChange = useCallback((fov: number) => {
@@ -257,7 +259,7 @@ export function useStellariumViewState() {
   const handleAddToTargetList = useCallback(() => {
     if (contextMenuCoords) {
       addTarget({
-        name: `Target @ ${contextMenuCoords.raStr}`,
+        name: t('actions.defaultTargetName', { coords: contextMenuCoords.raStr }),
         ra: contextMenuCoords.ra,
         dec: contextMenuCoords.dec,
         raString: contextMenuCoords.raStr,
@@ -271,7 +273,7 @@ export function useStellariumViewState() {
       });
     } else if (selectedObject) {
       addTarget({
-        name: selectedObject.names[0] || 'Unknown',
+        name: selectedObject.names[0] || t('common.unknown'),
         ra: selectedObject.raDeg,
         dec: selectedObject.decDeg,
         raString: selectedObject.ra,
@@ -284,7 +286,7 @@ export function useStellariumViewState() {
         priority: 'medium',
       });
     }
-  }, [contextMenuCoords, selectedObject, addTarget, sensorWidth, sensorHeight, focalLength, rotationAngle, mosaic]);
+  }, [contextMenuCoords, selectedObject, addTarget, sensorWidth, sensorHeight, focalLength, rotationAngle, mosaic, t]);
 
   // Navigate to coords
   const handleNavigateToCoords = useCallback(() => {

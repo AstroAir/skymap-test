@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Download, 
   RefreshCw, 
@@ -125,12 +126,14 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
           </div>
           
           {updateInfo.body && (
-            <div className="rounded-lg bg-muted p-3 max-h-48 overflow-y-auto">
-              <p className="text-sm font-medium mb-2">{t('releaseNotes')}</p>
-              <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                {updateInfo.body}
+            <ScrollArea className="max-h-48">
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-sm font-medium mb-2">{t('releaseNotes')}</p>
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {updateInfo.body}
+                </div>
               </div>
-            </div>
+            </ScrollArea>
           )}
           
           {updateInfo.date && (

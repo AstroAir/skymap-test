@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Telescope,
   Calendar,
@@ -13,6 +13,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SectionHeader } from './section-header';
 import type { LandingFeatureItem } from '@/types/landing';
 
 const features: LandingFeatureItem[] = [
@@ -35,15 +36,7 @@ export function FeaturesSection() {
       <div className="absolute inset-0 bg-gradient-to-b from-background via-muted/20 to-background pointer-events-none" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-serif font-bold text-foreground mb-4">
-            {t('title')}
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {t('subtitle')}
-          </p>
-        </div>
+        <SectionHeader title={t('title')} subtitle={t('subtitle')} />
 
         {/* Features grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -58,17 +51,17 @@ export function FeaturesSection() {
                 )}
                 style={{ animationDelay: `${index * 0.1}s`, animationFillMode: 'forwards' }}
               >
-                <CardContent className="p-6">
-                  <div className="mb-4 p-3 rounded-lg bg-primary/10 w-fit group-hover:bg-primary/20 transition-colors">
+                <CardHeader>
+                  <div className="mb-2 p-3 rounded-lg bg-primary/10 w-fit group-hover:bg-primary/20 transition-colors">
                     <Icon className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                  <CardTitle className="text-lg">
                     {t(`${feature.key}.title`)}
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
+                  </CardTitle>
+                  <CardDescription className="leading-relaxed">
                     {t(`${feature.key}.description`)}
-                  </p>
-                </CardContent>
+                  </CardDescription>
+                </CardHeader>
               </Card>
             );
           })}

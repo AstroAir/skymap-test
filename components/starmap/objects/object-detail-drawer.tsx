@@ -7,7 +7,6 @@ import {
   ExternalLink, 
   Crosshair, 
   Plus, 
-  ChevronUp,
   Loader2,
   MapPin,
   Ruler,
@@ -26,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Drawer,
@@ -34,18 +34,13 @@ import {
   DrawerTitle,
   DrawerClose,
 } from '@/components/ui/drawer';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 import { ObjectImageGallery } from './object-image-gallery';
+import { RiseTransitSetGrid } from './rise-transit-set-grid';
+import { FeasibilityBadge } from '../planning/feasibility-badge';
 import { AltitudeChart } from '../planning/altitude-chart';
 import { useMountStore, useTargetListStore } from '@/lib/stores';
 import { useCelestialName, useTargetAstroData } from '@/lib/hooks';
-import { formatTimeShort } from '@/lib/astronomy/astro-utils';
 import {
   getCachedObjectInfo,
   enhanceObjectInfo,
@@ -175,14 +170,14 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
   const handleAddToList = useCallback(() => {
     if (!selectedObject) return;
     addTarget({
-      name: selectedObject.names[0] || 'Unknown',
+      name: selectedObject.names[0] || t('common.unknown'),
       ra: selectedObject.raDeg,
       dec: selectedObject.decDeg,
       raString: selectedObject.ra,
       decString: selectedObject.dec,
       priority: 'medium',
     });
-  }, [selectedObject, addTarget]);
+  }, [selectedObject, addTarget, t]);
 
   const handleCopyCoordinates = useCallback(async () => {
     if (!selectedObject) return;
@@ -199,7 +194,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
 
 
   const currentAstro = astroData;
-  const displayName = translatedName || selectedObject?.names[0] || 'Unknown';
+  const displayName = translatedName || selectedObject?.names[0] || t('common.unknown');
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -266,8 +261,14 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
 
         <ScrollArea className="flex-1 px-4 pb-4">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="space-y-4">
+              <Skeleton className="h-9 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <div className="grid grid-cols-2 gap-3">
+                <Skeleton className="h-16 rounded-lg" />
+                <Skeleton className="h-16 rounded-lg" />
+              </div>
+              <Skeleton className="h-12 w-full rounded-lg" />
             </div>
           ) : (
             <Tabs defaultValue="overview" className="w-full">
@@ -443,35 +444,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                 {currentAstro && (
                   <>
                     {/* Rise/Transit/Set */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="text-center p-3 rounded-lg bg-muted/30">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1">
-                          <ChevronUp className="h-3 w-3" />
-                          {t('time.rise')}
-                        </div>
-                        <p className="font-mono text-sm font-medium">
-                          {currentAstro.visibility.isCircumpolar ? '∞' : formatTimeShort(currentAstro.visibility.riseTime)}
-                        </p>
-                      </div>
-                      <div className="text-center p-3 rounded-lg bg-muted/30">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {t('time.transit')}
-                        </div>
-                        <p className="font-mono text-sm font-medium">
-                          {formatTimeShort(currentAstro.visibility.transitTime)}
-                        </p>
-                      </div>
-                      <div className="text-center p-3 rounded-lg bg-muted/30">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1">
-                          <ChevronUp className="h-3 w-3 rotate-180" />
-                          {t('time.set')}
-                        </div>
-                        <p className="font-mono text-sm font-medium">
-                          {currentAstro.visibility.isCircumpolar ? '∞' : formatTimeShort(currentAstro.visibility.setTime)}
-                        </p>
-                      </div>
-                    </div>
+                    <RiseTransitSetGrid visibility={currentAstro.visibility} variant="full" />
 
                     {/* Moon Distance & Max Altitude */}
                     <div className="grid grid-cols-2 gap-3">
@@ -500,39 +473,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                     </div>
 
                     {/* Imaging Feasibility */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className={cn(
-                            'flex items-center justify-between p-3 rounded-lg border',
-                            getFeasibilityColor(currentAstro.feasibility.recommendation, 'full')
-                          )}>
-                            <div className="flex items-center gap-2">
-                              <TrendingUp className="h-4 w-4" />
-                              <span className="font-medium capitalize">
-                                {currentAstro.feasibility.recommendation.replace('_', ' ')}
-                              </span>
-                            </div>
-                            <span className="font-mono font-bold">
-                              {currentAstro.feasibility.score}/100
-                            </span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs">
-                          <div className="space-y-1 text-xs">
-                            <p className="font-medium mb-1">{t('objectDetail.feasibilityBreakdown')}</p>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                              <span>{t('feasibility.moon')}:</span>
-                              <span className="text-right">{currentAstro.feasibility.moonScore}</span>
-                              <span>{t('feasibility.altitude')}:</span>
-                              <span className="text-right">{currentAstro.feasibility.altitudeScore}</span>
-                              <span>{t('feasibility.duration')}:</span>
-                              <span className="text-right">{currentAstro.feasibility.durationScore}</span>
-                            </div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <FeasibilityBadge feasibility={currentAstro.feasibility} variant="inline" tooltipSide="top" className="p-3 rounded-lg border" />
 
                     {/* Dark Imaging Window */}
                     {currentAstro.visibility.darkImagingHours > 0 && (

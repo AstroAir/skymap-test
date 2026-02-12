@@ -373,8 +373,8 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="google">Google Maps</SelectItem>
-                      <SelectItem value="mapbox">Mapbox</SelectItem>
+                      <SelectItem value="google">{PROVIDER_INFO.google.name}</SelectItem>
+                      <SelectItem value="mapbox">{PROVIDER_INFO.mapbox.name}</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">

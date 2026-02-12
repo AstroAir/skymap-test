@@ -41,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -55,6 +56,56 @@ import { useEquipmentStore } from '@/lib/stores/equipment-store';
 import { normalizeTelescopes, normalizeCameras } from '@/lib/core/equipment-normalize';
 import { validateTelescopeForm, validateCameraForm } from '@/lib/core/management-validators';
 import type { NormalizedTelescope, NormalizedCamera, EquipmentManagerProps } from '@/types/starmap/management';
+import type { LucideIcon } from 'lucide-react';
+
+interface EquipmentListItemProps {
+  icon: LucideIcon;
+  name: string;
+  detail: string;
+  isSelected?: boolean;
+  isDefault?: boolean;
+  selectable?: boolean;
+  deleteLabel: string;
+  onSelect?: () => void;
+  onDelete: () => void;
+}
+
+function EquipmentListItem({
+  icon: Icon,
+  name,
+  detail,
+  isSelected,
+  isDefault,
+  selectable,
+  deleteLabel,
+  onSelect,
+  onDelete,
+}: EquipmentListItemProps) {
+  return (
+    <div
+      className={`flex items-center justify-between p-2 border rounded ${selectable ? 'cursor-pointer hover:bg-muted/50' : ''} ${isSelected ? 'border-primary bg-primary/10' : ''}`}
+      onClick={selectable ? onSelect : undefined}
+    >
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4" />
+        <div>
+          <p className="font-medium text-sm">{name}</p>
+          <p className="text-xs text-muted-foreground">{detail}</p>
+        </div>
+        {isSelected && <Check className="h-3 w-3 text-primary" />}
+        {isDefault && <Star className="h-3 w-3 text-yellow-500" />}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={deleteLabel}
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   const t = useTranslations();
@@ -406,50 +457,34 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {telescopeList.map((scope) => {
-                      const isSelected = !isTauriAvailable && activeTelescopeId === scope.id;
-                      
-                      return (
-                        <div 
-                          key={scope.id} 
-                          className={`flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 ${isSelected ? 'border-primary bg-primary/10' : ''}`}
-                          onClick={() => !isTauriAvailable && handleSelectTelescope(scope)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Telescope className="h-4 w-4" />
-                            <div>
-                              <p className="font-medium text-sm">{scope.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {scope.aperture}mm f/{scope.focalRatio.toFixed(1)}
-                              </p>
-                            </div>
-                            {isSelected && <Check className="h-3 w-3 text-primary" />}
-                            {scope.isDefault && <Star className="h-3 w-3 text-yellow-500" />}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={t('equipment.delete')}
-                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: scope.id, name: scope.name, type: 'telescope' }); }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
+                    {telescopeList.map((scope) => (
+                      <EquipmentListItem
+                        key={scope.id}
+                        icon={Telescope}
+                        name={scope.name}
+                        detail={`${scope.aperture}mm f/${scope.focalRatio.toFixed(1)}`}
+                        isSelected={!isTauriAvailable && activeTelescopeId === scope.id}
+                        isDefault={scope.isDefault}
+                        selectable={!isTauriAvailable}
+                        deleteLabel={t('equipment.delete')}
+                        onSelect={() => handleSelectTelescope(scope)}
+                        onDelete={() => setDeleteTarget({ id: scope.id, name: scope.name, type: 'telescope' })}
+                      />
+                    ))}
                   </div>
                 )}
               </ScrollArea>
 
               {addingTelescope ? (
-                <div className="space-y-3 border rounded p-3">
+                <Card className="py-3">
+                  <CardContent className="space-y-3 px-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label>{t('equipment.name') || 'Name'}</Label>
                       <Input
                         value={telescopeForm.name}
                         onChange={(e) => setTelescopeForm({ ...telescopeForm, name: e.target.value })}
-                        placeholder="e.g. Newton 200/1000"
+                        placeholder={t('equipment.telescopeNamePlaceholder')}
                       />
                     </div>
                     <div>
@@ -498,7 +533,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                   </div>
-                </div>
+                  </CardContent>
+                </Card>
               ) : (
                 <Button variant="outline" className="w-full" onClick={() => setAddingTelescope(true)}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -515,50 +551,34 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {cameraList.map((cam) => {
-                      const isSelected = !isTauriAvailable && activeCameraId === cam.id;
-                      
-                      return (
-                        <div 
-                          key={cam.id} 
-                          className={`flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted/50 ${isSelected ? 'border-primary bg-primary/10' : ''}`}
-                          onClick={() => !isTauriAvailable && handleSelectCamera(cam)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Camera className="h-4 w-4" />
-                            <div>
-                              <p className="font-medium text-sm">{cam.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {cam.sensorWidth}×{cam.sensorHeight}mm
-                              </p>
-                            </div>
-                            {isSelected && <Check className="h-3 w-3 text-primary" />}
-                            {cam.isDefault && <Star className="h-3 w-3 text-yellow-500" />}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={t('equipment.delete')}
-                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: cam.id, name: cam.name, type: 'camera' }); }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
+                    {cameraList.map((cam) => (
+                      <EquipmentListItem
+                        key={cam.id}
+                        icon={Camera}
+                        name={cam.name}
+                        detail={`${cam.sensorWidth}×${cam.sensorHeight}mm`}
+                        isSelected={!isTauriAvailable && activeCameraId === cam.id}
+                        isDefault={cam.isDefault}
+                        selectable={!isTauriAvailable}
+                        deleteLabel={t('equipment.delete')}
+                        onSelect={() => handleSelectCamera(cam)}
+                        onDelete={() => setDeleteTarget({ id: cam.id, name: cam.name, type: 'camera' })}
+                      />
+                    ))}
                   </div>
                 )}
               </ScrollArea>
 
               {addingCamera ? (
-                <div className="space-y-3 border rounded p-3">
+                <Card className="py-3">
+                  <CardContent className="space-y-3 px-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label>{t('equipment.name') || 'Name'}</Label>
                       <Input
                         value={cameraForm.name}
                         onChange={(e) => setCameraForm({ ...cameraForm, name: e.target.value })}
-                        placeholder="e.g. ASI294MC Pro"
+                        placeholder={t('equipment.cameraNamePlaceholder')}
                       />
                     </div>
                     <div>
@@ -610,7 +630,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                   </div>
-                </div>
+                  </CardContent>
+                </Card>
               ) : (
                 <Button variant="outline" className="w-full" onClick={() => setAddingCamera(true)}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -629,39 +650,29 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                 ) : (
                   <div className="space-y-2">
                     {equipment?.barlow_reducers.map((barlow) => (
-                      <div key={barlow.id} className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          <Plus className="h-4 w-4" />
-                          <div>
-                            <p className="font-medium text-sm">{barlow.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {barlow.factor}x {barlow.factor > 1 ? 'Barlow' : 'Reducer'}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t('equipment.delete')}
-                          onClick={() => setDeleteTarget({ id: barlow.id, name: barlow.name, type: 'barlow' })}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <EquipmentListItem
+                        key={barlow.id}
+                        icon={Plus}
+                        name={barlow.name}
+                        detail={`${barlow.factor}x ${barlow.factor > 1 ? t('equipment.barlowLabel') : t('equipment.reducerLabel')}`}
+                        deleteLabel={t('equipment.delete')}
+                        onDelete={() => setDeleteTarget({ id: barlow.id, name: barlow.name, type: 'barlow' })}
+                      />
                     ))}
                   </div>
                 )}
               </ScrollArea>
 
               {addingBarlow ? (
-                <div className="space-y-3 border rounded p-3">
+                <Card className="py-3">
+                  <CardContent className="space-y-3 px-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label>{t('equipment.name') || 'Name'}</Label>
                       <Input
                         value={barlowForm.name}
                         onChange={(e) => setBarlowForm({ ...barlowForm, name: e.target.value })}
-                        placeholder="e.g. 2x Barlow"
+                        placeholder={t('equipment.barlowNamePlaceholder')}
                       />
                     </div>
                     <div>
@@ -683,7 +694,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                   </div>
-                </div>
+                  </CardContent>
+                </Card>
               ) : (
                 <Button variant="outline" className="w-full" onClick={() => setAddingBarlow(true)}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -702,39 +714,29 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                 ) : (
                   <div className="space-y-2">
                     {equipment?.filters.map((filter) => (
-                      <div key={filter.id} className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          <Wrench className="h-4 w-4" />
-                          <div>
-                            <p className="font-medium text-sm">{filter.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {filter.filter_type} {filter.bandwidth && `(${filter.bandwidth}nm)`}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t('equipment.delete')}
-                          onClick={() => setDeleteTarget({ id: filter.id, name: filter.name, type: 'filter' })}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <EquipmentListItem
+                        key={filter.id}
+                        icon={Wrench}
+                        name={filter.name}
+                        detail={`${filter.filter_type}${filter.bandwidth ? ` (${filter.bandwidth}nm)` : ''}`}
+                        deleteLabel={t('equipment.delete')}
+                        onDelete={() => setDeleteTarget({ id: filter.id, name: filter.name, type: 'filter' })}
+                      />
                     ))}
                   </div>
                 )}
               </ScrollArea>
 
               {addingFilter ? (
-                <div className="space-y-3 border rounded p-3">
+                <Card className="py-3">
+                  <CardContent className="space-y-3 px-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label>{t('equipment.name') || 'Name'}</Label>
                       <Input
                         value={filterForm.name}
                         onChange={(e) => setFilterForm({ ...filterForm, name: e.target.value })}
-                        placeholder="e.g. Ha Filter"
+                        placeholder={t('equipment.filterNamePlaceholder')}
                       />
                     </div>
                     <div>
@@ -778,7 +780,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                   </div>
-                </div>
+                  </CardContent>
+                </Card>
               ) : (
                 <Button variant="outline" className="w-full" onClick={() => setAddingFilter(true)}>
                   <Plus className="h-4 w-4 mr-2" />

@@ -80,6 +80,14 @@ jest.mock('@/components/ui/popover', () => ({
   PopoverTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+jest.mock('@/components/ui/badge', () => ({
+  Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+}));
+
+jest.mock('@/components/ui/separator', () => ({
+  Separator: () => <hr />,
+}));
+
 import { StellariumMount } from '../stellarium-mount';
 
 const createMockStel = () => {

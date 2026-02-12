@@ -13,6 +13,9 @@ import {
   Package,
   RefreshCw,
   Telescope,
+  AlertTriangle,
+  CheckCircle2,
+  Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -36,7 +39,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
@@ -44,7 +46,6 @@ import { useOfflineStore, formatBytes, STELLARIUM_LAYERS, offlineCacheManager, c
 import { SKY_SURVEYS } from '@/lib/core/constants';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { AlertTriangle, CheckCircle2, Wrench } from 'lucide-react';
 import { useCache } from '@/lib/tauri/hooks';
 import { unifiedCacheApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
@@ -316,7 +317,6 @@ export function OfflineCacheManager() {
   const overallProgress = totalSize > 0 ? (cachedSize / totalSize) * 100 : 0;
 
   return (
-    <TooltipProvider>
       <Card className="bg-card/95 backdrop-blur-sm border-border">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -916,7 +916,6 @@ export function OfflineCacheManager() {
           )}
         </CardContent>
       </Card>
-    </TooltipProvider>
   );
 }
 

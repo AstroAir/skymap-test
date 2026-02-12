@@ -123,11 +123,11 @@ export function AlmanacTab({ latitude, longitude }: AlmanacTabProps) {
             </div>
             <Separator />
             <div className="flex justify-between">
-              <span className="text-muted-foreground">RA</span>
+              <span className="text-muted-foreground">{t('astroCalc.tableRA')}</span>
               <span className="font-mono">{degreesToHMS(moonPos.ra)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Dec</span>
+              <span className="text-muted-foreground">{t('astroCalc.tableDec')}</span>
               <span className="font-mono">{degreesToDMS(moonPos.dec)}</span>
             </div>
             <div className="flex justify-between">
@@ -165,7 +165,7 @@ export function AlmanacTab({ latitude, longitude }: AlmanacTabProps) {
                 )}
               >
                 <span className="text-muted-foreground">
-                  {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                  {d.toLocaleDateString(undefined, { weekday: 'short' })}
                 </span>
                 <span className="font-medium">
                   {d.getDate()}

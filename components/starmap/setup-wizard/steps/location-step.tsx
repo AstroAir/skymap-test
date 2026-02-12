@@ -6,7 +6,8 @@ import { Navigation, Globe, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useMountStore } from '@/lib/stores/mount-store';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
 import type { ObserverLocation } from '@/types/starmap/setup-wizard';
@@ -19,7 +20,6 @@ export function LocationStep() {
 
   const [location, setLocationState] = useState<ObserverLocation | null>(null);
 
-  const [inputMode, setInputMode] = useState<'gps' | 'manual'>('gps');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [manualLat, setManualLat] = useState(location?.latitude?.toString() || '');
@@ -136,58 +136,21 @@ export function LocationStep() {
         {t('setupWizard.steps.location.description')}
       </p>
 
-      {/* Mode selection */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => setInputMode('gps')}
-          aria-pressed={inputMode === 'gps'}
-          className={cn(
-            'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
-            inputMode === 'gps'
-              ? 'border-primary bg-primary/10'
-              : 'border-border hover:border-primary/50 hover:bg-muted/50'
-          )}
-        >
-          <div className={cn(
-            'w-10 h-10 rounded-full flex items-center justify-center',
-            inputMode === 'gps' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-          )}>
-            <Navigation className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-medium">{t('setupWizard.steps.location.useGPS')}</p>
-            <p className="text-xs text-muted-foreground">{t('setupWizard.steps.location.automatic')}</p>
-          </div>
-        </button>
+      {/* Mode selection with Tabs */}
+      <Tabs defaultValue="gps" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="gps" className="gap-2">
+            <Navigation className="w-4 h-4" />
+            {t('setupWizard.steps.location.useGPS')}
+          </TabsTrigger>
+          <TabsTrigger value="manual" className="gap-2">
+            <Globe className="w-4 h-4" />
+            {t('setupWizard.steps.location.enterManually')}
+          </TabsTrigger>
+        </TabsList>
 
-        <button
-          type="button"
-          onClick={() => setInputMode('manual')}
-          aria-pressed={inputMode === 'manual'}
-          className={cn(
-            'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
-            inputMode === 'manual'
-              ? 'border-primary bg-primary/10'
-              : 'border-border hover:border-primary/50 hover:bg-muted/50'
-          )}
-        >
-          <div className={cn(
-            'w-10 h-10 rounded-full flex items-center justify-center',
-            inputMode === 'manual' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-          )}>
-            <Globe className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-medium">{t('setupWizard.steps.location.enterManually')}</p>
-            <p className="text-xs text-muted-foreground">{t('setupWizard.steps.location.coordinates')}</p>
-          </div>
-        </button>
-      </div>
-
-      {/* GPS mode */}
-      {inputMode === 'gps' && (
-        <div className="space-y-4">
+        {/* GPS mode */}
+        <TabsContent value="gps" className="space-y-4">
           <Button
             onClick={handleGetGPSLocation}
             disabled={isGettingLocation}
@@ -208,14 +171,14 @@ export function LocationStep() {
           </Button>
 
           {gpsError && (
-            <p className="text-sm text-destructive text-center">{gpsError}</p>
+            <Alert variant="destructive">
+              <AlertDescription>{gpsError}</AlertDescription>
+            </Alert>
           )}
-        </div>
-      )}
+        </TabsContent>
 
-      {/* Manual mode */}
-      {inputMode === 'manual' && (
-        <div className="space-y-4">
+        {/* Manual mode */}
+        <TabsContent value="manual" className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="latitude">{t('setupWizard.steps.location.latitude')}</Label>
@@ -262,24 +225,18 @@ export function LocationStep() {
           >
             {t('setupWizard.steps.location.setLocation')}
           </Button>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
 
       {/* Current location display */}
       {hasLocation && (
-        <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/30">
-          <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-            <Check className="w-5 h-5 text-green-500" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              {t('setupWizard.steps.location.locationSet')}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°{location.altitude > 0 ? `, ${location.altitude.toFixed(0)}m` : ''}
-            </p>
-          </div>
-        </div>
+        <Alert className="bg-green-500/10 border-green-500/30">
+          <Check className="h-4 w-4 text-green-500" />
+          <AlertTitle>{t('setupWizard.steps.location.locationSet')}</AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°{location.altitude > 0 ? `, ${location.altitude.toFixed(0)}m` : ''}
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Skip note */}

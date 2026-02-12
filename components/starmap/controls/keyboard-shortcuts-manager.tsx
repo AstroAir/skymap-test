@@ -2,9 +2,37 @@
 
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { useKeyboardShortcuts, STARMAP_SHORTCUT_KEYS, useTimeControls, type KeyboardShortcut } from '@/lib/hooks';
-import { useStellariumStore, useSettingsStore, useEquipmentStore } from '@/lib/stores';
+import { useKeyboardShortcuts, useTimeControls, type KeyboardShortcut } from '@/lib/hooks';
+import {
+  useStellariumStore,
+  useSettingsStore,
+  useEquipmentStore,
+  useKeybindingStore,
+  type KeyBinding,
+  type ShortcutActionId,
+} from '@/lib/stores';
 import type { KeyboardShortcutsManagerProps } from '@/types/starmap/controls';
+
+/**
+ * Convert a store KeyBinding into a hook-compatible KeyboardShortcut entry.
+ */
+function bindingToShortcut(
+  binding: KeyBinding,
+  description: string,
+  action: () => void,
+  opts?: Partial<KeyboardShortcut>,
+): KeyboardShortcut {
+  return {
+    key: binding.key,
+    ctrl: binding.ctrl,
+    shift: binding.shift,
+    alt: binding.alt,
+    meta: binding.meta,
+    description,
+    action,
+    ...opts,
+  };
+}
 
 export function KeyboardShortcutsManager({
   onToggleSearch,
@@ -20,135 +48,69 @@ export function KeyboardShortcutsManager({
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
   const fovEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
   const setFovEnabled = useEquipmentStore((state) => state.setFOVEnabled);
+  const getBinding = useKeybindingStore((state) => state.getBinding);
+  const customBindings = useKeybindingStore((state) => state.customBindings);
 
   // Time control handlers (extracted to reusable hook)
   const { handlePauseTime, handleSpeedUp, handleSlowDown, handleResetTime } = useTimeControls(stel);
 
-  // Build shortcuts list
+  /** Helper: get effective binding for an action */
+  const kb = (id: ShortcutActionId) => getBinding(id);
+
+  // Build shortcuts list — reactive to customBindings changes
   const shortcuts = useMemo<KeyboardShortcut[]>(() => {
     const list: KeyboardShortcut[] = [];
 
     // Navigation shortcuts
     if (onZoomIn) {
-      list.push({
-        key: STARMAP_SHORTCUT_KEYS.ZOOM_IN,
-        description: t('zoomIn'),
-        action: onZoomIn,
-      });
-      list.push({
-        key: '=', // Also allow = without shift
-        description: t('zoomIn'),
-        action: onZoomIn,
-      });
+      list.push(bindingToShortcut(kb('ZOOM_IN'), t('zoomIn'), onZoomIn));
+      // Also allow = without shift as a convenience alias for +
+      const zoomBinding = kb('ZOOM_IN');
+      if (zoomBinding.key === '+') {
+        list.push({ key: '=', description: t('zoomIn'), action: onZoomIn });
+      }
     }
 
     if (onZoomOut) {
-      list.push({
-        key: STARMAP_SHORTCUT_KEYS.ZOOM_OUT,
-        description: t('zoomOut'),
-        action: onZoomOut,
-      });
+      list.push(bindingToShortcut(kb('ZOOM_OUT'), t('zoomOut'), onZoomOut));
     }
 
     if (onResetView) {
-      list.push({
-        key: STARMAP_SHORTCUT_KEYS.RESET_VIEW,
-        description: t('resetView'),
-        action: onResetView,
-      });
+      list.push(bindingToShortcut(kb('RESET_VIEW'), t('resetView'), onResetView));
     }
 
     // Panel shortcuts
     if (onToggleSearch) {
-      list.push({
-        key: STARMAP_SHORTCUT_KEYS.TOGGLE_SEARCH,
-        ctrl: true,
-        description: t('toggleSearch'),
-        action: onToggleSearch,
-      });
-      list.push({
-        key: '/',
-        description: t('toggleSearch'),
-        action: onToggleSearch,
-      });
+      list.push(bindingToShortcut(kb('TOGGLE_SEARCH'), t('toggleSearch'), onToggleSearch));
+      list.push({ key: '/', description: t('toggleSearch'), action: onToggleSearch });
     }
 
     if (onToggleSessionPanel) {
-      list.push({
-        key: STARMAP_SHORTCUT_KEYS.TOGGLE_SESSION_PANEL,
-        description: t('toggleSessionPanel'),
-        action: onToggleSessionPanel,
-      });
+      list.push(bindingToShortcut(kb('TOGGLE_SESSION_PANEL'), t('toggleSessionPanel'), onToggleSessionPanel));
     }
 
     // FOV overlay
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.TOGGLE_FOV,
-      description: t('toggleFovOverlay'),
-      action: () => setFovEnabled(!fovEnabled),
-    });
+    list.push(bindingToShortcut(kb('TOGGLE_FOV'), t('toggleFovOverlay'), () => setFovEnabled(!fovEnabled)));
 
     // Display toggles
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.TOGGLE_CONSTELLATIONS,
-      description: t('toggleConstellations'),
-      action: () => toggleStellariumSetting('constellationsLinesVisible'),
-    });
-
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.TOGGLE_GRID,
-      description: t('toggleGrid'),
-      action: () => toggleStellariumSetting('equatorialLinesVisible'),
-    });
-
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.TOGGLE_DSO,
-      description: t('toggleDso'),
-      action: () => toggleStellariumSetting('dsosVisible'),
-    });
-
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.TOGGLE_ATMOSPHERE,
-      description: t('toggleAtmosphere'),
-      action: () => toggleStellariumSetting('atmosphereVisible'),
-    });
+    list.push(bindingToShortcut(kb('TOGGLE_CONSTELLATIONS'), t('toggleConstellations'), () => toggleStellariumSetting('constellationsLinesVisible')));
+    list.push(bindingToShortcut(kb('TOGGLE_GRID'), t('toggleGrid'), () => toggleStellariumSetting('equatorialLinesVisible')));
+    list.push(bindingToShortcut(kb('TOGGLE_DSO'), t('toggleDso'), () => toggleStellariumSetting('dsosVisible')));
+    list.push(bindingToShortcut(kb('TOGGLE_ATMOSPHERE'), t('toggleAtmosphere'), () => toggleStellariumSetting('atmosphereVisible')));
 
     // Time controls
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.PAUSE_TIME,
-      description: t('pauseResumeTime'),
-      action: handlePauseTime,
-    });
-
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.SPEED_UP,
-      description: t('speedUpTime'),
-      action: handleSpeedUp,
-    });
-
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.SLOW_DOWN,
-      description: t('slowDownTime'),
-      action: handleSlowDown,
-    });
-
-    list.push({
-      key: STARMAP_SHORTCUT_KEYS.RESET_TIME,
-      description: t('resetTime'),
-      action: handleResetTime,
-    });
+    list.push(bindingToShortcut(kb('PAUSE_TIME'), t('pauseResumeTime'), handlePauseTime));
+    list.push(bindingToShortcut(kb('SPEED_UP'), t('speedUpTime'), handleSpeedUp));
+    list.push(bindingToShortcut(kb('SLOW_DOWN'), t('slowDownTime'), handleSlowDown));
+    list.push(bindingToShortcut(kb('RESET_TIME'), t('resetTime'), handleResetTime));
 
     // Close panel
     if (onClosePanel) {
-      list.push({
-        key: STARMAP_SHORTCUT_KEYS.CLOSE_PANEL,
-        description: t('closePanel'),
-        action: onClosePanel,
-        ignoreInputs: false, // Also work when input focused
-      });
+      list.push(bindingToShortcut(kb('CLOSE_PANEL'), t('closePanel'), onClosePanel, { ignoreInputs: false }));
     }
 
     return list;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- customBindings triggers rebuild when user changes bindings
   }, [
     onZoomIn,
     onZoomOut,
@@ -163,6 +125,8 @@ export function KeyboardShortcutsManager({
     handleSpeedUp,
     handleSlowDown,
     handleResetTime,
+    customBindings,
+    getBinding,
     t,
   ]);
 

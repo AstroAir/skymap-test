@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -16,18 +17,16 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from '@/components/ui/tooltip';
 
 import { AltitudeChartCompact } from './altitude-chart-compact';
+import { RiseTransitSetGrid } from './rise-transit-set-grid';
+import { FeasibilityBadge } from '../planning/feasibility-badge';
 import { useMountStore, useTargetListStore } from '@/lib/stores';
 import { useCelestialName, useCelestialNames, useAdaptivePosition, useAstroEnvironment, useTargetAstroData } from '@/lib/hooks';
-import { formatTimeShort } from '@/lib/astronomy/astro-utils';
 import { cn } from '@/lib/utils';
-import { getObjectTypeIcon, getObjectTypeColor, getFeasibilityColor } from '@/lib/astronomy/object-type-utils';
+import { getObjectTypeIcon, getObjectTypeColor } from '@/lib/astronomy/object-type-utils';
 import type { InfoPanelProps } from '@/types/starmap/objects';
 
 export function InfoPanel({
@@ -92,14 +91,14 @@ export function InfoPanel({
   const handleAddToList = useCallback(() => {
     if (!selectedObject) return;
     addTarget({
-      name: selectedObject.names[0] || 'Unknown',
+      name: selectedObject.names[0] || t('common.unknown'),
       ra: selectedObject.raDeg,
       dec: selectedObject.decDeg,
       raString: selectedObject.ra,
       decString: selectedObject.dec,
       priority: 'medium',
     });
-  }, [selectedObject, addTarget]);
+  }, [selectedObject, addTarget, t]);
 
   const hasCustomPosition = clickPosition && containerBounds;
 
@@ -149,13 +148,9 @@ export function InfoPanel({
                   {/* Names and Type Badge */}
                   <div className="flex items-center gap-2 flex-wrap">
                     {selectedObject.type && (
-                      <span className={cn(
-                        'text-[10px] px-1.5 py-0.5 rounded-full border',
-                        getObjectTypeColor(selectedObject.type),
-                        'border-current/30 bg-current/10'
-                      )}>
+                      <Badge variant="outline" className={cn('text-[10px]', getObjectTypeColor(selectedObject.type))}>
                         {selectedObject.type}
-                      </span>
+                      </Badge>
                     )}
                     {selectedObject.names.length > 1 && (
                       <span className="text-xs text-muted-foreground truncate">
@@ -194,11 +189,11 @@ export function InfoPanel({
                   {/* Coordinates */}
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-muted-foreground">RA: </span>
+                      <span className="text-muted-foreground">{t('coordinates.ra')}: </span>
                       <span className="font-mono text-foreground">{selectedObject.ra}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Dec: </span>
+                      <span className="text-muted-foreground">{t('coordinates.dec')}: </span>
                       <span className="font-mono text-foreground">{selectedObject.dec}</span>
                     </div>
                   </div>
@@ -209,7 +204,7 @@ export function InfoPanel({
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="flex items-center gap-1">
                           <ArrowUp className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Alt:</span>
+                          <span className="text-muted-foreground">{t('coordinates.alt')}:</span>
                           <span className={cn(
                             targetData.altitude > 30 ? 'text-green-400' : 
                             targetData.altitude > 0 ? 'text-yellow-400' : 'text-red-400'
@@ -219,30 +214,13 @@ export function InfoPanel({
                         </div>
                         <div className="flex items-center gap-1">
                           <Compass className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Az:</span>
+                          <span className="text-muted-foreground">{t('coordinates.az')}:</span>
                           <span className="text-foreground">{targetData.azimuth.toFixed(1)}°</span>
                         </div>
                       </div>
                       
                       {/* Rise/Transit/Set */}
-                      <div className="grid grid-cols-3 gap-0.5 sm:gap-1 text-xs">
-                        <div className="text-center p-1 rounded bg-muted/30">
-                          <div className="text-[10px] text-muted-foreground">{t('time.rise')}</div>
-                          <div className="font-mono text-foreground">
-                            {targetData.visibility.isCircumpolar ? '∞' : formatTimeShort(targetData.visibility.riseTime)}
-                          </div>
-                        </div>
-                        <div className="text-center p-1 rounded bg-muted/30">
-                          <div className="text-[10px] text-muted-foreground">{t('time.transit')}</div>
-                          <div className="font-mono text-foreground">{formatTimeShort(targetData.visibility.transitTime)}</div>
-                        </div>
-                        <div className="text-center p-1 rounded bg-muted/30">
-                          <div className="text-[10px] text-muted-foreground">{t('time.set')}</div>
-                          <div className="font-mono text-foreground">
-                            {targetData.visibility.isCircumpolar ? '∞' : formatTimeShort(targetData.visibility.setTime)}
-                          </div>
-                        </div>
-                      </div>
+                      <RiseTransitSetGrid visibility={targetData.visibility} variant="compact" />
                       
                       {/* Moon distance & Max alt */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
@@ -259,29 +237,7 @@ export function InfoPanel({
                       </div>
                       
                       {/* Feasibility Score */}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className={cn(
-                            'flex items-center justify-between p-1.5 rounded text-xs',
-                            getFeasibilityColor(targetData.feasibility.recommendation, 'compact')
-                          )}>
-                            <div className="flex items-center gap-1.5">
-                              <TrendingUp className="h-3 w-3" />
-                              <span className="capitalize">{targetData.feasibility.recommendation.replace('_', ' ')}</span>
-                            </div>
-                            <span className="font-mono">{targetData.feasibility.score}/100</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-56">
-                          <div className="space-y-1 text-xs">
-                            <div className="grid grid-cols-2 gap-x-2">
-                              <span>Moon:</span><span>{targetData.feasibility.moonScore}</span>
-                              <span>Altitude:</span><span>{targetData.feasibility.altitudeScore}</span>
-                              <span>Duration:</span><span>{targetData.feasibility.durationScore}</span>
-                            </div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
+                      <FeasibilityBadge feasibility={targetData.feasibility} variant="inline" tooltipSide="right" />
                       
                       {/* Actions */}
                       <div className="flex gap-1.5 sm:gap-2">

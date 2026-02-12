@@ -22,14 +22,14 @@ export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOu
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col items-center gap-1.5 sm:gap-2 bg-background/80 backdrop-blur-sm rounded-lg p-1.5 sm:p-2 border border-border" role="group" aria-label={t('zoom.zoomControls')}>
+      <div className="flex flex-col items-center gap-1 sm:gap-1.5 bg-background/80 backdrop-blur-sm rounded-lg p-1 sm:p-1.5 border border-border" role="group" aria-label={t('zoom.zoomControls')}>
         {/* Zoom In Button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 touch-target toolbar-btn"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 touch-target toolbar-btn"
               onClick={onZoomIn}
               disabled={fov <= MIN_FOV}
               aria-label={t('zoom.zoomIn')}
@@ -43,7 +43,7 @@ export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOu
         </Tooltip>
 
         {/* Vertical Slider */}
-        <div className="h-24 sm:h-32 flex items-center">
+        <div className="h-20 sm:h-28 flex items-center">
           <Slider
             orientation="vertical"
             value={[100 - sliderValue]}
@@ -64,7 +64,7 @@ export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOu
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 touch-target toolbar-btn"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 touch-target toolbar-btn"
               onClick={onZoomOut}
               disabled={fov >= MAX_FOV}
               aria-label={t('zoom.zoomOut')}

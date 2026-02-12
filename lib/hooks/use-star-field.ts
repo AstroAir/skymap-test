@@ -11,7 +11,7 @@ const STAR_COUNT = 200;
 const MAX_SHOOTING_STARS = 2;
 const SHOOTING_STAR_SPAWN_CHANCE = 0.005;
 
-export function useStarField(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+export function useStarField(canvasRef: React.RefObject<HTMLCanvasElement | null>, isDark: boolean = true) {
   const animationRef = useRef<number>(0);
   const starsRef = useRef<Star[]>(generateStars(STAR_COUNT));
   const shootingStarsRef = useRef<ShootingStar[]>([]);
@@ -56,7 +56,9 @@ export function useStarField(canvasRef: React.RefObject<HTMLCanvasElement | null
           0,
           Math.PI * 2
         );
-        ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0.1, opacity)})`;
+        ctx.fillStyle = isDark
+          ? `rgba(255, 255, 255, ${Math.max(0.1, opacity)})`
+          : `rgba(0, 0, 0, ${Math.max(0.05, opacity * 0.4)})`;
         ctx.fill();
       });
 
@@ -73,9 +75,15 @@ export function useStarField(canvasRef: React.RefObject<HTMLCanvasElement | null
         const endY = y + Math.sin(star.angle) * star.length;
 
         const gradient = ctx.createLinearGradient(x, y, endX, endY);
-        gradient.addColorStop(0, `rgba(255, 255, 255, 0)`);
-        gradient.addColorStop(0.5, `rgba(255, 255, 255, ${star.opacity * 0.8})`);
-        gradient.addColorStop(1, `rgba(255, 255, 255, ${star.opacity})`);
+        if (isDark) {
+          gradient.addColorStop(0, `rgba(255, 255, 255, 0)`);
+          gradient.addColorStop(0.5, `rgba(255, 255, 255, ${star.opacity * 0.8})`);
+          gradient.addColorStop(1, `rgba(255, 255, 255, ${star.opacity})`);
+        } else {
+          gradient.addColorStop(0, `rgba(0, 0, 0, 0)`);
+          gradient.addColorStop(0.5, `rgba(0, 0, 0, ${star.opacity * 0.3})`);
+          gradient.addColorStop(1, `rgba(0, 0, 0, ${star.opacity * 0.4})`);
+        }
 
         ctx.beginPath();
         ctx.moveTo(x, y);
@@ -102,5 +110,5 @@ export function useStarField(canvasRef: React.RefObject<HTMLCanvasElement | null
       window.removeEventListener('resize', resizeCanvas);
       cancelAnimationFrame(animationRef.current);
     };
-  }, [canvasRef]);
+  }, [canvasRef, isDark]);
 }

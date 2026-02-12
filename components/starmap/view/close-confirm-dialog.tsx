@@ -3,17 +3,18 @@
 import { memo, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import type { CloseConfirmDialogProps } from '@/types/starmap/view';
 
 export const CloseConfirmDialog = memo(function CloseConfirmDialog({
@@ -38,14 +39,14 @@ export const CloseConfirmDialog = memo(function CloseConfirmDialog({
   }, [onOpenChange]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>{t('starmap.closeConfirmTitle')}</DialogTitle>
-          <DialogDescription>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="sm:max-w-[400px]">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t('starmap.closeConfirmTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>
             {t('starmap.closeConfirmMessage')}
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
         <div className="flex items-center space-x-2 py-4">
           <Checkbox
             id="dontShowAgain"
@@ -56,16 +57,16 @@ export const CloseConfirmDialog = memo(function CloseConfirmDialog({
             {t('starmap.dontShowAgain')}
           </Label>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleCancel}>
             {t('common.cancel')}
-          </Button>
-          <Button variant="destructive" onClick={handleConfirm}>
+          </AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleConfirm}>
             {t('starmap.confirmClose')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 });
 CloseConfirmDialog.displayName = 'CloseConfirmDialog';

@@ -6,6 +6,7 @@ import { X, Star, Settings2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StellariumSearch, type StellariumSearchRef } from '../search/stellarium-search';
 import { FavoritesQuickAccess } from '../search/favorites-quick-access';
@@ -61,7 +62,8 @@ export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="max-h-[70vh] overflow-y-auto">
+        <CardContent>
+          <ScrollArea className="max-h-[70vh]">
           {showFavorites ? (
             <FavoritesQuickAccess
               onSelect={(_item) => {
@@ -82,6 +84,7 @@ export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps
               enableMultiSelect={true}
             />
           )}
+          </ScrollArea>
         </CardContent>
       </Card>
     );

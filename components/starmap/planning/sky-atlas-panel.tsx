@@ -564,7 +564,7 @@ export function SkyAtlasPanel() {
           <Telescope className="h-4 w-4" />
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="w-[320px] sm:w-[450px] md:w-[540px] h-full p-0 flex flex-col">
+      <DrawerContent className="w-[85vw] max-w-[360px] sm:max-w-[420px] md:max-w-[480px] h-full p-0 flex flex-col">
         <DrawerHeader className="p-4 pb-2 border-b">
           <DrawerTitle className="flex items-center gap-2">
             <Telescope className="h-5 w-5" />

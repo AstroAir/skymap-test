@@ -6,6 +6,9 @@
 import type { ImagingFeasibility } from '@/lib/astronomy/astro-utils';
 import type { TargetItem } from '@/lib/stores/target-list-store';
 import type { DeepSkyObject } from '@/lib/catalogs';
+import type { I18nMessage } from '@/lib/core/types';
+
+export type { I18nMessage };
 
 // ============================================================================
 // AltitudeChart
@@ -83,8 +86,8 @@ export interface SessionPlan {
   nightCoverage: number;
   efficiency: number;
   gaps: Array<{ start: Date; end: Date; duration: number }>;
-  recommendations: string[];
-  warnings: string[];
+  recommendations: I18nMessage[];
+  warnings: I18nMessage[];
 }
 
 export type OptimizationStrategy = 'altitude' | 'transit' | 'moon' | 'duration' | 'balanced';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState, RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, RefObject } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore, useSettingsStore, useMountStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
@@ -64,6 +64,12 @@ export function useStellariumLoader({
   const setBaseUrl = useStellariumStore((state) => state.setBaseUrl);
   const setHelpers = useStellariumStore((state) => state.setHelpers);
   const updateStellariumCore = useStellariumStore((state) => state.updateStellariumCore);
+
+  // Callback refs to keep initStellarium stable (avoids re-init on callback changes)
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  const onFovChangeRef = useRef(onFovChange);
+  useEffect(() => { onSelectionChangeRef.current = onSelectionChange; }, [onSelectionChange]);
+  useEffect(() => { onFovChangeRef.current = onFovChange; }, [onFovChange]);
   
   // Initialize Stellarium engine with all data sources
   const initStellarium = useCallback((stel: StellariumEngine) => {
@@ -88,7 +94,7 @@ export function useStellariumLoader({
     setTimeout(() => {
       if (stelRef.current) {
         stelRef.current.core.fov = fovToRad(DEFAULT_FOV);
-        onFovChange?.(DEFAULT_FOV);
+        onFovChangeRef.current?.(DEFAULT_FOV);
       }
     }, ENGINE_FOV_INIT_DELAY);
 
@@ -185,7 +191,7 @@ export function useStellariumLoader({
 
         const selection = core.selection;
         if (!selection) {
-          onSelectionChange?.(null);
+          onSelectionChangeRef.current?.(null);
           return;
         }
 
@@ -195,7 +201,7 @@ export function useStellariumLoader({
         const ra = stel.anp(radecCIRS[0]);
         const dec = stel.anpm(radecCIRS[1]);
 
-        onSelectionChange?.({
+        onSelectionChangeRef.current?.({
           names: selectedDesignations,
           ra: degreesToHMS(rad2deg(ra)),
           dec: degreesToDMS(rad2deg(dec)),
@@ -205,15 +211,14 @@ export function useStellariumLoader({
       }
     });
   // Note: stellariumSettings is intentionally NOT in deps - initial settings applied once,
-  // subsequent changes handled by useSettingsSync hook
+  // subsequent changes handled by useSettingsSync hook.
+  // onSelectionChange/onFovChange accessed via refs to keep this callback stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     stelRef,
     setStel,
     setBaseUrl,
     setHelpers,
-    onSelectionChange,
-    onFovChange,
   ]);
 
   // Load the Stellarium engine script with timeout
@@ -230,7 +235,7 @@ export function useStellariumLoader({
       if (existingScript) {
         // Wait for existing script to load
         existingScript.addEventListener('load', () => resolve());
-        existingScript.addEventListener('error', () => reject(new Error('Script load failed')));
+        existingScript.addEventListener('error', () => reject(new Error(t('scriptLoadFailed'))));
         return;
       }
 
@@ -240,7 +245,7 @@ export function useStellariumLoader({
 
       const timeoutId = setTimeout(() => {
         script.remove();
-        reject(new Error('Script load timed out'));
+        reject(new Error(t('scriptLoadTimedOut')));
       }, SCRIPT_LOAD_TIMEOUT);
 
       script.onload = () => {
@@ -251,21 +256,21 @@ export function useStellariumLoader({
       script.onerror = () => {
         clearTimeout(timeoutId);
         script.remove();
-        reject(new Error('Script load failed'));
+        reject(new Error(t('scriptLoadFailed')));
       };
 
       document.head.appendChild(script);
     });
-  }, []);
+  }, [t]);
 
   // Initialize the Stellarium engine with WASM
   const initializeEngine = useCallback(async (): Promise<void> => {
     if (!canvasRef.current) {
-      throw new Error('Canvas not available');
+      throw new Error(t('canvasNotAvailable'));
     }
 
     if (!window.StelWebEngine) {
-      throw new Error('Engine script not loaded');
+      throw new Error(t('engineScriptNotLoaded'));
     }
 
     const currentLanguage = useSettingsStore.getState().stellarium.skyCultureLanguage;
@@ -307,7 +312,7 @@ export function useStellariumLoader({
         }
       }
     });
-  }, [canvasRef, initStellarium]);
+  }, [canvasRef, initStellarium, t]);
 
   // Main loading function with retry support
   const startLoading = useCallback(async () => {
@@ -327,7 +332,7 @@ export function useStellariumLoader({
     try {
       // Step 1: Setup canvas
       if (!canvasRef.current || !containerRef.current) {
-        throw new Error('Canvas container not ready');
+        throw new Error(t('canvasContainerNotReady'));
       }
 
       const canvas = canvasRef.current;
@@ -344,7 +349,7 @@ export function useStellariumLoader({
 
       // Step 3: Load script
       setLoadingStatus(t('loadingScript'));
-      await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, 'Engine script timed out');
+      await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, t('engineScriptTimedOut'));
 
       // Check if aborted
       if (abortControllerRef.current?.signal.aborted) {
@@ -353,7 +358,7 @@ export function useStellariumLoader({
 
       // Step 4: Initialize WASM engine
       setLoadingStatus(t('initializingStarmap'));
-      await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, 'Star map initialization timed out');
+      await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, t('starmapInitTimedOut'));
 
       // Check if aborted
       if (abortControllerRef.current?.signal.aborted) {
@@ -373,7 +378,7 @@ export function useStellariumLoader({
         return;
       }
 
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load star map';
+      const errorMsg = err instanceof Error ? err.message : t('loadFailed');
       
       // Auto-retry if under limit
       if (retryCountRef.current < MAX_RETRY_COUNT) {

@@ -445,11 +445,21 @@ html.no-transitions *::after {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.1) 50%,
+    rgba(0, 0, 0, 0.05) 50%,
     transparent 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+.dark .animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
 }
 
 .animate-float {
@@ -522,15 +532,25 @@ html.no-transitions *::after {
 
 /* Glass morphism effect for overlays */
 .glass {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
+.dark .glass {
+  background: rgba(0, 0, 0, 0.6);
+}
+
 .glass-light {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.dark .glass-light {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
 }
 
 /* Mobile bottom bar safe area */

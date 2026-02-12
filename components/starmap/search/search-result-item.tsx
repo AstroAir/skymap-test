@@ -6,6 +6,7 @@ import { translateCelestialName } from '@/lib/translations';
 import type { SkyCultureLanguage } from '@/lib/core/types';
 import type { SearchResultItemProps } from '@/types/starmap/search';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Tooltip,
@@ -67,16 +68,16 @@ export const SearchResultItemRow = memo(forwardRef<HTMLDivElement, SearchResultI
           )}
         </div>
         
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {item.Magnitude !== undefined && (
-            <span className="text-[10px] text-muted-foreground bg-muted/50 px-1 rounded">
+            <Badge variant="secondary" className="h-4 text-[10px] px-1 py-0">
               {item.Magnitude.toFixed(1)}m
-            </span>
+            </Badge>
           )}
           {item.Size && (
-            <span className="text-[10px] text-muted-foreground">
+            <Badge variant="outline" className="h-4 text-[10px] px-1 py-0">
               {item.Size}
-            </span>
+            </Badge>
           )}
           {item.RA !== undefined && item.Dec !== undefined && (
             <span className="text-[10px] text-muted-foreground font-mono">

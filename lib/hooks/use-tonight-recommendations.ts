@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useStellariumStore } from '@/lib/stores';
-import type { SearchResultItem } from '@/lib/core/types';
+import type { SearchResultItem, I18nMessage } from '@/lib/core/types';
 import {
   neverRises,
   isCircumpolar,
@@ -41,8 +41,8 @@ export interface RecommendedTarget extends SearchResultItem {
   setTime: Date | null;
   moonDistance: number;
   imagingHours: number;
-  reasons: string[];
-  warnings: string[];
+  reasons: I18nMessage[];
+  warnings: I18nMessage[];
   dsoData?: DeepSkyObject;
   // Enhanced scoring data
   airmass?: number;
@@ -103,6 +103,7 @@ export function useTonightRecommendations() {
   const [recommendations, setRecommendations] = useState<RecommendedTarget[]>([]);
   const [conditions, setConditions] = useState<TonightConditions | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [planDate, setPlanDate] = useState<Date>(new Date());
 
   // Get observer location from Stellarium or default
   const getObserverLocation = useCallback(() => {
@@ -121,9 +122,9 @@ export function useTonightRecommendations() {
   }, [stel]);
 
   // Calculate tonight's conditions using Sky Atlas
-  const calculateConditions = useCallback((): TonightConditions => {
+  const calculateConditions = useCallback((date?: Date): TonightConditions => {
     const { latitude, longitude } = getObserverLocation();
-    const now = new Date();
+    const now = date ?? planDate;
 
     // Use Sky Atlas nighttime calculator
     const nighttimeData = calculateNighttimeData(latitude, longitude, now);
@@ -159,7 +160,7 @@ export function useTonightRecommendations() {
       currentTime: now,
       nighttimeData,
     };
-  }, [getObserverLocation]);
+  }, [getObserverLocation, planDate]);
 
   // Calculate recommendations using Sky Atlas catalog with advanced scoring algorithms
   const calculateRecommendations = useCallback(() => {
@@ -169,9 +170,9 @@ export function useTonightRecommendations() {
     setConditions(cond);
 
     const { latitude, longitude, darkHoursStart, darkHoursEnd, moonIllumination } = cond;
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const referenceDate = cond.nighttimeData?.referenceDate || now;
+    const refDate = planDate;
+    const currentMonth = refDate.getMonth() + 1;
+    const referenceDate = cond.nighttimeData?.referenceDate || refDate;
 
     const scored: RecommendedTarget[] = [];
 
@@ -182,8 +183,8 @@ export function useTonightRecommendations() {
         continue;
       }
 
-      const reasons: string[] = [];
-      const warnings: string[] = [];
+      const reasons: I18nMessage[] = [];
+      const warnings: I18nMessage[] = [];
 
       // Enrich DSO with calculated data
       const enrichedDso = enrichDeepSkyObject(dso, latitude, longitude, referenceDate);
@@ -247,90 +248,92 @@ export function useTonightRecommendations() {
       });
       
       // ========================================================================
-      // Generate Human-Readable Reasons and Warnings
+      // Generate I18n Reasons and Warnings
       // ========================================================================
       
-      // Add recommendations from comprehensive score
-      warnings.push(...comprehensiveScore.recommendations.filter(r => 
-        r.includes('too low') || r.includes('too high') || r.includes('faint') || 
-        r.includes('close') || r.includes('not') || r.includes('needs')
-      ));
+      // Add recommendations from comprehensive score as raw warnings
+      for (const r of comprehensiveScore.recommendations) {
+        if (r.includes('too low') || r.includes('too high') || r.includes('faint') || 
+            r.includes('close') || r.includes('not') || r.includes('needs')) {
+          warnings.push({ key: 'tonightRec.compWarning', params: { text: r } });
+        }
+      }
       
       // Airmass quality
       if (airmassQuality === 'excellent') {
-        reasons.push(`Excellent airmass (${airmass.toFixed(2)})`);
+        reasons.push({ key: 'tonightRec.excellentAirmass', params: { value: airmass.toFixed(2) } });
       } else if (airmassQuality === 'good') {
-        reasons.push(`Good airmass (${airmass.toFixed(2)})`);
+        reasons.push({ key: 'tonightRec.goodAirmass', params: { value: airmass.toFixed(2) } });
       } else if (airmassQuality === 'poor' || airmassQuality === 'bad') {
-        warnings.push(`High airmass (${airmass.toFixed(2)}) - atmospheric distortion`);
+        warnings.push({ key: 'tonightRec.highAirmass', params: { value: airmass.toFixed(2) } });
       }
       
       // Seasonal information
       if (isSeasonalOptimal) {
-        reasons.push('Best season for this target');
+        reasons.push({ key: 'tonightRec.bestSeason' });
       } else if (seasonalScore < 0.3) {
-        warnings.push('Not the optimal season');
+        warnings.push({ key: 'tonightRec.notOptimalSeason' });
       }
       
       // Transit timing
       if (transitsDuringDark) {
-        reasons.push('Transits during dark hours');
+        reasons.push({ key: 'tonightRec.transitDuringDark' });
       }
       
       // Moon impact
       if (moonImpact >= 0.9) {
         if (moonIllumination < 25) {
-          reasons.push('Dark moon phase');
+          reasons.push({ key: 'tonightRec.darkMoon' });
         } else {
-          reasons.push('Far from moon');
+          reasons.push({ key: 'tonightRec.farFromMoon' });
         }
       } else if (moonImpact < 0.5) {
-        warnings.push('Significant moon interference');
+        warnings.push({ key: 'tonightRec.moonInterference' });
       }
       
       // Imaging window
       const effectiveHours = isCircumpolarTarget ? cond.totalDarkHours : imagingHours;
       if (effectiveHours > 5) {
-        reasons.push(`${effectiveHours.toFixed(1)}h imaging window`);
+        reasons.push({ key: 'tonightRec.longWindow', params: { hours: effectiveHours.toFixed(1) } });
       } else if (effectiveHours < 2) {
-        warnings.push('Limited imaging time');
+        warnings.push({ key: 'tonightRec.limitedTime' });
       }
       
       // Circumpolar
       if (isCircumpolarTarget) {
-        reasons.push('Circumpolar - always visible');
+        reasons.push({ key: 'tonightRec.circumpolar' });
       }
       
       // Difficulty and equipment recommendations
       if (seasonal?.difficulty === 'beginner') {
-        reasons.push('Great for beginners');
+        reasons.push({ key: 'tonightRec.beginnerFriendly' });
       } else if (seasonal?.difficulty === 'advanced' || seasonal?.difficulty === 'expert') {
-        warnings.push('Challenging target');
+        warnings.push({ key: 'tonightRec.challenging' });
       }
       
       // Size recommendations
       const size = dso.sizeMax ?? dso.sizeMin;
       if (size && size > 60) {
-        reasons.push('Large target - easy framing');
+        reasons.push({ key: 'tonightRec.largeTarget' });
       } else if (size && size < 3) {
-        warnings.push('Small target - needs long focal length');
+        warnings.push({ key: 'tonightRec.smallTarget' });
       }
       
       // Surface brightness
       if (dso.surfaceBrightness) {
         if (dso.surfaceBrightness < 20) {
-          reasons.push('High surface brightness');
+          reasons.push({ key: 'tonightRec.highSB' });
         } else if (dso.surfaceBrightness > 24) {
-          warnings.push('Low surface brightness - needs dark skies');
+          warnings.push({ key: 'tonightRec.lowSB' });
         }
       }
       
       // Magnitude
       if (dso.magnitude !== undefined) {
         if (dso.magnitude < 6) {
-          reasons.push('Very bright target');
+          reasons.push({ key: 'tonightRec.veryBright' });
         } else if (dso.magnitude > 12) {
-          warnings.push('Faint target - needs longer exposure');
+          warnings.push({ key: 'tonightRec.faint' });
         }
       }
       
@@ -393,7 +396,7 @@ export function useTonightRecommendations() {
     // Take top 25 for better selection
     setRecommendations(scored.slice(0, 25));
     setIsLoading(false);
-  }, [calculateConditions]);
+  }, [calculateConditions, planDate]);
 
   // Auto-calculate on mount
   const hasInitialized = useRef(false);
@@ -409,6 +412,8 @@ export function useTonightRecommendations() {
     conditions,
     isLoading,
     refresh: calculateRecommendations,
+    planDate,
+    setPlanDate,
   };
 }
 

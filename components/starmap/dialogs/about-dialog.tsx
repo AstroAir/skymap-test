@@ -39,7 +39,7 @@ import { StellariumCredits } from './stellarium-credits';
 // Sub Components
 // ============================================================================
 
-function LicenseCard({ item }: { item: LicenseInfo }) {
+function LicenseCard({ item, t }: { item: LicenseInfo; t: ReturnType<typeof useTranslations> }) {
   return (
     <a
       href={item.url}
@@ -56,7 +56,7 @@ function LicenseCard({ item }: { item: LicenseInfo }) {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-            {item.description}
+            {t(item.descriptionKey)}
           </p>
         </div>
         <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary shrink-0" />
@@ -65,7 +65,7 @@ function LicenseCard({ item }: { item: LicenseInfo }) {
   );
 }
 
-function DependencyRow({ item }: { item: DependencyInfo }) {
+function DependencyRow({ item, t }: { item: DependencyInfo; t: ReturnType<typeof useTranslations> }) {
   const typeColors: Record<string, string> = {
     core: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
     dev: 'bg-gray-500/20 text-gray-700 dark:text-gray-400',
@@ -85,14 +85,14 @@ function DependencyRow({ item }: { item: DependencyInfo }) {
       <div className="flex items-center gap-2">
         <span className="text-xs font-mono text-muted-foreground">{item.version}</span>
         <Badge className={cn('text-[10px]', typeColors[item.type] || 'bg-gray-500/20')}>
-          {item.type}
+          {t(`about.depType.${item.type}`)}
         </Badge>
       </div>
     </div>
   );
 }
 
-function DataCreditRow({ item }: { item: DataCreditInfo }) {
+function DataCreditRow({ item, t }: { item: DataCreditInfo; t: ReturnType<typeof useTranslations> }) {
   return (
     <a
       href={item.url}
@@ -102,7 +102,7 @@ function DataCreditRow({ item }: { item: DataCreditInfo }) {
     >
       <div className="flex items-center gap-2">
         <ChevronRight className="h-3 w-3 text-muted-foreground" />
-        <span className="text-sm">{item.name}</span>
+        <span className="text-sm">{t(item.nameKey)}</span>
       </div>
       <span className="text-xs text-muted-foreground group-hover:text-primary">
         {item.source}
@@ -139,7 +139,7 @@ export function AboutDialog() {
         </TooltipContent>
       </Tooltip>
 
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
         <DialogHeader className="p-6 pb-0 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Star className="h-5 w-5 text-primary" />
@@ -168,7 +168,7 @@ export function AboutDialog() {
 
           {/* About Tab */}
           <TabsContent value="about" className="flex-1 min-h-0 p-6 pt-4">
-            <ScrollArea className="h-full">
+            <ScrollArea className="max-h-[calc(85vh-13rem)]">
               <div className="space-y-6 pr-2">
                 {/* App Info */}
                 <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-muted/50">
@@ -212,7 +212,7 @@ export function AboutDialog() {
                   <h3 className="text-sm font-medium mb-3">{t('about.dataCredits')}</h3>
                   <div className="space-y-1 rounded-lg border border-border overflow-hidden">
                     {DATA_CREDITS.map((item) => (
-                      <DataCreditRow key={item.name} item={item} />
+                      <DataCreditRow key={item.nameKey} item={item} t={t} />
                     ))}
                   </div>
                   <div className="mt-3">
@@ -231,13 +231,13 @@ export function AboutDialog() {
 
           {/* Licenses Tab */}
           <TabsContent value="licenses" className="flex-1 min-h-0 p-6 pt-4">
-            <ScrollArea className="h-full">
+            <ScrollArea className="max-h-[calc(85vh-13rem)]">
               <div className="space-y-3 pr-2">
                 <p className="text-sm text-muted-foreground mb-4">
                   {t('about.licensesDescription')}
                 </p>
                 {LICENSES.map((item) => (
-                  <LicenseCard key={item.name} item={item} />
+                  <LicenseCard key={item.name} item={item} t={t} />
                 ))}
               </div>
             </ScrollArea>
@@ -245,14 +245,14 @@ export function AboutDialog() {
 
           {/* Dependencies Tab */}
           <TabsContent value="deps" className="flex-1 min-h-0 p-6 pt-4">
-            <ScrollArea className="h-full">
+            <ScrollArea className="max-h-[calc(85vh-13rem)]">
               <div className="pr-2">
                 <p className="text-sm text-muted-foreground mb-4">
                   {t('about.depsDescription')}
                 </p>
                 <div className="rounded-lg border border-border overflow-hidden">
                   {DEPENDENCIES.map((item) => (
-                    <DependencyRow key={item.name} item={item} />
+                    <DependencyRow key={item.name} item={item} t={t} />
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground text-center mt-4">

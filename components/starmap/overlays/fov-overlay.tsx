@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { RotateCw } from 'lucide-react';
+import { RotateCw, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { FOVOverlayProps } from '@/types/starmap/overlays';
 import {
   calculateOverlayDimensions,
@@ -73,11 +74,12 @@ export function FOVOverlay({
     <div ref={containerRef} className="absolute inset-0 pointer-events-none flex items-center justify-center">
       {isTooLarge ? (
         // Show warning when FOV is larger than view
-        <div className="bg-black/70 backdrop-blur-sm rounded-lg px-4 py-2 border border-yellow-500/50">
-          <p className="text-xs text-yellow-400 text-center">
+        <Alert className="bg-black/70 backdrop-blur-sm border-yellow-500/50 w-auto max-w-xs">
+          <AlertTriangle className="h-4 w-4 text-yellow-400" />
+          <AlertDescription className="text-xs text-yellow-400">
             Camera FOV ({cameraFovWidth.toFixed(1)}° × {cameraFovHeight.toFixed(1)}°) is larger than current view
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
       ) : (
         <div
           className="relative transition-transform duration-100"

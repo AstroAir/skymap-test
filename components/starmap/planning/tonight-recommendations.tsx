@@ -10,8 +10,11 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import {
   Tooltip,
@@ -29,11 +32,12 @@ import {
   ChevronRight,
   AlertTriangle,
   CheckCircle2,
-  Loader2,
   MapPin,
   Sunrise,
   Sunset,
+  CalendarDays,
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { getScoreBadgeVariant, formatPlanningTime } from '@/lib/core/constants/planning-styles';
 import type { NightTimelineProps, MoonPhaseDisplayProps } from '@/types/starmap/planning';
@@ -481,13 +485,13 @@ function TargetCard({
           {target.reasons.slice(0, 2).map((reason, i) => (
             <div key={i} className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
               <CheckCircle2 className="h-3 w-3 shrink-0" />
-              <span className="truncate">{reason}</span>
+              <span className="truncate">{t(reason.key, reason.params)}</span>
             </div>
           ))}
           {target.warnings.slice(0, 1).map((warning, i) => (
             <div key={i} className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
               <AlertTriangle className="h-3 w-3 shrink-0" />
-              <span className="truncate">{warning}</span>
+              <span className="truncate">{t(warning.key, warning.params)}</span>
             </div>
           ))}
         </div>
@@ -502,7 +506,7 @@ export function TonightRecommendations() {
   const [sortBy, setSortBy] = useState<'score' | 'altitude' | 'time'>('score');
   const [filterType, setFilterType] = useState<'all' | 'galaxy' | 'nebula' | 'cluster'>('all');
   
-  const { recommendations, conditions, isLoading, refresh } = useTonightRecommendations();
+  const { recommendations, conditions, isLoading, refresh, planDate, setPlanDate } = useTonightRecommendations();
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const addTarget = useTargetListStore((state) => state.addTarget);
   const setProfileInfo = useMountStore((state) => state.setProfileInfo);
@@ -652,9 +656,32 @@ export function TonightRecommendations() {
         {/* Tonight's conditions with beautiful visualization */}
         {conditions && (
           <div className="shrink-0 space-y-4 p-4 rounded-xl bg-linear-to-br from-slate-900/80 to-slate-800/80 border border-slate-700/50">
-            {/* Header with refresh */}
+            {/* Header with date picker and refresh */}
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-200">{t('tonight.conditions')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-200">{t('tonight.conditions')}</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-6 gap-1.5 text-xs font-normal border-slate-600 bg-transparent text-slate-300 hover:text-slate-100 hover:bg-slate-700">
+                      <CalendarDays className="h-3 w-3" />
+                      {planDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={planDate}
+                      onSelect={(d) => {
+                        if (d) {
+                          setPlanDate(d);
+                          setTimeout(refresh, 0);
+                        }
+                      }}
+                      defaultMonth={planDate}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
               <Button
                 variant="ghost"
                 size="icon"
@@ -711,33 +738,25 @@ export function TonightRecommendations() {
           {/* Filter buttons */}
           <div className="flex items-center gap-1 text-xs">
             <span className="text-muted-foreground mr-1">{t('tonight.filter')}:</span>
-            {(['all', 'galaxy', 'nebula', 'cluster'] as const).map((type) => (
-              <Button
-                key={type}
-                variant={filterType === type ? 'default' : 'outline'}
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setFilterType(type)}
-              >
-                {t(`tonight.filterType.${type}`)}
-              </Button>
-            ))}
+            <ToggleGroup type="single" value={filterType} onValueChange={(v) => v && setFilterType(v as typeof filterType)} variant="outline" size="sm">
+              {(['all', 'galaxy', 'nebula', 'cluster'] as const).map((type) => (
+                <ToggleGroupItem key={type} value={type} className="h-6 px-2 text-xs">
+                  {t(`tonight.filterType.${type}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
           
           {/* Sort buttons */}
           <div className="flex items-center gap-1 text-xs ml-auto">
             <span className="text-muted-foreground mr-1">{t('tonight.sort')}:</span>
-            {(['score', 'altitude', 'time'] as const).map((sort) => (
-              <Button
-                key={sort}
-                variant={sortBy === sort ? 'default' : 'outline'}
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setSortBy(sort)}
-              >
-                {t(`tonight.sortType.${sort}`)}
-              </Button>
-            ))}
+            <ToggleGroup type="single" value={sortBy} onValueChange={(v) => v && setSortBy(v as typeof sortBy)} variant="outline" size="sm">
+              {(['score', 'altitude', 'time'] as const).map((sort) => (
+                <ToggleGroupItem key={sort} value={sort} className="h-6 px-2 text-xs">
+                  {t(`tonight.sortType.${sort}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
         </div>
         
@@ -761,8 +780,10 @@ export function TonightRecommendations() {
           </div>
           
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="space-y-2 py-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-lg" />
+              ))}
             </div>
           ) : filteredRecommendations.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -770,7 +791,7 @@ export function TonightRecommendations() {
               <p className="text-sm">{t('tonight.noRecommendations')}</p>
             </div>
           ) : (
-            <ScrollArea className="h-[280px]">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="space-y-2 pr-2">
                 {filteredRecommendations.map((target, index) => (
                   <TargetCard

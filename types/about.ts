@@ -16,7 +16,7 @@ export interface LicenseInfo {
   name: string;
   license: string;
   url: string;
-  description: string;
+  descriptionKey: string;
 }
 
 export interface DependencyInfo {
@@ -26,7 +26,7 @@ export interface DependencyInfo {
 }
 
 export interface DataCreditInfo {
-  name: string;
+  nameKey: string;
   source: string;
   url: string;
 }

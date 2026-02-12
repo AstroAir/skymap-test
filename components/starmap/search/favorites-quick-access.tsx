@@ -3,21 +3,18 @@
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
-  Star, 
   Heart, 
   Clock, 
   Trash2, 
-  Tag, 
   Plus,
   X,
-  MoreHorizontal,
-  Navigation,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Tabs,
   TabsContent,
@@ -30,18 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { FavoriteObjectItem } from './favorite-object-item';
 import { cn } from '@/lib/utils';
 import { 
   useFavoritesStore, 
@@ -94,103 +80,6 @@ export function FavoritesQuickAccess({
     }
   }, [addTag, newTag]);
 
-  const renderObjectItem = (object: FavoriteObject, showActions: boolean = true, isFavorite: boolean = true) => (
-    <div
-      key={object.id}
-      className="group flex items-center gap-2 px-2 py-1.5 hover:bg-accent rounded-md transition-colors cursor-pointer"
-      onClick={() => handleSelect(object)}
-    >
-      <Star className={cn(
-        'h-4 w-4 shrink-0',
-        isFavorite
-          ? 'text-yellow-500 fill-yellow-500'
-          : 'text-muted-foreground'
-      )} />
-      
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{object.name}</p>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          {object.type && <span>{object.type}</span>}
-          {object.constellation && (
-            <>
-              <span>•</span>
-              <span>{object.constellation}</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {object.tags.length > 0 && (
-        <div className="flex gap-0.5">
-          {object.tags.slice(0, 2).map(tag => (
-            <Badge 
-              key={tag} 
-              variant="outline" 
-              className="text-[10px] px-1 py-0"
-            >
-              {tag}
-            </Badge>
-          ))}
-          {object.tags.length > 2 && (
-            <Badge variant="outline" className="text-[10px] px-1 py-0">
-              +{object.tags.length - 2}
-            </Badge>
-          )}
-        </div>
-      )}
-
-      {showActions && (
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleNavigate(object);
-                }}
-              >
-                <Navigation className="h-3 w-3" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>{t('favorites.goTo')}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setEditingTags(object.id)}>
-                <Tag className="h-4 w-4 mr-2" />
-                {t('favorites.manageTags')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                className="text-destructive focus:text-destructive"
-                onClick={() => removeFavorite(object.id)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t('favorites.remove')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div className={cn('space-y-2', className)}>
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'favorites' | 'recent')}>
@@ -208,25 +97,23 @@ export function FavoritesQuickAccess({
         <TabsContent value="favorites" className="mt-2 space-y-2">
           {/* Tag Filter */}
           {allTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 px-1">
-              <Badge
-                variant={filterTag === null ? 'default' : 'outline'}
-                className="cursor-pointer text-xs"
-                onClick={() => setFilterTag(null)}
-              >
+            <ToggleGroup
+              type="single"
+              value={filterTag ?? '__all__'}
+              onValueChange={(value) => setFilterTag(value === '__all__' || !value ? null : value)}
+              variant="outline"
+              size="sm"
+              className="flex flex-wrap gap-1 px-1"
+            >
+              <ToggleGroupItem value="__all__" className="h-6 px-2 text-xs">
                 {t('favorites.all')}
-              </Badge>
+              </ToggleGroupItem>
               {allTags.map(tag => (
-                <Badge
-                  key={tag}
-                  variant={filterTag === tag ? 'default' : 'outline'}
-                  className="cursor-pointer text-xs"
-                  onClick={() => setFilterTag(tag === filterTag ? null : tag)}
-                >
+                <ToggleGroupItem key={tag} value={tag} className="h-6 px-2 text-xs">
                   {tag}
-                </Badge>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           )}
 
           <ScrollArea className="h-48">
@@ -238,7 +125,16 @@ export function FavoritesQuickAccess({
               </div>
             ) : (
               <div className="space-y-0.5">
-                {filteredFavorites.map(fav => renderObjectItem(fav))}
+                {filteredFavorites.map(fav => (
+                  <FavoriteObjectItem
+                    key={fav.id}
+                    object={fav}
+                    onSelect={handleSelect}
+                    onNavigate={handleNavigate}
+                    onEditTags={setEditingTags}
+                    onRemove={removeFavorite}
+                  />
+                ))}
               </div>
             )}
           </ScrollArea>
@@ -267,7 +163,15 @@ export function FavoritesQuickAccess({
               </div>
             ) : (
               <div className="space-y-0.5">
-                {recentlyViewed.map(item => renderObjectItem(item, false, favorites.some(f => f.id === item.id)))}
+                {recentlyViewed.map(item => (
+                  <FavoriteObjectItem
+                    key={item.id}
+                    object={item}
+                    showActions={false}
+                    isFavorite={favorites.some(f => f.id === item.id)}
+                    onSelect={handleSelect}
+                  />
+                ))}
               </div>
             )}
           </ScrollArea>
@@ -286,7 +190,7 @@ export function FavoritesQuickAccess({
             <div className="flex flex-wrap gap-1">
               {editingTags && favorites.find(f => f.id === editingTags)?.tags.map(tag => (
                 <Badge key={tag} variant="secondary" className="gap-1">
-                  {tag}
+                  {t(`favorites.tags.${tag}` as Parameters<typeof t>[0], { defaultValue: tag })}
                   <button
                     className="hover:text-destructive"
                     onClick={() => removeTag(editingTags, tag)}
@@ -309,7 +213,7 @@ export function FavoritesQuickAccess({
                   onClick={() => editingTags && addTag(editingTags, tag)}
                 >
                   <Plus className="h-3 w-3 mr-1" />
-                  {tag}
+                  {t(`favorites.tags.${tag}` as Parameters<typeof t>[0], { defaultValue: tag })}
                 </Badge>
               ))}
             </div>

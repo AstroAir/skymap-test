@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
-  Moon, Sun, Clock, MapPin, Eye, Compass, TrendingUp, 
+  Moon, Sun, Clock, MapPin, Eye, Compass, 
   Sunrise, Sunset, Star, Calendar, Timer, AlertTriangle,
   ChevronDown, ChevronUp
 } from 'lucide-react';
@@ -12,10 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
   Collapsible,
@@ -25,7 +22,8 @@ import {
 
 import { useMountStore } from '@/lib/stores';
 import { raDecToAltAz, getLST, degreesToHMS } from '@/lib/astronomy/starmap-utils';
-import { getSkyConditionColor, getFeasibilityColor, formatCountdown } from '@/lib/core/constants/planning-styles';
+import { getSkyConditionColor, formatCountdown } from '@/lib/core/constants/planning-styles';
+import { FeasibilityBadge } from './feasibility-badge';
 import type { AstroSessionPanelProps } from '@/types/starmap/planning';
 import { useAstronomy } from '@/lib/tauri/hooks';
 import {
@@ -357,13 +355,13 @@ export function AstroSessionPanel({
                 {/* Position */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-muted-foreground">Alt: </span>
+                    <span className="text-muted-foreground">{t('session.altLabel')} </span>
                     <span className={targetData.altitude > 30 ? 'text-green-400' : targetData.altitude > 0 ? 'text-yellow-400' : 'text-red-400'}>
                       {targetData.altitude.toFixed(1)}°
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Az: </span>
+                    <span className="text-muted-foreground">{t('session.azLabel')} </span>
                     <span className="text-foreground">{targetData.azimuth.toFixed(1)}°</span>
                   </div>
                 </div>
@@ -422,32 +420,7 @@ export function AstroSessionPanel({
                 )}
 
                 {/* Feasibility Score */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className={`flex items-center justify-between p-1.5 rounded text-xs ${getFeasibilityColor(targetData.feasibility.recommendation)}`}>
-                      <div className="flex items-center gap-1.5">
-                        <TrendingUp className="h-3 w-3" />
-                        <span className="capitalize">{targetData.feasibility.recommendation.replace('_', ' ')}</span>
-                      </div>
-                      <span className="font-mono">{targetData.feasibility.score}/100</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="left" className="max-w-56">
-                    <div className="space-y-1 text-xs">
-                      <div className="grid grid-cols-2 gap-x-2">
-                        <span>{t('feasibility.moon')}:</span><span>{targetData.feasibility.moonScore}</span>
-                        <span>{t('feasibility.altitude')}:</span><span>{targetData.feasibility.altitudeScore}</span>
-                        <span>{t('feasibility.duration')}:</span><span>{targetData.feasibility.durationScore}</span>
-                        <span>{t('feasibility.twilight')}:</span><span>{targetData.feasibility.twilightScore}</span>
-                      </div>
-                      {targetData.feasibility.warnings.length > 0 && (
-                        <div className="text-yellow-400 mt-1">
-                          {targetData.feasibility.warnings[0]}
-                        </div>
-                      )}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
+                <FeasibilityBadge feasibility={targetData.feasibility} variant="inline" tooltipSide="left" />
               </div>
             </>
           )}

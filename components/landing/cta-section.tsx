@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Rocket, Download, Github } from 'lucide-react';
+import { SectionHeader } from './section-header';
 
 export function CTASection() {
   const t = useTranslations('landing.cta');
@@ -15,12 +16,7 @@ export function CTASection() {
       <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-secondary/10 rounded-full blur-[80px]" />
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-foreground mb-6">
-          {t('title')}
-        </h2>
-        <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto">
-          {t('description')}
-        </p>
+        <SectionHeader title={t('title')} subtitle={t('description')} />
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href="/starmap">

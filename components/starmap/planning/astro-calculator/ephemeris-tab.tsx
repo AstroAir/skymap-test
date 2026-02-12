@@ -143,7 +143,7 @@ export function EphemerisTab({ latitude, longitude, selectedTarget }: EphemerisT
             {ephemeris.map((entry, i) => (
               <TableRow key={i}>
                 <TableCell className="font-mono text-xs">
-                  {entry.date.toLocaleString('en-US', {
+                  {entry.date.toLocaleString(undefined, {
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',

@@ -11,6 +11,53 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Star, Github, Heart, ExternalLink, Map, BookOpen } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+interface FooterLinkProps {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  tooltip: string;
+  external?: boolean;
+}
+
+function FooterLink({ href, icon: Icon, label, tooltip, external }: FooterLinkProps) {
+  const linkContent = (
+    <>
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+      {external && <ExternalLink className="h-3 w-3 opacity-50" />}
+    </>
+  );
+
+  return (
+    <li>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="link" className="h-auto p-0 text-muted-foreground hover:text-foreground" asChild>
+            {external ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5"
+              >
+                {linkContent}
+              </a>
+            ) : (
+              <Link href={href} className="inline-flex items-center gap-1.5">
+                {linkContent}
+              </Link>
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </li>
+  );
+}
 
 export function Footer() {
   const t = useTranslations('landing.footer');
@@ -38,63 +85,9 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-4">{t('links')}</h4>
             <TooltipProvider>
               <ul className="space-y-2">
-                <li>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="link" className="h-auto p-0 text-muted-foreground hover:text-foreground" asChild>
-                        <Link href="/starmap" className="inline-flex items-center gap-1.5">
-                          <Map className="h-3.5 w-3.5" />
-                          {t('starmap')}
-                        </Link>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Open the interactive star map</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </li>
-                <li>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="link" className="h-auto p-0 text-muted-foreground hover:text-foreground" asChild>
-                        <a
-                          href="https://github.com/AstroAir/skymap"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5"
-                        >
-                          <Github className="h-3.5 w-3.5" />
-                          GitHub
-                          <ExternalLink className="h-3 w-3 opacity-50" />
-                        </a>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>View source code on GitHub</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </li>
-                <li>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="link" className="h-auto p-0 text-muted-foreground hover:text-foreground" asChild>
-                        <a
-                          href="https://stellarium.org"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5"
-                        >
-                          <BookOpen className="h-3.5 w-3.5" />
-                          Stellarium
-                          <ExternalLink className="h-3 w-3 opacity-50" />
-                        </a>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Visit Stellarium official website</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </li>
+                <FooterLink href="/starmap" icon={Map} label={t('starmap')} tooltip={t('starmapTooltip')} />
+                <FooterLink href="https://github.com/AstroAir/skymap" icon={Github} label={t('github')} tooltip={t('githubTooltip')} external />
+                <FooterLink href="https://stellarium.org" icon={BookOpen} label={t('stellarium')} tooltip={t('stellariumTooltip')} external />
               </ul>
             </TooltipProvider>
           </div>

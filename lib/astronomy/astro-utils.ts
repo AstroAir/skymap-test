@@ -9,6 +9,7 @@ import {
   getLST,
   raDecToAltAz,
 } from './starmap-utils';
+import type { I18nMessage } from '@/lib/core/types';
 
 // ============================================================================
 // Types and Interfaces
@@ -83,7 +84,7 @@ export interface MultiTargetPlan {
   
   totalImagingTime: number;
   nightCoverage: number;       // Percentage of night utilized
-  recommendations: string[];
+  recommendations: I18nMessage[];
 }
 
 // ============================================================================
@@ -1014,15 +1015,15 @@ export function planMultipleTargets(
     : 0;
   
   // Generate recommendations
-  const recommendations: string[] = [];
+  const recommendations: I18nMessage[] = [];
   
   if (nightCoverage > 150) {
-    recommendations.push('Too many targets - consider spreading across multiple nights');
+    recommendations.push({ key: 'planRec.tooManyTargets' });
   }
   
   const excellentTargets = plannedTargets.filter(t => t.feasibility.recommendation === 'excellent');
   if (excellentTargets.length > 0) {
-    recommendations.push(`Prioritize: ${excellentTargets.map(t => t.name).join(', ')}`);
+    recommendations.push({ key: 'planRec.prioritize', params: { names: excellentTargets.map(t => t.name).join(', ') } });
   }
   
   const sortedByStart = [...plannedTargets]
@@ -1030,7 +1031,7 @@ export function planMultipleTargets(
     .sort((a, b) => (a.windowStart?.getTime() ?? 0) - (b.windowStart?.getTime() ?? 0));
   
   if (sortedByStart.length > 1) {
-    recommendations.push(`Suggested order: ${sortedByStart.map(t => t.name).join(' → ')}`);
+    recommendations.push({ key: 'planRec.suggestedOrder', params: { order: sortedByStart.map(t => t.name).join(' → ') } });
   }
   
   return {

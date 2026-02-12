@@ -15,6 +15,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { StatCard } from './stat-card';
+import { Calendar } from '@/components/ui/calendar';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -37,6 +40,7 @@ import {
 } from '@/components/ui/collapsible';
 import {
   CalendarClock,
+  CalendarDays,
   Clock,
   Moon,
   Sun,
@@ -45,7 +49,6 @@ import {
   AlertTriangle,
   Info,
   ChevronDown,
-  ChevronUp,
   Sparkles,
   Wand2,
   ListOrdered,
@@ -64,6 +67,7 @@ import {
   getMoonIllumination,
   formatTimeShort,
   formatDuration,
+  getJulianDateFromDate,
   type TwilightTimes,
 } from '@/lib/astronomy/astro-utils';
 import { optimizeSchedule } from '@/lib/astronomy/session-scheduler';
@@ -191,7 +195,7 @@ function SessionTimeline({ plan, twilight, onTargetClick }: TimelineProps) {
                   {formatTimeShort(scheduled.startTime)} - {formatTimeShort(scheduled.endTime)}
                 </div>
                 <div className="text-muted-foreground">
-                  {formatDuration(scheduled.duration)} • Max {scheduled.maxAltitude.toFixed(0)}°
+                  {formatDuration(scheduled.duration)} • {t('sessionPlanner.maxAlt', { value: scheduled.maxAltitude.toFixed(0) })}
                 </div>
               </div>
             </TooltipContent>
@@ -248,9 +252,9 @@ interface TargetCardProps {
 
 function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProps) {
   const t = useTranslations();
-  const [isExpanded, setIsExpanded] = useState(false);
   
   return (
+    <Collapsible>
     <div className={cn(
       'border rounded-lg p-3 transition-colors',
       scheduled.isOptimal ? 'border-green-500/30 bg-green-500/5' : 'border-border'
@@ -290,14 +294,11 @@ function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProp
             </TooltipTrigger>
             <TooltipContent>{t('actions.remove')}</TooltipContent>
           </Tooltip>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </Button>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7 [&[data-state=open]>svg]:rotate-180 transition-transform">
+              <ChevronDown className="h-3.5 w-3.5 transition-transform" />
+            </Button>
+          </CollapsibleTrigger>
         </div>
       </div>
       
@@ -305,22 +306,22 @@ function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProp
       <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Target className="h-3 w-3" />
-          Max {scheduled.maxAltitude.toFixed(0)}°
+          {t('sessionPlanner.maxAlt', { value: scheduled.maxAltitude.toFixed(0) })}
         </span>
         <span className="flex items-center gap-1">
           <Moon className="h-3 w-3" />
-          {scheduled.moonDistance.toFixed(0)}° from moon
+          {t('sessionPlanner.fromMoon', { value: scheduled.moonDistance.toFixed(0) })}
         </span>
         {scheduled.transitTime && (
           <span className="flex items-center gap-1">
             <ArrowRight className="h-3 w-3" />
-            Transit {formatTimeShort(scheduled.transitTime)}
+            {t('sessionPlanner.transitAt', { time: formatTimeShort(scheduled.transitTime) })}
           </span>
         )}
       </div>
       
       {/* Expanded details */}
-      {isExpanded && (
+      <CollapsibleContent>
         <div className="mt-3 pt-3 border-t border-border space-y-2">
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
@@ -353,7 +354,7 @@ function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProp
           {scheduled.conflicts.length > 0 && (
             <div className="flex items-start gap-2 text-xs text-amber-500">
               <AlertTriangle className="h-3 w-3 mt-0.5" />
-              <span>Overlaps with: {scheduled.conflicts.join(', ')}</span>
+              <span>{t('sessionPlanner.overlapsWith', { list: scheduled.conflicts.join(', ') })}</span>
             </div>
           )}
           
@@ -369,8 +370,9 @@ function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProp
             </div>
           )}
         </div>
-      )}
+      </CollapsibleContent>
     </div>
+    </Collapsible>
   );
 }
 
@@ -384,8 +386,8 @@ export function SessionPlanner() {
   const [strategy, setStrategy] = useState<OptimizationStrategy>('balanced');
   const [minAltitude, setMinAltitude] = useState(30);
   const [minImagingTime, setMinImagingTime] = useState(30); // minutes
-  const [_autoOptimize, _setAutoOptimize] = useState(true);
   const [showGaps, setShowGaps] = useState(true);
+  const [planDate, setPlanDate] = useState<Date>(new Date());
   
   const profileInfo = useMountStore((state) => state.profileInfo);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
@@ -407,11 +409,12 @@ export function SessionPlanner() {
   const fovHeight = sensorHeight && focalLength ? (sensorHeight / focalLength) * 57.3 : 0;
   
   const twilight = useMemo(
-    () => calculateTwilightTimes(latitude, longitude),
-    [latitude, longitude]
+    () => calculateTwilightTimes(latitude, longitude, planDate),
+    [latitude, longitude, planDate]
   );
   
-  const moonPhase = getMoonPhase();
+  const planJd = useMemo(() => getJulianDateFromDate(planDate), [planDate]);
+  const moonPhase = getMoonPhase(planJd);
   const moonIllum = getMoonIllumination(moonPhase);
   
   // Filter active targets (not archived)
@@ -429,9 +432,10 @@ export function SessionPlanner() {
       twilight,
       strategy,
       minAltitude,
-      minImagingTime
+      minImagingTime,
+      planDate
     ),
-    [activeTargets, latitude, longitude, twilight, strategy, minAltitude, minImagingTime]
+    [activeTargets, latitude, longitude, twilight, strategy, minAltitude, minImagingTime, planDate]
   );
   
   const handleTargetClick = useCallback((target: TargetItem) => {
@@ -468,9 +472,25 @@ export function SessionPlanner() {
         <div className="space-y-2">
           <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
             <div className="flex items-center gap-4 text-sm">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs font-normal">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    {planDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={planDate}
+                    onSelect={(d) => d && setPlanDate(d)}
+                    defaultMonth={planDate}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Separator orientation="vertical" className="h-4" />
               <div className="flex items-center gap-1.5">
                 <Sun className="h-4 w-4 text-amber-500" />
-                <span className="text-muted-foreground">{t('sessionPlanner.darkTime')}:</span>
                 <span className="font-medium">{formatDuration(twilight.darknessDuration)}</span>
               </div>
               <Separator orientation="vertical" className="h-4" />
@@ -491,7 +511,7 @@ export function SessionPlanner() {
               <span>{t('sessionPlanner.equipment')}:</span>
               <span>{focalLength}mm f/{aperture > 0 ? (focalLength / aperture).toFixed(1) : '?'}</span>
               <Separator orientation="vertical" className="h-3" />
-              <span>FOV: {fovWidth.toFixed(1)}° × {fovHeight.toFixed(1)}°</span>
+              <span>{t('sessionPlanner.fovInfo', { w: fovWidth.toFixed(1), h: fovHeight.toFixed(1) })}</span>
             </div>
           )}
         </div>
@@ -559,34 +579,24 @@ export function SessionPlanner() {
         
         {/* Plan Summary */}
         <div className="grid grid-cols-4 gap-3">
-          <div className="p-2 rounded-lg bg-muted/50 text-center">
-            <div className="text-2xl font-bold text-primary">{plan.targets.length}</div>
-            <div className="text-xs text-muted-foreground">{t('sessionPlanner.targets')}</div>
-          </div>
-          <div className="p-2 rounded-lg bg-muted/50 text-center">
-            <div className="text-2xl font-bold text-primary">{formatDuration(plan.totalImagingTime)}</div>
-            <div className="text-xs text-muted-foreground">{t('sessionPlanner.imagingTime')}</div>
-          </div>
-          <div className="p-2 rounded-lg bg-muted/50 text-center">
-            <div className={cn(
-              'text-2xl font-bold',
+          <StatCard value={plan.targets.length} label={t('sessionPlanner.targets')} />
+          <StatCard value={formatDuration(plan.totalImagingTime)} label={t('sessionPlanner.imagingTime')} />
+          <StatCard
+            value={`${plan.nightCoverage.toFixed(0)}%`}
+            label={t('sessionPlanner.nightCoverage')}
+            valueClassName={cn(
               plan.nightCoverage >= 80 ? 'text-green-500' : 
               plan.nightCoverage >= 50 ? 'text-amber-500' : 'text-red-500'
-            )}>
-              {plan.nightCoverage.toFixed(0)}%
-            </div>
-            <div className="text-xs text-muted-foreground">{t('sessionPlanner.nightCoverage')}</div>
-          </div>
-          <div className="p-2 rounded-lg bg-muted/50 text-center">
-            <div className={cn(
-              'text-2xl font-bold',
+            )}
+          />
+          <StatCard
+            value={`${plan.efficiency.toFixed(0)}%`}
+            label={t('sessionPlanner.efficiency')}
+            valueClassName={cn(
               plan.efficiency >= 70 ? 'text-green-500' : 
               plan.efficiency >= 50 ? 'text-amber-500' : 'text-red-500'
-            )}>
-              {plan.efficiency.toFixed(0)}%
-            </div>
-            <div className="text-xs text-muted-foreground">{t('sessionPlanner.efficiency')}</div>
-          </div>
+            )}
+          />
         </div>
         
         {/* Timeline */}
@@ -608,13 +618,13 @@ export function SessionPlanner() {
             {plan.warnings.map((warning, i) => (
               <div key={`warn-${i}`} className="flex items-start gap-2 text-sm text-amber-500 p-2 rounded-lg bg-amber-500/10">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>{warning}</span>
+                <span>{t(warning.key, warning.params)}</span>
               </div>
             ))}
             {plan.recommendations.map((rec, i) => (
               <div key={`rec-${i}`} className="flex items-start gap-2 text-sm text-muted-foreground p-2 rounded-lg bg-muted/50">
                 <Sparkles className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                <span>{rec}</span>
+                <span>{t(rec.key, rec.params)}</span>
               </div>
             ))}
           </div>
@@ -632,13 +642,33 @@ export function SessionPlanner() {
             </Badge>
           </div>
           
-          <ScrollArea className="h-[200px]">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="space-y-2 pr-4">
               {plan.targets.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
+                <div className="text-center text-muted-foreground py-8 space-y-3">
                   <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>{t('sessionPlanner.noTargets')}</p>
-                  <p className="text-xs mt-1">{t('sessionPlanner.addTargetsHint')}</p>
+                  <p className="text-xs">{t('sessionPlanner.addTargetsHint')}</p>
+                  <div className="flex flex-col items-center gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setOpen(false)}
+                    >
+                      <Sparkles className="h-3 w-3 mr-1.5" />
+                      {t('sessionPlanner.browseRecommendations')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setOpen(false)}
+                    >
+                      <ListOrdered className="h-3 w-3 mr-1.5" />
+                      {t('sessionPlanner.openShotList')}
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 plan.targets.map(scheduled => (

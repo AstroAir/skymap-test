@@ -2,12 +2,9 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useObjectSearch, type ObjectType, useSkyCultureLanguage, useSelectTarget } from '@/lib/hooks';
-import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
-import type { SearchResultItem } from '@/lib/core/types';
+import { useTargetListActions } from '@/lib/hooks/use-target-list-actions';
 import type { AdvancedSearchDialogProps } from '@/types/starmap/search';
-import { getResultId } from '@/lib/core/search-utils';
 import { ALL_OBJECT_TYPES, CATALOG_PRESETS } from '@/lib/core/constants/search';
 import { isValidRA, isValidDec } from '@/lib/astronomy/coordinate-validators';
 import { Button } from '@/components/ui/button';
@@ -20,7 +17,6 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -39,23 +35,18 @@ import {
   Search,
   CircleDot,
   Loader2,
-  CheckSquare,
-  Square,
   SlidersHorizontal,
-  ListPlus,
-  ChevronDown,
-  ChevronRight,
   Bookmark,
   RotateCcw,
 } from 'lucide-react';
-import { SearchResultItemRow } from './search-result-item';
+import { MultiSelectToolbar } from './multi-select-toolbar';
+import { GroupedResultsList } from './grouped-results-list';
 import { getTypeIcon } from './search-utils';
 
 export type { AdvancedSearchDialogProps } from '@/types/starmap/search';
 
 export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedSearchDialogProps) {
   const t = useTranslations();
-  const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
   
   // Local state for advanced filters
   const [localQuery, setLocalQuery] = useState('');
@@ -91,41 +82,20 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
     searchStats,
   } = useObjectSearch();
   
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['DSO', 'Planet', 'Constellation']));
-  
   // Get sky culture language for name translation
   const skyCultureLanguage = useSkyCultureLanguage();
 
-  // Memoize handler for adding to target list
-  const handleAddToTargetList = useCallback((item: SearchResultItem) => {
-    if (item.RA !== undefined && item.Dec !== undefined) {
-      addTargetsBatch([{
-        name: item.Name,
-        ra: item.RA,
-        dec: item.Dec,
-        raString: degreesToHMS(item.RA),
-        decString: degreesToDMS(item.Dec),
-      }]);
-    }
-  }, [addTargetsBatch]);
+  // Shared target list actions
+  const targetListOptions = useMemo(() => ({
+    getSelectedItems,
+    clearSelection,
+  }), [getSelectedItems, clearSelection]);
+  const { handleAddToTargetList, handleBatchAdd } = useTargetListActions(targetListOptions);
   
   // Memoize close dialog handler
   const handleCloseDialog = useCallback(() => {
     onOpenChange(false);
   }, [onOpenChange]);
-
-  // Toggle group expansion
-  const toggleGroup = useCallback((group: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(group)) {
-        next.delete(group);
-      } else {
-        next.add(group);
-      }
-      return next;
-    });
-  }, []);
 
   // Toggle type filter
   const toggleTypeFilter = useCallback((type: ObjectType) => {
@@ -176,27 +146,6 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
     addRecentSearch,
   }), [onSelect, addRecentSearch]);
   const selectTarget = useSelectTarget(selectTargetCallbacks);
-
-  // Handle batch add to target list
-  const handleBatchAdd = useCallback(() => {
-    const selected = getSelectedItems();
-    if (selected.length === 0) return;
-    
-    const batchItems = selected
-      .filter(item => item.RA !== undefined && item.Dec !== undefined)
-      .map(item => ({
-        name: item.Name,
-        ra: item.RA!,
-        dec: item.Dec!,
-        raString: degreesToHMS(item.RA!),
-        decString: degreesToDMS(item.Dec!),
-      }));
-    
-    if (batchItems.length > 0) {
-      addTargetsBatch(batchItems);
-      clearSelection();
-    }
-  }, [getSelectedItems, addTargetsBatch, clearSelection]);
 
   // Reset all filters
   const resetFilters = useCallback(() => {
@@ -473,93 +422,30 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
 
             {/* Multi-select toolbar */}
             {hasResults && (
-              <div className="flex items-center justify-between py-2 border-b">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => selectedCount > 0 ? clearSelection() : selectAll()}
-                  >
-                    {selectedCount > 0 ? (
-                      <>
-                        <CheckSquare className="h-3 w-3 mr-1" />
-                        {t('search.clearSelection')}
-                      </>
-                    ) : (
-                      <>
-                        <Square className="h-3 w-3 mr-1" />
-                        {t('search.selectAll')}
-                      </>
-                    )}
-                  </Button>
-                  {selectedCount > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {t('search.selectedCount', { count: selectedCount })}
-                    </span>
-                  )}
-                </div>
-                {selectedCount > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={handleBatchAdd}
-                  >
-                    <ListPlus className="h-3 w-3 mr-1" />
-                    {t('search.addToList')}
-                  </Button>
-                )}
-              </div>
+              <MultiSelectToolbar
+                selectedCount={selectedCount}
+                onToggleSelectAll={() => selectedCount > 0 ? clearSelection() : selectAll()}
+                onBatchAdd={handleBatchAdd}
+                className="py-2 border-b"
+              />
             )}
 
             {/* Results List */}
             {hasResults && !isSearching && (
               <ScrollArea className="flex-1">
-                <div className="space-y-2 py-2">
-                  {Array.from(groupedResults.entries()).map(([groupName, items]) => (
-                    <Collapsible
-                      key={groupName}
-                      open={expandedGroups.has(groupName)}
-                      onOpenChange={() => toggleGroup(groupName)}
-                      className="space-y-1"
-                    >
-                      <CollapsibleTrigger className="flex items-center gap-1 w-full text-left text-xs font-medium text-muted-foreground hover:text-foreground py-1">
-                        {expandedGroups.has(groupName) ? (
-                          <ChevronDown className="h-3 w-3" />
-                        ) : (
-                          <ChevronRight className="h-3 w-3" />
-                        )}
-                        {getTypeIcon(groupName)}
-                        <span className="ml-1">{groupName}</span>
-                        <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
-                          {items.length}
-                        </Badge>
-                      </CollapsibleTrigger>
-                      
-                      <CollapsibleContent className="space-y-0.5 pl-4">
-                        {items.map((item) => {
-                          const itemId = getResultId(item);
-                          
-                          return (
-                            <SearchResultItemRow
-                              key={itemId}
-                              item={item}
-                              itemId={itemId}
-                              checked={isSelected(itemId)}
-                              skyCultureLanguage={skyCultureLanguage}
-                              onSelect={(item) => {
-                                selectTarget(item);
-                                handleCloseDialog();
-                              }}
-                              onToggleSelection={toggleSelection}
-                              onAddToTargetList={handleAddToTargetList}
-                            />
-                          );
-                        })}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ))}
+                <div className="py-2">
+                  <GroupedResultsList
+                    groupedResults={groupedResults}
+                    isSelected={isSelected}
+                    skyCultureLanguage={skyCultureLanguage}
+                    onSelect={(item) => {
+                      selectTarget(item);
+                      handleCloseDialog();
+                    }}
+                    onToggleSelection={toggleSelection}
+                    onAddToTargetList={handleAddToTargetList}
+                    defaultExpanded={['DSO', 'Planet', 'Constellation']}
+                  />
                 </div>
               </ScrollArea>
             )}

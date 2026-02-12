@@ -154,6 +154,9 @@ export {
 // Target selection (shared between search components)
 export { useSelectTarget } from './use-select-target';
 
+// Target list actions (shared add/batch-add logic)
+export { useTargetListActions } from './use-target-list-actions';
+
 // Observing conditions
 export {
   useObservingConditions,

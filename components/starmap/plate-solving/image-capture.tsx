@@ -86,7 +86,6 @@ export function ImageCapture({
   const [imageMetadata, setImageMetadata] = useState<ImageMetadata | null>(null);
   const [compressionEnabled, setCompressionEnabled] = useState(enableCompression);
   const [compressionQuality, setCompressionQuality] = useState(85);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -638,48 +637,45 @@ export function ImageCapture({
             </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              <ChevronDown className={`h-4 w-4 mr-2 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-              {t('plateSolving.advancedOptions') || 'Advanced Options'}
-            </Button>
-          </div>
-
-          {showAdvanced && (
-            <div className="space-y-3 p-3 bg-muted/30 rounded-lg">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="compression" className="text-sm">
-                  {t('plateSolving.enableCompression') || 'Enable Compression'}
-                </Label>
-                <Switch
-                  id="compression"
-                  checked={compressionEnabled}
-                  onCheckedChange={setCompressionEnabled}
-                />
-              </div>
-              {compressionEnabled && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm">
-                      {t('plateSolving.quality') || 'Quality'}: {compressionQuality}%
-                    </Label>
-                  </div>
-                  <Slider
-                    value={[compressionQuality]}
-                    onValueChange={([v]) => setCompressionQuality(v)}
-                    min={50}
-                    max={100}
-                    step={5}
-                    className="w-full"
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full justify-between">
+                <span>{t('plateSolving.advancedOptions') || 'Advanced Options'}</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-3 p-3 bg-muted/30 rounded-lg mt-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="compression" className="text-sm">
+                    {t('plateSolving.enableCompression') || 'Enable Compression'}
+                  </Label>
+                  <Switch
+                    id="compression"
+                    checked={compressionEnabled}
+                    onCheckedChange={setCompressionEnabled}
                   />
                 </div>
-              )}
-            </div>
-          )}
+                {compressionEnabled && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">
+                        {t('plateSolving.quality') || 'Quality'}: {compressionQuality}%
+                      </Label>
+                    </div>
+                    <Slider
+                      value={[compressionQuality]}
+                      onValueChange={([v]) => setCompressionQuality(v)}
+                      min={50}
+                      max={100}
+                      step={5}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="flex gap-2">
             {mode === 'camera' && !capturedImage && cameraStream && (

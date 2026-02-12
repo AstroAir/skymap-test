@@ -106,13 +106,15 @@ export function HeroSection() {
       </div>
 
       {/* Scroll indicator */}
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={scrollToFeatures}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 text-muted-foreground/50 hover:text-muted-foreground transition-colors animate-float"
-        aria-label="Scroll to features"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 text-muted-foreground/50 hover:text-muted-foreground animate-float"
+        aria-label={t('hero.scrollToFeatures')}
       >
         <ChevronDown className="h-8 w-8" />
-      </button>
+      </Button>
     </section>
   );
 }

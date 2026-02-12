@@ -46,6 +46,55 @@ import {
 export type { SolverSettingsProps } from '@/types/starmap/plate-solving';
 
 // ============================================================================
+// Inline helpers to reduce repeated form patterns
+// ============================================================================
+
+function SliderField({ label, value, displayValue, onChange, min, max, step }: {
+  label: string;
+  value: number;
+  displayValue: string;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <span className="text-sm text-muted-foreground">{displayValue}</span>
+      </div>
+      <Slider
+        value={[value]}
+        onValueChange={([v]) => onChange(v)}
+        min={min}
+        max={max}
+        step={step}
+      />
+    </div>
+  );
+}
+
+function SwitchField({ label, description, checked, onCheckedChange }: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="space-y-0.5">
+        <Label>{label}</Label>
+        {description && (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        )}
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+// ============================================================================
 // Component
 // ============================================================================
 
@@ -315,82 +364,36 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Timeout */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>
-                {t('plateSolving.timeout')}
-              </Label>
-              <span className="text-sm text-muted-foreground">
-                {config.timeout_seconds}s
-              </span>
-            </div>
-            <Slider
-              value={[config.timeout_seconds]}
-              onValueChange={([value]) => setConfig({ timeout_seconds: value })}
-              min={30}
-              max={300}
-              step={10}
-            />
-          </div>
-
-          {/* Downsample */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>
-                {t('plateSolving.downsample')}
-              </Label>
-              <span className="text-sm text-muted-foreground">
-                {config.downsample === 0
-                  ? t('plateSolving.auto')
-                  : `${config.downsample}x`}
-              </span>
-            </div>
-            <Slider
-              value={[config.downsample]}
-              onValueChange={([value]) => setConfig({ downsample: value })}
-              min={0}
-              max={4}
-              step={1}
-            />
-          </div>
-
-          {/* Search Radius */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>
-                {t('plateSolving.searchRadius')}
-              </Label>
-              <span className="text-sm text-muted-foreground">
-                {config.search_radius}°
-              </span>
-            </div>
-            <Slider
-              value={[config.search_radius]}
-              onValueChange={([value]) => setConfig({ search_radius: value })}
-              min={5}
-              max={180}
-              step={5}
-            />
-          </div>
+          <SliderField
+            label={t('plateSolving.timeout')}
+            value={config.timeout_seconds}
+            displayValue={`${config.timeout_seconds}s`}
+            onChange={(value) => setConfig({ timeout_seconds: value })}
+            min={30} max={300} step={10}
+          />
+          <SliderField
+            label={t('plateSolving.downsample')}
+            value={config.downsample}
+            displayValue={config.downsample === 0 ? t('plateSolving.auto') : `${config.downsample}x`}
+            onChange={(value) => setConfig({ downsample: value })}
+            min={0} max={4} step={1}
+          />
+          <SliderField
+            label={t('plateSolving.searchRadius')}
+            value={config.search_radius}
+            displayValue={`${config.search_radius}°`}
+            onChange={(value) => setConfig({ search_radius: value })}
+            min={5} max={180} step={5}
+          />
 
           {/* Use SIP */}
           {isLocalSolver(config.solver_type) && (
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>
-                  {t('plateSolving.useSip')}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('plateSolving.useSipDesc') ||
-                    'Add polynomial distortion correction'}
-                </p>
-              </div>
-              <Switch
-                checked={config.use_sip}
-                onCheckedChange={(checked) => setConfig({ use_sip: checked })}
-              />
-            </div>
+            <SwitchField
+              label={t('plateSolving.useSip')}
+              description={t('plateSolving.useSipDesc') || 'Add polynomial distortion correction'}
+              checked={config.use_sip}
+              onCheckedChange={(checked) => setConfig({ use_sip: checked })}
+            />
           )}
 
           {/* ASTAP-specific options */}
@@ -403,79 +406,33 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                   {t('plateSolving.astapOptions')}
                 </h4>
 
-                {/* Max Stars */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>
-                      {t('plateSolving.maxStars')}
-                    </Label>
-                    <span className="text-sm text-muted-foreground">
-                      {config.astap_max_stars}
-                    </span>
-                  </div>
-                  <Slider
-                    value={[config.astap_max_stars]}
-                    onValueChange={([value]) => setConfig({ astap_max_stars: value })}
-                    min={100}
-                    max={1000}
-                    step={50}
-                  />
-                </div>
-
-                {/* Tolerance */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>
-                      {t('plateSolving.tolerance')}
-                    </Label>
-                    <span className="text-sm text-muted-foreground">
-                      {config.astap_tolerance.toFixed(4)}
-                    </span>
-                  </div>
-                  <Slider
-                    value={[config.astap_tolerance * 1000]}
-                    onValueChange={([value]) => setConfig({ astap_tolerance: value / 1000 })}
-                    min={1}
-                    max={20}
-                    step={1}
-                  />
-                </div>
-
-                {/* Min Star Size */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>
-                      {t('plateSolving.minStarSize')}
-                    </Label>
-                    <span className="text-sm text-muted-foreground">
-                      {config.astap_min_star_size.toFixed(1)}&quot;
-                    </span>
-                  </div>
-                  <Slider
-                    value={[config.astap_min_star_size * 10]}
-                    onValueChange={([value]) => setConfig({ astap_min_star_size: value / 10 })}
-                    min={5}
-                    max={50}
-                    step={5}
-                  />
-                </div>
-
-                {/* Equalise Background */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>
-                      {t('plateSolving.equaliseBackground')}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {t('plateSolving.equaliseBackgroundDesc') ||
-                        'For images with gradient backgrounds'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.astap_equalise_background}
-                    onCheckedChange={(checked) => setConfig({ astap_equalise_background: checked })}
-                  />
-                </div>
+                <SliderField
+                  label={t('plateSolving.maxStars')}
+                  value={config.astap_max_stars}
+                  displayValue={`${config.astap_max_stars}`}
+                  onChange={(value) => setConfig({ astap_max_stars: value })}
+                  min={100} max={1000} step={50}
+                />
+                <SliderField
+                  label={t('plateSolving.tolerance')}
+                  value={config.astap_tolerance * 1000}
+                  displayValue={config.astap_tolerance.toFixed(4)}
+                  onChange={(value) => setConfig({ astap_tolerance: value / 1000 })}
+                  min={1} max={20} step={1}
+                />
+                <SliderField
+                  label={t('plateSolving.minStarSize')}
+                  value={config.astap_min_star_size * 10}
+                  displayValue={`${config.astap_min_star_size.toFixed(1)}"`}
+                  onChange={(value) => setConfig({ astap_min_star_size: value / 10 })}
+                  min={5} max={50} step={5}
+                />
+                <SwitchField
+                  label={t('plateSolving.equaliseBackground')}
+                  description={t('plateSolving.equaliseBackgroundDesc') || 'For images with gradient backgrounds'}
+                  checked={config.astap_equalise_background}
+                  onCheckedChange={(checked) => setConfig({ astap_equalise_background: checked })}
+                />
               </div>
             </>
           )}
@@ -522,37 +479,18 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                   />
                 </div>
 
-                {/* No Verify */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>
-                      {t('plateSolving.skipVerify') || 'Skip Verification'}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {t('plateSolving.skipVerifyDesc') || 'Faster but may reduce accuracy'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.astrometry_no_verify}
-                    onCheckedChange={(checked) => setConfig({ astrometry_no_verify: checked })}
-                  />
-                </div>
-
-                {/* CRPIX Center */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>
-                      {t('plateSolving.crpixCenter') || 'Center Reference Pixel'}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {t('plateSolving.crpixCenterDesc') || 'Set reference point to image center'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.astrometry_crpix_center}
-                    onCheckedChange={(checked) => setConfig({ astrometry_crpix_center: checked })}
-                  />
-                </div>
+                <SwitchField
+                  label={t('plateSolving.skipVerify') || 'Skip Verification'}
+                  description={t('plateSolving.skipVerifyDesc') || 'Faster but may reduce accuracy'}
+                  checked={config.astrometry_no_verify}
+                  onCheckedChange={(checked) => setConfig({ astrometry_no_verify: checked })}
+                />
+                <SwitchField
+                  label={t('plateSolving.crpixCenter') || 'Center Reference Pixel'}
+                  description={t('plateSolving.crpixCenterDesc') || 'Set reference point to image center'}
+                  checked={config.astrometry_crpix_center}
+                  onCheckedChange={(checked) => setConfig({ astrometry_crpix_center: checked })}
+                />
               </div>
             </>
           )}
@@ -564,53 +502,24 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
               {t('plateSolving.generalOptions') || 'General Options'}
             </h4>
 
-            {/* Auto Hints */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>
-                  {t('plateSolving.autoHints') || 'Auto Position Hints'}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('plateSolving.autoHintsDesc') || 'Use current view position as hint'}
-                </p>
-              </div>
-              <Switch
-                checked={config.auto_hints}
-                onCheckedChange={(checked) => setConfig({ auto_hints: checked })}
-              />
-            </div>
-
-            {/* Keep WCS */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>
-                  {t('plateSolving.keepWcs') || 'Keep WCS File'}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('plateSolving.keepWcsDesc') || 'Save WCS output for later use'}
-                </p>
-              </div>
-              <Switch
-                checked={config.keep_wcs_file}
-                onCheckedChange={(checked) => setConfig({ keep_wcs_file: checked })}
-              />
-            </div>
-
-            {/* Retry on Failure */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>
-                  {t('plateSolving.retryOnFailure') || 'Retry on Failure'}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('plateSolving.retryOnFailureDesc') || 'Retry with different settings'}
-                </p>
-              </div>
-              <Switch
-                checked={config.retry_on_failure}
-                onCheckedChange={(checked) => setConfig({ retry_on_failure: checked })}
-              />
-            </div>
+            <SwitchField
+              label={t('plateSolving.autoHints') || 'Auto Position Hints'}
+              description={t('plateSolving.autoHintsDesc') || 'Use current view position as hint'}
+              checked={config.auto_hints}
+              onCheckedChange={(checked) => setConfig({ auto_hints: checked })}
+            />
+            <SwitchField
+              label={t('plateSolving.keepWcs') || 'Keep WCS File'}
+              description={t('plateSolving.keepWcsDesc') || 'Save WCS output for later use'}
+              checked={config.keep_wcs_file}
+              onCheckedChange={(checked) => setConfig({ keep_wcs_file: checked })}
+            />
+            <SwitchField
+              label={t('plateSolving.retryOnFailure') || 'Retry on Failure'}
+              description={t('plateSolving.retryOnFailureDesc') || 'Retry with different settings'}
+              checked={config.retry_on_failure}
+              onCheckedChange={(checked) => setConfig({ retry_on_failure: checked })}
+            />
           </div>
         </CardContent>
       </Card>

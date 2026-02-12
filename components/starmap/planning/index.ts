@@ -8,3 +8,6 @@ export { SessionPlanner } from './session-planner';
 export { ShotList } from './shot-list';
 export { SkyAtlasPanel } from './sky-atlas-panel';
 export { TonightRecommendations } from './tonight-recommendations';
+export { StarRating } from './star-rating';
+export { FeasibilityBadge } from './feasibility-badge';
+export { StatCard } from './stat-card';

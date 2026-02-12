@@ -148,7 +148,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden bg-card/95 backdrop-blur-md border-border p-0">
         {/* Visually hidden title for accessibility */}
         <DialogTitle className="sr-only">
-          {t('setupWizard.title') || 'Setup Wizard'}
+          {t('setupWizard.title')}
         </DialogTitle>
         {/* Header with progress */}
         <div className="relative">

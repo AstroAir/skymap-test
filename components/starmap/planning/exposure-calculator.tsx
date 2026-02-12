@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -74,6 +75,7 @@ import { useEquipmentStore } from '@/lib/stores';
 // ============================================================================
 
 function SNRIndicator({ snr }: { snr: number }) {
+  const t = useTranslations();
   const level = snr > 50 ? 'excellent' : snr > 30 ? 'good' : snr > 15 ? 'fair' : 'poor';
   const colors = {
     excellent: 'bg-green-500',
@@ -86,7 +88,7 @@ function SNRIndicator({ snr }: { snr: number }) {
     <div className="flex items-center gap-2">
       <div className={cn('w-2 h-2 rounded-full', colors[level])} />
       <span className="text-sm font-mono">{snr.toFixed(1)}</span>
-      <span className="text-xs text-muted-foreground capitalize">({level})</span>
+      <span className="text-xs text-muted-foreground">({t(`exposure.snrLevel.${level}`)})</span>
     </div>
   );
 }
@@ -416,19 +418,13 @@ export function ExposureCalculator({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
               <div className="space-y-2">
                 <Label className="text-xs">{t('exposure.binning')}</Label>
-                <div className="flex gap-1">
+                <ToggleGroup type="single" value={binning} onValueChange={(v) => v && setBinning(v as typeof binning)} variant="outline" size="sm" className="w-full">
                   {BINNING_OPTIONS.map((b) => (
-                    <Button
-                      key={b}
-                      variant={binning === b ? 'default' : 'outline'}
-                      size="sm"
-                      className="flex-1 h-7 text-xs"
-                      onClick={() => setBinning(b)}
-                    >
+                    <ToggleGroupItem key={b} value={b} className="flex-1 h-7 text-xs">
                       {b}
-                    </Button>
+                    </ToggleGroupItem>
                   ))}
-                </div>
+                </ToggleGroup>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">{t('exposure.imageType')}</Label>
@@ -510,41 +506,29 @@ export function ExposureCalculator({
                 {/* Tracking Mode */}
                 <div className="space-y-2">
                   <Label className="text-xs">{t('exposure.tracking')}</Label>
-                  <div className="flex gap-1">
+                  <ToggleGroup type="single" value={tracking} onValueChange={(v) => v && setTracking(v as typeof tracking)} variant="outline" size="sm" className="w-full">
                     {(['none', 'basic', 'guided'] as const).map((trackingMode) => (
-                      <Button
-                        key={trackingMode}
-                        variant={tracking === trackingMode ? 'default' : 'outline'}
-                        size="sm"
-                        className="flex-1 h-7 text-xs"
-                        onClick={() => setTracking(trackingMode)}
-                      >
+                      <ToggleGroupItem key={trackingMode} value={trackingMode} className="flex-1 h-7 text-xs">
                         {trackingMode === 'none' 
                           ? t('exposure.trackingNone') 
                           : trackingMode === 'basic' 
                             ? t('exposure.trackingBasic') 
                             : t('exposure.trackingGuided')}
-                      </Button>
+                      </ToggleGroupItem>
                     ))}
-                  </div>
+                  </ToggleGroup>
                 </div>
                 
                 {/* Target Type */}
                 <div className="space-y-2">
                   <Label className="text-xs">{t('exposure.targetType')}</Label>
-                  <div className="flex gap-1">
+                  <ToggleGroup type="single" value={targetType} onValueChange={(v) => v && setTargetType(v as typeof targetType)} variant="outline" size="sm" className="w-full">
                     {(['galaxy', 'nebula', 'cluster', 'planetary'] as const).map((type) => (
-                      <Button
-                        key={type}
-                        variant={targetType === type ? 'default' : 'outline'}
-                        size="sm"
-                        className="flex-1 h-6 text-[10px]"
-                        onClick={() => setTargetType(type)}
-                      >
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </Button>
+                      <ToggleGroupItem key={type} value={type} className="flex-1 h-6 text-[10px]">
+                        {t(`exposure.${type}`)}
+                      </ToggleGroupItem>
                     ))}
-                  </div>
+                  </ToggleGroup>
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -656,11 +640,11 @@ export function ExposureCalculator({
                 
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{filter}</Badge>
-                  <Badge variant="outline">Gain: {gain}</Badge>
+                  <Badge variant="outline">{t('exposure.gainLabel', { value: gain })}</Badge>
                   <Badge variant="outline">{binning}</Badge>
                   <Badge variant="outline">{imageType}</Badge>
                   {ditherEnabled && (
-                    <Badge variant="outline">Dither: {ditherEvery}</Badge>
+                    <Badge variant="outline">{t('exposure.ditherLabel', { value: ditherEvery })}</Badge>
                   )}
                 </div>
                 

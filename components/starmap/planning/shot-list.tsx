@@ -16,7 +16,6 @@ import {
   X,
   Eye,
   AlertTriangle,
-  TrendingUp,
   Moon,
   BarChart3,
   Star,
@@ -82,7 +81,8 @@ import {
   formatDuration,
   type ImagingFeasibility,
 } from '@/lib/astronomy/astro-utils';
-import { getStatusColor, getPriorityColor, getFeasibilityBadgeColor } from '@/lib/core/constants/planning-styles';
+import { getStatusColor, getPriorityColor } from '@/lib/core/constants/planning-styles';
+import { FeasibilityBadge } from './feasibility-badge';
 import type { ShotListProps } from '@/types/starmap/planning';
 import { createLogger } from '@/lib/logger';
 
@@ -291,7 +291,7 @@ export function ShotList({
         addTargetsBatch(batchTargets, { priority: 'medium' });
         
         toast.success(t('shotList.importSuccess'), {
-          description: `${result.imported} targets imported${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`,
+          description: t('shotList.importDescription', { imported: result.imported, skipped: result.skipped }),
         });
       } else {
         toast.info(t('shotList.noTargetsImported'));
@@ -309,17 +309,6 @@ export function ShotList({
   }, [t, addTargetsBatch]);
 
 
-  const getFeasibilityIcon = (rec: ImagingFeasibility['recommendation']) => {
-    switch (rec) {
-      case 'excellent':
-      case 'good':
-        return <TrendingUp className="h-3 w-3" />;
-      case 'fair':
-      case 'poor':
-      case 'not_recommended':
-        return <AlertTriangle className="h-3 w-3" />;
-    }
-  };
 
 
   const plannedCount = filteredTargets.filter((t) => t.status === 'planned').length;
@@ -351,7 +340,7 @@ export function ShotList({
           </TooltipContent>
         </Tooltip>
 
-        <DrawerContent className="w-[85vw] max-w-[320px] sm:max-w-[400px] md:max-w-[450px] h-full bg-card border-border drawer-content">
+        <DrawerContent className="w-[85vw] max-w-[360px] sm:max-w-[420px] md:max-w-[480px] h-full bg-card border-border drawer-content">
           <DrawerHeader>
             <DrawerTitle className="text-foreground flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
@@ -359,7 +348,7 @@ export function ShotList({
             </DrawerTitle>
           </DrawerHeader>
 
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 flex flex-col gap-4 flex-1 min-h-0">
             {/* Stats & Toolbar */}
             <div className="space-y-2">
               {/* Stats Row */}
@@ -592,7 +581,7 @@ export function ShotList({
                 )}
                 {targetPlan.recommendations.length > 0 && (
                   <div className="text-[10px] text-muted-foreground mt-1">
-                    {targetPlan.recommendations[0]}
+                    {t(targetPlan.recommendations[0].key, targetPlan.recommendations[0].params)}
                   </div>
                 )}
               </div>
@@ -605,14 +594,14 @@ export function ShotList({
                 onClick={handleAddCurrentTarget}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add: {currentSelection.name}
+                {t('shotList.addTarget', { name: currentSelection.name })}
               </Button>
             )}
 
             <Separator className="bg-border" />
 
             {/* Target list */}
-            <ScrollArea className="h-[calc(100vh-280px)]">
+            <ScrollArea className="flex-1 min-h-0">
               {targets.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -676,7 +665,7 @@ export function ShotList({
                             )}
                           </div>
                           <Badge className={`${getStatusColor(target.status)} text-white text-[10px] h-5`}>
-                            {target.status.replace('_', ' ')}
+                            {t(`shotList.${target.status === 'in_progress' ? 'inProgress' : target.status}`)}
                           </Badge>
                         </div>
 
@@ -710,26 +699,7 @@ export function ShotList({
                           
                           return (
                             <div className="mt-1.5 space-y-1">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-2">
-                                    <Badge className={`${getFeasibilityBadgeColor(feasibility.recommendation)} text-white text-[10px] h-5`}>
-                                      {getFeasibilityIcon(feasibility.recommendation)}
-                                      <span className="ml-1 capitalize">{feasibility.recommendation.replace('_', ' ')}</span>
-                                    </Badge>
-                                    <span className="text-[10px] text-muted-foreground">{feasibility.score}/100</span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="left" className="max-w-48">
-                                  <div className="text-xs space-y-1">
-                                    <div>Moon: {feasibility.moonScore} | Alt: {feasibility.altitudeScore}</div>
-                                    <div>Duration: {feasibility.durationScore} | Twilight: {feasibility.twilightScore}</div>
-                                    {feasibility.warnings.length > 0 && (
-                                      <div className="text-yellow-400">{feasibility.warnings[0]}</div>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
+                              <FeasibilityBadge feasibility={feasibility} variant="badge" tooltipSide="left" />
                               
                               {/* Dark window times */}
                               {planTarget?.windowStart && planTarget?.windowEnd && (
@@ -746,7 +716,7 @@ export function ShotList({
                               {planTarget?.conflicts && planTarget.conflicts.length > 0 && (
                                 <div className="flex items-center gap-1 text-[10px] text-yellow-400">
                                   <AlertTriangle className="h-3 w-3" />
-                                  <span>Overlaps with {planTarget.conflicts.length} target(s)</span>
+                                  <span>{t('shotList.overlapsWith', { count: planTarget.conflicts.length })}</span>
                                 </div>
                               )}
                             </div>
@@ -784,7 +754,7 @@ export function ShotList({
                                 updateTarget(target.id, { priority: nextPriority });
                               }}
                             >
-                              {target.priority}
+                              {t(`shotList.priority.${target.priority}`)}
                             </Badge>
                           </div>
 
@@ -887,8 +857,7 @@ export function ShotList({
                       <AlertDialogHeader>
                         <AlertDialogTitle className="text-foreground">{t('shotList.clearAllTargets')}</AlertDialogTitle>
                         <AlertDialogDescription className="text-muted-foreground">
-                          This will remove all {targets.length} targets from your shot list.
-                          This action cannot be undone.
+                          {t('shotList.clearAllDescription', { count: targets.length })}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

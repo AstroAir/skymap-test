@@ -22,9 +22,31 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { useLocations, tauriApi } from '@/lib/tauri';
@@ -45,6 +67,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [inputMethod, setInputMethod] = useState<'manual' | 'map'>('manual');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   
   // Hydration-safe mounting detection using useSyncExternalStore
   const mounted = useSyncExternalStore(
@@ -334,21 +357,41 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                       </div>
                       <div className="flex gap-1">
                         {!loc.is_current && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleSetCurrent(loc.id)}
-                            title={t('locations.setAsCurrent') || 'Set as current'}
-                          >
-                            <Navigation className="h-4 w-4" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleSetCurrent(loc.id)}
+                              >
+                                <Navigation className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t('locations.setAsCurrent') || 'Set as current'}
+                            </TooltipContent>
+                          </Tooltip>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => handleStartEdit(loc)} title={t('common.edit') || 'Edit'}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(loc.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => handleStartEdit(loc)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t('common.edit') || 'Edit'}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: loc.id, name: loc.name })}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t('common.delete') || 'Delete'}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   ))}
@@ -413,14 +456,21 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                       </div>
                       <div>
                         <Label>{t('locations.bortleClass') || 'Bortle Class'}</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="9"
+                        <Select
                           value={form.bortle_class}
-                          onChange={(e) => setForm({ ...form, bortle_class: e.target.value })}
-                          placeholder="4"
-                        />
+                          onValueChange={(v) => setForm({ ...form, bortle_class: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('locations.bortlePlaceholder') || 'Select...'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((b) => (
+                              <SelectItem key={b} value={b.toString()}>
+                                {b} - {t(`locations.bortle${b}`) || `Class ${b}`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -472,14 +522,21 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                         </div>
                         <div>
                           <Label>{t('locations.bortleClass') || 'Bortle Class'}</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            max="9"
+                          <Select
                             value={form.bortle_class}
-                            onChange={(e) => setForm({ ...form, bortle_class: e.target.value })}
-                            placeholder="4"
-                          />
+                            onValueChange={(v) => setForm({ ...form, bortle_class: v })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('locations.bortlePlaceholder') || 'Select...'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((b) => (
+                                <SelectItem key={b} value={b.toString()}>
+                                  {b} - {t(`locations.bortle${b}`) || `Class ${b}`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>
@@ -507,6 +564,35 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
           </div>
         )}
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(isOpen) => !isOpen && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('locations.deleteConfirmTitle') || 'Delete Location?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('locations.deleteConfirmDescription', { name: deleteTarget?.name ?? '' }) ||
+                `Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel') || 'Cancel'}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTarget) {
+                  handleDelete(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              {t('common.delete') || 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -56,13 +56,13 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
               <p className="mb-2">{t('credits.starsDescription')}</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  <strong>Gaia DR2:</strong> {t('credits.gaiaDescription')}
+                  <strong>{t('credits.gaiaLabel')}:</strong> {t('credits.gaiaDescription')}
                 </li>
                 <li>
-                  <strong>Hipparcos:</strong> {t('credits.hipparcosDescription')}
+                  <strong>{t('credits.hipparcosLabel')}:</strong> {t('credits.hipparcosDescription')}
                 </li>
                 <li>
-                  <strong>Bright Stars Catalogue:</strong> {t('credits.brightStarsDescription')}
+                  <strong>{t('credits.brightStarsLabel')}:</strong> {t('credits.brightStarsDescription')}
                 </li>
               </ul>
             </section>
@@ -72,13 +72,13 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
               <p className="mb-2">{t('credits.dsoDescription')}</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  <strong>HyperLeda database:</strong> {t('credits.hyperledaDescription')}
+                  <strong>{t('credits.hyperledaLabel')}:</strong> {t('credits.hyperledaDescription')}
                 </li>
                 <li>
-                  <strong>Simbad:</strong> {t('credits.simbadDescription')}
+                  <strong>{t('credits.simbadLabel')}:</strong> {t('credits.simbadDescription')}
                 </li>
                 <li>
-                  <strong>Open NGC Database:</strong> {t('credits.openNgcDescription')}
+                  <strong>{t('credits.openNgcLabel')}:</strong> {t('credits.openNgcDescription')}
                 </li>
                 <li>{t('credits.caldwellDescription')}</li>
               </ul>

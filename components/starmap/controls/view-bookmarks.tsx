@@ -384,8 +384,8 @@ export const ViewBookmarks = memo(function ViewBookmarks({
             {!editingBookmark && (
               <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
                 <p className="font-medium mb-1">{t('bookmarks.currentPosition')}</p>
-                <p>RA: {currentRa.toFixed(4)}° • Dec: {currentDec.toFixed(4)}°</p>
-                <p>FOV: {currentFov.toFixed(1)}°</p>
+                <p>{t('bookmarks.raLabel')}: {currentRa.toFixed(4)}° • {t('bookmarks.decLabel')}: {currentDec.toFixed(4)}°</p>
+                <p>{t('bookmarks.fovLabel')}: {currentFov.toFixed(1)}°</p>
               </div>
             )}
           </div>

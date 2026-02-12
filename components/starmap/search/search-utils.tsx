@@ -28,10 +28,10 @@ export function getTypeIcon(type?: string) {
  */
 export function getCategoryIcon(label: string) {
   switch (label) {
-    case 'Galaxies': return <CircleDot className="h-3 w-3 text-purple-400" />;
-    case 'Nebulae': return <Sparkles className="h-3 w-3 text-pink-400" />;
-    case 'Planets': return <Globe className="h-3 w-3 text-blue-400" />;
-    case 'Clusters': return <Star className="h-3 w-3 text-yellow-400" />;
+    case 'galaxies': return <CircleDot className="h-3 w-3 text-purple-400" />;
+    case 'nebulae': return <Sparkles className="h-3 w-3 text-pink-400" />;
+    case 'planets': return <Globe className="h-3 w-3 text-blue-400" />;
+    case 'clusters': return <Star className="h-3 w-3 text-yellow-400" />;
     default: return <CircleDot className="h-3 w-3" />;
   }
 }

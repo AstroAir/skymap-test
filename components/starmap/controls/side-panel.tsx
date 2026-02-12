@@ -76,6 +76,7 @@ export function SidePanel({ children, className, defaultCollapsed = false }: Sid
         size="icon"
         className="h-6 w-6 bg-card/60 backdrop-blur-md border border-border/50 rounded-full"
         onClick={toggleCollapsed}
+        aria-label={collapsed ? t('sidePanel.expand') : t('sidePanel.collapse')}
       >
         {collapsed ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
       </Button>

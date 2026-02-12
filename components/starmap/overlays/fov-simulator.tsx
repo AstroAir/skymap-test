@@ -68,6 +68,9 @@ import {
   type GridType,
 } from '@/lib/constants/equipment-presets';
 import { NumberStepper } from '@/components/ui/number-stepper';
+import { SwitchItem } from '@/components/ui/switch-item';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ColorPicker } from '@/components/ui/color-picker';
 import type { FOVSimulatorProps } from '@/types/starmap/overlays';
 import {
   calculateCameraFov,
@@ -534,10 +537,7 @@ export function FOVSimulator({
             )}
 
             {!mosaic.enabled && (
-              <div className="text-center py-8 text-muted-foreground">
-                <Grid3X3 className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">{t('fov.mosaicDisabled')}</p>
-              </div>
+              <EmptyState icon={Grid3X3} message={t('fov.mosaicDisabled')} iconClassName="h-12 w-12 opacity-30" />
             )}
           </TabsContent>
 
@@ -574,27 +574,24 @@ export function FOVSimulator({
             <div className="space-y-3">
               <Label className="text-sm font-medium">{t('fov.framingOptions')}</Label>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-sm">{t('fov.rotateSky')}</span>
-                    <p className="text-xs text-muted-foreground">{t('fov.rotateSkyDesc')}</p>
-                  </div>
-                  <Switch checked={rotateSky} onCheckedChange={(v) => setFOVDisplay({ rotateSky: v })} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-sm">{t('fov.preserveAlignment')}</span>
-                    <p className="text-xs text-muted-foreground">{t('fov.preserveAlignmentDesc')}</p>
-                  </div>
-                  <Switch checked={preserveAlignment} onCheckedChange={(v) => setFOVDisplay({ preserveAlignment: v })} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-sm">{t('fov.dragToPosition')}</span>
-                    <p className="text-xs text-muted-foreground">{t('fov.dragToPositionDesc')}</p>
-                  </div>
-                  <Switch checked={dragToPosition} onCheckedChange={(v) => setFOVDisplay({ dragToPosition: v })} />
-                </div>
+                <SwitchItem
+                  label={t('fov.rotateSky')}
+                  description={t('fov.rotateSkyDesc')}
+                  checked={rotateSky}
+                  onCheckedChange={(v) => setFOVDisplay({ rotateSky: v })}
+                />
+                <SwitchItem
+                  label={t('fov.preserveAlignment')}
+                  description={t('fov.preserveAlignmentDesc')}
+                  checked={preserveAlignment}
+                  onCheckedChange={(v) => setFOVDisplay({ preserveAlignment: v })}
+                />
+                <SwitchItem
+                  label={t('fov.dragToPosition')}
+                  description={t('fov.dragToPositionDesc')}
+                  checked={dragToPosition}
+                  onCheckedChange={(v) => setFOVDisplay({ dragToPosition: v })}
+                />
               </div>
             </div>
 
@@ -632,22 +629,26 @@ export function FOVSimulator({
                 <div className="space-y-3">
                   <Label className="text-sm">{t('fov.annotations')}</Label>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{t('fov.showCoordinateGrid')}</span>
-                      <Switch checked={showCoordinateGrid} onCheckedChange={(v) => setFOVDisplay({ showCoordinateGrid: v })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{t('fov.showConstellations')}</span>
-                      <Switch checked={showConstellations} onCheckedChange={(v) => setFOVDisplay({ showConstellations: v })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{t('fov.showConstellationBoundaries')}</span>
-                      <Switch checked={showConstellationBoundaries} onCheckedChange={(v) => setFOVDisplay({ showConstellationBoundaries: v })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{t('fov.showDSOLabels')}</span>
-                      <Switch checked={showDSOLabels} onCheckedChange={(v) => setFOVDisplay({ showDSOLabels: v })} />
-                    </div>
+                    <SwitchItem
+                      label={t('fov.showCoordinateGrid')}
+                      checked={showCoordinateGrid}
+                      onCheckedChange={(v) => setFOVDisplay({ showCoordinateGrid: v })}
+                    />
+                    <SwitchItem
+                      label={t('fov.showConstellations')}
+                      checked={showConstellations}
+                      onCheckedChange={(v) => setFOVDisplay({ showConstellations: v })}
+                    />
+                    <SwitchItem
+                      label={t('fov.showConstellationBoundaries')}
+                      checked={showConstellationBoundaries}
+                      onCheckedChange={(v) => setFOVDisplay({ showConstellationBoundaries: v })}
+                    />
+                    <SwitchItem
+                      label={t('fov.showDSOLabels')}
+                      checked={showDSOLabels}
+                      onCheckedChange={(v) => setFOVDisplay({ showDSOLabels: v })}
+                    />
                   </div>
                 </div>
 
@@ -656,21 +657,11 @@ export function FOVSimulator({
                 {/* Frame Color */}
                 <div className="space-y-2">
                   <Label className="text-sm">{t('fov.frameColor')}</Label>
-                  <div className="flex gap-1">
-                    {['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ffffff'].map((color) => (
-                      <Button
-                        key={color}
-                        variant="outline"
-                        size="icon"
-                        className={cn(
-                          'w-7 h-7 p-0 hover:scale-110 transition-transform',
-                          frameColor === color && 'ring-2 ring-primary ring-offset-2'
-                        )}
-                        style={{ backgroundColor: color }}
-                        onClick={() => setFOVDisplay({ frameColor: color })}
-                      />
-                    ))}
-                  </div>
+                  <ColorPicker
+                    colors={['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ffffff']}
+                    value={frameColor}
+                    onChange={(color) => setFOVDisplay({ frameColor: color })}
+                  />
                 </div>
 
                 {/* Frame Style */}

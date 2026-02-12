@@ -7,3 +7,4 @@ export * from './stellarium';
 export * from './search';
 export * from './equipment';
 export * from './astronomy';
+export * from './i18n';

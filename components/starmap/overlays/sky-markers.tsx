@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMarkerStore, type SkyMarker, type MarkerIcon } from '@/lib/stores';
 import { useBatchProjection } from '@/lib/hooks';
@@ -26,12 +26,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  ContextMenuLabel,
+} from '@/components/ui/context-menu';
 
 // Icon component mapping
 const MarkerIconComponent: Record<MarkerIcon, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
@@ -61,11 +62,6 @@ export function SkyMarkers({
   const setActiveMarker = useMarkerStore((state) => state.setActiveMarker);
   const toggleMarkerVisibility = useMarkerStore((state) => state.toggleMarkerVisibility);
   const removeMarker = useMarkerStore((state) => state.removeMarker);
-  
-  // Context menu state
-  const [contextMenuOpen, setContextMenuOpen] = useState(false);
-  const [contextMenuMarker, setContextMenuMarker] = useState<SkyMarker | null>(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
 
   // Compute visible markers with useMemo to avoid creating new array on each render
   const visibleMarkers = useMemo(() => {
@@ -96,50 +92,26 @@ export function SkyMarkers({
     }));
   }, [projectedMarkers]);
 
-  // Handle right-click on marker
-  const handleMarkerContextMenu = useCallback((e: React.MouseEvent, marker: SkyMarker) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenuMarker(marker);
-    setContextMenuPosition({ x: e.clientX, y: e.clientY });
-    setContextMenuOpen(true);
-  }, []);
+  // Marker action handlers (accept marker directly, no shared state needed)
+  const handleEdit = useCallback((marker: SkyMarker) => {
+    onMarkerEdit?.(marker);
+  }, [onMarkerEdit]);
 
-  // Handle marker edit
-  const handleEdit = useCallback(() => {
-    if (contextMenuMarker) {
-      onMarkerEdit?.(contextMenuMarker);
+  const handleDelete = useCallback((marker: SkyMarker) => {
+    if (onMarkerDelete) {
+      onMarkerDelete(marker);
+    } else {
+      removeMarker(marker.id);
     }
-    setContextMenuOpen(false);
-  }, [contextMenuMarker, onMarkerEdit]);
+  }, [onMarkerDelete, removeMarker]);
 
-  // Handle marker delete
-  const handleDelete = useCallback(() => {
-    if (contextMenuMarker) {
-      if (onMarkerDelete) {
-        onMarkerDelete(contextMenuMarker);
-      } else {
-        removeMarker(contextMenuMarker.id);
-      }
-    }
-    setContextMenuOpen(false);
-  }, [contextMenuMarker, onMarkerDelete, removeMarker]);
+  const handleNavigate = useCallback((marker: SkyMarker) => {
+    onMarkerNavigate?.(marker);
+  }, [onMarkerNavigate]);
 
-  // Handle navigate to marker
-  const handleNavigate = useCallback(() => {
-    if (contextMenuMarker) {
-      onMarkerNavigate?.(contextMenuMarker);
-    }
-    setContextMenuOpen(false);
-  }, [contextMenuMarker, onMarkerNavigate]);
-
-  // Handle toggle visibility
-  const handleToggleVisibility = useCallback(() => {
-    if (contextMenuMarker) {
-      toggleMarkerVisibility(contextMenuMarker.id);
-    }
-    setContextMenuOpen(false);
-  }, [contextMenuMarker, toggleMarkerVisibility]);
+  const handleToggleVisibility = useCallback((marker: SkyMarker) => {
+    toggleMarkerVisibility(marker.id);
+  }, [toggleMarkerVisibility]);
 
   if (renderableMarkers.length === 0) {
     return null;
@@ -152,95 +124,81 @@ export function SkyMarkers({
         const isActive = marker.id === activeMarkerId;
 
         return (
-          <Tooltip key={marker.id}>
-            <TooltipTrigger asChild>
-              <div
-                className="absolute pointer-events-auto cursor-pointer transition-transform hover:scale-125"
-                style={{
-                  left: x,
-                  top: y,
-                  transform: 'translate(-50%, -50%)',
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveMarker(marker.id);
-                  onMarkerClick?.(marker);
-                }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  onMarkerDoubleClick?.(marker);
-                }}
-                onContextMenu={(e) => handleMarkerContextMenu(e, marker)}
-              >
-                <IconComponent
-                  className="drop-shadow-lg"
-                  style={{
-                    color: marker.color,
-                    width: isActive ? 28 : 20,
-                    height: isActive ? 28 : 20,
-                    filter: `drop-shadow(0 0 ${isActive ? 4 : 2}px ${marker.color})`,
-                  }}
-                />
-                {isActive && (
+          <ContextMenu key={marker.id}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <ContextMenuTrigger asChild>
                   <div
-                    className="absolute inset-0 rounded-full animate-ping"
+                    className="absolute pointer-events-auto cursor-pointer transition-transform hover:scale-125"
                     style={{
-                      backgroundColor: marker.color,
-                      opacity: 0.3,
-                      transform: 'scale(1.5)',
+                      left: x,
+                      top: y,
+                      transform: 'translate(-50%, -50%)',
                     }}
-                  />
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveMarker(marker.id);
+                      onMarkerClick?.(marker);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      onMarkerDoubleClick?.(marker);
+                    }}
+                  >
+                    <IconComponent
+                      className="drop-shadow-lg"
+                      style={{
+                        color: marker.color,
+                        width: isActive ? 28 : 20,
+                        height: isActive ? 28 : 20,
+                        filter: `drop-shadow(0 0 ${isActive ? 4 : 2}px ${marker.color})`,
+                      }}
+                    />
+                    {isActive && (
+                      <div
+                        className="absolute inset-0 rounded-full animate-ping"
+                        style={{
+                          backgroundColor: marker.color,
+                          opacity: 0.3,
+                          transform: 'scale(1.5)',
+                        }}
+                      />
+                    )}
+                  </div>
+                </ContextMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div className="font-medium">{marker.name}</div>
+                {marker.description && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {marker.description}
+                  </div>
                 )}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs">
-              <div className="font-medium">{marker.name}</div>
-              {marker.description && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  {marker.description}
+                <div className="text-xs font-mono text-muted-foreground mt-1">
+                  {marker.raString} / {marker.decString}
                 </div>
-              )}
-              <div className="text-xs font-mono text-muted-foreground mt-1">
-                {marker.raString} / {marker.decString}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
-
-      {/* Context Menu for Markers */}
-      <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <div 
-            className="fixed w-0 h-0 pointer-events-none"
-            style={{
-              left: contextMenuPosition.x,
-              top: contextMenuPosition.y,
-            }}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48" aria-label={t('markers.contextMenu')}>
-          {contextMenuMarker && (
-            <>
-              <div className="px-2 py-1.5 text-xs">
-                <div className="font-medium truncate" style={{ color: contextMenuMarker.color }}>
-                  {contextMenuMarker.name}
+              </TooltipContent>
+            </Tooltip>
+            <ContextMenuContent className="w-48" aria-label={t('markers.contextMenu')}>
+              <ContextMenuLabel className="text-xs">
+                <div className="font-medium truncate" style={{ color: marker.color }}>
+                  {marker.name}
                 </div>
-                <div className="font-mono text-muted-foreground">
-                  {contextMenuMarker.raString}
+                <div className="font-mono text-muted-foreground font-normal">
+                  {marker.raString}
                 </div>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleNavigate}>
+              </ContextMenuLabel>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => handleNavigate(marker)}>
                 <Navigation className="h-4 w-4 mr-2" />
                 {t('markers.goTo')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleEdit}>
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleEdit(marker)}>
                 <Edit className="h-4 w-4 mr-2" />
                 {t('common.edit')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleToggleVisibility}>
-                {contextMenuMarker.visible ? (
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleToggleVisibility(marker)}>
+                {marker.visible ? (
                   <>
                     <EyeOff className="h-4 w-4 mr-2" />
                     {t('markers.hide')}
@@ -251,19 +209,19 @@ export function SkyMarkers({
                     {t('markers.show')}
                   </>
                 )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={handleDelete}
-                className="text-destructive focus:text-destructive"
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={() => handleDelete(marker)}
+                variant="destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 {t('common.delete')}
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        );
+      })}
     </div>
   );
 }

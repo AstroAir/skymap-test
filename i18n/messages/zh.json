@@ -32,7 +32,9 @@
     "refresh": "刷新",
     "percent": "%",
     "pixels": "像素",
-    "unknown": "未知"
+    "unknown": "未知",
+    "update": "更新",
+    "retry": "重试"
   },
   "splash": {
     "tagline": "探索宇宙",
@@ -55,7 +57,33 @@
     "licensesDescription": "本应用程序使用以下开源库：",
     "depsDescription": "项目中使用的主要依赖：",
     "totalDeps": "共 {count} 个包",
-    "appDescription": "基于 Stellarium Web Engine 的现代化网页版天文应用"
+    "appDescription": "基于 Stellarium Web Engine 的现代化网页版天文应用",
+    "licenseDesc": {
+      "stellarium": "星图核心渲染引擎",
+      "nextjs": "React 生产级框架",
+      "react": "UI 库",
+      "tailwind": "实用优先的 CSS 框架",
+      "shadcn": "UI 组件库",
+      "zustand": "状态管理",
+      "nextIntl": "国际化",
+      "lucide": "图标库"
+    },
+    "depType": {
+      "core": "核心",
+      "dev": "开发",
+      "style": "样式",
+      "state": "状态",
+      "i18n": "国际化",
+      "ui": "界面",
+      "util": "工具"
+    },
+    "credit": {
+      "hipsSurveys": "HiPS 巡天",
+      "starCatalog": "恒星星表",
+      "deepSkyObjects": "深空天体",
+      "constellationData": "星座数据",
+      "planetTextures": "行星纹理"
+    }
   },
   "home": {
     "title": "开始使用，编辑 page.tsx 文件。",
@@ -149,7 +177,8 @@
     "centerViewHere": "以此为中心",
     "goToTarget": "前往目标",
     "startImaging": "开始拍摄",
-    "markComplete": "标记完成"
+    "markComplete": "标记完成",
+    "defaultTargetName": "目标 @ {coords}"
   },
   "tonight": {
     "recommendations": "今晚推荐",
@@ -200,7 +229,8 @@
     "fov": "视场",
     "default": "默认",
     "zoomControls": "缩放控件",
-    "fovSlider": "视场角滑块"
+    "fovSlider": "视场角滑块",
+    "fovPreset": "{value}° 视场"
   },
   "fov": {
     "fovOverlay": "视场叠加",
@@ -411,7 +441,9 @@
     "astroDawn": "天文黎明",
     "transitTime": "中天",
     "imagingScore": "拍摄",
-    "feasibility": "可行性"
+    "feasibility": "可行性",
+    "altLabel": "高度:",
+    "azLabel": "方位:"
   },
   "info": {
     "altitude": "高度",
@@ -483,7 +515,21 @@
     "exportFailed": "导出失败",
     "importSuccess": "导入成功",
     "importFailed": "导入失败",
-    "noTargetsImported": "没有导入任何目标"
+    "noTargetsImported": "没有导入任何目标",
+    "addTarget": "添加：{name}",
+    "importDescription": "已导入 {imported} 个目标，跳过 {skipped} 个",
+    "feasibility": {
+      "excellent": "极佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差",
+      "not_recommended": "不推荐"
+    },
+    "priority": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    }
   },
   "observationLog": {
     "title": "观测日志",
@@ -532,7 +578,29 @@
     "sessionEnded": "会话已结束",
     "endFailed": "结束会话失败",
     "sessionDeleted": "会话已删除",
-    "deleteFailed": "删除会话失败"
+    "deleteFailed": "删除会话失败",
+    "poor": "差",
+    "fair": "一般",
+    "average": "中等",
+    "good": "良好",
+    "excellent": "优秀",
+    "bortle1": "极佳",
+    "bortle2": "暗",
+    "bortle3": "乡村",
+    "bortle4": "乡村/郊区",
+    "bortle5": "郊区",
+    "bortle6": "明亮郊区",
+    "bortle7": "郊区/城市",
+    "bortle8": "城市",
+    "bortle9": "市中心",
+    "cluster": "星团",
+    "other": "其他",
+    "easy": "容易",
+    "medium": "中等",
+    "hard": "困难",
+    "usingSelected": "使用已选：{name}",
+    "selectType": "选择类型...",
+    "moreObservations": "+{count} 条更多"
   },
   "search": {
     "filterByType": "按类型筛选",
@@ -599,7 +667,13 @@
     "simbadDescription": "SIMBAD 天文数据库",
     "sesameDescription": "CDS 名称解析器",
     "vizierDescription": "VizieR 星表库",
-    "nedDescription": "NASA 河外星系数据库"
+    "nedDescription": "NASA 河外星系数据库",
+    "categories": {
+      "galaxies": "星系",
+      "nebulae": "星云",
+      "planets": "行星",
+      "clusters": "星团"
+    }
   },
   "exposure": {
     "exposureCalculator": "曝光计算器",
@@ -665,7 +739,33 @@
     "sessionSummary": "会话摘要",
     "storageRequired": "所需存储",
     "meetsRecommended": "满足推荐积分时间",
-    "belowRecommended": "低于推荐 ({current}分 vs {recommended}分)"
+    "belowRecommended": "低于推荐 ({current}分 vs {recommended}分)",
+    "snrLevel": {
+      "excellent": "极佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差"
+    },
+    "gainLabel": "增益: {value}",
+    "ditherLabel": "抖动: {value}",
+    "seeingOptions": {
+      "1": "1 - 差",
+      "2": "2 - 一般",
+      "3": "3 - 中等",
+      "4": "4 - 好",
+      "5": "5 - 优秀"
+    },
+    "bortleOptions": {
+      "1": "1 - 极佳",
+      "2": "2 - 暗",
+      "3": "3 - 乡村",
+      "4": "4 - 乡村/郊区",
+      "5": "5 - 郊区",
+      "6": "6 - 明亮郊区",
+      "7": "7 - 郊区/城市",
+      "8": "8 - 城市",
+      "9": "9 - 市中心"
+    }
   },
   "mount": {
     "mount": "赤道仪",
@@ -814,13 +914,19 @@
     "dataCredits": "数据来源",
     "stars": "恒星",
     "starsDescription": "以下星表的组合：",
+    "gaiaLabel": "Gaia DR2",
     "gaiaDescription": "本作品使用了欧洲航天局 (ESA) Gaia 任务的数据，由 Gaia 数据处理和分析联盟 (DPAC) 处理。",
+    "hipparcosLabel": "依巴谷星表",
     "hipparcosDescription": "来自 ESA（欧洲航天局）和依巴谷任务的依巴谷星表。",
+    "brightStarsLabel": "亮星星表",
     "brightStarsDescription": "亮星星表，第5修订版 (Hoffleit+, 1991)",
     "deepSkyObjects": "深空天体",
     "dsoDescription": "以下星表的组合：",
+    "hyperledaLabel": "HyperLeda 数据库",
     "hyperledaDescription": "Makarov et al. 2014, A&A, 570, A13",
+    "simbadLabel": "Simbad",
     "simbadDescription": "SIMBAD 天文数据库，由斯特拉斯堡 CDS 运营",
+    "openNgcLabel": "Open NGC 数据库",
     "openNgcDescription": "Mattia Verga",
     "caldwellDescription": "科德韦尔星表：来自维基百科",
     "backgroundImage": "背景图像",
@@ -886,7 +992,9 @@
     "offline": "离线",
     "dataSources": "数据源",
     "loading": "加载事件中...",
-    "eventsFound": "个事件"
+    "eventsFound": "个事件",
+    "peak": "峰值: {time}",
+    "until": "持续至 {date}"
   },
   "ocular": {
     "simulator": "目镜模拟器",
@@ -1052,6 +1160,10 @@
       "cls": "CLS",
       "other": "其他"
     },
+    "barlowLabel": "巴洛镜",
+    "reducerLabel": "减焦镜",
+    "barlowNamePlaceholder": "例如 2x 巴洛镜",
+    "filterNamePlaceholder": "例如 Ha 滤镜",
     "selected": "设备已选择",
     "delete": "删除",
     "deleteConfirmTitle": "删除设备？",
@@ -1097,6 +1209,18 @@
     "manualInput": "手动输入",
     "mapSelection": "地图选点",
     "updated": "地点已更新",
+    "deleteConfirmTitle": "删除地点？",
+    "deleteConfirmDescription": "确定要删除「{name}」吗？此操作无法撤销。",
+    "bortlePlaceholder": "选择...",
+    "bortle1": "极佳暗天空",
+    "bortle2": "典型暗天空",
+    "bortle3": "乡村天空",
+    "bortle4": "乡村/郊区过渡",
+    "bortle5": "郊区天空",
+    "bortle6": "明亮郊区天空",
+    "bortle7": "郊区/城区过渡",
+    "bortle8": "城市天空",
+    "bortle9": "市中心天空",
     "validation": {
       "latitudeRange": "纬度必须在 -90 至 90 之间",
       "longitudeRange": "经度必须在 -180 至 180 之间",
@@ -1293,7 +1417,9 @@
     "priority": "优先级",
     "priorityDescription": "数字越小优先级越高，会优先尝试",
     "priorityHint": "优先级顺序",
-    "sourceType": "类型"
+    "sourceType": "类型",
+    "customImageSourceDefault": "自定义图像来源：{name}",
+    "customDataSourceDefault": "自定义数据来源：{name}"
   },
   "onboarding": {
     "stepOf": "{current} / {total}",
@@ -1631,7 +1757,13 @@
     "failedToLoadIndexes": "加载索引失败",
     "downloadFailed": "下载失败",
     "failedToDeleteIndex": "删除索引失败",
-    "unknownError": "未知错误"
+    "unknownError": "未知错误",
+    "cancelled": "解析已被用户取消",
+    "cancel": "取消",
+    "noSolversDetected": "未检测到解析器。点击刷新重新扫描。",
+    "localSolverFallback": "本地解析器",
+    "autoPlaceholder": "0 = 自动",
+    "indexPathNotAvailable": "索引路径不可用"
   },
   "geolocation": {
     "title": "设备定位",
@@ -1824,7 +1956,8 @@
     "historyCount": "已访问 {count} 个位置",
     "justNow": "刚刚",
     "minutesAgo": "{count}分钟前",
-    "hoursAgo": "{count}小时前"
+    "hoursAgo": "{count}小时前",
+    "fovLabel": "视场"
   },
   "favorites": {
     "favorites": "收藏夹",
@@ -1840,7 +1973,15 @@
     "quickTags": "快捷标签",
     "customTag": "添加自定义标签...",
     "addToFavorites": "添加到收藏夹",
-    "removeFromFavorites": "从收藏夹移除"
+    "removeFromFavorites": "从收藏夹移除",
+    "tags": {
+      "imaging": "拍摄",
+      "visual": "目视",
+      "must-see": "必看",
+      "difficult": "困难",
+      "seasonal": "季节性",
+      "priority": "优先"
+    }
   },
   "bookmarks": {
     "viewBookmarks": "查看书签",
@@ -1858,6 +1999,9 @@
     "icon": "图标",
     "color": "颜色",
     "currentPosition": "当前位置",
+    "raLabel": "赤经",
+    "decLabel": "赤纬",
+    "fovLabel": "视场",
     "saveBookmark": "保存书签"
   },
   "sessionPlanner": {
@@ -1883,11 +2027,51 @@
     "schedule": "计划安排",
     "scheduled": "已安排",
     "noTargets": "没有可安排的目标",
-    "addTargetsHint": "请先添加目标到拍摄列表",
+    "addTargetsHint": "请先添加目标到拍摄列表，或浏览今晚推荐目标",
+    "browseRecommendations": "浏览推荐目标",
+    "openShotList": "打开拍摄列表",
     "noNightTonight": "今晚没有天文黑夜",
     "copyPlan": "复制计划",
     "planCopied": "观测计划已复制到剪贴板",
-    "equipment": "设备"
+    "equipment": "设备",
+    "maxAlt": "最高 {value}°",
+    "fromMoon": "距月 {value}°",
+    "transitAt": "中天 {time}",
+    "overlapsWith": "与以下目标重叠: {list}",
+    "fovInfo": "视场: {w}° × {h}°",
+    "fRatioLabel": "f/{ratio}"
+  },
+  "planRec": {
+    "addMoreTargets": "考虑添加更多目标以充分利用夜间时间",
+    "tooManyForOneNight": "一夜内目标过多 — 建议分散到多个观测夜",
+    "brightMoon": "今晚月光较亮 — 建议使用窄带滤镜拍摄",
+    "prioritize": "优先拍摄: {names}",
+    "unusedDarkTime": "{duration} 的暗夜时间未被利用 — 考虑添加目标",
+    "tooManyTargets": "目标过多 — 建议分散到多个夜晚",
+    "suggestedOrder": "建议拍摄顺序: {order}"
+  },
+  "tonightRec": {
+    "compWarning": "{text}",
+    "excellentAirmass": "极佳大气质量 ({value})",
+    "goodAirmass": "良好大气质量 ({value})",
+    "highAirmass": "大气质量较差 ({value}) — 大气扰动明显",
+    "bestSeason": "当前为该目标最佳拍摄季节",
+    "notOptimalSeason": "非最佳拍摄季节",
+    "transitDuringDark": "暗夜期间过中天",
+    "darkMoon": "暗月相，适合拍摄",
+    "farFromMoon": "距月亮较远",
+    "moonInterference": "月光干扰较大",
+    "longWindow": "{hours}小时拍摄窗口",
+    "limitedTime": "可拍摄时间有限",
+    "circumpolar": "拱极目标 — 整夜可见",
+    "beginnerFriendly": "适合新手拍摄",
+    "challenging": "高难度目标",
+    "largeTarget": "大面积目标 — 易于构图",
+    "smallTarget": "目标较小 — 需要长焦距",
+    "highSB": "表面亮度高",
+    "lowSB": "表面亮度低 — 需要暗天环境",
+    "veryBright": "非常明亮的目标",
+    "faint": "目标较暗 — 需要较长曝光"
   },
   "astroCalc": {
     "title": "天文计算器",
@@ -1987,7 +2171,15 @@
       "7d": "7天",
       "14d": "14天",
       "30d": "30天",
+      "60d": "60天",
       "90d": "90天"
+    },
+    "eventType": {
+      "conjunction": "合",
+      "opposition": "冲",
+      "elongation": "大距",
+      "occultation": "掩",
+      "close_approach": "接近"
     },
     "advancedFilters": "高级筛选",
     "minSize": "最小大小",
@@ -2097,7 +2289,15 @@
     "pauseResumeTime": "暂停/恢复时间",
     "speedUpTime": "加速时间",
     "slowDownTime": "减速时间",
-    "resetTime": "重置为当前时间"
+    "resetTime": "重置为当前时间",
+    "customize": "自定义快捷键",
+    "doneEditing": "完成编辑",
+    "editDescription": "点击快捷键进行修改，按 Esc 取消。",
+    "clickToEdit": "点击快捷键以编辑",
+    "pressKey": "按下按键...",
+    "pressKeyOrEsc": "按下组合键，或按 Esc 取消",
+    "resetToDefault": "恢复默认",
+    "resetAll": "全部重置"
   },
   "canvas": {
     "initializing": "初始化中...",
@@ -2106,7 +2306,14 @@
     "initializingStarmap": "初始化星图...",
     "retrying": "重试中 ({current}/{max})...",
     "retry": "重试",
-    "loadFailed": "加载星图失败"
+    "loadFailed": "加载星图失败",
+    "scriptLoadFailed": "脚本加载失败",
+    "scriptLoadTimedOut": "脚本加载超时",
+    "canvasNotAvailable": "画布不可用",
+    "engineScriptNotLoaded": "引擎脚本未加载",
+    "canvasContainerNotReady": "画布容器未就绪",
+    "engineScriptTimedOut": "引擎脚本加载超时",
+    "starmapInitTimedOut": "星图初始化超时"
   },
   "logViewer": {
     "title": "应用日志",
@@ -2125,6 +2332,9 @@
     "showing": "显示 {count} / {total}",
     "noLogs": "暂无日志",
     "errors": "个错误",
+    "copy": "复制",
+    "data": "数据：",
+    "stackTrace": "堆栈跟踪：",
     "debug": "调试",
     "info": "信息",
     "warn": "警告",
@@ -2135,7 +2345,8 @@
       "features": "功能特性",
       "screenshots": "界面预览",
       "technology": "技术栈",
-      "launchApp": "启动应用"
+      "launchApp": "启动应用",
+      "github": "GitHub"
     },
     "hero": {
       "badge": "由 Stellarium Web Engine 提供支持",
@@ -2145,7 +2356,8 @@
       "launchTooltip": "打开交互式星图",
       "learnMore": "了解更多",
       "learnMoreTooltip": "探索功能和特性",
-      "poweredBy": "由 Stellarium Web Engine 提供支持"
+      "poweredBy": "由 Stellarium Web Engine 提供支持",
+      "scrollToFeatures": "滚动到功能介绍"
     },
     "features": {
       "title": "强大功能",
@@ -2207,7 +2419,17 @@
       "title": "现代技术构建",
       "subtitle": "采用最新的网页和桌面技术，提供最佳体验",
       "engineTitle": "Stellarium Web Engine",
-      "engineDescription": "世界上最精确的开源天象仪软件"
+      "engineDescription": "世界上最精确的开源天象仪软件",
+      "items": {
+        "stellariumEngine": "逼真的星空渲染引擎",
+        "nextjs": "基于 App Router 的 React 框架",
+        "react": "最新的 React，支持服务端组件",
+        "typescript": "类型安全的 JavaScript",
+        "tailwind": "实用优先的 CSS 框架",
+        "tauri": "跨平台桌面应用",
+        "zustand": "轻量级状态管理",
+        "shadcnui": "精美的 UI 组件"
+      }
     },
     "cta": {
       "title": "开启你的天文之旅",
@@ -2220,6 +2442,11 @@
       "description": "一款现代化的天文应用，用于观星和观测规划。",
       "links": "快速链接",
       "starmap": "星图",
+      "starmapTooltip": "打开交互式星图",
+      "github": "GitHub",
+      "githubTooltip": "在 GitHub 上查看源代码",
+      "stellarium": "Stellarium",
+      "stellariumTooltip": "访问 Stellarium 官方网站",
       "credits": "数据来源",
       "stellariumEngine": "Stellarium Web Engine",
       "gaiaData": "ESA 盖亚任务",

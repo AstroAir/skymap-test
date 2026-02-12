@@ -183,7 +183,7 @@ export const NavigationHistory = memo(function NavigationHistory({ onNavigate, c
                             {formatNavigationPoint(point)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            FOV: {point.fov.toFixed(1)}° • {formatTimestamp(point.timestamp, {
+                            {t('navigation.fovLabel')}: {point.fov.toFixed(1)}° • {formatTimestamp(point.timestamp, {
                               justNow: t('navigation.justNow'),
                               minutesAgo: (mins) => t('navigation.minutesAgo', { count: mins }),
                               hoursAgo: (hours) => t('navigation.hoursAgo', { count: hours }),

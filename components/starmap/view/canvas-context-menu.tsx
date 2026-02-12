@@ -142,8 +142,8 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
           <>
             <div className="px-2 py-1.5 text-xs text-muted-foreground">
               <div className="font-medium text-foreground mb-1">{t('coordinates.clickPosition')}</div>
-              <div className="font-mono">RA: {coords.raStr}</div>
-              <div className="font-mono">Dec: {coords.decStr}</div>
+              <div className="font-mono">{t('coordinates.ra')}: {coords.raStr}</div>
+              <div className="font-mono">{t('coordinates.dec')}: {coords.decStr}</div>
             </div>
             <DropdownMenuSeparator className="bg-border" />
           </>
@@ -244,22 +244,22 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuItem onClick={() => { onSetFov(1); onOpenChange(false); }} className="text-foreground">
-              1° FOV
+              {t('zoom.fovPreset', { value: 1 })}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { onSetFov(5); onOpenChange(false); }} className="text-foreground">
-              5° FOV
+              {t('zoom.fovPreset', { value: 5 })}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { onSetFov(15); onOpenChange(false); }} className="text-foreground">
-              15° FOV
+              {t('zoom.fovPreset', { value: 15 })}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { onSetFov(30); onOpenChange(false); }} className="text-foreground">
-              30° FOV
+              {t('zoom.fovPreset', { value: 30 })}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { onSetFov(60); onOpenChange(false); }} className="text-foreground">
-              60° FOV ({t('zoom.default')})
+              {t('zoom.fovPreset', { value: 60 })} ({t('zoom.default')})
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { onSetFov(90); onOpenChange(false); }} className="text-foreground">
-              90° FOV
+              {t('zoom.fovPreset', { value: 90 })}
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>

@@ -6,3 +6,4 @@ export { ScreenshotCarousel } from './screenshot-carousel';
 export { TechStack } from './tech-stack';
 export { CTASection } from './cta-section';
 export { Footer } from './footer';
+export { SectionHeader } from './section-header';

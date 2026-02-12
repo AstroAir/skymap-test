@@ -21,7 +21,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
-import { ToolbarGroup } from '@/components/common/toolbar-button';
+import { ToolbarButton, ToolbarGroup } from '@/components/common/toolbar-button';
 import { LanguageSwitcher } from '@/components/common/language-switcher';
 import { ThemeToggle } from '@/components/common/theme-toggle';
 import { NightModeToggle } from '@/components/common/night-mode-toggle';
@@ -172,61 +172,29 @@ export const TopToolbar = memo(function TopToolbar({
             />
           </ToolbarGroup>
           
-          {/* Reset View */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground/80 hover:text-foreground hover:bg-accent touch-target toolbar-btn"
-                onClick={onResetView}
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>{t('starmap.resetView')}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Toggle Session Panel */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-9 w-9 backdrop-blur-md border border-border/50 touch-target toolbar-btn",
-                  showSessionPanel
-                    ? "bg-primary/20 text-primary border-primary/50"
-                    : "bg-card/60 text-foreground/80 hover:text-foreground hover:bg-accent"
-                )}
-                onClick={onToggleSessionPanel}
-              >
-                {showSessionPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>{showSessionPanel ? t('starmap.hideSessionInfo') : t('starmap.showSessionInfo')}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Close Starmap */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground/80 hover:text-destructive hover:bg-destructive/10 touch-target toolbar-btn"
-                onClick={onCloseStarmapClick}
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>{t('starmap.closeStarmap')}</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* View Controls Group */}
+          <ToolbarGroup gap="none" className="p-0.5">
+            <ToolbarButton
+              icon={<RotateCcw className="h-4 w-4" />}
+              label={t('starmap.resetView')}
+              iconOnly
+              onClick={onResetView}
+            />
+            <ToolbarButton
+              icon={showSessionPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+              label={showSessionPanel ? t('starmap.hideSessionInfo') : t('starmap.showSessionInfo')}
+              iconOnly
+              isActive={showSessionPanel}
+              onClick={onToggleSessionPanel}
+            />
+            <ToolbarButton
+              icon={<LogOut className="h-4 w-4" />}
+              label={t('starmap.closeStarmap')}
+              iconOnly
+              className="hover:text-destructive hover:bg-destructive/10"
+              onClick={onCloseStarmapClick}
+            />
+          </ToolbarGroup>
 
           {/* Object Type Legend */}
           <ToolbarGroup gap="none" className="p-0.5">

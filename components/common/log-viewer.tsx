@@ -104,6 +104,7 @@ const _LogLevelBadge: React.FC<{ level: LogLevel }> = ({ level }) => {
 };
 
 const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleExpand }) => {
+  const t = useTranslations('logViewer');
   const [copied, setCopied] = useState(false);
   const hasDetails = entry.data !== undefined || entry.stack;
   
@@ -158,7 +159,7 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left">Copy</TooltipContent>
+            <TooltipContent side="left">{t('copy')}</TooltipContent>
           </Tooltip>
           
           {hasDetails && (
@@ -185,7 +186,7 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
         <div className="px-3 pb-2 ml-6 space-y-2">
           {entry.data !== undefined && (
             <div className="bg-muted/50 rounded p-2">
-              <div className="text-xs text-muted-foreground mb-1">Data:</div>
+              <div className="text-xs text-muted-foreground mb-1">{t('data')}</div>
               <pre className="text-xs font-mono whitespace-pre-wrap break-words overflow-x-auto">
                 {serializeData(entry.data)}
               </pre>
@@ -194,7 +195,7 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
           
           {entry.stack && (
             <div className="bg-red-500/10 rounded p-2">
-              <div className="text-xs text-red-500 mb-1">Stack Trace:</div>
+              <div className="text-xs text-red-500 mb-1">{t('stackTrace')}</div>
               <pre className="text-xs font-mono whitespace-pre-wrap break-words overflow-x-auto text-red-400">
                 {entry.stack}
               </pre>
@@ -312,10 +313,10 @@ export function LogViewer({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('allLevels')}</SelectItem>
-              <SelectItem value={String(LogLevel.DEBUG)}>Debug</SelectItem>
-              <SelectItem value={String(LogLevel.INFO)}>Info</SelectItem>
-              <SelectItem value={String(LogLevel.WARN)}>Warn</SelectItem>
-              <SelectItem value={String(LogLevel.ERROR)}>Error</SelectItem>
+              <SelectItem value={String(LogLevel.DEBUG)}>{t('debug')}</SelectItem>
+              <SelectItem value={String(LogLevel.INFO)}>{t('info')}</SelectItem>
+              <SelectItem value={String(LogLevel.WARN)}>{t('warn')}</SelectItem>
+              <SelectItem value={String(LogLevel.ERROR)}>{t('error')}</SelectItem>
             </SelectContent>
           </Select>
           

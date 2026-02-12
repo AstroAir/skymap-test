@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Star, Zap, Palette, Monitor, Database, Component } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { SectionHeader } from './section-header';
 import { TECHNOLOGIES, TECH_CATEGORY_COLORS } from '@/lib/constants/landing';
 
 const techIconMap: Record<string, LucideIcon> = {
@@ -25,9 +26,21 @@ const techIconMap: Record<string, LucideIcon> = {
   'shadcn/ui': Component,
 };
 
+const techI18nKeyMap: Record<string, string> = {
+  'Stellarium Web Engine': 'stellariumEngine',
+  'Next.js 16': 'nextjs',
+  'React 19': 'react',
+  'TypeScript': 'typescript',
+  'Tailwind CSS v4': 'tailwind',
+  'Tauri 2.9': 'tauri',
+  'Zustand': 'zustand',
+  'shadcn/ui': 'shadcnui',
+};
+
 const technologies = TECHNOLOGIES.map((tech) => ({
   ...tech,
   icon: techIconMap[tech.name] ?? Star,
+  i18nKey: techI18nKeyMap[tech.name] ?? tech.name,
 }));
 
 export function TechStack() {
@@ -36,15 +49,7 @@ export function TechStack() {
   return (
     <section id="tech" className="py-24 bg-background relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section header */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-serif font-bold text-foreground mb-4">
-            {t('title')}
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {t('subtitle')}
-          </p>
-        </div>
+        <SectionHeader title={t('title')} subtitle={t('subtitle')} />
 
         <Separator className="max-w-xs mx-auto mb-12 bg-border/50" />
 
@@ -66,7 +71,7 @@ export function TechStack() {
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{tech.description}</p>
+                    <p>{t(`items.${tech.i18nKey}`)}</p>
                   </TooltipContent>
                 </Tooltip>
               );
