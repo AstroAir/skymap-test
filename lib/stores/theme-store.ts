@@ -234,6 +234,13 @@ function applyThemeToDOM(customization: ThemeCustomization) {
   });
 }
 
+/**
+ * Get the CSS font-family string for a given font family option.
+ */
+export function getFontPreview(font: ThemeCustomization['fontFamily']): string {
+  return fontFamilyMap[font];
+}
+
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({

@@ -51,6 +51,15 @@ jest.mock('@/lib/stores/theme-store', () => ({
       },
     },
   ],
+  getFontPreview: (font: string) => {
+    const map: Record<string, string> = {
+      default: 'Libre Baskerville, serif',
+      serif: 'ui-serif, Georgia, serif',
+      mono: 'ui-monospace, monospace',
+      system: 'system-ui, sans-serif',
+    };
+    return map[font] || 'Libre Baskerville, serif';
+  },
 }));
 
 const messages = {

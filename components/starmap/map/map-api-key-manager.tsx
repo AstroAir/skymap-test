@@ -55,8 +55,11 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { mapConfig, type MapApiKey } from '@/lib/services/map-config';
+import { mapConfig } from '@/lib/services/map-config';
 import { createLogger } from '@/lib/logger';
+import type { MapProviderType } from '@/types/starmap/map';
+import { PROVIDER_STATIC_INFO } from '@/lib/constants/map';
+import { maskApiKey, getQuotaUsagePercent } from '@/lib/utils/map-utils';
 
 const logger = createLogger('map-api-key-manager');
 
@@ -65,22 +68,6 @@ interface MapApiKeyManagerProps {
   onKeysChange?: () => void;
 }
 
-type ProviderType = 'openstreetmap' | 'google' | 'mapbox';
-
-const PROVIDER_STATIC_INFO: Record<ProviderType, { keyFormat: string; docsUrl: string }> = {
-  openstreetmap: {
-    keyFormat: 'No API key required',
-    docsUrl: 'https://wiki.openstreetmap.org/wiki/API',
-  },
-  google: {
-    keyFormat: 'AIza...',
-    docsUrl: 'https://developers.google.com/maps/documentation/javascript/get-api-key',
-  },
-  mapbox: {
-    keyFormat: 'pk.eyJ1...',
-    docsUrl: 'https://docs.mapbox.com/help/getting-started/access-tokens/',
-  },
-};
 
 export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProps) {
   const t = useTranslations();
@@ -107,7 +94,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
   
   // Form state for adding new key
   const [newKey, setNewKey] = useState({
-    provider: 'google' as ProviderType,
+    provider: 'google' as MapProviderType,
     apiKey: '',
     label: '',
     dailyQuota: '',
@@ -194,17 +181,6 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
     }
   }, [t, onKeysChange]);
 
-  const maskApiKey = (key: string) => {
-    if (key.length <= 8) return '••••••••';
-    return key.substring(0, 4) + '••••••••' + key.substring(key.length - 4);
-  };
-
-  const getQuotaUsagePercent = (key: MapApiKey) => {
-    if (!key.quota) return 0;
-    const limit = key.quota.daily || key.quota.monthly || 0;
-    if (limit === 0) return 0;
-    return Math.min(100, ((key.quota.used || 0) / limit) * 100);
-  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -391,7 +367,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
                   <Label>{t('map.provider') || 'Provider'}</Label>
                   <Select
                     value={newKey.provider}
-                    onValueChange={(v) => setNewKey({ ...newKey, provider: v as ProviderType })}
+                    onValueChange={(v) => setNewKey({ ...newKey, provider: v as MapProviderType })}
                   >
                     <SelectTrigger>
                       <SelectValue />

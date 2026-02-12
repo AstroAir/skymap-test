@@ -25,21 +25,10 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useMountStore, useStellariumStore } from '@/lib/stores';
-import {
-  getMoonPhase,
-  getMoonPhaseName,
-  getMoonIllumination,
-  getMoonPosition,
-  getSunPosition,
-  calculateTwilightTimes,
-  formatTimeShort,
-} from '@/lib/astronomy/astro-utils';
-import { raDecToAltAz, getLST, degreesToHMS, rad2deg } from '@/lib/astronomy/starmap-utils';
-
-interface StatusBarProps {
-  currentFov: number;
-  className?: string;
-}
+import { formatTimeShort } from '@/lib/astronomy/astro-utils';
+import { rad2deg, degreesToHMS } from '@/lib/astronomy/starmap-utils';
+import { calculateAstroConditions, getSkyQualityColor } from '@/lib/astronomy/sky-quality';
+import type { StatusBarProps } from '@/types/starmap/overlays';
 
 // View Center Display sub-component
 function ViewCenterDisplay() {
@@ -105,52 +94,10 @@ function AstroConditionsPopup() {
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
 
-  const conditions = useMemo(() => {
-    const now = new Date();
-    const moonPhase = getMoonPhase();
-    const moonPhaseName = getMoonPhaseName(moonPhase);
-    const moonIllumination = getMoonIllumination(moonPhase);
-    const moonPos = getMoonPosition();
-    const sunPos = getSunPosition();
-    
-    const moonAltAz = raDecToAltAz(moonPos.ra, moonPos.dec, latitude, longitude);
-    const sunAltAz = raDecToAltAz(sunPos.ra, sunPos.dec, latitude, longitude);
-    
-    const twilight = calculateTwilightTimes(latitude, longitude, now);
-    const lst = getLST(longitude);
-    const lstString = degreesToHMS(lst);
-
-    // Sky quality estimation based on moon and sun
-    let skyQuality = 'excellent';
-    if (sunAltAz.altitude > -6) skyQuality = 'poor';
-    else if (sunAltAz.altitude > -12) skyQuality = 'fair';
-    else if (sunAltAz.altitude > -18) skyQuality = 'good';
-    else if (moonAltAz.altitude > 30 && moonIllumination > 50) skyQuality = 'fair';
-    else if (moonAltAz.altitude > 0 && moonIllumination > 70) skyQuality = 'good';
-
-    return {
-      moonPhase,
-      moonPhaseName,
-      moonIllumination: Math.round(moonIllumination),
-      moonAltitude: moonAltAz.altitude,
-      sunAltitude: sunAltAz.altitude,
-      twilight,
-      lstString,
-      skyQuality,
-      isDark: sunAltAz.altitude < -18,
-      isTwilight: sunAltAz.altitude >= -18 && sunAltAz.altitude < 0,
-    };
-  }, [latitude, longitude]);
-
-  const getSkyQualityColor = (quality: string) => {
-    switch (quality) {
-      case 'excellent': return 'text-green-400';
-      case 'good': return 'text-emerald-400';
-      case 'fair': return 'text-yellow-400';
-      case 'poor': return 'text-red-400';
-      default: return 'text-muted-foreground';
-    }
-  };
+  const conditions = useMemo(() =>
+    calculateAstroConditions(latitude, longitude),
+    [latitude, longitude]
+  );
 
   return (
     <Popover>

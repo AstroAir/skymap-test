@@ -40,7 +40,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import { useOfflineStore, formatBytes, STELLARIUM_LAYERS, offlineCacheManager, type HiPSCacheStatus, type StorageInfo } from '@/lib/offline';
+import { useOfflineStore, formatBytes, STELLARIUM_LAYERS, offlineCacheManager, convertToHiPSSurvey, type HiPSCacheStatus, type StorageInfo } from '@/lib/offline';
 import { SKY_SURVEYS } from '@/lib/core/constants';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -51,20 +51,6 @@ import { isTauri } from '@/lib/storage/platform';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('offline-cache-manager');
-
-// Convert SKY_SURVEYS to HiPSSurvey format for cache operations
-function convertToHiPSSurvey(survey: typeof SKY_SURVEYS[0]) {
-  return {
-    id: survey.id,
-    name: survey.name,
-    url: survey.url,
-    description: survey.description,
-    category: survey.category,
-    maxOrder: 11,
-    tileFormat: 'jpeg',
-    frame: 'equatorial',
-  };
-}
 
 export function OfflineCacheManager() {
   const t = useTranslations();

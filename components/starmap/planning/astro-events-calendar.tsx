@@ -63,33 +63,10 @@ import {
 } from '@/lib/services/astro-data-sources';
 import { useAstroEvents } from '@/lib/tauri/hooks';
 import { isTauri } from '@/lib/storage/platform';
+import { convertTauriEvents } from '@/lib/astronomy/event-utils';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('astro-events-calendar');
-
-function mapEventType(t: string): EventType {
-  if (t.includes('moon')) return 'lunar_phase';
-  if (t.includes('eclipse')) return 'eclipse';
-  if (t.includes('meteor')) return 'meteor_shower';
-  if (t.includes('conjunction')) return 'planet_conjunction';
-  if (t.includes('opposition')) return 'planet_opposition';
-  if (t.includes('elongation')) return 'planet_elongation';
-  if (t.includes('equinox') || t.includes('solstice')) return 'equinox_solstice';
-  return 'lunar_phase';
-}
-
-function convertTauriEvents(tauriEventList: Array<{ id: string; event_type: string; name: string; date: string; description: string; visibility?: string | null; magnitude?: number | null }>): AstroEvent[] {
-  return tauriEventList.map(e => ({
-    id: e.id,
-    type: mapEventType(e.event_type),
-    name: e.name,
-    date: new Date(e.date),
-    description: e.description,
-    visibility: (e.visibility || 'good') as 'excellent' | 'good' | 'fair' | 'poor',
-    magnitude: e.magnitude ?? undefined,
-    source: 'Desktop',
-  }));
-}
 
 
 // ============================================================================

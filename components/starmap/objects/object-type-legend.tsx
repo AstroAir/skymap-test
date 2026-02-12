@@ -22,10 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { getLegendItems } from '@/lib/astronomy/object-type-utils';
-
-interface ObjectTypeLegendContentProps {
-  compact?: boolean;
-}
+import type { ObjectTypeLegendContentProps, ObjectTypeLegendProps } from '@/types/starmap/objects';
 
 function ObjectTypeLegendContent({ compact = false }: ObjectTypeLegendContentProps) {
   const t = useTranslations('objects');
@@ -90,11 +87,6 @@ function ObjectTypeLegendContent({ compact = false }: ObjectTypeLegendContentPro
       })}
     </div>
   );
-}
-
-interface ObjectTypeLegendProps {
-  variant?: 'dialog' | 'popover';
-  triggerClassName?: string;
 }
 
 export const ObjectTypeLegend = memo(function ObjectTypeLegend({

@@ -393,7 +393,8 @@ describe('Loading Constants', () => {
 
 describe('Module Exports', () => {
   it('exports constants correctly', async () => {
-    const { MIN_FOV, MAX_FOV, DEFAULT_FOV, SCRIPT_PATH, WASM_PATH } = await import('../constants');
+    const { MIN_FOV, MAX_FOV, DEFAULT_FOV } = await import('@/lib/core/constants/fov');
+    const { SCRIPT_PATH, WASM_PATH } = await import('@/lib/core/constants/stellarium-canvas');
     
     expect(MIN_FOV).toBe(0.5);
     expect(MAX_FOV).toBe(180);
@@ -403,12 +404,12 @@ describe('Module Exports', () => {
   });
 
   it('exports types correctly', async () => {
-    const typesModule = await import('../types');
+    const typesModule = await import('@/types/stellarium-canvas');
     expect(typesModule).toBeDefined();
   });
 
   it('exports utils correctly', async () => {
-    const { fovToRad, fovToDeg, withTimeout, prefetchWasm } = await import('../utils');
+    const { fovToRad, fovToDeg, withTimeout, prefetchWasm } = await import('@/lib/core/stellarium-canvas-utils');
     
     expect(typeof fovToRad).toBe('function');
     expect(typeof fovToDeg).toBe('function');
@@ -417,7 +418,7 @@ describe('Module Exports', () => {
   });
 
   it('exports hooks correctly', async () => {
-    const hooksModule = await import('../hooks');
+    const hooksModule = await import('@/lib/hooks/stellarium');
     
     expect(hooksModule.useClickCoordinates).toBeDefined();
     expect(hooksModule.useStellariumZoom).toBeDefined();
@@ -447,7 +448,7 @@ describe('Module Exports', () => {
 
 describe('Utils Functions', () => {
   it('fovToRad converts degrees to radians correctly', async () => {
-    const { fovToRad } = await import('../utils');
+    const { fovToRad } = await import('@/lib/core/stellarium-canvas-utils');
     
     expect(fovToRad(0)).toBe(0);
     expect(fovToRad(180)).toBeCloseTo(Math.PI);
@@ -456,7 +457,7 @@ describe('Utils Functions', () => {
   });
 
   it('fovToDeg converts radians to degrees correctly', async () => {
-    const { fovToDeg } = await import('../utils');
+    const { fovToDeg } = await import('@/lib/core/stellarium-canvas-utils');
     
     expect(fovToDeg(0)).toBe(0);
     expect(fovToDeg(Math.PI)).toBeCloseTo(180);
@@ -465,7 +466,7 @@ describe('Utils Functions', () => {
   });
 
   it('fovToRad and fovToDeg are inverses', async () => {
-    const { fovToRad, fovToDeg } = await import('../utils');
+    const { fovToRad, fovToDeg } = await import('@/lib/core/stellarium-canvas-utils');
     
     const testValues = [0, 30, 45, 60, 90, 120, 180];
     for (const value of testValues) {
@@ -474,7 +475,7 @@ describe('Utils Functions', () => {
   });
 
   it('withTimeout resolves if promise completes in time', async () => {
-    const { withTimeout } = await import('../utils');
+    const { withTimeout } = await import('@/lib/core/stellarium-canvas-utils');
     
     const fastPromise = Promise.resolve('success');
     const result = await withTimeout(fastPromise, 1000, 'timeout');
@@ -483,7 +484,7 @@ describe('Utils Functions', () => {
   });
 
   it('withTimeout rejects if promise times out', async () => {
-    const { withTimeout } = await import('../utils');
+    const { withTimeout } = await import('@/lib/core/stellarium-canvas-utils');
     
     const slowPromise = new Promise((resolve) => setTimeout(resolve, 5000));
     

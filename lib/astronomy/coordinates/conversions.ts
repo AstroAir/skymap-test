@@ -168,3 +168,69 @@ export function parseCoordinateString(str: string): number | null {
   
   return null;
 }
+
+// ============================================================================
+// RA/Dec Coordinate Parsing with Validation
+// ============================================================================
+
+/**
+ * Parse a Right Ascension coordinate string with range validation.
+ * Supports decimal degrees (0-360) and HMS format ("00h42m44s" or "00:42:44").
+ * @returns RA in degrees, or null if invalid
+ */
+export function parseRACoordinate(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Try parsing as decimal degrees first
+  const decimal = parseFloat(trimmed);
+  if (!isNaN(decimal)) {
+    if (decimal < 0 || decimal > 360) return null;
+    return decimal;
+  }
+
+  // Try parsing HMS format (e.g., "00h42m44s" or "00:42:44")
+  const hmsMatch = trimmed.match(/^(\d+)[h:]\s*(\d+)[m:]\s*([\d.]+)s?$/i);
+  if (hmsMatch) {
+    const h = parseFloat(hmsMatch[1]);
+    const m = parseFloat(hmsMatch[2]);
+    const s = parseFloat(hmsMatch[3]);
+    if (h >= 0 && h < 24 && m >= 0 && m < 60 && s >= 0 && s < 60) {
+      return (h + m / 60 + s / 3600) * 15; // Convert to degrees
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Parse a Declination coordinate string with range validation.
+ * Supports decimal degrees (-90 to 90) and DMS format ("+41°16'09\"" or "+41:16:09").
+ * @returns Dec in degrees, or null if invalid
+ */
+export function parseDecCoordinate(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Try parsing as decimal degrees first
+  const decimal = parseFloat(trimmed);
+  if (!isNaN(decimal)) {
+    if (decimal < -90 || decimal > 90) return null;
+    return decimal;
+  }
+
+  // Try parsing DMS format (e.g., "+41°16'09\"" or "+41:16:09")
+  const dmsMatch = trimmed.match(/^([+-]?)(\d+)[°:]\s*(\d+)[':](\s*([\d.]+)["']?)?$/i);
+  if (dmsMatch) {
+    const sign = dmsMatch[1] === '-' ? -1 : 1;
+    const d = parseFloat(dmsMatch[2]);
+    const m = parseFloat(dmsMatch[3]);
+    const s = dmsMatch[5] ? parseFloat(dmsMatch[5]) : 0;
+    if (d >= 0 && d <= 90 && m >= 0 && m < 60 && s >= 0 && s < 60) {
+      const result = sign * (d + m / 60 + s / 3600);
+      if (result >= -90 && result <= 90) return result;
+    }
+  }
+
+  return null;
+}

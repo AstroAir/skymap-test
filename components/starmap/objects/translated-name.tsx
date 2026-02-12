@@ -1,11 +1,7 @@
 'use client';
 
 import { useCelestialName } from '@/lib/hooks';
-
-interface TranslatedNameProps {
-  name: string;
-  className?: string;
-}
+import type { TranslatedNameProps } from '@/types/starmap/objects';
 
 /**
  * Component that displays a translated celestial object name

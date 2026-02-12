@@ -13,12 +13,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-
-interface GoToCoordinatesDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onNavigate: (ra: number, dec: number) => void;
-}
+import { parseRACoordinate, parseDecCoordinate } from '@/lib/astronomy/coordinates/conversions';
+import type { GoToCoordinatesDialogProps } from '@/types/starmap/view';
 
 export const GoToCoordinatesDialog = memo(function GoToCoordinatesDialog({
   open,
@@ -30,54 +26,10 @@ export const GoToCoordinatesDialog = memo(function GoToCoordinatesDialog({
   const [goToDec, setGoToDec] = useState('');
   const [coordError, setCoordError] = useState('');
 
-  // Parse coordinate string (supports degrees or HMS/DMS format)
-  const parseCoordinate = useCallback((value: string, isDec: boolean): number | null => {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-
-    // Try parsing as decimal degrees first
-    const decimal = parseFloat(trimmed);
-    if (!isNaN(decimal)) {
-      if (isDec && (decimal < -90 || decimal > 90)) return null;
-      if (!isDec && (decimal < 0 || decimal > 360)) return null;
-      return decimal;
-    }
-
-    // Try parsing HMS format for RA (e.g., "00h42m44s" or "00:42:44")
-    if (!isDec) {
-      const hmsMatch = trimmed.match(/^(\d+)[h:]\s*(\d+)[m:]\s*([\d.]+)s?$/i);
-      if (hmsMatch) {
-        const h = parseFloat(hmsMatch[1]);
-        const m = parseFloat(hmsMatch[2]);
-        const s = parseFloat(hmsMatch[3]);
-        if (h >= 0 && h < 24 && m >= 0 && m < 60 && s >= 0 && s < 60) {
-          return (h + m / 60 + s / 3600) * 15; // Convert to degrees
-        }
-      }
-    }
-
-    // Try parsing DMS format for Dec (e.g., "+41°16'09\"" or "+41:16:09")
-    if (isDec) {
-      const dmsMatch = trimmed.match(/^([+-]?)(\d+)[°:]\s*(\d+)[':](\s*([\d.]+)["']?)?$/i);
-      if (dmsMatch) {
-        const sign = dmsMatch[1] === '-' ? -1 : 1;
-        const d = parseFloat(dmsMatch[2]);
-        const m = parseFloat(dmsMatch[3]);
-        const s = dmsMatch[5] ? parseFloat(dmsMatch[5]) : 0;
-        if (d >= 0 && d <= 90 && m >= 0 && m < 60 && s >= 0 && s < 60) {
-          const result = sign * (d + m / 60 + s / 3600);
-          if (result >= -90 && result <= 90) return result;
-        }
-      }
-    }
-
-    return null;
-  }, []);
-
   // Handle go to coordinates
   const handleGoToCoordinates = useCallback(() => {
-    const ra = parseCoordinate(goToRa, false);
-    const dec = parseCoordinate(goToDec, true);
+    const ra = parseRACoordinate(goToRa);
+    const dec = parseDecCoordinate(goToDec);
 
     if (ra === null || dec === null) {
       setCoordError(t('coordinates.invalidCoordinates'));
@@ -89,7 +41,7 @@ export const GoToCoordinatesDialog = memo(function GoToCoordinatesDialog({
     setGoToRa('');
     setGoToDec('');
     setCoordError('');
-  }, [goToRa, goToDec, parseCoordinate, onNavigate, onOpenChange, t]);
+  }, [goToRa, goToDec, onNavigate, onOpenChange, t]);
 
   // Handle dialog close
   const handleClose = useCallback(() => {

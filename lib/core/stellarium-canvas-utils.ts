@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { unifiedCache } from '@/lib/offline';
-import { WASM_PATH } from './constants';
+import { WASM_PATH } from './constants/stellarium-canvas';
 
 /** Timeout wrapper for promises */
 export const withTimeout = <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {

@@ -1,33 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, useId } from 'react';
+import { useRef, useId } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { TourStep } from '@/lib/stores/onboarding-store';
-
-interface TooltipPosition {
-  top: number;
-  left: number;
-  arrowPosition: 'top' | 'bottom' | 'left' | 'right' | 'none';
-  arrowOffset: number;
-}
-
-interface TourTooltipProps {
-  step: TourStep;
-  currentIndex: number;
-  totalSteps: number;
-  onNext: () => void;
-  onPrev: () => void;
-  onSkip: () => void;
-  onClose: () => void;
-  isFirst: boolean;
-  isLast: boolean;
-}
-
-const TOOLTIP_MARGIN = 16;
-const ARROW_SIZE = 8;
+import { getArrowStyles } from '@/lib/constants/onboarding';
+import { useTourPosition } from '@/lib/hooks/use-tour-position';
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap';
+import type { TourTooltipProps } from '@/types/starmap/onboarding';
 
 export function TourTooltip({
   step,
@@ -42,242 +23,13 @@ export function TourTooltip({
 }: TourTooltipProps) {
   const t = useTranslations();
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
   const titleId = useId();
   const descId = useId();
-  const [position, setPosition] = useState<TooltipPosition>({
-    top: 0,
-    left: 0,
-    arrowPosition: 'none',
-    arrowOffset: 0,
-  });
-  const [isVisible, setIsVisible] = useState(false);
 
-  const calculatePosition = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      const element = document.querySelector(step.targetSelector);
-      const tooltip = tooltipRef.current;
-      
-      if (!tooltip) return;
+  const { position, isVisible } = useTourPosition(step, tooltipRef);
+  useFocusTrap(tooltipRef, [step.id]);
 
-      const tooltipRect = tooltip.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const targetRect = element?.getBoundingClientRect();
-      const padding = step.highlightPadding || 8;
-      const gap = ARROW_SIZE + 6;
-
-      // Center placement (no target element or center specified)
-      if (!element || step.placement === 'center' || !targetRect) {
-        setPosition({
-          top: (viewportHeight - tooltipRect.height) / 2,
-          left: (viewportWidth - tooltipRect.width) / 2,
-          arrowPosition: 'none',
-          arrowOffset: 0,
-        });
-        return;
-      }
-
-      const targetCenterX = targetRect.left + targetRect.width / 2;
-      const targetCenterY = targetRect.top + targetRect.height / 2;
-
-      const canPlace = {
-        bottom: targetRect.bottom + padding + gap + tooltipRect.height < viewportHeight - TOOLTIP_MARGIN,
-        top: targetRect.top - padding - gap - tooltipRect.height > TOOLTIP_MARGIN,
-        left: targetRect.left - padding - gap - tooltipRect.width > TOOLTIP_MARGIN,
-        right: targetRect.right + padding + gap + tooltipRect.width < viewportWidth - TOOLTIP_MARGIN,
-      };
-
-      const placementOrder = [
-        step.placement,
-        'bottom',
-        'top',
-        'right',
-        'left',
-      ].filter((value, index, self) => Boolean(value) && self.indexOf(value) === index) as Array<TourStep['placement']>;
-
-      const resolvedPlacement = placementOrder.find((p) => p === 'bottom' ? canPlace.bottom : p === 'top' ? canPlace.top : p === 'left' ? canPlace.left : p === 'right' ? canPlace.right : true) || 'bottom';
-
-      let top = 0;
-      let left = 0;
-      let arrowPosition: TooltipPosition['arrowPosition'] = 'none';
-      let arrowOffset = 0;
-
-      switch (resolvedPlacement) {
-        case 'bottom':
-          top = targetRect.bottom + padding + gap;
-          left = targetCenterX - tooltipRect.width / 2;
-          arrowPosition = 'top';
-          arrowOffset = targetCenterX - left;
-          break;
-        case 'top':
-          top = targetRect.top - padding - tooltipRect.height - gap;
-          left = targetCenterX - tooltipRect.width / 2;
-          arrowPosition = 'bottom';
-          arrowOffset = targetCenterX - left;
-          break;
-        case 'left':
-          top = targetCenterY - tooltipRect.height / 2;
-          left = targetRect.left - padding - tooltipRect.width - gap;
-          arrowPosition = 'right';
-          arrowOffset = targetCenterY - top;
-          break;
-        case 'right':
-          top = targetCenterY - tooltipRect.height / 2;
-          left = targetRect.right + padding + gap;
-          arrowPosition = 'left';
-          arrowOffset = targetCenterY - top;
-          break;
-      }
-
-      // Ensure tooltip stays within viewport
-      if (left < TOOLTIP_MARGIN) {
-        const diff = TOOLTIP_MARGIN - left;
-        left = TOOLTIP_MARGIN;
-        if (arrowPosition === 'top' || arrowPosition === 'bottom') {
-          arrowOffset = Math.max(ARROW_SIZE * 2, arrowOffset - diff);
-        }
-      }
-      if (left + tooltipRect.width > viewportWidth - TOOLTIP_MARGIN) {
-        const diff = left + tooltipRect.width - (viewportWidth - TOOLTIP_MARGIN);
-        left = viewportWidth - TOOLTIP_MARGIN - tooltipRect.width;
-        if (arrowPosition === 'top' || arrowPosition === 'bottom') {
-          arrowOffset = Math.min(tooltipRect.width - ARROW_SIZE * 2, arrowOffset + diff);
-        }
-      }
-      if (top < TOOLTIP_MARGIN) {
-        top = TOOLTIP_MARGIN;
-      }
-      if (top + tooltipRect.height > viewportHeight - TOOLTIP_MARGIN) {
-        top = viewportHeight - TOOLTIP_MARGIN - tooltipRect.height;
-      }
-
-      setPosition({ top, left, arrowPosition, arrowOffset });
-    });
-  }, [step]);
-
-  useEffect(() => {
-    // Initial calculation after render
-    calculatePosition();
-    
-    // Delay visibility for animation
-    const timer = setTimeout(() => setIsVisible(true), 100);
-
-    // Update on resize
-    window.addEventListener('resize', calculatePosition);
-    window.addEventListener('scroll', calculatePosition, true);
-
-    // Use ResizeObserver on target element instead of MutationObserver on body
-    let resizeObserver: ResizeObserver | undefined;
-    const element = document.querySelector(step.targetSelector);
-    if (element) {
-      resizeObserver = new ResizeObserver(calculatePosition);
-      resizeObserver.observe(element);
-    }
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      clearTimeout(timer);
-      window.removeEventListener('resize', calculatePosition);
-      window.removeEventListener('scroll', calculatePosition, true);
-      resizeObserver?.disconnect();
-    };
-  }, [calculatePosition, step.targetSelector]);
-
-  // Recalculate when step changes and auto-focus tooltip
-  useEffect(() => {
-    const hideTimer = setTimeout(() => setIsVisible(false), 0);
-    const timer = setTimeout(() => {
-      calculatePosition();
-      setIsVisible(true);
-      tooltipRef.current?.focus();
-    }, 150);
-    return () => {
-      clearTimeout(hideTimer);
-      clearTimeout(timer);
-    };
-  }, [step.id, calculatePosition]);
-
-  // Focus trap: cycle Tab/Shift+Tab within tooltip
-  useEffect(() => {
-    const tooltip = tooltipRef.current;
-    if (!tooltip) return;
-
-    const handleFocusTrap = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-
-      const focusable = tooltip.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first || document.activeElement === tooltip) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    tooltip.addEventListener('keydown', handleFocusTrap);
-    return () => tooltip.removeEventListener('keydown', handleFocusTrap);
-  }, [step.id]);
-
-  const renderArrow = () => {
-    if (position.arrowPosition === 'none') return null;
-
-    const arrowStyles: React.CSSProperties = {
-      position: 'absolute',
-      width: 0,
-      height: 0,
-    };
-
-    const borderSize = `${ARROW_SIZE}px`;
-    // Use CSS variable for theme consistency
-    const borderColor = 'hsl(var(--card))';
-
-    switch (position.arrowPosition) {
-      case 'top':
-        arrowStyles.top = -ARROW_SIZE;
-        arrowStyles.left = position.arrowOffset - ARROW_SIZE;
-        arrowStyles.borderLeft = `${borderSize} solid transparent`;
-        arrowStyles.borderRight = `${borderSize} solid transparent`;
-        arrowStyles.borderBottom = `${borderSize} solid ${borderColor}`;
-        break;
-      case 'bottom':
-        arrowStyles.bottom = -ARROW_SIZE;
-        arrowStyles.left = position.arrowOffset - ARROW_SIZE;
-        arrowStyles.borderLeft = `${borderSize} solid transparent`;
-        arrowStyles.borderRight = `${borderSize} solid transparent`;
-        arrowStyles.borderTop = `${borderSize} solid ${borderColor}`;
-        break;
-      case 'left':
-        arrowStyles.left = -ARROW_SIZE;
-        arrowStyles.top = position.arrowOffset - ARROW_SIZE;
-        arrowStyles.borderTop = `${borderSize} solid transparent`;
-        arrowStyles.borderBottom = `${borderSize} solid transparent`;
-        arrowStyles.borderRight = `${borderSize} solid ${borderColor}`;
-        break;
-      case 'right':
-        arrowStyles.right = -ARROW_SIZE;
-        arrowStyles.top = position.arrowOffset - ARROW_SIZE;
-        arrowStyles.borderTop = `${borderSize} solid transparent`;
-        arrowStyles.borderBottom = `${borderSize} solid transparent`;
-        arrowStyles.borderLeft = `${borderSize} solid ${borderColor}`;
-        break;
-    }
-
-    return <div style={arrowStyles} />;
-  };
+  const arrowStyles = getArrowStyles(position.arrowPosition, position.arrowOffset);
 
   return (
     <div
@@ -296,7 +48,7 @@ export function TourTooltip({
         left: position.left,
       }}
     >
-      {renderArrow()}
+      {arrowStyles && <div style={arrowStyles} />}
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">

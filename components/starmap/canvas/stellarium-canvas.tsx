@@ -4,10 +4,10 @@ import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 
 import { useStellariumStore } from '@/lib/stores';
 import type { StellariumEngine } from '@/lib/core/types';
 
-// Import from local modules
-import { DEFAULT_FOV } from './constants';
-import { fovToDeg } from './utils';
-import type { StellariumCanvasRef, StellariumCanvasProps } from './types';
+// Import from lib modules
+import { DEFAULT_FOV } from '@/lib/core/constants/fov';
+import { fovToDeg } from '@/lib/core/stellarium-canvas-utils';
+import type { StellariumCanvasRef, StellariumCanvasProps } from '@/types/stellarium-canvas';
 import {
   useClickCoordinates,
   useStellariumZoom,
@@ -15,11 +15,11 @@ import {
   useObserverSync,
   useSettingsSync,
   useStellariumLoader,
-} from './hooks';
+} from '@/lib/hooks/stellarium';
 import { LoadingOverlay } from './components';
 
 // Re-export types for external consumers
-export type { StellariumCanvasRef, StellariumCanvasProps } from './types';
+export type { StellariumCanvasRef, StellariumCanvasProps } from '@/types/stellarium-canvas';
 
 /**
  * StellariumCanvas - Main star map visualization component

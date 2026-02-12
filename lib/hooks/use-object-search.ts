@@ -14,6 +14,7 @@ import {
   fuzzyMatch,
 } from '@/lib/catalogs';
 import { createLogger } from '@/lib/logger';
+import { getResultId } from '@/lib/core/search-utils';
 
 const logger = createLogger('use-object-search');
 
@@ -170,10 +171,6 @@ const MAX_RESULTS = 50;
 const MAX_RECENT = 8;
 const FUZZY_THRESHOLD = 0.3; // Minimum score to include in results
 
-// Generate unique ID for search result
-function getResultId(item: SearchResultItem): string {
-  return `${item.Type || 'unknown'}-${item.Name}`;
-}
 
 export function useObjectSearch(): UseObjectSearchReturn {
   const stel = useStellariumStore((state) => state.stel);

@@ -35,20 +35,15 @@ import {
   selectCanSolve,
 } from '@/lib/stores/plate-solver-store';
 import type { SolverType, SolverInfo } from '@/lib/tauri/plate-solver-api';
+import type { SolverSettingsProps } from '@/types/starmap/plate-solving';
 import {
   isLocalSolver,
   formatFileSize,
   validateSolverPath,
 } from '@/lib/tauri/plate-solver-api';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface SolverSettingsProps {
-  onClose?: () => void;
-  className?: string;
-}
+// Re-export types for backward compatibility
+export type { SolverSettingsProps } from '@/types/starmap/plate-solving';
 
 // ============================================================================
 // Component

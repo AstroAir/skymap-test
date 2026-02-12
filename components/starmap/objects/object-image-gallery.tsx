@@ -18,18 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import type { ObjectImage } from '@/lib/services/object-info-service';
-
-interface ObjectImageGalleryProps {
-  images: ObjectImage[];
-  objectName: string;
-  className?: string;
-}
-
-interface ImageState {
-  loaded: boolean;
-  error: boolean;
-}
+import type { ObjectImageGalleryProps, ImageState } from '@/types/starmap/objects';
 
 export const ObjectImageGallery = memo(function ObjectImageGallery({
   images,

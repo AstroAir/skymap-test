@@ -5,12 +5,7 @@ import { Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
-
-interface SetupWizardButtonProps {
-  variant?: 'default' | 'outline' | 'ghost';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
-  className?: string;
-}
+import type { SetupWizardButtonProps } from '@/types/starmap/setup-wizard';
 
 export function SetupWizardButton({
   variant = 'outline',

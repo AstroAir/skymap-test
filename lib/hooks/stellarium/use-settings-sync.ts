@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, RefObject } from 'react';
 import { useSettingsStore, useStellariumStore } from '@/lib/stores';
-import { SETTINGS_DEBOUNCE_MS } from '../constants';
+import { SETTINGS_DEBOUNCE_MS } from '@/lib/core/constants/stellarium-canvas';
 import type { StellariumEngine } from '@/lib/core/types';
 
 /**

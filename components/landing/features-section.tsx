@@ -13,8 +13,9 @@ import {
   Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { LandingFeatureItem } from '@/types/landing';
 
-const features = [
+const features: LandingFeatureItem[] = [
   { icon: Telescope, key: 'stellarium' },
   { icon: Calendar, key: 'planning' },
   { icon: Target, key: 'shotList' },

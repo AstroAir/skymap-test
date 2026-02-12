@@ -47,13 +47,14 @@ import {
 import { cn } from '@/lib/utils';
 import { useMountStore, useStellariumStore, useSatelliteStore, type TrackedSatellite } from '@/lib/stores';
 import type { SatelliteData } from '@/lib/core/types';
+import type { SatelliteCardProps, PassCardProps } from '@/types/starmap/overlays';
+import { getSatelliteTypeColor, getSatelliteTypeLabelKey } from '@/lib/constants/satellite-constants';
 import { type ObserverLocation } from '@/lib/services/satellite-propagator';
 import {
   fetchSatellitesFromCelesTrak,
   SAMPLE_SATELLITES,
   generateSamplePasses,
   SATELLITE_SOURCES,
-  type CelesTrakSatellitePass,
 } from '@/lib/services/satellite/celestrak-service';
 import { createLogger } from '@/lib/logger';
 
@@ -66,35 +67,8 @@ const logger = createLogger('satellite-tracker');
 const SatelliteCard = memo(function SatelliteCard({ 
   satellite, 
   onTrack 
-}: { 
-  satellite: SatelliteData; 
-  onTrack: () => void;
-}) {
+}: SatelliteCardProps) {
   const t = useTranslations();
-  
-  const getTypeColor = (type: SatelliteData['type']) => {
-    switch (type) {
-      case 'iss': return 'bg-blue-500/20 text-blue-400';
-      case 'starlink': return 'bg-purple-500/20 text-purple-400';
-      case 'weather': return 'bg-cyan-500/20 text-cyan-400';
-      case 'gps': return 'bg-green-500/20 text-green-400';
-      case 'communication': return 'bg-orange-500/20 text-orange-400';
-      case 'scientific': return 'bg-pink-500/20 text-pink-400';
-      default: return 'bg-gray-500/20 text-gray-400';
-    }
-  };
-  
-  const getTypeLabel = (type: SatelliteData['type']) => {
-    switch (type) {
-      case 'iss': return t('satellites.typeISS');
-      case 'starlink': return t('satellites.typeStarlink');
-      case 'weather': return t('satellites.typeWeather');
-      case 'gps': return t('satellites.typeGPS');
-      case 'communication': return t('satellites.typeComm');
-      case 'scientific': return t('satellites.typeScientific');
-      default: return t('satellites.typeOther');
-    }
-  };
   
   return (
     <Card className="border-border hover:border-primary/50 transition-colors">
@@ -112,8 +86,8 @@ const SatelliteCard = memo(function SatelliteCard({
             </div>
             
             <div className="flex items-center gap-2 mb-2">
-              <Badge className={cn('text-[10px]', getTypeColor(satellite.type))}>
-                {getTypeLabel(satellite.type)}
+              <Badge className={cn('text-[10px]', getSatelliteTypeColor(satellite.type))}>
+                {t(getSatelliteTypeLabelKey(satellite.type))}
               </Badge>
               <span className="text-xs text-muted-foreground">
                 NORAD: {satellite.noradId}
@@ -162,10 +136,7 @@ const SatelliteCard = memo(function SatelliteCard({
 const PassCard = memo(function PassCard({ 
   pass, 
   onTrack 
-}: { 
-  pass: CelesTrakSatellitePass; 
-  onTrack: () => void;
-}) {
+}: PassCardProps) {
   const t = useTranslations();
   const now = new Date();
   const isActive = pass.startTime <= now && pass.endTime >= now;

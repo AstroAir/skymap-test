@@ -33,23 +33,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { ZOOM_PRESETS } from '@/components/starmap/canvas/constants';
+import { ZOOM_PRESETS } from '@/lib/core/constants/fov';
 import { useEquipmentStore, useSettingsStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
-
-interface MobileToolbarProps {
-  onOpenSearch?: () => void;
-  onOpenMenu?: () => void;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
-  onResetView?: () => void;
-  onToggleFOV?: () => void;
-  onZoomToFov?: (fov: number) => void;
-  onOpenTargetList?: () => void;
-  currentFov?: number;
-  children?: React.ReactNode;
-  className?: string;
-}
+import type { MobileToolbarProps, MobileZoomControlProps } from '@/types/starmap/controls';
 
 export function MobileToolbar({
   onOpenSearch,
@@ -278,12 +265,7 @@ export function MobileZoomControl({
   onZoomIn,
   onZoomOut,
   className,
-}: {
-  currentFov: number;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
-  className?: string;
-}) {
+}: MobileZoomControlProps) {
   return (
     <div className={cn(
       "flex items-center gap-1 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-1",

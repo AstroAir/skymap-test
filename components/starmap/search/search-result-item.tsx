@@ -3,7 +3,8 @@
 import { memo, forwardRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { translateCelestialName } from '@/lib/translations';
-import type { SearchResultItem, SkyCultureLanguage } from '@/lib/core/types';
+import type { SkyCultureLanguage } from '@/lib/core/types';
+import type { SearchResultItemProps } from '@/types/starmap/search';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -13,24 +14,9 @@ import {
 } from '@/components/ui/tooltip';
 import { Plus } from 'lucide-react';
 
-// Helper to get unique ID for a search result
-export function getResultId(item: SearchResultItem): string {
-  return `${item.Type || 'unknown'}-${item.Name}`;
-}
-
-export interface SearchResultItemProps {
-  item: SearchResultItem;
-  itemId: string;
-  checked: boolean;
-  isHighlighted?: boolean;
-  showCheckbox?: boolean;
-  skyCultureLanguage: SkyCultureLanguage | string;
-  onSelect: (item: SearchResultItem) => void;
-  onToggleSelection?: (id: string) => void;
-  onMouseEnter?: (index: number) => void;
-  onAddToTargetList: (item: SearchResultItem) => void;
-  globalIndex?: number;
-}
+export { getResultId } from '@/lib/core/search-utils';
+export { type SkyCultureLanguage } from '@/lib/core/types';
+export type { SearchResultItemProps } from '@/types/starmap/search';
 
 export const SearchResultItemRow = memo(forwardRef<HTMLDivElement, SearchResultItemProps>(function SearchResultItemRow({
   item,

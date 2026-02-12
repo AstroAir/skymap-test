@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Zap,
@@ -38,21 +38,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useMountStore, useEquipmentStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
-import {
-  getMoonPhase,
-  getMoonPhaseName,
-  getMoonIllumination,
-  getSunPosition,
-  calculateTwilightTimes,
-} from '@/lib/astronomy/astro-utils';
-import { raDecToAltAz, getLST } from '@/lib/astronomy/starmap-utils';
-import { ZOOM_PRESETS } from '@/components/starmap/canvas/constants';
-
-interface QuickActionsPanelProps {
-  onZoomToFov?: (fov: number) => void;
-  onResetView?: () => void;
-  className?: string;
-}
+import { useObservingConditions } from '@/lib/hooks/use-observing-conditions';
+import { getCelestialReferencePoint } from '@/lib/astronomy/navigation';
+import { ZOOM_PRESETS } from '@/lib/core/constants/fov';
+import type { QuickActionsPanelProps, CelestialDirection } from '@/types/starmap/controls';
 
 export function QuickActionsPanel({
   onZoomToFov,
@@ -62,18 +51,6 @@ export function QuickActionsPanel({
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  
-  // Refresh trigger for astronomical conditions (only when popover is open)
-  const [refreshTick, setRefreshTick] = useState(0);
-  
-  useEffect(() => {
-    if (!open) return;
-    setRefreshTick(prev => prev + 1);
-    const interval = setInterval(() => {
-      setRefreshTick(prev => prev + 1);
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [open]);
 
   // Store state
   const profileInfo = useMountStore((state) => state.profileInfo);
@@ -88,30 +65,8 @@ export function QuickActionsPanel({
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
 
-  // Calculate astronomical conditions (refreshes every 60 seconds via refreshTick)
-  const conditions = useMemo(() => {
-    const moonPhase = getMoonPhase();
-    const moonPhaseName = getMoonPhaseName(moonPhase);
-    const moonIllumination = getMoonIllumination(moonPhase);
-    const sunPos = getSunPosition();
-    const sunAltAz = raDecToAltAz(sunPos.ra, sunPos.dec, latitude, longitude);
-    const twilight = calculateTwilightTimes(latitude, longitude, new Date());
-
-    const isDark = sunAltAz.altitude < -18;
-    const isTwilight = sunAltAz.altitude >= -18 && sunAltAz.altitude < 0;
-    const isDay = sunAltAz.altitude >= 0;
-
-    return {
-      moonPhaseName,
-      moonIllumination: Math.round(moonIllumination),
-      sunAltitude: sunAltAz.altitude,
-      isDark,
-      isTwilight,
-      isDay,
-      twilight,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, longitude, refreshTick]);
+  // Calculate astronomical conditions (extracted to reusable hook)
+  const conditions = useObservingConditions(latitude, longitude, { enabled: open });
 
   // Get active target
   const activeTarget = useMemo(() => {
@@ -119,33 +74,11 @@ export function QuickActionsPanel({
     return targets.find(t => t.id === activeTargetId) || null;
   }, [targets, activeTargetId]);
 
-  // Quick navigation to celestial reference points
-  // Uses well-defined astronomical coordinates:
-  // - NCP (North Celestial Pole): RA=0h, Dec=+90°
-  // - SCP (South Celestial Pole): RA=0h, Dec=-90°
-  // - Vernal Equinox (春分点): RA=0h, Dec=0°
-  // - Autumnal Equinox (秋分点): RA=12h (180°), Dec=0°
-  // - Zenith: calculated from observer's latitude (Dec = latitude, RA from LST)
-  const navigateToDirection = useCallback((direction: 'NCP' | 'SCP' | 'vernal' | 'autumnal' | 'zenith') => {
+  // Quick navigation to celestial reference points (extracted to lib/astronomy/navigation)
+  const navigateToDirection = useCallback((direction: CelestialDirection) => {
     if (!setViewDirection) return;
-    
-    switch (direction) {
-      case 'NCP': // North Celestial Pole
-        setViewDirection(0, 90);
-        break;
-      case 'SCP': // South Celestial Pole
-        setViewDirection(0, -90);
-        break;
-      case 'vernal': // Vernal Equinox (RA=0h)
-        setViewDirection(0, 0);
-        break;
-      case 'autumnal': // Autumnal Equinox (RA=12h = 180°)
-        setViewDirection(180, 0);
-        break;
-      case 'zenith': // Zenith (Dec = latitude, RA = LST)
-        setViewDirection(getLST(longitude), latitude);
-        break;
-    }
+    const point = getCelestialReferencePoint(direction, latitude, longitude);
+    setViewDirection(point.ra, point.dec);
   }, [setViewDirection, latitude, longitude]);
 
   // Navigate to active target

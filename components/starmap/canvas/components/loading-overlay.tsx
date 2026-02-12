@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Spinner } from '@/components/common/spinner';
-import type { LoadingState } from '../types';
+import type { LoadingState } from '@/types/stellarium-canvas';
 
 interface LoadingOverlayProps {
   loadingState: LoadingState;

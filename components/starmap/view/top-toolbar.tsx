@@ -49,21 +49,7 @@ import { ViewBookmarks } from '../controls/view-bookmarks';
 import { ObjectTypeLegend } from '../objects/object-type-legend';
 
 import { isTauri, quitApp, toggleMaximizeWindow } from '@/lib/tauri/app-control-api';
-
-interface TopToolbarProps {
-  stel: boolean;
-  isSearchOpen: boolean;
-  showSessionPanel: boolean;
-  viewCenterRaDec: { ra: number; dec: number };
-  currentFov: number;
-  onToggleSearch: () => void;
-  onToggleSessionPanel: () => void;
-  onResetView: () => void;
-  onCloseStarmapClick: () => void;
-  onSetFov: (fov: number) => void;
-  onNavigate: (ra: number, dec: number, fov: number) => void;
-  onGoToCoordinates: (ra: number, dec: number) => void;
-}
+import type { TopToolbarProps } from '@/types/starmap/view';
 
 export const TopToolbar = memo(function TopToolbar({
   stel,

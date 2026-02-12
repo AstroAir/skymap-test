@@ -11,13 +11,7 @@ import {
   getTransitTime,
   calculateTargetVisibility,
 } from '@/lib/astronomy/astro-utils';
-
-interface AltitudeChartProps {
-  ra: number;
-  dec: number;
-  name?: string;
-  hoursAhead?: number;
-}
+import type { AltitudeChartProps } from '@/types/starmap/planning';
 
 export function AltitudeChart({
   ra,

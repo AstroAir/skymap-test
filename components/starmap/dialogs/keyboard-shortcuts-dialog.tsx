@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Keyboard, Command, Navigation, Eye, Clock } from 'lucide-react';
+import { Keyboard, Command, Navigation, Eye, Clock, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,74 +20,21 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { STARMAP_SHORTCUT_KEYS } from '@/lib/hooks';
+import type { ShortcutItem, KeyboardShortcutsDialogProps } from '@/types/keyboard-shortcuts';
+import { SHORTCUT_GROUP_DEFINITIONS } from '@/lib/constants/keyboard-shortcuts-data';
 
-interface ShortcutItem {
-  key: string;
-  descriptionKey: string;
-  modifier?: string;
-}
+// ============================================================================
+// Icon Mapping
+// ============================================================================
 
-interface ShortcutGroup {
-  titleKey: string;
-  icon: React.ReactNode;
-  shortcuts: ShortcutItem[];
-}
+const ICON_MAP: Record<string, LucideIcon> = {
+  Navigation,
+  Command,
+  Eye,
+  Clock,
+};
 
-/**
- * Format a shortcut key for display (uppercase letters, named keys)
- */
-function displayKey(key: string): string {
-  if (key === ' ') return 'Space';
-  if (key === 'Escape') return 'Esc';
-  if (key.length === 1) return key.toUpperCase();
-  return key;
-}
-
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  {
-    titleKey: 'navigation',
-    icon: <Navigation className="h-4 w-4" />,
-    shortcuts: [
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.ZOOM_IN), descriptionKey: 'zoomIn' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.ZOOM_OUT), descriptionKey: 'zoomOut' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.RESET_VIEW), descriptionKey: 'resetView' },
-      { key: '/', descriptionKey: 'openSearch' },
-    ],
-  },
-  {
-    titleKey: 'searchAndPanels',
-    icon: <Command className="h-4 w-4" />,
-    shortcuts: [
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_SEARCH), modifier: 'Ctrl', descriptionKey: 'toggleSearch' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_SESSION_PANEL), descriptionKey: 'toggleSessionPanel' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_FOV), descriptionKey: 'toggleFovOverlay' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.CLOSE_PANEL), descriptionKey: 'closePanel' },
-    ],
-  },
-  {
-    titleKey: 'display',
-    icon: <Eye className="h-4 w-4" />,
-    shortcuts: [
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_CONSTELLATIONS), descriptionKey: 'toggleConstellations' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_GRID), descriptionKey: 'toggleGrid' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_DSO), descriptionKey: 'toggleDso' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.TOGGLE_ATMOSPHERE), descriptionKey: 'toggleAtmosphere' },
-    ],
-  },
-  {
-    titleKey: 'timeControl',
-    icon: <Clock className="h-4 w-4" />,
-    shortcuts: [
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.PAUSE_TIME), descriptionKey: 'pauseResumeTime' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.SPEED_UP), descriptionKey: 'speedUpTime' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.SLOW_DOWN), descriptionKey: 'slowDownTime' },
-      { key: displayKey(STARMAP_SHORTCUT_KEYS.RESET_TIME), descriptionKey: 'resetTime' },
-    ],
-  },
-];
-
-function ShortcutKey({ shortcut, t }: { shortcut: ShortcutItem; t: ReturnType<typeof useTranslations> }) {
+function ShortcutKeyRow({ shortcut, t }: { shortcut: ShortcutItem; t: ReturnType<typeof useTranslations> }) {
   return (
     <div className="flex items-center justify-between py-1.5">
       <span className="text-sm text-muted-foreground">{t(`shortcuts.${shortcut.descriptionKey}`)}</span>
@@ -106,10 +53,6 @@ function ShortcutKey({ shortcut, t }: { shortcut: ShortcutItem; t: ReturnType<ty
       </div>
     </div>
   );
-}
-
-interface KeyboardShortcutsDialogProps {
-  trigger?: React.ReactNode;
 }
 
 export function KeyboardShortcutsDialog({ trigger }: KeyboardShortcutsDialogProps) {
@@ -178,20 +121,25 @@ export function KeyboardShortcutsDialog({ trigger }: KeyboardShortcutsDialogProp
         
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4">
-            {SHORTCUT_GROUPS.map((group, index) => (
-              <div key={group.titleKey}>
-                {index > 0 && <Separator className="my-3" />}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-primary">{group.icon}</span>
-                  <h3 className="font-medium text-sm">{t(`shortcuts.${group.titleKey}`)}</h3>
+            {SHORTCUT_GROUP_DEFINITIONS.map((group, index) => {
+              const IconComponent = ICON_MAP[group.iconName];
+              return (
+                <div key={group.titleKey}>
+                  {index > 0 && <Separator className="my-3" />}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-primary">
+                      {IconComponent && <IconComponent className="h-4 w-4" />}
+                    </span>
+                    <h3 className="font-medium text-sm">{t(`shortcuts.${group.titleKey}`)}</h3>
+                  </div>
+                  <div className="space-y-0.5 pl-6">
+                    {group.shortcuts.map((shortcut) => (
+                      <ShortcutKeyRow key={shortcut.key + shortcut.descriptionKey} shortcut={shortcut} t={t} />
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-0.5 pl-6">
-                  {group.shortcuts.map((shortcut) => (
-                    <ShortcutKey key={shortcut.key + shortcut.descriptionKey} shortcut={shortcut} t={t} />
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
 

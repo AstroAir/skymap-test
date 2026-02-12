@@ -25,3 +25,12 @@ export * from './imaging';
 
 // Custom horizon support
 export * from './horizon';
+
+// FOV utility functions
+export * from './fov-utils';
+
+// Celestial navigation utilities
+export * from './navigation';
+
+// Coordinate validators
+export * from './coordinate-validators';

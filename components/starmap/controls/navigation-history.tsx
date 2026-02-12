@@ -23,11 +23,7 @@ import {
   formatTimestamp,
   type NavigationPoint,
 } from '@/lib/hooks/use-navigation-history';
-
-interface NavigationHistoryProps {
-  onNavigate?: (ra: number, dec: number, fov: number) => void;
-  className?: string;
-}
+import type { NavigationHistoryProps } from '@/types/starmap/controls';
 
 export const NavigationHistory = memo(function NavigationHistory({ onNavigate, className }: NavigationHistoryProps) {
   const t = useTranslations();

@@ -17,21 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { ZoomControls } from './zoom-controls';
-
-interface SidePanelProps {
-  children?: React.ReactNode;
-  className?: string;
-  defaultCollapsed?: boolean;
-}
-
-interface ToolButtonProps {
-  icon: React.ElementType;
-  label: string;
-  active?: boolean;
-  badge?: number;
-  onClick?: () => void;
-  disabled?: boolean;
-}
+import type { SidePanelProps, ToolButtonProps, ZoomSectionProps, ToolSectionProps } from '@/types/starmap/controls';
 
 function ToolButton({ icon: Icon, label, active, badge, onClick, disabled }: ToolButtonProps) {
   return (
@@ -135,12 +121,7 @@ export function ZoomSection({
   onZoomIn, 
   onZoomOut, 
   onFovChange,
-}: { 
-  currentFov: number; 
-  onZoomIn: () => void; 
-  onZoomOut: () => void;
-  onFovChange?: (fov: number) => void;
-}) {
+}: ZoomSectionProps) {
   return (
     <ZoomControls
       fov={currentFov}
@@ -154,10 +135,7 @@ export function ZoomSection({
 export function ToolSection({
   children,
   title,
-}: {
-  children: React.ReactNode;
-  title?: string;
-}) {
+}: ToolSectionProps) {
   return (
     <div className="space-y-1">
       {title && (

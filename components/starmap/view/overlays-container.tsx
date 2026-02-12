@@ -5,17 +5,18 @@ import { FOVOverlay } from '../overlays/fov-overlay';
 import { SkyMarkers } from '../overlays/sky-markers';
 import { SatelliteOverlay } from '../overlays/satellite-overlay';
 
-import { useEquipmentStore, type MosaicSettings, type GridType } from '@/lib/stores';
-import type { SkyMarker } from '@/lib/stores/marker-store';
+import { useEquipmentStore } from '@/lib/stores';
+import type { OverlaysContainerProps } from '@/types/starmap/view';
 
 /**
  * Wrapper that reads fovDisplay settings from equipment-store
  * and passes them as props to FOVOverlay.
  */
-function FOVOverlayConnected(props: Omit<ComponentProps<typeof FOVOverlay>, 'frameColor' | 'frameStyle' | 'overlayOpacity'>) {
+function FOVOverlayConnected(props: Omit<ComponentProps<typeof FOVOverlay>, 'frameColor' | 'frameStyle' | 'overlayOpacity' | 'pixelSize'>) {
   const frameColor = useEquipmentStore((s) => s.fovDisplay.frameColor);
   const frameStyle = useEquipmentStore((s) => s.fovDisplay.frameStyle);
   const overlayOpacity = useEquipmentStore((s) => s.fovDisplay.overlayOpacity);
+  const pixelSize = useEquipmentStore((s) => s.pixelSize);
 
   return (
     <FOVOverlay
@@ -23,24 +24,9 @@ function FOVOverlayConnected(props: Omit<ComponentProps<typeof FOVOverlay>, 'fra
       frameColor={frameColor}
       frameStyle={frameStyle}
       overlayOpacity={overlayOpacity}
+      pixelSize={pixelSize}
     />
   );
-}
-
-interface OverlaysContainerProps {
-  containerBounds: { width: number; height: number } | undefined;
-  fovEnabled: boolean;
-  sensorWidth: number;
-  sensorHeight: number;
-  focalLength: number;
-  currentFov: number;
-  rotationAngle: number;
-  mosaic: MosaicSettings;
-  gridType: GridType;
-  onRotationChange: (angle: number) => void;
-  onMarkerDoubleClick: (marker: SkyMarker) => void;
-  onMarkerEdit: (marker: SkyMarker) => void;
-  onMarkerNavigate: (marker: SkyMarker) => void;
 }
 
 export const OverlaysContainer = memo(function OverlaysContainer({

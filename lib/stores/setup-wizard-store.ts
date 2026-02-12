@@ -1,60 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
+import type { SetupWizardStep, SetupWizardState } from '@/types/starmap/setup-wizard';
+import { SETUP_WIZARD_STEPS } from '@/lib/constants/setup-wizard';
 
-// Setup wizard step types
-export type SetupWizardStep = 
-  | 'welcome'
-  | 'location'
-  | 'equipment'
-  | 'preferences'
-  | 'complete';
-
-export const SETUP_WIZARD_STEPS: SetupWizardStep[] = [
-  'welcome',
-  'location',
-  'equipment',
-  'preferences',
-  'complete',
-];
-
-interface SetupWizardState {
-  // Whether the setup wizard has been completed
-  hasCompletedSetup: boolean;
-  // Whether to show setup wizard on next visit (if not completed)
-  showOnNextVisit: boolean;
-  // Current step in the wizard
-  currentStep: SetupWizardStep;
-  // Whether the wizard is currently open
-  isOpen: boolean;
-  // Track which steps have been completed
-  completedSteps: SetupWizardStep[];
-  // Temporary data during setup (not persisted)
-  setupData: {
-    locationConfigured: boolean;
-    equipmentConfigured: boolean;
-    preferencesConfigured: boolean;
-  };
-  
-  // Actions
-  openWizard: () => void;
-  closeWizard: () => void;
-  nextStep: () => void;
-  prevStep: () => void;
-  goToStep: (step: SetupWizardStep) => void;
-  markStepCompleted: (step: SetupWizardStep) => void;
-  completeSetup: () => void;
-  resetSetup: () => void;
-  setShowOnNextVisit: (show: boolean) => void;
-  updateSetupData: (data: Partial<SetupWizardState['setupData']>) => void;
-  
-  // Getters
-  getCurrentStepIndex: () => number;
-  getTotalSteps: () => number;
-  isFirstStep: () => boolean;
-  isLastStep: () => boolean;
-  canProceed: () => boolean;
-}
+// Re-export for backward compatibility
+export type { SetupWizardStep } from '@/types/starmap/setup-wizard';
+export { SETUP_WIZARD_STEPS } from '@/lib/constants/setup-wizard';
 
 export const useSetupWizardStore = create<SetupWizardState>()(
   persist(

@@ -25,6 +25,8 @@ import {
 
 import { useMountStore } from '@/lib/stores';
 import { raDecToAltAz, getLST, degreesToHMS } from '@/lib/astronomy/starmap-utils';
+import { getSkyConditionColor, getFeasibilityColor, formatCountdown } from '@/lib/core/constants/planning-styles';
+import type { AstroSessionPanelProps } from '@/types/starmap/planning';
 import { useAstronomy } from '@/lib/tauri/hooks';
 import {
   getMoonPhase,
@@ -43,11 +45,6 @@ import {
   formatDuration,
 } from '@/lib/astronomy/astro-utils';
 
-interface AstroSessionPanelProps {
-  selectedRa?: number;
-  selectedDec?: number;
-  selectedName?: string;
-}
 
 export function AstroSessionPanel({
   selectedRa,
@@ -184,17 +181,6 @@ export function AstroSessionPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRa, selectedDec, latitude, longitude, astroData.moonRa, astroData.moonDec, calcEpoch]);
 
-  const getSkyConditionColor = (condition: string) => {
-    switch (condition) {
-      case 'night': return 'bg-indigo-600';
-      case 'astronomical': return 'bg-purple-600';
-      case 'nautical': return 'bg-blue-600';
-      case 'civil': return 'bg-orange-500';
-      case 'day': return 'bg-yellow-500';
-      default: return 'bg-gray-600';
-    }
-  };
-
   const getSkyConditionLabel = (condition: string) => {
     switch (condition) {
       case 'night': return t('session.darkSky');
@@ -204,24 +190,6 @@ export function AstroSessionPanel({
       case 'day': return t('session.daylight');
       default: return condition;
     }
-  };
-
-  const getFeasibilityColor = (rec: string) => {
-    switch (rec) {
-      case 'excellent': return 'text-green-400 bg-green-900/30';
-      case 'good': return 'text-emerald-400 bg-emerald-900/30';
-      case 'fair': return 'text-yellow-400 bg-yellow-900/30';
-      case 'poor': return 'text-orange-400 bg-orange-900/30';
-      case 'not_recommended': return 'text-red-400 bg-red-900/30';
-      default: return 'text-muted-foreground';
-    }
-  };
-
-  const formatCountdown = (minutes: number) => {
-    if (minutes < 60) return `${Math.round(minutes)}m`;
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
-    return `${h}h ${m}m`;
   };
 
   return (

@@ -46,6 +46,26 @@ jest.mock('@/lib/astronomy/astro-utils', () => ({
 // Mock hooks
 jest.mock('@/lib/hooks', () => ({
   useCelestialName: jest.fn((name) => name),
+  useTargetAstroData: jest.fn(() => ({
+    altitude: 45,
+    azimuth: 180,
+    moonDistance: 60,
+    visibility: {
+      isCircumpolar: false,
+      riseTime: new Date(),
+      transitTime: new Date(),
+      setTime: new Date(),
+      transitAltitude: 70,
+      darkImagingHours: 4,
+    },
+    feasibility: {
+      score: 85,
+      recommendation: 'good',
+      moonScore: 90,
+      altitudeScore: 80,
+      durationScore: 85,
+    },
+  })),
 }));
 
 // Mock stores

@@ -10,3 +10,4 @@ export {
   type FetchOptions,
   type CacheStrategy,
 } from './unified-cache';
+export { convertToHiPSSurvey } from './utils';

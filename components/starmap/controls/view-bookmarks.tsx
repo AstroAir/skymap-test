@@ -56,6 +56,7 @@ import {
   type ViewBookmark,
   type BookmarkIcon,
 } from '@/lib/stores/bookmarks-store';
+import type { ViewBookmarksProps } from '@/types/starmap/controls';
 
 // Icon component mapping
 const BookmarkIconComponent: Record<BookmarkIcon, React.ComponentType<LucideProps>> = {
@@ -67,14 +68,6 @@ const BookmarkIconComponent: Record<BookmarkIcon, React.ComponentType<LucideProp
   camera: Camera,
   telescope: Telescope,
 };
-
-interface ViewBookmarksProps {
-  currentRa: number;
-  currentDec: number;
-  currentFov: number;
-  onNavigate?: (ra: number, dec: number, fov: number) => void;
-  className?: string;
-}
 
 export const ViewBookmarks = memo(function ViewBookmarks({
   currentRa,

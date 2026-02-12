@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMarkerStore, type SkyMarker, type MarkerIcon } from '@/lib/stores';
 import { useBatchProjection } from '@/lib/hooks';
+import type { SkyMarkersProps } from '@/types/starmap/overlays';
 import {
   Star,
   Circle,
@@ -31,16 +32,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-interface SkyMarkersProps {
-  containerWidth: number;
-  containerHeight: number;
-  onMarkerClick?: (marker: SkyMarker) => void;
-  onMarkerDoubleClick?: (marker: SkyMarker) => void;
-  onMarkerEdit?: (marker: SkyMarker) => void;
-  onMarkerDelete?: (marker: SkyMarker) => void;
-  onMarkerNavigate?: (marker: SkyMarker) => void;
-}
 
 // Icon component mapping
 const MarkerIconComponent: Record<MarkerIcon, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {

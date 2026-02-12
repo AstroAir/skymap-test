@@ -46,120 +46,19 @@ import {
   formatDec, 
   formatPixelScale,
   formatExposure,
-  type FITSMetadata 
+  isFITSFile,
+  getImageDimensions,
+  compressImage,
+  DEFAULT_MAX_FILE_SIZE_MB,
+  DEFAULT_ACCEPTED_FORMATS,
+  COMPRESSION_QUALITY,
+  MAX_DIMENSION_FOR_PREVIEW,
 } from '@/lib/plate-solving';
 import { formatFileSize } from '@/lib/tauri/plate-solver-api';
+import type { ImageMetadata, ImageCaptureProps } from '@/types/starmap/plate-solving';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface ImageMetadata {
-  width: number;
-  height: number;
-  size: number;
-  type: string;
-  name: string;
-  isFits?: boolean;
-  fitsData?: FITSMetadata;
-}
-
-export interface ImageCaptureProps {
-  onImageCapture: (file: File, metadata?: ImageMetadata) => void;
-  trigger?: React.ReactNode;
-  className?: string;
-  maxFileSizeMB?: number;
-  enableCompression?: boolean;
-  acceptedFormats?: string[];
-}
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const DEFAULT_MAX_FILE_SIZE_MB = 50;
-const DEFAULT_ACCEPTED_FORMATS = ['image/jpeg', 'image/png', 'image/webp', 'image/tiff'];
-const FITS_EXTENSIONS = ['.fits', '.fit', '.fts'];
-const COMPRESSION_QUALITY = 0.85;
-const MAX_DIMENSION_FOR_PREVIEW = 4096;
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-function isFitsFile(file: File): boolean {
-  const name = file.name.toLowerCase();
-  return FITS_EXTENSIONS.some(ext => name.endsWith(ext));
-}
-
-function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-      URL.revokeObjectURL(img.src);
-    };
-    img.onerror = () => {
-      reject(new Error('Failed to load image'));
-      URL.revokeObjectURL(img.src);
-    };
-    img.src = URL.createObjectURL(file);
-  });
-}
-
-async function compressImage(
-  file: File, 
-  maxDimension: number, 
-  quality: number
-): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      let { width, height } = img;
-      
-      if (width > maxDimension || height > maxDimension) {
-        const ratio = Math.min(maxDimension / width, maxDimension / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
-      }
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-      
-      ctx.drawImage(img, 0, 0, width, height);
-      
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            const compressedFile = new File([blob], file.name, { 
-              type: 'image/jpeg',
-              lastModified: Date.now()
-            });
-            resolve(compressedFile);
-          } else {
-            reject(new Error('Failed to compress image'));
-          }
-        },
-        'image/jpeg',
-        quality
-      );
-      
-      URL.revokeObjectURL(img.src);
-    };
-    img.onerror = () => {
-      reject(new Error('Failed to load image for compression'));
-      URL.revokeObjectURL(img.src);
-    };
-    img.src = URL.createObjectURL(file);
-  });
-}
+// Re-export types for backward compatibility
+export type { ImageMetadata, ImageCaptureProps } from '@/types/starmap/plate-solving';
 
 // ============================================================================
 // Component
@@ -201,7 +100,7 @@ export function ImageCapture({
       return t('plateSolving.fileTooLarge') || `File too large. Maximum size is ${maxFileSizeMB}MB`;
     }
     
-    const isFits = isFitsFile(file);
+    const isFits = isFITSFile(file);
     if (!isFits && !acceptedFormats.includes(file.type) && !file.type.startsWith('image/')) {
       return t('plateSolving.unsupportedFormat') || 'Unsupported file format';
     }
@@ -224,7 +123,7 @@ export function ImageCapture({
       
       setLoadingProgress(20);
       
-      const isFits = isFitsFile(file);
+      const isFits = isFITSFile(file);
       const metadata: ImageMetadata = {
         width: 0,
         height: 0,

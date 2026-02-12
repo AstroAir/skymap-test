@@ -1,24 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import { Minus, Square, X, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { createLogger } from "@/lib/logger";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  closeWindow,
-  minimizeWindow,
-  toggleMaximizeWindow,
-  isWindowMaximized,
-  isTauri,
-} from "@/lib/tauri/app-control-api";
-
-const logger = createLogger('window-controls');
+import { useWindowControls } from "@/lib/hooks/use-window-controls";
 
 interface WindowControlsProps {
   className?: string;
@@ -27,64 +17,7 @@ interface WindowControlsProps {
 
 export function WindowControls({ className, variant = "default" }: WindowControlsProps) {
   const t = useTranslations("titlebar");
-  const [isTauriEnv, setIsTauriEnv] = useState(false);
-  const [isMaximized, setIsMaximized] = useState(false);
-
-  useEffect(() => {
-    const checkTauri = async () => {
-      if (isTauri()) {
-        setIsTauriEnv(true);
-        try {
-          const maximized = await isWindowMaximized();
-          setIsMaximized(maximized);
-        } catch (error) {
-          logger.error('Failed to get window state', error);
-        }
-      }
-    };
-    checkTauri();
-  }, []);
-
-  useEffect(() => {
-    if (!isTauriEnv) return;
-
-    const handleResize = async () => {
-      try {
-        const maximized = await isWindowMaximized();
-        setIsMaximized(maximized);
-      } catch (error) {
-        logger.error('Failed to check maximized state', error);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [isTauriEnv]);
-
-  const handleMinimize = useCallback(async () => {
-    try {
-      await minimizeWindow();
-    } catch (error) {
-      logger.error('Failed to minimize', error);
-    }
-  }, []);
-
-  const handleMaximize = useCallback(async () => {
-    try {
-      await toggleMaximizeWindow();
-      setIsMaximized((prev) => !prev);
-    } catch (error) {
-      logger.error('Failed to toggle maximize', error);
-    }
-  }, []);
-
-  const handleClose = useCallback(async () => {
-    try {
-      await closeWindow();
-    } catch (error) {
-      logger.error('Failed to close', error);
-    }
-  }, []);
+  const { isTauriEnv, isMaximized, handleMinimize, handleMaximize, handleClose } = useWindowControls();
 
   if (!isTauriEnv) {
     return null;

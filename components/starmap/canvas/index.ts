@@ -1,11 +1,12 @@
 // ============================================================================
 // Stellarium Canvas Module - Index
+// Re-exports from centralized locations for backward compatibility
 // ============================================================================
 
 // Main component
 export { StellariumCanvas } from './stellarium-canvas';
 
-// Types
+// Types (from types/)
 export type {
   StellariumCanvasRef,
   StellariumCanvasProps,
@@ -13,22 +14,24 @@ export type {
   EngineStatus,
   LoadingState,
   ViewDirection,
-} from './types';
+} from '@/types/stellarium-canvas';
 
-// Constants (for external use if needed)
+// Constants (from lib/core/constants/)
 export {
   MIN_FOV,
   MAX_FOV,
   DEFAULT_FOV,
   ZOOM_PRESETS,
+} from '@/lib/core/constants/fov';
+export {
   SCRIPT_PATH,
   WASM_PATH,
-} from './constants';
+} from '@/lib/core/constants/stellarium-canvas';
 
-// Utilities (for external use if needed)
-export { fovToRad, fovToDeg } from './utils';
+// Utilities (from lib/core/)
+export { fovToRad, fovToDeg } from '@/lib/core/stellarium-canvas-utils';
 
-// Hooks (for potential reuse)
+// Hooks (from lib/hooks/stellarium/)
 export {
   useClickCoordinates,
   useStellariumZoom,
@@ -36,7 +39,7 @@ export {
   useObserverSync,
   useSettingsSync,
   useStellariumLoader,
-} from './hooks';
+} from '@/lib/hooks/stellarium';
 
 // Components
 export { LoadingOverlay } from './components';

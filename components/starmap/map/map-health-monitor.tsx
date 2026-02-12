@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { connectivityChecker, type ProviderHealthStatus, type NetworkQualityMetrics } from '@/lib/services/connectivity-checker';
+import { formatResponseTime } from '@/lib/utils/map-utils';
 
 interface MapHealthMonitorProps {
   className?: string;
@@ -115,10 +116,6 @@ function MapHealthMonitorComponent({ className, compact = false }: MapHealthMoni
     );
   };
 
-  const formatResponseTime = useCallback((ms: number) => {
-    if (ms < 1000) return `${Math.round(ms)}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
-  }, []);
 
   // Memoize computed values
   const healthyCount = useMemo(() => 

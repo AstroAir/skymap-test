@@ -58,7 +58,7 @@ import {
 } from '@/components/ui/collapsible';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
-import { useEquipmentStore, type MosaicSettings } from '@/lib/stores';
+import { useEquipmentStore } from '@/lib/stores';
 import {
   SENSOR_PRESETS,
   TELESCOPE_PRESETS,
@@ -67,30 +67,18 @@ import {
   type TelescopePreset,
   type GridType,
 } from '@/lib/constants/equipment-presets';
-import { NumberStepper } from './number-stepper';
+import { NumberStepper } from '@/components/ui/number-stepper';
+import type { FOVSimulatorProps } from '@/types/starmap/overlays';
+import {
+  calculateCameraFov,
+  calculateImageScale,
+  calculateSensorResolution,
+  calculateMosaicCoverage,
+} from '@/lib/astronomy/fov-calculations';
 
 // Re-export types for backward compatibility
 export type { MosaicSettings } from '@/lib/stores';
 export type { GridType } from '@/lib/constants/equipment-presets';
-
-interface FOVSimulatorProps {
-  enabled: boolean;
-  onEnabledChange: (enabled: boolean) => void;
-  sensorWidth: number;
-  sensorHeight: number;
-  focalLength: number;
-  pixelSize?: number;
-  rotationAngle?: number;
-  onSensorWidthChange: (width: number) => void;
-  onSensorHeightChange: (height: number) => void;
-  onFocalLengthChange: (length: number) => void;
-  onPixelSizeChange?: (size: number) => void;
-  onRotationAngleChange?: (angle: number) => void;
-  mosaic: MosaicSettings;
-  onMosaicChange: (mosaic: MosaicSettings) => void;
-  gridType: GridType;
-  onGridTypeChange: (type: GridType) => void;
-}
 
 
 // ============================================================================
@@ -127,38 +115,26 @@ export function FOVSimulator({
   const setFOVDisplay = useEquipmentStore((s) => s.setFOVDisplay);
   const { overlayOpacity, frameColor, frameStyle, showCoordinateGrid, showConstellations, showConstellationBoundaries, showDSOLabels, rotateSky, preserveAlignment, dragToPosition } = fovDisplay;
 
-  // Calculations
-  const fovWidth = useMemo(() => 
-    (2 * Math.atan(sensorWidth / (2 * focalLength)) * 180) / Math.PI,
-    [sensorWidth, focalLength]
-  );
-  
-  const fovHeight = useMemo(() =>
-    (2 * Math.atan(sensorHeight / (2 * focalLength)) * 180) / Math.PI,
-    [sensorHeight, focalLength]
+  // Calculations — delegated to pure utility functions
+  const { width: fovWidth, height: fovHeight } = useMemo(() =>
+    calculateCameraFov(sensorWidth, sensorHeight, focalLength),
+    [sensorWidth, sensorHeight, focalLength]
   );
 
   const imageScale = useMemo(() =>
-    (206.265 * localPixelSize) / focalLength,
+    calculateImageScale(localPixelSize, focalLength),
     [localPixelSize, focalLength]
   );
 
-  const resolution = useMemo(() => ({
-    width: Math.round((sensorWidth * 1000) / localPixelSize),
-    height: Math.round((sensorHeight * 1000) / localPixelSize),
-  }), [sensorWidth, sensorHeight, localPixelSize]);
+  const resolution = useMemo(() =>
+    calculateSensorResolution(sensorWidth, sensorHeight, localPixelSize),
+    [sensorWidth, sensorHeight, localPixelSize]
+  );
 
-  const mosaicCoverage = useMemo(() => {
-    if (!mosaic.enabled) return null;
-    const overlapFactor = mosaic.overlapUnit === 'percent' 
-      ? (1 - mosaic.overlap / 100) 
-      : (1 - mosaic.overlap / (resolution.width / mosaic.cols));
-    return {
-      width: fovWidth * mosaic.cols * overlapFactor + fovWidth * (1 - overlapFactor),
-      height: fovHeight * mosaic.rows * overlapFactor + fovHeight * (1 - overlapFactor),
-      totalPanels: mosaic.rows * mosaic.cols,
-    };
-  }, [mosaic, fovWidth, fovHeight, resolution]);
+  const mosaicCoverage = useMemo(() =>
+    calculateMosaicCoverage(fovWidth, fovHeight, mosaic, resolution),
+    [mosaic, fovWidth, fovHeight, resolution]
+  );
 
   const applyPreset = useCallback((preset: SensorPreset) => {
     onSensorWidthChange(preset.width);

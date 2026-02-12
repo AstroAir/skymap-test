@@ -73,6 +73,7 @@ import {
   type DataSourceConfig,
 } from '@/lib/services/object-info-config';
 import { cn } from '@/lib/utils';
+import type { StatusBadgeProps, SourceItemProps, EditSourceDialogProps, AddCustomSourceDialogProps } from '@/types/starmap/objects';
 
 // ============================================================================
 // Status Badge Component
@@ -81,10 +82,7 @@ import { cn } from '@/lib/utils';
 function StatusBadge({ 
   status, 
   responseTime 
-}: { 
-  status: ImageSourceConfig['status']; 
-  responseTime?: number;
-}) {
+}: StatusBadgeProps) {
   const t = useTranslations();
   
   const statusConfig = {
@@ -132,13 +130,7 @@ function SourceItem({
   onCheck,
   onRemove,
   onEdit,
-}: {
-  source: ImageSourceConfig | DataSourceConfig;
-  onToggle: () => void;
-  onCheck: () => void;
-  onRemove?: () => void;
-  onEdit: () => void;
-}) {
+}: SourceItemProps) {
   const t = useTranslations();
   
   return (
@@ -232,13 +224,7 @@ function EditSourceDialog({
   open,
   onOpenChange,
   onSave,
-}: {
-  source: ImageSourceConfig | DataSourceConfig;
-  type: 'image' | 'data';
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (updates: Partial<ImageSourceConfig | DataSourceConfig>) => void;
-}) {
+}: EditSourceDialogProps) {
   const t = useTranslations();
   const [priority, setPriority] = useState(source.priority);
   const [description, setDescription] = useState(source.description || '');
@@ -334,10 +320,7 @@ function EditSourceDialog({
 function AddCustomSourceDialog({
   type,
   onAdd,
-}: {
-  type: 'image' | 'data';
-  onAdd: (source: Partial<ImageSourceConfig | DataSourceConfig>) => void;
-}) {
+}: AddCustomSourceDialogProps) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');

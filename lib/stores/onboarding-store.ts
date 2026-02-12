@@ -1,102 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
+import { TOUR_STEPS } from '@/lib/constants/onboarding';
+import type { TourStep } from '@/types/starmap/onboarding';
 
-// Tour step definitions
-export interface TourStep {
-  id: string;
-  targetSelector: string;
-  titleKey: string;
-  descriptionKey: string;
-  placement: 'top' | 'bottom' | 'left' | 'right' | 'center';
-  highlightPadding?: number;
-  action?: 'click' | 'hover' | 'none';
-  nextOnAction?: boolean;
-  showSkip?: boolean;
-  spotlightRadius?: number;
-}
-
-// Predefined tour steps for the main application
-export const TOUR_STEPS: TourStep[] = [
-  {
-    id: 'welcome',
-    targetSelector: '[data-tour-id="canvas"]',
-    titleKey: 'onboarding.steps.welcome.title',
-    descriptionKey: 'onboarding.steps.welcome.description',
-    placement: 'center',
-    showSkip: true,
-  },
-  {
-    id: 'search',
-    targetSelector: '[data-tour-id="search-button"]',
-    titleKey: 'onboarding.steps.search.title',
-    descriptionKey: 'onboarding.steps.search.description',
-    placement: 'bottom',
-    highlightPadding: 8,
-    action: 'click',
-  },
-  {
-    id: 'navigation',
-    targetSelector: '[data-tour-id="canvas"]',
-    titleKey: 'onboarding.steps.navigation.title',
-    descriptionKey: 'onboarding.steps.navigation.description',
-    placement: 'center',
-  },
-  {
-    id: 'zoom',
-    targetSelector: '[data-tour-id="zoom-controls"]',
-    titleKey: 'onboarding.steps.zoom.title',
-    descriptionKey: 'onboarding.steps.zoom.description',
-    placement: 'left',
-    highlightPadding: 8,
-  },
-  {
-    id: 'settings',
-    targetSelector: '[data-tour-id="settings-button"]',
-    titleKey: 'onboarding.steps.settings.title',
-    descriptionKey: 'onboarding.steps.settings.description',
-    placement: 'bottom',
-    highlightPadding: 8,
-  },
-  {
-    id: 'fov',
-    targetSelector: '[data-tour-id="fov-button"]',
-    titleKey: 'onboarding.steps.fov.title',
-    descriptionKey: 'onboarding.steps.fov.description',
-    placement: 'left',
-    highlightPadding: 8,
-  },
-  {
-    id: 'shotlist',
-    targetSelector: '[data-tour-id="shotlist-button"]',
-    titleKey: 'onboarding.steps.shotlist.title',
-    descriptionKey: 'onboarding.steps.shotlist.description',
-    placement: 'left',
-    highlightPadding: 8,
-  },
-  {
-    id: 'tonight',
-    targetSelector: '[data-tour-id="tonight-button"]',
-    titleKey: 'onboarding.steps.tonight.title',
-    descriptionKey: 'onboarding.steps.tonight.description',
-    placement: 'bottom',
-    highlightPadding: 8,
-  },
-  {
-    id: 'contextmenu',
-    targetSelector: '[data-tour-id="canvas"]',
-    titleKey: 'onboarding.steps.contextmenu.title',
-    descriptionKey: 'onboarding.steps.contextmenu.description',
-    placement: 'center',
-  },
-  {
-    id: 'complete',
-    targetSelector: '[data-tour-id="canvas"]',
-    titleKey: 'onboarding.steps.complete.title',
-    descriptionKey: 'onboarding.steps.complete.description',
-    placement: 'center',
-  },
-];
+// Re-export for backward compatibility
+export type { TourStep };
+export { TOUR_STEPS };
 
 interface OnboardingState {
   // Whether the user has completed the onboarding

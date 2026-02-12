@@ -3,15 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-interface NumberStepperProps {
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  label?: string;
-}
+import type { NumberStepperProps } from '@/types/starmap/overlays';
 
 export function NumberStepper({
   value,

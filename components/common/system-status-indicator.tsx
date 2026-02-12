@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Wifi, WifiOff, HardDrive, Activity, Circle } from "lucide-react";
 import {
@@ -9,17 +9,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { isTauri } from "@/lib/tauri/app-control-api";
+import { useSystemStats } from "@/lib/hooks/use-system-stats";
 
 interface SystemStatusIndicatorProps {
   className?: string;
   compact?: boolean;
-}
-
-interface SystemStats {
-  online: boolean;
-  memoryUsage: number | null;
-  fps: number | null;
 }
 
 export function SystemStatusIndicator({ 
@@ -27,84 +21,19 @@ export function SystemStatusIndicator({
   compact = false 
 }: SystemStatusIndicatorProps) {
   const t = useTranslations("system");
-  const [stats, setStats] = useState<SystemStats>({
-    online: true, // Default to true for SSR, sync actual value in useEffect
-    memoryUsage: null,
-    fps: null,
-  });
-  const [isTauriEnv, setIsTauriEnv] = useState(false);
-
-  // FPS tracking state is managed inside the effect
-
-  // Update FPS
-  useEffect(() => {
-    let animationId: number;
-    let frames = 0;
-    let lastTime = Date.now();
-
-    const updateFps = () => {
-      frames++;
-      const now = Date.now();
-      
-      if (now - lastTime >= 1000) {
-        setStats(prev => ({ ...prev, fps: frames }));
-        frames = 0;
-        lastTime = now;
-      }
-      
-      animationId = requestAnimationFrame(updateFps);
-    };
-
-    animationId = requestAnimationFrame(updateFps);
-    return () => cancelAnimationFrame(animationId);
-  }, []);
-
-  // Check online status
-  useEffect(() => {
-    // Sync actual online status after hydration
-    setStats(prev => ({ ...prev, online: navigator.onLine }));
-
-    const handleOnline = () => setStats(prev => ({ ...prev, online: true }));
-    const handleOffline = () => setStats(prev => ({ ...prev, online: false }));
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Check memory usage (if available)
-  useEffect(() => {
-    setIsTauriEnv(isTauri());
-
-    const updateMemory = () => {
-      // @ts-expect-error - performance.memory is non-standard but available in Chrome/Electron
-      if (performance.memory) {
-        // @ts-expect-error - usedJSHeapSize is Chrome-specific
-        const usedMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
-        setStats(prev => ({ ...prev, memoryUsage: usedMB }));
-      }
-    };
-
-    updateMemory();
-    const interval = setInterval(updateMemory, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const { online, memoryUsage, fps, isTauriEnv } = useSystemStats();
 
   const getConnectionColor = useCallback(() => {
-    if (!stats.online) return "text-destructive";
+    if (!online) return "text-destructive";
     return "text-green-500";
-  }, [stats.online]);
+  }, [online]);
 
   const getFpsColor = useCallback(() => {
-    if (!stats.fps) return "text-muted-foreground";
-    if (stats.fps >= 50) return "text-green-500";
-    if (stats.fps >= 30) return "text-yellow-500";
+    if (!fps) return "text-muted-foreground";
+    if (fps >= 50) return "text-green-500";
+    if (fps >= 30) return "text-yellow-500";
     return "text-destructive";
-  }, [stats.fps]);
+  }, [fps]);
 
   if (compact) {
     return (
@@ -113,7 +42,7 @@ export function SystemStatusIndicator({
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center">
-              {stats.online ? (
+              {online ? (
                 <Wifi className={cn("h-3 w-3", getConnectionColor())} />
               ) : (
                 <WifiOff className={cn("h-3 w-3", getConnectionColor())} />
@@ -121,20 +50,20 @@ export function SystemStatusIndicator({
             </div>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p>{stats.online ? t("online") : t("offline")}</p>
+            <p>{online ? t("online") : t("offline")}</p>
           </TooltipContent>
         </Tooltip>
 
         {/* FPS */}
-        {stats.fps !== null && (
+        {fps !== null && (
           <Tooltip>
             <TooltipTrigger asChild>
               <span className={cn("text-[10px] font-mono", getFpsColor())}>
-                {stats.fps}
+                {fps}
               </span>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>{t("fps")}: {stats.fps}</p>
+              <p>{t("fps")}: {fps}</p>
             </TooltipContent>
           </Tooltip>
         )}
@@ -148,51 +77,51 @@ export function SystemStatusIndicator({
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center gap-1">
-            {stats.online ? (
+            {online ? (
               <Wifi className={cn("h-3 w-3", getConnectionColor())} />
             ) : (
               <WifiOff className={cn("h-3 w-3", getConnectionColor())} />
             )}
-            <span className={cn("hidden sm:inline", stats.online ? "text-muted-foreground" : "text-destructive")}>
-              {stats.online ? t("online") : t("offline")}
+            <span className={cn("hidden sm:inline", online ? "text-muted-foreground" : "text-destructive")}>
+              {online ? t("online") : t("offline")}
             </span>
           </div>
         </TooltipTrigger>
         <TooltipContent side="top">
-          <p>{stats.online ? t("connectionOnline") : t("connectionOffline")}</p>
+          <p>{online ? t("connectionOnline") : t("connectionOffline")}</p>
         </TooltipContent>
       </Tooltip>
 
       {/* Memory Usage */}
-      {stats.memoryUsage !== null && (
+      {memoryUsage !== null && (
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1 text-muted-foreground">
               <HardDrive className="h-3 w-3" />
-              <span className="font-mono">{stats.memoryUsage}MB</span>
+              <span className="font-mono">{memoryUsage}MB</span>
             </div>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p>{t("memoryUsage")}: {stats.memoryUsage}MB</p>
+            <p>{t("memoryUsage")}: {memoryUsage}MB</p>
           </TooltipContent>
         </Tooltip>
       )}
 
       {/* FPS Counter */}
-      {stats.fps !== null && (
+      {fps !== null && (
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1">
               <Activity className={cn("h-3 w-3", getFpsColor())} />
-              <span className={cn("font-mono", getFpsColor())}>{stats.fps} FPS</span>
+              <span className={cn("font-mono", getFpsColor())}>{fps} FPS</span>
             </div>
           </TooltipTrigger>
           <TooltipContent side="top">
             <p>
-              {t("fps")}: {stats.fps}
-              {stats.fps >= 50 && ` - ${t("excellent")}`}
-              {stats.fps >= 30 && stats.fps < 50 && ` - ${t("good")}`}
-              {stats.fps < 30 && ` - ${t("low")}`}
+              {t("fps")}: {fps}
+              {fps >= 50 && ` - ${t("excellent")}`}
+              {fps >= 30 && fps < 50 && ` - ${t("good")}`}
+              {fps < 30 && ` - ${t("low")}`}
             </p>
           </TooltipContent>
         </Tooltip>

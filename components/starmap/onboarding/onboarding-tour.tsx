@@ -1,15 +1,11 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useOnboardingStore, TOUR_STEPS } from '@/lib/stores/onboarding-store';
+import { useOnboardingStore } from '@/lib/stores/onboarding-store';
+import { TOUR_STEPS } from '@/lib/constants/onboarding';
+import type { OnboardingTourProps } from '@/types/starmap/onboarding';
 import { TourSpotlight } from './tour-spotlight';
 import { TourTooltip } from './tour-tooltip';
-
-interface OnboardingTourProps {
-  onTourStart?: () => void;
-  onTourEnd?: () => void;
-  onStepChange?: (stepIndex: number) => void;
-}
 
 export function OnboardingTour({
   onTourStart,

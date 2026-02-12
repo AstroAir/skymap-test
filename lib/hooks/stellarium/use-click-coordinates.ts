@@ -5,7 +5,7 @@ import { rad2deg } from '@/lib/astronomy/starmap-utils';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import { createLogger } from '@/lib/logger';
 import type { StellariumEngine } from '@/lib/core/types';
-import type { ClickCoordinates } from '../types';
+import type { ClickCoordinates } from '@/types/stellarium-canvas';
 
 const logger = createLogger('use-click-coordinates');
 

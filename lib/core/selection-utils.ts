@@ -1,17 +1,10 @@
+/**
+ * Selection data utilities
+ * Shared between RightControlPanel and MobileLayout
+ */
+
 import type { SelectedObjectData } from '@/lib/core/types';
-
-export interface CurrentSelection {
-  name: string;
-  ra: number;
-  dec: number;
-  raString: string;
-  decString: string;
-}
-
-export interface ObservationSelection extends CurrentSelection {
-  type?: string;
-  constellation?: string;
-}
+import type { CurrentSelection, ObservationSelection } from '@/types/starmap/view';
 
 /**
  * Derives currentSelection and observationSelection from a SelectedObjectData.

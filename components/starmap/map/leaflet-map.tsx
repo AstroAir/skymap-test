@@ -5,8 +5,8 @@ import L from 'leaflet';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { cn } from '@/lib/utils';
-import type { Coordinates } from './types';
-import { TILE_LAYER_CONFIGS, type TileLayerType } from './types';
+import type { Coordinates } from '@/types/starmap/map';
+import { TILE_LAYER_CONFIGS, type TileLayerType } from '@/lib/constants/map';
 
 // Fix default marker icon (Leaflet + bundler issue)
 // Icons are copied from node_modules/leaflet/dist/images/ to public/leaflet/

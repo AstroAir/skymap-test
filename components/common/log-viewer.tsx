@@ -63,6 +63,7 @@ import {
   LOG_LEVEL_NAMES,
   formatTimestamp,
   serializeData,
+  formatLogEntryToText,
 } from '@/lib/logger';
 
 interface LogEntryRowProps {
@@ -107,12 +108,7 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
   const hasDetails = entry.data !== undefined || entry.stack;
   
   const handleCopy = useCallback(() => {
-    const text = [
-      `[${entry.timestamp.toISOString()}] [${LOG_LEVEL_NAMES[entry.level].toUpperCase()}] [${entry.module}]`,
-      entry.message,
-      entry.data !== undefined ? `Data: ${serializeData(entry.data)}` : '',
-      entry.stack ? `Stack: ${entry.stack}` : '',
-    ].filter(Boolean).join('\n');
+    const text = formatLogEntryToText(entry);
     
     navigator.clipboard.writeText(text);
     setCopied(true);

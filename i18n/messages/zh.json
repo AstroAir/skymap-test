@@ -207,6 +207,7 @@
     "showFovOverlay": "显示视场叠加",
     "resetRotation": "重置旋转",
     "enableMosaic": "启用拼接",
+    "simulator": "视场模拟器",
     "fovSimulator": "视场模拟器",
     "cameraTab": "相机",
     "opticsTab": "光学",

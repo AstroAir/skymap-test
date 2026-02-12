@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, memo, createElement } from 'react';
+import { useState, useEffect, useCallback, memo, createElement } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   X, 
@@ -44,39 +44,19 @@ import {
 import { ObjectImageGallery } from './object-image-gallery';
 import { AltitudeChart } from '../planning/altitude-chart';
 import { useMountStore, useTargetListStore } from '@/lib/stores';
-import { useCelestialName } from '@/lib/hooks';
-import { raDecToAltAz } from '@/lib/astronomy/starmap-utils';
-import {
-  getMoonPosition,
-  angularSeparation,
-  calculateTargetVisibility,
-  calculateImagingFeasibility,
-  formatTimeShort,
-} from '@/lib/astronomy/astro-utils';
+import { useCelestialName, useTargetAstroData } from '@/lib/hooks';
+import { formatTimeShort } from '@/lib/astronomy/astro-utils';
 import {
   getCachedObjectInfo,
   enhanceObjectInfo,
   type ObjectDetailedInfo,
 } from '@/lib/services/object-info-service';
-import type { SelectedObjectData } from '@/lib/core/types';
 import { cn } from '@/lib/utils';
 import { getObjectTypeIcon, getObjectTypeColor, getObjectTypeBadgeColor, getFeasibilityColor } from '@/lib/astronomy/object-type-utils';
 import { createLogger } from '@/lib/logger';
+import type { ObjectDetailDrawerProps } from '@/types/starmap/objects';
 
 const logger = createLogger('object-detail-drawer');
-
-interface ObjectDetailDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedObject: SelectedObjectData | null;
-  onSetFramingCoordinates?: (data: {
-    ra: number;
-    dec: number;
-    raString: string;
-    decString: string;
-    name: string;
-  }) => void;
-}
 
 /** Object type icon display component using shared utilities */
 const ObjectTypeIconDisplay = memo(function ObjectTypeIconDisplay({ category }: { category?: string }) {
@@ -177,27 +157,8 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
     return () => clearInterval(interval);
   }, [open]);
 
-  // Calculate current astronomical data
-  const astroData = useMemo(() => {
-    if (!selectedObject) return null;
-    
-    const ra = selectedObject.raDeg;
-    const dec = selectedObject.decDeg;
-    
-    const altAz = raDecToAltAz(ra, dec, latitude, longitude);
-    const moonPos = getMoonPosition();
-    const moonDistance = angularSeparation(ra, dec, moonPos.ra, moonPos.dec);
-    const visibility = calculateTargetVisibility(ra, dec, latitude, longitude, 30);
-    const feasibility = calculateImagingFeasibility(ra, dec, latitude, longitude);
-    
-    return {
-      altitude: altAz.altitude,
-      azimuth: altAz.azimuth,
-      moonDistance,
-      visibility,
-      feasibility,
-    };
-  }, [selectedObject, latitude, longitude]);
+  // Calculate current astronomical data using shared hook
+  const astroData = useTargetAstroData(selectedObject, latitude, longitude, 0, 0, new Date());
 
   const handleSlew = useCallback(() => {
     if (!selectedObject) return;

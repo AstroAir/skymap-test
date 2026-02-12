@@ -41,6 +41,7 @@ export {
   extractErrorInfo,
   formatLogLine,
   formatLogJson,
+  formatLogEntryToText,
   exportLogsAsText,
   exportLogsAsJson,
   filterLogs,

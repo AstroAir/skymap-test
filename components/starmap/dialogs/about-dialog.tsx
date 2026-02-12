@@ -31,101 +31,15 @@ import {
 } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import type { LicenseInfo, DependencyInfo, DataCreditInfo } from '@/types/about';
+import { APP_INFO, LICENSES, DEPENDENCIES, DATA_CREDITS } from '@/lib/constants/about-data';
 import { StellariumCredits } from './stellarium-credits';
-
-// ============================================================================
-// Data
-// ============================================================================
-
-const APP_INFO = {
-  name: 'SkyMap',
-  version: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
-  repository: 'https://github.com/AstroAir/skymap-test',
-  author: 'AstroAir Team',
-};
-
-const LICENSES = [
-  {
-    name: 'Stellarium Web Engine',
-    license: 'GPL-3.0',
-    url: 'https://github.com/Stellarium/stellarium-web-engine',
-    description: 'Core rendering engine for the star map',
-  },
-  {
-    name: 'Next.js',
-    license: 'MIT',
-    url: 'https://nextjs.org',
-    description: 'React framework for production',
-  },
-  {
-    name: 'React',
-    license: 'MIT',
-    url: 'https://react.dev',
-    description: 'UI library',
-  },
-  {
-    name: 'Tailwind CSS',
-    license: 'MIT',
-    url: 'https://tailwindcss.com',
-    description: 'Utility-first CSS framework',
-  },
-  {
-    name: 'shadcn/ui',
-    license: 'MIT',
-    url: 'https://ui.shadcn.com',
-    description: 'UI component library',
-  },
-  {
-    name: 'Zustand',
-    license: 'MIT',
-    url: 'https://zustand-demo.pmnd.rs',
-    description: 'State management',
-  },
-  {
-    name: 'next-intl',
-    license: 'MIT',
-    url: 'https://next-intl-docs.vercel.app',
-    description: 'Internationalization',
-  },
-  {
-    name: 'Lucide React',
-    license: 'ISC',
-    url: 'https://lucide.dev',
-    description: 'Icon library',
-  },
-];
-
-const DEPENDENCIES = [
-  { name: 'next', version: '16.0.0', type: 'core' },
-  { name: 'react', version: '19.2.0', type: 'core' },
-  { name: 'react-dom', version: '19.2.0', type: 'core' },
-  { name: 'typescript', version: '^5', type: 'dev' },
-  { name: 'tailwindcss', version: '^4', type: 'style' },
-  { name: 'zustand', version: '^5.0.8', type: 'state' },
-  { name: 'next-intl', version: '^4.5.7', type: 'i18n' },
-  { name: 'lucide-react', version: '^0.546.0', type: 'ui' },
-  { name: 'clsx', version: '^2.1.1', type: 'util' },
-  { name: 'tailwind-merge', version: '^3.3.1', type: 'util' },
-  { name: '@radix-ui/react-dialog', version: '^1.1.15', type: 'ui' },
-  { name: '@radix-ui/react-dropdown-menu', version: '^2.1.16', type: 'ui' },
-  { name: '@radix-ui/react-tabs', version: '^1.1.13', type: 'ui' },
-  { name: '@radix-ui/react-tooltip', version: '^1.2.8', type: 'ui' },
-  { name: '@radix-ui/react-scroll-area', version: '^1.2.10', type: 'ui' },
-];
-
-const DATA_CREDITS = [
-  { name: 'HiPS Surveys', source: 'CDS, Strasbourg', url: 'https://aladin.cds.unistra.fr/hips/' },
-  { name: 'Star Catalog', source: 'Hipparcos/Tycho', url: 'https://www.cosmos.esa.int/web/hipparcos' },
-  { name: 'Deep Sky Objects', source: 'OpenNGC', url: 'https://github.com/mattiaverga/OpenNGC' },
-  { name: 'Constellation Data', source: 'IAU', url: 'https://www.iau.org/public/themes/constellations/' },
-  { name: 'Planet Textures', source: 'NASA/JPL', url: 'https://www.jpl.nasa.gov/' },
-];
 
 // ============================================================================
 // Sub Components
 // ============================================================================
 
-function LicenseCard({ item }: { item: typeof LICENSES[0] }) {
+function LicenseCard({ item }: { item: LicenseInfo }) {
   return (
     <a
       href={item.url}
@@ -151,7 +65,7 @@ function LicenseCard({ item }: { item: typeof LICENSES[0] }) {
   );
 }
 
-function DependencyRow({ item }: { item: typeof DEPENDENCIES[0] }) {
+function DependencyRow({ item }: { item: DependencyInfo }) {
   const typeColors: Record<string, string> = {
     core: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
     dev: 'bg-gray-500/20 text-gray-700 dark:text-gray-400',
@@ -178,7 +92,7 @@ function DependencyRow({ item }: { item: typeof DEPENDENCIES[0] }) {
   );
 }
 
-function DataCreditRow({ item }: { item: typeof DATA_CREDITS[0] }) {
+function DataCreditRow({ item }: { item: DataCreditInfo }) {
   return (
     <a
       href={item.url}

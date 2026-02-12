@@ -9,43 +9,8 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useMountStore } from '@/lib/stores/mount-store';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
-
-// Simple location storage for setup wizard
-const LOCATION_STORAGE_KEY = 'skymap-observer-location';
-
-interface ObserverLocation {
-  latitude: number;
-  longitude: number;
-  altitude: number;
-}
-
-function loadStoredLocation(): ObserverLocation | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const stored = localStorage.getItem(LOCATION_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveLocation(location: ObserverLocation): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location));
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-function isValidLocation(location: ObserverLocation | null): location is ObserverLocation {
-  if (!location) return false;
-  const { latitude, longitude } = location;
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
-  if (latitude < -90 || latitude > 90) return false;
-  if (longitude < -180 || longitude > 180) return false;
-  return true;
-}
+import type { ObserverLocation } from '@/types/starmap/setup-wizard';
+import { loadStoredLocation, saveLocation, isValidLocation } from '@/lib/utils/observer-location';
 
 export function LocationStep() {
   const t = useTranslations();

@@ -62,108 +62,12 @@ import {
   BORTLE_SCALE,
   calculateExposure,
   calculateTotalIntegration,
+  formatDuration,
 } from '@/lib/astronomy/astro-utils';
+import { calculateSNR, estimateFileSize } from '@/lib/astronomy/exposure-utils';
+import { COMMON_FILTERS, BINNING_OPTIONS, IMAGE_TYPES } from '@/lib/core/constants/planning';
+import type { ExposurePlan, ExposureCalculatorProps } from '@/types/starmap/planning';
 import { useEquipmentStore } from '@/lib/stores';
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExposureSettings {
-  exposureTime: number;
-  gain: number;
-  offset: number;
-  binning: '1x1' | '2x2' | '3x3' | '4x4';
-  imageType: 'LIGHT' | 'DARK' | 'FLAT' | 'BIAS';
-  count: number;
-  filter: string;
-  ditherEvery: number;
-  ditherEnabled: boolean;
-}
-
-interface ExposurePlan {
-  settings: ExposureSettings;
-  totalExposure: number; // minutes
-  totalFrames: number;
-  estimatedFileSize: number; // MB
-  estimatedTime: string;
-}
-
-interface ExposureCalculatorProps {
-  focalLength?: number;
-  aperture?: number;
-  pixelSize?: number;
-  onExposurePlanChange?: (plan: ExposurePlan) => void;
-}
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const COMMON_FILTERS = [
-  { id: 'L', name: 'Luminance', type: 'broadband' },
-  { id: 'R', name: 'Red', type: 'broadband' },
-  { id: 'G', name: 'Green', type: 'broadband' },
-  { id: 'B', name: 'Blue', type: 'broadband' },
-  { id: 'Ha', name: 'H-Alpha', type: 'narrowband' },
-  { id: 'OIII', name: 'OIII', type: 'narrowband' },
-  { id: 'SII', name: 'SII', type: 'narrowband' },
-  { id: 'NoFilter', name: 'No Filter', type: 'broadband' },
-];
-
-const BINNING_OPTIONS = ['1x1', '2x2', '3x3', '4x4'] as const;
-
-const IMAGE_TYPES = [
-  { id: 'LIGHT', name: 'Light', description: 'Science frames' },
-  { id: 'DARK', name: 'Dark', description: 'Calibration' },
-  { id: 'FLAT', name: 'Flat', description: 'Calibration' },
-  { id: 'BIAS', name: 'Bias', description: 'Calibration' },
-] as const;
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-function formatDuration(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
-  if (hours > 0) {
-    return `${hours}h ${mins}m`;
-  }
-  return `${mins}m`;
-}
-
-function calculateSNR(
-  exposureTime: number,
-  gain: number,
-  bortle: number,
-  isNarrowband: boolean
-): number {
-  // Simplified SNR estimation
-  // SNR ∝ √(signal_photons) / √(signal + sky + read_noise²)
-  const skyBackground = Math.pow(10, (21.6 - (bortle * 0.5)) / 5); // Based on SQM
-  const signalRate = isNarrowband ? 0.5 : 1.0; // Narrowband captures less light
-  const readNoise = Math.max(1, 5 - gain / 50); // Lower read noise with higher gain
-  
-  const signal = signalRate * exposureTime;
-  const sky = skyBackground * exposureTime * 0.01;
-  const noise = Math.sqrt(signal + sky + readNoise * readNoise);
-  
-  return signal / noise;
-}
-
-function estimateFileSize(
-  binning: string,
-  bitDepth: number = 16,
-  width: number = 4656,
-  height: number = 3520
-): number {
-  const binFactor = parseInt(binning.charAt(0));
-  const effectiveWidth = width / binFactor;
-  const effectiveHeight = height / binFactor;
-  const bytesPerPixel = bitDepth / 8;
-  return (effectiveWidth * effectiveHeight * bytesPerPixel) / (1024 * 1024);
-}
 
 // ============================================================================
 // Sub Components

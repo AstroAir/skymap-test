@@ -35,6 +35,12 @@ jest.mock('@/lib/stores', () => ({
 // Mock keyboard shortcuts hook
 jest.mock('@/lib/hooks', () => ({
   useKeyboardShortcuts: jest.fn(),
+  useTimeControls: jest.fn(() => ({
+    handlePauseTime: jest.fn(),
+    handleSpeedUp: jest.fn(),
+    handleSlowDown: jest.fn(),
+    handleResetTime: jest.fn(),
+  })),
   STARMAP_SHORTCUT_KEYS: {
     ZOOM_IN: '+',
     ZOOM_OUT: '-',

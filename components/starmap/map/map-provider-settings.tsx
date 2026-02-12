@@ -44,19 +44,14 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { mapConfig, type MapConfiguration } from '@/lib/services/map-config';
 import { connectivityChecker } from '@/lib/services/connectivity-checker';
+import type { MapProviderType } from '@/types/starmap/map';
+import { PROVIDER_REQUIRES_KEY } from '@/lib/constants/map';
 
 interface MapProviderSettingsProps {
   trigger?: React.ReactNode;
   onSettingsChange?: (config: MapConfiguration) => void;
 }
 
-type ProviderType = 'openstreetmap' | 'google' | 'mapbox';
-
-const PROVIDER_REQUIRES_KEY: Record<ProviderType, boolean> = {
-  openstreetmap: false,
-  google: true,
-  mapbox: true,
-};
 
 export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSettingsProps) {
   const t = useTranslations();
@@ -67,17 +62,17 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
     openstreetmap: {
       name: t('map.providerNames.openstreetmap'),
       description: t('map.providerDescriptions.openstreetmap'),
-      requiresKey: PROVIDER_REQUIRES_KEY.openstreetmap,
+      requiresKey: PROVIDER_REQUIRES_KEY['openstreetmap'],
     },
     google: {
       name: t('map.providerNames.google'),
       description: t('map.providerDescriptions.google'),
-      requiresKey: PROVIDER_REQUIRES_KEY.google,
+      requiresKey: PROVIDER_REQUIRES_KEY['google'],
     },
     mapbox: {
       name: t('map.providerNames.mapbox'),
       description: t('map.providerDescriptions.mapbox'),
-      requiresKey: PROVIDER_REQUIRES_KEY.mapbox,
+      requiresKey: PROVIDER_REQUIRES_KEY['mapbox'],
     },
   }), [t]);
 
@@ -118,7 +113,7 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
     return unsubscribe;
   }, []);
 
-  const handleProviderToggle = useCallback((provider: ProviderType, enabled: boolean) => {
+  const handleProviderToggle = useCallback((provider: MapProviderType, enabled: boolean) => {
     setConfig(prev => ({
       ...prev,
       providers: prev.providers.map(p =>
@@ -128,7 +123,7 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
     setHasChanges(true);
   }, []);
 
-  const handleProviderPriorityChange = useCallback((provider: ProviderType, newPriority: number) => {
+  const handleProviderPriorityChange = useCallback((provider: MapProviderType, newPriority: number) => {
     setConfig(prev => ({
       ...prev,
       providers: prev.providers.map(p =>
@@ -138,7 +133,7 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
     setHasChanges(true);
   }, []);
 
-  const handleDefaultProviderChange = useCallback((provider: ProviderType) => {
+  const handleDefaultProviderChange = useCallback((provider: MapProviderType) => {
     setConfig(prev => ({
       ...prev,
       defaultProvider: provider,
@@ -222,7 +217,7 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
     setHasChanges(false);
   }, []);
 
-  const getProviderStatusBadge = (provider: ProviderType) => {
+  const getProviderStatusBadge = (provider: MapProviderType) => {
     const health = providerHealth[provider];
     const providerConfig = config.providers.find(p => p.provider === provider);
 
@@ -335,7 +330,7 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
             <Label>{t('map.defaultProvider') || 'Default Provider'}</Label>
             <Select
               value={config.defaultProvider}
-              onValueChange={(v) => handleDefaultProviderChange(v as ProviderType)}
+              onValueChange={(v) => handleDefaultProviderChange(v as MapProviderType)}
             >
               <SelectTrigger>
                 <SelectValue />

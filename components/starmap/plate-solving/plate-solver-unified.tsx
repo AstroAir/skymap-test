@@ -39,16 +39,21 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
-import { ImageCapture, type ImageMetadata } from './image-capture';
+import { ImageCapture } from './image-capture';
+import type { ImageMetadata } from '@/types/starmap/plate-solving';
 import { SolverSettings } from './solver-settings';
 import { IndexManager } from './index-manager';
 import { 
   AstrometryApiClient, 
   createErrorResult,
+  persistFileForLocalSolve,
+  getProgressText,
+  getProgressPercent,
   type SolveProgress,
   type UploadOptions 
 } from '@/lib/plate-solving';
 import type { PlateSolveResult } from '@/lib/plate-solving';
+import type { PlateSolverUnifiedProps, SolveMode } from '@/types/starmap/plate-solving';
 import { SolveResultCard } from './solve-result-card';
 import { isTauri } from '@/lib/tauri/app-control-api';
 import {
@@ -62,22 +67,8 @@ import {
   DEFAULT_SOLVER_CONFIG,
 } from '@/lib/tauri/plate-solver-api';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface PlateSolverUnifiedProps {
-  onSolveComplete?: (result: PlateSolveResult) => void;
-  onGoToCoordinates?: (ra: number, dec: number) => void;
-  trigger?: React.ReactNode;
-  className?: string;
-  defaultImagePath?: string;
-  raHint?: number;
-  decHint?: number;
-  fovHint?: number;
-}
-
-type SolveMode = 'online' | 'local';
+// Re-export types for backward compatibility
+export type { PlateSolverUnifiedProps, SolveMode } from '@/types/starmap/plate-solving';
 
 // ============================================================================
 // Component
@@ -130,35 +121,6 @@ export function PlateSolverUnified({
     downsampleFactor: 2,
     publiclyVisible: 'n',
   });
-
-  const persistFileForLocalSolve = useCallback(async (file: File) => {
-    const fileWithPath = file as File & { path?: string };
-    if (fileWithPath.path) {
-      return { filePath: fileWithPath.path, cleanup: undefined as undefined | (() => Promise<void>) };
-    }
-
-    const { mkdir, writeFile, remove } = await import('@tauri-apps/plugin-fs');
-    const { BaseDirectory, appCacheDir, join } = await import('@tauri-apps/api/path');
-
-    const dirName = 'plate-solving';
-    await mkdir(dirName, { recursive: true, baseDir: BaseDirectory.AppCache });
-
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileName = `${Date.now()}-${safeName}`;
-    const relativePath = `${dirName}/${fileName}`;
-
-    const data = new Uint8Array(await file.arrayBuffer());
-    await writeFile(relativePath, data, { baseDir: BaseDirectory.AppCache });
-
-    const fullPath = await join(await appCacheDir(), dirName, fileName);
-
-    return {
-      filePath: fullPath,
-      cleanup: async () => {
-        await remove(relativePath, { baseDir: BaseDirectory.AppCache });
-      },
-    };
-  }, []);
 
   // Initialize on open
   useEffect(() => {
@@ -245,7 +207,7 @@ export function PlateSolverUnified({
       }
       setSolving(false);
     }
-  }, [isDesktop, canSolveLocal, config, persistFileForLocalSolve, raHint, decHint, fovHint, activeSolver, onSolveComplete, t]);
+  }, [isDesktop, canSolveLocal, config, raHint, decHint, fovHint, activeSolver, onSolveComplete, t]);
 
   // Handle online solve with optional retry logic
   const handleOnlineSolve = useCallback(async (file: File, effectiveRaHint?: number, effectiveDecHint?: number) => {
@@ -333,35 +295,9 @@ export function PlateSolverUnified({
     }
   }, [result, onGoToCoordinates]);
 
-  // Progress text for online solver
-  const getProgressText = () => {
-    if (!progress) return '';
-    switch (progress.stage) {
-      case 'uploading':
-        return `${t('plateSolving.uploading') || 'Uploading'}... ${progress.progress}%`;
-      case 'queued':
-        return `${t('plateSolving.queued') || 'Queued'} (ID: ${progress.subid})`;
-      case 'processing':
-        return `${t('plateSolving.processing') || 'Processing'} (Job: ${progress.jobId})`;
-      case 'success':
-        return t('plateSolving.success') || 'Success!';
-      case 'failed':
-        return `${t('plateSolving.failed') || 'Failed'}: ${progress.error}`;
-    }
-  };
-
-  const getProgressPercent = () => {
-    if (solveMode === 'local') return localProgress;
-    if (!progress) return 0;
-    switch (progress.stage) {
-      case 'uploading': return progress.progress * 0.3;
-      case 'queued': return 30;
-      case 'processing': return 60;
-      case 'success': return 100;
-      case 'failed': return 100;
-      default: return 0;
-    }
-  };
+  // Progress text/percent delegated to lib/plate-solving/solve-utils
+  const progressText = getProgressText(progress, t);
+  const progressPercent = getProgressPercent(solveMode, localProgress, progress);
 
   // Can solve check
   const canSolve = solveMode === 'local' ? canSolveLocal : !!onlineApiKey;
@@ -594,9 +530,9 @@ export function PlateSolverUnified({
           {/* Progress */}
           {solving && (
             <div className="space-y-2">
-              <Progress value={getProgressPercent()} />
+              <Progress value={progressPercent} />
               <p className="text-sm text-center text-muted-foreground">
-                {solveMode === 'local' ? localMessage : getProgressText()}
+                {solveMode === 'local' ? localMessage : progressText}
               </p>
               <Button
                 variant="outline"

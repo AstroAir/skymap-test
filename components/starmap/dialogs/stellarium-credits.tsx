@@ -13,10 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-
-interface StellariumCreditsProps {
-  trigger?: React.ReactNode;
-}
+import type { StellariumCreditsProps } from '@/types/stellarium-credits';
 
 export function StellariumCredits({ trigger }: StellariumCreditsProps) {
   const t = useTranslations();

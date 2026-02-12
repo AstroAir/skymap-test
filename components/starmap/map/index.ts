@@ -7,14 +7,14 @@ export { MapLocationPicker } from './map-location-picker';
 export { MapProviderSettings } from './map-provider-settings';
 export { MapHealthMonitor } from './map-health-monitor';
 export { MapApiKeyManager } from './map-api-key-manager';
-export { LeafletMap } from './leaflet-map';
 
 export type {
   Coordinates,
   LocationResult,
   MapProviderInfo,
   TileLayerConfig,
-  TileLayerType,
-} from './types';
+  MapProviderType,
+  SearchHistory,
+} from '@/types/starmap/map';
 
-export { TILE_LAYER_CONFIGS } from './types';
+export { TILE_LAYER_CONFIGS, type TileLayerType } from '@/lib/constants/map';

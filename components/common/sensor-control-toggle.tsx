@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Compass, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,17 +11,8 @@ import {
 } from '@/components/ui/tooltip';
 import { useSettingsStore, useStellariumStore } from '@/lib/stores';
 import { useDeviceOrientation, type SkyDirection } from '@/lib/hooks/use-device-orientation';
+import { useIsClient } from '@/lib/hooks/use-is-client';
 import { cn } from '@/lib/utils';
-
-// Hook to safely check if we're on the client
-const emptySubscribe = () => () => {};
-function useIsClient() {
-  return useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false
-  );
-}
 
 interface SensorControlToggleProps {
   className?: string;

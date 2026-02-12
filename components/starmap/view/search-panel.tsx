@@ -10,12 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { StellariumSearch, type StellariumSearchRef } from '../search/stellarium-search';
 import { FavoritesQuickAccess } from '../search/favorites-quick-access';
 import { OnlineSearchSettings } from '../search/online-search-settings';
-
-interface SearchPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelect: () => void;
-}
+import type { SearchPanelProps } from '@/types/starmap/view';
 
 export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps>(
   function SearchPanel({ isOpen, onClose, onSelect }, ref) {

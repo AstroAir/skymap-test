@@ -63,7 +63,7 @@ jest.mock('@/lib/stores/target-list-store', () => ({
   ),
 }));
 
-jest.mock('@/components/starmap/canvas/constants', () => ({
+jest.mock('@/lib/core/constants/fov', () => ({
   ZOOM_PRESETS: [
     { fov: 90, labelKey: 'wideField' },
     { fov: 60, labelKey: 'normal' },

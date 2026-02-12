@@ -122,6 +122,26 @@ export {
 // Window state management (Tauri desktop)
 export { useWindowState } from './use-window-state';
 
+// Window controls (Tauri + web)
+export {
+  useWindowControls,
+  type WindowControlsState,
+  type WindowControlsActions,
+  type UseWindowControlsReturn,
+} from './use-window-controls';
+
+// Client-side detection
+export { useIsClient } from './use-is-client';
+
+// System stats (FPS, online status, memory)
+export {
+  useSystemStats,
+  type UseSystemStatsReturn,
+} from './use-system-stats';
+
+// Night mode CSS effect
+export { useNightModeEffect } from './use-night-mode';
+
 // Accessibility
 export { usePrefersReducedMotion } from './use-prefers-reduced-motion';
 
@@ -133,3 +153,52 @@ export {
 
 // Target selection (shared between search components)
 export { useSelectTarget } from './use-select-target';
+
+// Observing conditions
+export {
+  useObservingConditions,
+  type UseObservingConditionsOptions,
+} from './use-observing-conditions';
+
+// Time controls (Stellarium engine)
+export {
+  useTimeControls,
+  type TimeControlActions,
+} from './use-time-controls';
+
+// Landing page hooks
+export {
+  useCarousel,
+  type UseCarouselOptions,
+  type UseCarouselReturn,
+} from './use-carousel';
+
+export { useStarField } from './use-star-field';
+
+// Mount overlay
+export {
+  useMountOverlay,
+  type UseMountOverlayReturn,
+} from './use-mount-overlay';
+
+// Object astronomical data (shared by InfoPanel & ObjectDetailDrawer)
+export {
+  useAstroEnvironment,
+  useTargetAstroData,
+  type AstroEnvironmentData,
+  type TargetAstroData,
+} from './use-object-astro-data';
+
+// Onboarding tour hooks
+export { useTourPosition } from './use-tour-position';
+export { useFocusTrap } from './use-focus-trap';
+
+// Stellarium canvas hooks
+export {
+  useClickCoordinates,
+  useStellariumZoom,
+  useStellariumEvents,
+  useObserverSync,
+  useSettingsSync,
+  useStellariumLoader,
+} from './stellarium';

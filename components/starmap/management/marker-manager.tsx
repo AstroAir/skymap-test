@@ -7,7 +7,6 @@ import {
   useMarkerStore,
   useStellariumStore,
   type SkyMarker,
-  type MarkerIcon,
   MARKER_COLORS,
   MARKER_ICONS,
 } from '@/lib/stores';
@@ -55,40 +54,11 @@ import {
   Eye,
   EyeOff,
   Navigation,
-  Star,
-  Circle,
-  Crosshair,
-  Diamond,
-  Triangle,
-  Square,
-  Flag,
   Trash,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-// Icon component mapping for display
-const MarkerIconDisplay: Record<MarkerIcon, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
-  star: Star,
-  circle: Circle,
-  crosshair: Crosshair,
-  pin: MapPinned,
-  diamond: Diamond,
-  triangle: Triangle,
-  square: Square,
-  flag: Flag,
-};
-
-interface MarkerFormData {
-  name: string;
-  description: string;
-  color: string;
-  icon: MarkerIcon;
-  group: string;
-  ra: number;
-  dec: number;
-  raString: string;
-  decString: string;
-}
+import { MarkerIconDisplay } from '@/lib/constants/marker-icons';
+import type { MarkerFormData, MarkerManagerProps } from '@/types/starmap/management';
 
 const defaultFormData: MarkerFormData = {
   name: '',
@@ -101,13 +71,6 @@ const defaultFormData: MarkerFormData = {
   raString: '',
   decString: '',
 };
-
-interface MarkerManagerProps {
-  /** Initial coordinates from context menu */
-  initialCoords?: { ra: number; dec: number; raStr: string; decStr: string } | null;
-  /** Callback when a marker is selected for navigation */
-  onNavigateToMarker?: (marker: SkyMarker) => void;
-}
 
 export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManagerProps) {
   const t = useTranslations();

@@ -82,20 +82,12 @@ import {
   formatDuration,
   type ImagingFeasibility,
 } from '@/lib/astronomy/astro-utils';
+import { getStatusColor, getPriorityColor, getFeasibilityBadgeColor } from '@/lib/core/constants/planning-styles';
+import type { ShotListProps } from '@/types/starmap/planning';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('shot-list');
 
-interface ShotListProps {
-  onNavigateToTarget?: (ra: number, dec: number) => void;
-  currentSelection?: {
-    name: string;
-    ra: number;
-    dec: number;
-    raString: string;
-    decString: string;
-  } | null;
-}
 
 export function ShotList({
   onNavigateToTarget,
@@ -316,32 +308,6 @@ export function ShotList({
     }
   }, [t, addTargetsBatch]);
 
-  // Style helpers
-  const getStatusColor = (status: TargetItem['status']) => {
-    switch (status) {
-      case 'planned': return 'bg-muted-foreground';
-      case 'in_progress': return 'bg-amber-600';
-      case 'completed': return 'bg-green-600';
-    }
-  };
-
-  const getPriorityColor = (priority: TargetItem['priority']) => {
-    switch (priority) {
-      case 'low': return 'border-muted-foreground text-muted-foreground';
-      case 'medium': return 'border-primary text-primary';
-      case 'high': return 'border-red-500 text-red-400';
-    }
-  };
-
-  const getFeasibilityColor = (rec: ImagingFeasibility['recommendation']) => {
-    switch (rec) {
-      case 'excellent': return 'bg-green-600';
-      case 'good': return 'bg-emerald-600';
-      case 'fair': return 'bg-yellow-600';
-      case 'poor': return 'bg-orange-600';
-      case 'not_recommended': return 'bg-red-600';
-    }
-  };
 
   const getFeasibilityIcon = (rec: ImagingFeasibility['recommendation']) => {
     switch (rec) {
@@ -747,7 +713,7 @@ export function ShotList({
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div className="flex items-center gap-2">
-                                    <Badge className={`${getFeasibilityColor(feasibility.recommendation)} text-white text-[10px] h-5`}>
+                                    <Badge className={`${getFeasibilityBadgeColor(feasibility.recommendation)} text-white text-[10px] h-5`}>
                                       {getFeasibilityIcon(feasibility.recommendation)}
                                       <span className="ml-1 capitalize">{feasibility.recommendation.replace('_', ' ')}</span>
                                     </Badge>

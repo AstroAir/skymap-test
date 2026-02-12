@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import {
   Minus,
@@ -32,24 +31,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { createLogger } from "@/lib/logger";
-import {
-  closeWindow,
-  minimizeWindow,
-  toggleMaximizeWindow,
-  isWindowMaximized,
-  toggleFullscreen,
-  restartApp,
-  quitApp,
-  reloadWebview,
-  isTauri,
-  setAlwaysOnTop,
-  isAlwaysOnTop,
-  saveWindowState,
-  centerWindow,
-} from "@/lib/tauri/app-control-api";
-
-const logger = createLogger('app-control-menu');
+import { useWindowControls } from "@/lib/hooks/use-window-controls";
 
 interface AppControlMenuProps {
   className?: string;
@@ -58,140 +40,22 @@ interface AppControlMenuProps {
 
 export function AppControlMenu({ className, variant = "dropdown" }: AppControlMenuProps) {
   const t = useTranslations("appControl");
-  const [isTauriEnv, setIsTauriEnv] = useState(false);
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
-
-  useEffect(() => {
-    const checkTauri = async () => {
-      if (isTauri()) {
-        setIsTauriEnv(true);
-        try {
-          const maximized = await isWindowMaximized();
-          setIsMaximized(maximized);
-          const pinned = await isAlwaysOnTop();
-          setIsPinned(pinned);
-        } catch (error) {
-          logger.error('Failed to get window state', error);
-        }
-      }
-    };
-    checkTauri();
-    
-    // Check fullscreen state for web environment
-    const checkFullscreen = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    
-    document.addEventListener("fullscreenchange", checkFullscreen);
-    checkFullscreen();
-    
-    return () => {
-      document.removeEventListener("fullscreenchange", checkFullscreen);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isTauriEnv) return;
-
-    const handleResize = async () => {
-      try {
-        const maximized = await isWindowMaximized();
-        setIsMaximized(maximized);
-      } catch (error) {
-        logger.error('Failed to check maximized state', error);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [isTauriEnv]);
-
-  const handleMinimize = useCallback(async () => {
-    try {
-      await minimizeWindow();
-    } catch (error) {
-      logger.error('Failed to minimize', error);
-    }
-  }, []);
-
-  const handleMaximize = useCallback(async () => {
-    try {
-      await toggleMaximizeWindow();
-      setIsMaximized((prev) => !prev);
-    } catch (error) {
-      logger.error('Failed to toggle maximize', error);
-    }
-  }, []);
-
-  const handleClose = useCallback(async () => {
-    try {
-      // Save window state before closing
-      await saveWindowState();
-      await closeWindow();
-    } catch (error) {
-      logger.error('Failed to close', error);
-    }
-  }, []);
-
-  const handleRestart = useCallback(async () => {
-    try {
-      await restartApp();
-    } catch (error) {
-      logger.error('Failed to restart', error);
-    }
-  }, []);
-
-  const handleQuit = useCallback(async () => {
-    try {
-      // Save window state before quitting
-      await saveWindowState();
-      await quitApp();
-    } catch (error) {
-      logger.error('Failed to quit', error);
-    }
-  }, []);
-
-  const handleTogglePin = useCallback(async () => {
-    try {
-      const newPinned = !isPinned;
-      await setAlwaysOnTop(newPinned);
-      setIsPinned(newPinned);
-    } catch (error) {
-      logger.error('Failed to toggle always on top', error);
-    }
-  }, [isPinned]);
-
-  const handleCenterWindow = useCallback(async () => {
-    try {
-      await centerWindow();
-    } catch (error) {
-      logger.error('Failed to center window', error);
-    }
-  }, []);
-
-  const handleReload = useCallback(async () => {
-    try {
-      await reloadWebview();
-    } catch (error) {
-      logger.error('Failed to reload', error);
-    }
-  }, []);
-
-  const handleToggleFullscreen = useCallback(async () => {
-    try {
-      await toggleFullscreen();
-      setIsFullscreen((prev) => !prev);
-    } catch (error) {
-      logger.error('Failed to toggle fullscreen', error);
-    }
-  }, []);
-
-  // Web environment: Reload page
-  const handleWebReload = useCallback(() => {
-    window.location.reload();
-  }, []);
+  const {
+    isTauriEnv,
+    isMaximized,
+    isFullscreen,
+    isPinned,
+    handleMinimize,
+    handleMaximize,
+    handleCloseWithSave: handleClose,
+    handleRestart,
+    handleQuitWithSave: handleQuit,
+    handleReload,
+    handleToggleFullscreen,
+    handleTogglePin,
+    handleCenterWindow,
+    handleWebReload,
+  } = useWindowControls();
 
   // Inline variant for toolbar - shows different controls based on environment
   if (variant === "inline") {

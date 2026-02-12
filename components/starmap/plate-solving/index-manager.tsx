@@ -44,7 +44,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { usePlateSolverStore, selectActiveSolver } from '@/lib/stores/plate-solver-store';
-import type { SolverType, IndexInfo, DownloadableIndex } from '@/lib/tauri/plate-solver-api';
+import type { IndexManagerProps, DownloadState } from '@/types/starmap/plate-solving';
+import type { IndexInfo, DownloadableIndex } from '@/lib/tauri/plate-solver-api';
 import {
   formatFileSize,
   getSolverDisplayName,
@@ -56,22 +57,8 @@ import {
 } from '@/lib/tauri/plate-solver-api';
 import { isTauri } from '@/lib/tauri/app-control-api';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface IndexManagerProps {
-  solverType?: SolverType;
-  trigger?: React.ReactNode;
-  className?: string;
-}
-
-interface DownloadState {
-  fileName: string;
-  progress: number;
-  status: 'downloading' | 'extracting' | 'complete' | 'error';
-  error?: string;
-}
+// Re-export types for backward compatibility
+export type { IndexManagerProps, DownloadState } from '@/types/starmap/plate-solving';
 
 // ============================================================================
 // Component

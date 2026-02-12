@@ -15,6 +15,11 @@ const mockMinimizeWindow = jest.fn();
 const mockToggleMaximizeWindow = jest.fn();
 const mockIsWindowMaximized = jest.fn();
 const mockIsTauri = jest.fn();
+const mockIsAlwaysOnTop = jest.fn().mockResolvedValue(false);
+const mockToggleFullscreen = jest.fn();
+const mockSetAlwaysOnTop = jest.fn();
+const mockSaveWindowState = jest.fn();
+const mockCenterWindow = jest.fn();
 
 jest.mock('@/lib/tauri/app-control-api', () => ({
   restartApp: () => mockRestartApp(),
@@ -25,6 +30,11 @@ jest.mock('@/lib/tauri/app-control-api', () => ({
   toggleMaximizeWindow: () => mockToggleMaximizeWindow(),
   isWindowMaximized: () => mockIsWindowMaximized(),
   isTauri: () => mockIsTauri(),
+  isAlwaysOnTop: () => mockIsAlwaysOnTop(),
+  toggleFullscreen: () => mockToggleFullscreen(),
+  setAlwaysOnTop: (...args: unknown[]) => mockSetAlwaysOnTop(...args),
+  saveWindowState: () => mockSaveWindowState(),
+  centerWindow: () => mockCenterWindow(),
 }));
 
 // Mock lucide-react icons

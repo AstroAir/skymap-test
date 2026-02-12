@@ -17,20 +17,8 @@ import { SkyAtlasPanel } from '../planning/sky-atlas-panel';
 import { EquipmentManager } from '../management/equipment-manager';
 
 import { useEquipmentStore } from '@/lib/stores';
-import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
-import { buildSelectionData } from './selection-utils';
-
-interface MobileLayoutProps {
-  stel: boolean;
-  currentFov: number;
-  selectedObject: SelectedObjectData | null;
-  contextMenuCoords: ClickCoords | null;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFovSliderChange: (fov: number) => void;
-  onLocationChange: (lat: number, lon: number, alt: number) => void;
-  onGoToCoordinates: (ra: number, dec: number) => void;
-}
+import { buildSelectionData } from '@/lib/core/selection-utils';
+import type { MobileLayoutProps } from '@/types/starmap/view';
 
 export const MobileLayout = memo(function MobileLayout({
   stel,

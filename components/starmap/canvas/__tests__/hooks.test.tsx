@@ -116,13 +116,13 @@ describe('useStellariumZoom', () => {
   });
 
   it('exports the hook correctly', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
     expect(useStellariumZoom).toBeDefined();
     expect(typeof useStellariumZoom).toBe('function');
   });
 
   it('provides zoom functions', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
     const mockStel = createMockStelEngine();
     const stelRef = { current: mockStel };
     const canvasRef = { current: document.createElement('canvas') };
@@ -139,7 +139,7 @@ describe('useStellariumZoom', () => {
   });
 
   it('zoomIn decreases FOV', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
     const mockStel = createMockStelEngine();
     mockStel.core.fov = Math.PI / 3; // 60 degrees
     const stelRef = { current: mockStel };
@@ -159,7 +159,7 @@ describe('useStellariumZoom', () => {
   });
 
   it('zoomOut increases FOV', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
     const mockStel = createMockStelEngine();
     mockStel.core.fov = Math.PI / 3; // 60 degrees
     const stelRef = { current: mockStel };
@@ -179,7 +179,7 @@ describe('useStellariumZoom', () => {
   });
 
   it('setFov sets specific FOV value', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
     const mockStel = createMockStelEngine();
     const stelRef = { current: mockStel };
     const canvasRef = { current: document.createElement('canvas') };
@@ -198,7 +198,7 @@ describe('useStellariumZoom', () => {
   });
 
   it('getFov returns current FOV in degrees', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
     const mockStel = createMockStelEngine();
     mockStel.core.fov = Math.PI / 3; // 60 degrees in radians
     const stelRef = { current: mockStel };
@@ -213,8 +213,8 @@ describe('useStellariumZoom', () => {
   });
 
   it('respects MIN_FOV limit', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
-    const { MIN_FOV } = await import('../constants');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
+    const { MIN_FOV } = await import('@/lib/core/constants/fov');
     const mockStel = createMockStelEngine();
     mockStel.core.fov = MIN_FOV * (Math.PI / 180); // At minimum
     const stelRef = { current: mockStel };
@@ -235,8 +235,8 @@ describe('useStellariumZoom', () => {
   });
 
   it('respects MAX_FOV limit', async () => {
-    const { useStellariumZoom } = await import('../hooks/use-stellarium-zoom');
-    const { MAX_FOV } = await import('../constants');
+    const { useStellariumZoom } = await import('@/lib/hooks/stellarium/use-stellarium-zoom');
+    const { MAX_FOV } = await import('@/lib/core/constants/fov');
     const mockStel = createMockStelEngine();
     mockStel.core.fov = MAX_FOV * (Math.PI / 180); // At maximum
     const stelRef = { current: mockStel };
@@ -263,13 +263,13 @@ describe('useClickCoordinates', () => {
   });
 
   it('exports the hook correctly', async () => {
-    const { useClickCoordinates } = await import('../hooks/use-click-coordinates');
+    const { useClickCoordinates } = await import('@/lib/hooks/stellarium/use-click-coordinates');
     expect(useClickCoordinates).toBeDefined();
     expect(typeof useClickCoordinates).toBe('function');
   });
 
   it('provides getClickCoordinates function', async () => {
-    const { useClickCoordinates } = await import('../hooks/use-click-coordinates');
+    const { useClickCoordinates } = await import('@/lib/hooks/stellarium/use-click-coordinates');
     const stelRef = { current: null };
     const canvasRef = { current: null };
 
@@ -282,7 +282,7 @@ describe('useClickCoordinates', () => {
   });
 
   it('returns null when engine is not available', async () => {
-    const { useClickCoordinates } = await import('../hooks/use-click-coordinates');
+    const { useClickCoordinates } = await import('@/lib/hooks/stellarium/use-click-coordinates');
     const stelRef = { current: null };
     const canvasRef = { current: document.createElement('canvas') };
 
@@ -295,7 +295,7 @@ describe('useClickCoordinates', () => {
   });
 
   it('returns null when canvas is not available', async () => {
-    const { useClickCoordinates } = await import('../hooks/use-click-coordinates');
+    const { useClickCoordinates } = await import('@/lib/hooks/stellarium/use-click-coordinates');
     const mockStel = createMockStelEngine();
     const stelRef = { current: mockStel };
     const canvasRef = { current: null };
@@ -309,7 +309,7 @@ describe('useClickCoordinates', () => {
   });
 
   it('returns coordinates when engine and canvas are available', async () => {
-    const { useClickCoordinates } = await import('../hooks/use-click-coordinates');
+    const { useClickCoordinates } = await import('@/lib/hooks/stellarium/use-click-coordinates');
     const mockStel = createMockStelEngine();
     const stelRef = { current: mockStel };
     const canvas = document.createElement('canvas');
@@ -346,13 +346,13 @@ describe('useObserverSync', () => {
   });
 
   it('exports the hook correctly', async () => {
-    const { useObserverSync } = await import('../hooks/use-observer-sync');
+    const { useObserverSync } = await import('@/lib/hooks/stellarium/use-observer-sync');
     expect(useObserverSync).toBeDefined();
     expect(typeof useObserverSync).toBe('function');
   });
 
   it('syncs observer location from profile', async () => {
-    const { useObserverSync } = await import('../hooks/use-observer-sync');
+    const { useObserverSync } = await import('@/lib/hooks/stellarium/use-observer-sync');
     const mockStel = createMockStelEngine();
     const stelRef = { current: mockStel };
 
@@ -365,7 +365,7 @@ describe('useObserverSync', () => {
   });
 
   it('returns profileInfo', async () => {
-    const { useObserverSync } = await import('../hooks/use-observer-sync');
+    const { useObserverSync } = await import('@/lib/hooks/stellarium/use-observer-sync');
     const stelRef = { current: null };
 
     const { result } = renderHook(() => useObserverSync(stelRef));
@@ -386,13 +386,13 @@ describe('useSettingsSync', () => {
   });
 
   it('exports the hook correctly', async () => {
-    const { useSettingsSync } = await import('../hooks/use-settings-sync');
+    const { useSettingsSync } = await import('@/lib/hooks/stellarium/use-settings-sync');
     expect(useSettingsSync).toBeDefined();
     expect(typeof useSettingsSync).toBe('function');
   });
 
   it('does not sync when engine is not ready', async () => {
-    const { useSettingsSync } = await import('../hooks/use-settings-sync');
+    const { useSettingsSync } = await import('@/lib/hooks/stellarium/use-settings-sync');
     const mockStel = createMockStelEngine();
     const stelRef = { current: mockStel };
 
@@ -408,7 +408,7 @@ describe('useSettingsSync', () => {
   });
 
   it('syncs settings when engine is ready', async () => {
-    const { useSettingsSync } = await import('../hooks/use-settings-sync');
+    const { useSettingsSync } = await import('@/lib/hooks/stellarium/use-settings-sync');
     const mockStel = createMockStelEngine();
     const stelRef = { current: mockStel };
 
@@ -423,7 +423,7 @@ describe('useSettingsSync', () => {
   });
 
   it('returns stellariumSettings', async () => {
-    const { useSettingsSync } = await import('../hooks/use-settings-sync');
+    const { useSettingsSync } = await import('@/lib/hooks/stellarium/use-settings-sync');
     const stelRef = { current: null };
 
     const { result } = renderHook(() => useSettingsSync(stelRef, false));
@@ -438,13 +438,13 @@ describe('useStellariumEvents', () => {
   });
 
   it('exports the hook correctly', async () => {
-    const { useStellariumEvents } = await import('../hooks/use-stellarium-events');
+    const { useStellariumEvents } = await import('@/lib/hooks/stellarium/use-stellarium-events');
     expect(useStellariumEvents).toBeDefined();
     expect(typeof useStellariumEvents).toBe('function');
   });
 
   it('attaches event listeners to container', async () => {
-    const { useStellariumEvents } = await import('../hooks/use-stellarium-events');
+    const { useStellariumEvents } = await import('@/lib/hooks/stellarium/use-stellarium-events');
     const container = document.createElement('div');
     const containerRef = { current: container };
     const getClickCoordinates = jest.fn(() => ({ ra: 0, dec: 0, raStr: '0h', decStr: '0°' }));
@@ -467,7 +467,7 @@ describe('useStellariumEvents', () => {
   });
 
   it('cleans up event listeners on unmount', async () => {
-    const { useStellariumEvents } = await import('../hooks/use-stellarium-events');
+    const { useStellariumEvents } = await import('@/lib/hooks/stellarium/use-stellarium-events');
     const container = document.createElement('div');
     const containerRef = { current: container };
     const getClickCoordinates = jest.fn();

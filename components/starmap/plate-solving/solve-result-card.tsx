@@ -12,16 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import type { PlateSolveResult } from '@/lib/plate-solving';
+import type { SolveResultCardProps } from '@/types/starmap/plate-solving';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-interface SolveResultCardProps {
-  result: PlateSolveResult;
-  onGoTo?: () => void;
-}
+// Re-export types for backward compatibility
+export type { SolveResultCardProps } from '@/types/starmap/plate-solving';
 
 // ============================================================================
 // Component

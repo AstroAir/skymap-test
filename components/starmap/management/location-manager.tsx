@@ -30,27 +30,13 @@ import { toast } from 'sonner';
 import { useLocations, tauriApi } from '@/lib/tauri';
 import { MapLocationPicker } from '@/components/starmap/map';
 import { createLogger } from '@/lib/logger';
+import { validateLocationForm } from '@/lib/core/management-validators';
+import type { WebLocation, LocationManagerProps } from '@/types/starmap/management';
 
 const logger = createLogger('location-manager');
 
 // Web location storage key
 const WEB_LOCATIONS_KEY = 'starmap-web-locations';
-
-interface WebLocation {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  altitude: number;
-  bortle_class?: number;
-  is_default: boolean;
-  is_current: boolean;
-}
-
-interface LocationManagerProps {
-  trigger?: React.ReactNode;
-  onLocationChange?: (lat: number, lon: number, alt: number) => void;
-}
 
 export function LocationManager({ trigger, onLocationChange }: LocationManagerProps) {
   const t = useTranslations();
@@ -110,24 +96,8 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
 
   // Validate location form
   const validateLocation = (): string | null => {
-    if (!form.name.trim()) return t('locations.fillRequired') || 'Please fill required fields';
-    const lat = parseFloat(form.latitude);
-    const lon = parseFloat(form.longitude);
-    if (isNaN(lat) || lat < -90 || lat > 90)
-      return t('locations.validation.latitudeRange') || 'Latitude must be between -90 and 90';
-    if (isNaN(lon) || lon < -180 || lon > 180)
-      return t('locations.validation.longitudeRange') || 'Longitude must be between -180 and 180';
-    if (form.altitude) {
-      const alt = parseFloat(form.altitude);
-      if (isNaN(alt) || alt < -500 || alt > 9000)
-        return t('locations.validation.altitudeRange') || 'Altitude must be between -500 and 9,000 m';
-    }
-    if (form.bortle_class) {
-      const bc = parseInt(form.bortle_class);
-      if (isNaN(bc) || bc < 1 || bc > 9)
-        return t('locations.validation.bortleRange') || 'Bortle class must be between 1 and 9';
-    }
-    return null;
+    const errorKey = validateLocationForm(form);
+    return errorKey ? (t(errorKey) || errorKey) : null;
   };
 
   // Start editing a location

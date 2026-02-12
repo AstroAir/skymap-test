@@ -207,6 +207,7 @@
     "showFovOverlay": "Show FOV Overlay",
     "resetRotation": "Reset Rotation",
     "enableMosaic": "Enable Mosaic",
+    "simulator": "FOV Simulator",
     "fovSimulator": "FOV Simulator",
     "cameraTab": "Camera",
     "opticsTab": "Optics",

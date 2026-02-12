@@ -48,12 +48,9 @@ import {
   FAVORITE_TAGS,
   type FavoriteObject 
 } from '@/lib/stores';
+import type { FavoritesQuickAccessProps } from '@/types/starmap/search';
 
-interface FavoritesQuickAccessProps {
-  onSelect?: (object: FavoriteObject) => void;
-  onNavigate?: (ra: number, dec: number) => void;
-  className?: string;
-}
+export type { FavoritesQuickAccessProps } from '@/types/starmap/search';
 
 export function FavoritesQuickAccess({ 
   onSelect, 

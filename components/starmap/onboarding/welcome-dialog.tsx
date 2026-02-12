@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Sparkles, Telescope, Star, Map, Rocket } from 'lucide-react';
+import { Sparkles, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,19 +15,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
+import { WELCOME_FEATURES } from '@/lib/constants/onboarding';
 import { cn } from '@/lib/utils';
-
-interface WelcomeDialogProps {
-  onStartTour?: () => void;
-  onSkip?: () => void;
-}
-
-const FEATURES = [
-  { icon: Telescope, key: 'explore' },
-  { icon: Star, key: 'objects' },
-  { icon: Map, key: 'plan' },
-  { icon: Rocket, key: 'track' },
-] as const;
+import type { WelcomeDialogProps } from '@/types/starmap/onboarding';
 
 export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
   const t = useTranslations();
@@ -124,7 +114,7 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
 
         {/* Features grid */}
         <div className="relative z-10 grid grid-cols-2 gap-3 py-4">
-          {FEATURES.map(({ icon: Icon, key }, index) => (
+          {WELCOME_FEATURES.map(({ icon: Icon, key }, index) => (
             <div
               key={key}
               className={cn(

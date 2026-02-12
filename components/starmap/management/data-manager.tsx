@@ -38,12 +38,10 @@ import { storage, isTauri, readFileAsText } from '@/lib/storage';
 import { storageApi } from '@/lib/tauri';
 import type { StorageStats, ImportResult } from '@/lib/storage';
 import { createLogger } from '@/lib/logger';
+import { formatBytes } from '@/lib/offline';
+import type { DataManagerProps } from '@/types/starmap/management';
 
 const logger = createLogger('data-manager');
-
-interface DataManagerProps {
-  trigger?: React.ReactNode;
-}
 
 export function DataManager({ trigger }: DataManagerProps) {
   const t = useTranslations();
@@ -219,15 +217,6 @@ export function DataManager({ trigger }: DataManagerProps) {
       toast.error(t('dataManager.clearError') || 'Failed to clear data');
       logger.error('Clear error', error);
     }
-  };
-
-  // Format bytes to human readable
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   };
 
   return (

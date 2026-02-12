@@ -12,7 +12,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { geocodingService } from '@/lib/services/geocoding-service';
 import type { GeocodingResult } from '@/lib/services/map-providers/base-map-provider';
-import type { Coordinates, LocationResult } from './types';
+import type { Coordinates, LocationResult, SearchHistory } from '@/types/starmap/map';
+import {
+  LOCATION_SEARCH_STORAGE_KEY,
+  LOCATION_SEARCH_MAX_HISTORY,
+  LOCATION_SEARCH_HISTORY_EXPIRY_DAYS,
+} from '@/lib/constants/map';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('location-search');
@@ -28,15 +33,6 @@ interface LocationSearchProps {
   initialValue?: string;
 }
 
-interface SearchHistory {
-  query: string;
-  result: GeocodingResult;
-  timestamp: number;
-}
-
-const STORAGE_KEY = 'skymap-location-search-history';
-const MAX_HISTORY_ITEMS = 10;
-const HISTORY_EXPIRY_DAYS = 30;
 
 function LocationSearchComponent({
   onLocationSelect,
@@ -68,14 +64,14 @@ function LocationSearchComponent({
   // Load search history from localStorage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(LOCATION_SEARCH_STORAGE_KEY);
       if (stored) {
         const history = JSON.parse(stored);
-        const expiryTime = Date.now() - HISTORY_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+        const expiryTime = Date.now() - LOCATION_SEARCH_HISTORY_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
         const filteredHistory = history.filter((item: SearchHistory) => 
           item.timestamp > expiryTime
         );
-        setSearchHistory(filteredHistory.slice(0, MAX_HISTORY_ITEMS));
+        setSearchHistory(filteredHistory.slice(0, LOCATION_SEARCH_MAX_HISTORY));
       }
     } catch (error) {
       logger.warn('Failed to load search history', error);
@@ -84,7 +80,7 @@ function LocationSearchComponent({
 
   const saveSearchHistory = useCallback((newHistory: SearchHistory[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
+      localStorage.setItem(LOCATION_SEARCH_STORAGE_KEY, JSON.stringify(newHistory));
     } catch (error) {
       logger.warn('Failed to save search history', error);
     }
@@ -103,7 +99,7 @@ function LocationSearchComponent({
         Math.abs(item.result.coordinates.latitude - result.coordinates.latitude) > 0.001 ||
         Math.abs(item.result.coordinates.longitude - result.coordinates.longitude) > 0.001
       );
-      const newHistory = [newItem, ...filtered].slice(0, MAX_HISTORY_ITEMS);
+      const newHistory = [newItem, ...filtered].slice(0, LOCATION_SEARCH_MAX_HISTORY);
       saveSearchHistory(newHistory);
       return newHistory;
     });

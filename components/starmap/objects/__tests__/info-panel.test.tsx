@@ -44,6 +44,42 @@ jest.mock('@/lib/hooks', () => ({
   useCelestialName: jest.fn((name: string) => name),
   useCelestialNames: jest.fn((names: string[]) => names || []),
   useAdaptivePosition: jest.fn(() => ({ left: 12, top: 64 })),
+  useAstroEnvironment: jest.fn(() => ({
+    moonPhaseName: 'First Quarter',
+    moonIllumination: 50,
+    moonAltitude: 30,
+    moonRa: 0,
+    moonDec: 0,
+    sunAltitude: -20,
+    lstString: '00h 00m 00s',
+    twilight: {
+      sunset: new Date(),
+      sunrise: new Date(),
+      astronomicalDusk: new Date(),
+      astronomicalDawn: new Date(),
+    },
+  })),
+  useTargetAstroData: jest.fn(() => ({
+    altitude: 45,
+    azimuth: 180,
+    moonDistance: 90,
+    visibility: {
+      isVisible: true,
+      isCircumpolar: false,
+      transitAltitude: 75,
+      riseTime: new Date(),
+      setTime: new Date(),
+      transitTime: new Date(),
+      darkImagingHours: 6,
+    },
+    feasibility: {
+      score: 80,
+      recommendation: 'good',
+      moonScore: 90,
+      altitudeScore: 85,
+      durationScore: 75,
+    },
+  })),
 }));
 
 // Mock astro-utils

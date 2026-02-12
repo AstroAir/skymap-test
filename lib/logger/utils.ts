@@ -193,6 +193,18 @@ export function exportLogsAsJson(logs: LogEntry[]): string {
 }
 
 /**
+ * Format a log entry as copyable text (for clipboard)
+ */
+export function formatLogEntryToText(entry: LogEntry): string {
+  return [
+    `[${entry.timestamp.toISOString()}] [${LOG_LEVEL_NAMES[entry.level].toUpperCase()}] [${entry.module}]`,
+    entry.message,
+    entry.data !== undefined ? `Data: ${serializeData(entry.data)}` : '',
+    entry.stack ? `Stack: ${entry.stack}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+/**
  * Filter logs based on criteria
  */
 export function filterLogs(logs: LogEntry[], filter: {

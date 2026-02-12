@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, RefObject } from 'react';
-import { MIN_FOV, MAX_FOV, DEFAULT_FOV } from '../constants';
-import { fovToRad, fovToDeg } from '../utils';
+import { MIN_FOV, MAX_FOV, DEFAULT_FOV } from '@/lib/core/constants/fov';
+import { fovToRad, fovToDeg } from '@/lib/core/stellarium-canvas-utils';
 import type { StellariumEngine } from '@/lib/core/types';
 
 interface UseStellariumZoomOptions {

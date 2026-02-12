@@ -2,22 +2,11 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
-import { type MosaicSettings, type GridType } from '@/lib/stores';
-
-interface FOVOverlayProps {
-  enabled: boolean;
-  sensorWidth: number;
-  sensorHeight: number;
-  focalLength: number;
-  currentFov: number; // Current view FOV in degrees (horizontal)
-  rotationAngle: number; // Rotation angle in degrees
-  onRotationChange?: (angle: number) => void;
-  mosaic: MosaicSettings;
-  gridType?: GridType;
-  frameColor?: string;
-  frameStyle?: 'solid' | 'dashed' | 'dotted';
-  overlayOpacity?: number; // 0-100
-}
+import type { FOVOverlayProps } from '@/types/starmap/overlays';
+import {
+  calculateOverlayDimensions,
+  calculateMosaicLayout,
+} from '@/lib/astronomy/fov-calculations';
 
 export function FOVOverlay({
   enabled,
@@ -28,6 +17,7 @@ export function FOVOverlay({
   rotationAngle,
   onRotationChange,
   mosaic,
+  pixelSize,
   gridType = 'crosshair',
   frameColor = '#3b82f6',
   frameStyle = 'solid',
@@ -58,70 +48,26 @@ export function FOVOverlay({
 
   if (!enabled) return <div ref={containerRef} className="absolute inset-0 pointer-events-none" />;
 
-  // Calculate camera FOV in degrees
-  const cameraFovWidth = (2 * Math.atan(sensorWidth / (2 * focalLength)) * 180) / Math.PI;
-  const cameraFovHeight = (2 * Math.atan(sensorHeight / (2 * focalLength)) * 180) / Math.PI;
+  // Calculate overlay dimensions using extracted utility
+  const dims = calculateOverlayDimensions(
+    sensorWidth, sensorHeight, focalLength, currentFov,
+    containerSize.width, containerSize.height, mosaic, pixelSize
+  );
+  const {
+    isTooLarge, scaledPanelWidth, scaledPanelHeight,
+    scaledStepX, scaledStepY, scaledTotalWidth, scaledTotalHeight,
+    cameraFovWidth, cameraFovHeight,
+  } = dims;
 
-  // Calculate the view's vertical FOV using proper perspective math
-  // currentFov is the horizontal FOV reported by Stellarium
-  const safeHeight = Math.max(containerSize.height, 1);
-  const viewAspect = containerSize.width / safeHeight;
-  const deg2rad = Math.PI / 180;
-  const horizontalFovRad = currentFov * deg2rad;
-  const verticalFovRad = viewAspect > 0
-    ? 2 * Math.atan(Math.tan(horizontalFovRad / 2) / viewAspect)
-    : horizontalFovRad;
-  const viewFovVerticalDeg = (verticalFovRad * 180) / Math.PI;
-
-  // Mirror Touch-N-Stars approach: scale camera frame by degree ratios to match background imagery
-  const overlayWidthPx = containerSize.width * (cameraFovWidth / currentFov);
-  const overlayHeightPx = safeHeight * (cameraFovHeight / viewFovVerticalDeg);
-
-  // Calculate mosaic dimensions
-  const overlapFactor = 1 - mosaic.overlap / 100;
   const mosaicCols = mosaic.enabled ? mosaic.cols : 1;
   const mosaicRows = mosaic.enabled ? mosaic.rows : 1;
-  
-  // Single panel size
-  const panelWidthPx = overlayWidthPx;
-  const panelHeightPx = overlayHeightPx;
-  
-  // Total mosaic size with overlap
-  const totalMosaicWidthPx = panelWidthPx * (1 + (mosaicCols - 1) * overlapFactor);
-  const totalMosaicHeightPx = panelHeightPx * (1 + (mosaicRows - 1) * overlapFactor);
-
-  // Check if FOV is too large to display
-  const isTooLarge = totalMosaicWidthPx > containerSize.width || totalMosaicHeightPx > containerSize.height;
-
-  // Clamp overlay size to reasonable bounds
-  const clampedWidth = Math.min(containerSize.width * 0.95, Math.max(20, totalMosaicWidthPx));
-  const clampedHeight = Math.min(containerSize.height * 0.95, Math.max(20, totalMosaicHeightPx));
-  
-  // Calculate scale factor for clamped display
-  const scaleX = clampedWidth / totalMosaicWidthPx;
-  const scaleY = clampedHeight / totalMosaicHeightPx;
-  const scale = Math.min(scaleX, scaleY, 1);
-  
-  // Scaled panel dimensions
-  const scaledPanelWidth = panelWidthPx * scale;
-  const scaledPanelHeight = panelHeightPx * scale;
-  const scaledStepX = scaledPanelWidth * overlapFactor;
-  const scaledStepY = scaledPanelHeight * overlapFactor;
-  const scaledTotalWidth = scaledPanelWidth + scaledStepX * (mosaicCols - 1);
-  const scaledTotalHeight = scaledPanelHeight + scaledStepY * (mosaicRows - 1);
 
   // Generate mosaic panel positions
-  const panels: { x: number; y: number; isCenter: boolean }[] = [];
-  for (let row = 0; row < mosaicRows; row++) {
-    for (let col = 0; col < mosaicCols; col++) {
-      const x = col * scaledStepX;
-      const y = row * scaledStepY;
-      const isCenter = mosaicCols > 1 || mosaicRows > 1 
-        ? (col === Math.floor((mosaicCols - 1) / 2) && row === Math.floor((mosaicRows - 1) / 2))
-        : true;
-      panels.push({ x, y, isCenter });
-    }
-  }
+  const panels = calculateMosaicLayout(
+    scaledPanelWidth, scaledPanelHeight,
+    scaledStepX, scaledStepY,
+    mosaicCols, mosaicRows
+  );
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none flex items-center justify-center">

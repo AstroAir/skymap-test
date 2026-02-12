@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { TourTooltip } from '../tour-tooltip';
-import type { TourStep } from '@/lib/stores/onboarding-store';
+import type { TourStep } from '@/types/starmap/onboarding';
 
 // Mock next-intl
 jest.mock('next-intl', () => ({

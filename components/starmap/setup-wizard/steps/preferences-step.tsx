@@ -3,10 +3,6 @@
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
-  Layers, 
-  Moon, 
-  Grid3X3, 
-  Compass,
   Languages,
   Check,
 } from 'lucide-react';
@@ -23,45 +19,7 @@ import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import type { SkyCultureLanguage } from '@/lib/translations';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
-
-interface PreferenceOption {
-  id: string;
-  icon: typeof Layers;
-  titleKey: string;
-  descKey: string;
-  settingKey: keyof ReturnType<typeof useSettingsStore.getState>['stellarium'];
-}
-
-const DISPLAY_OPTIONS: PreferenceOption[] = [
-  {
-    id: 'constellations',
-    icon: Grid3X3,
-    titleKey: 'setupWizard.steps.preferences.constellationLines',
-    descKey: 'setupWizard.steps.preferences.constellationLinesDesc',
-    settingKey: 'constellationsLinesVisible',
-  },
-  {
-    id: 'dsos',
-    icon: Layers,
-    titleKey: 'setupWizard.steps.preferences.deepSkyObjects',
-    descKey: 'setupWizard.steps.preferences.deepSkyObjectsDesc',
-    settingKey: 'dsosVisible',
-  },
-  {
-    id: 'equatorialGrid',
-    icon: Compass,
-    titleKey: 'setupWizard.steps.preferences.equatorialGrid',
-    descKey: 'setupWizard.steps.preferences.equatorialGridDesc',
-    settingKey: 'equatorialLinesVisible',
-  },
-  {
-    id: 'nightMode',
-    icon: Moon,
-    titleKey: 'setupWizard.steps.preferences.nightMode',
-    descKey: 'setupWizard.steps.preferences.nightModeDesc',
-    settingKey: 'nightMode',
-  },
-];
+import { DISPLAY_OPTIONS } from '@/lib/constants/setup-wizard';
 
 export function PreferencesStep() {
   const t = useTranslations();

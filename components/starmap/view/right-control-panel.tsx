@@ -22,20 +22,8 @@ import { StellariumMount } from '../mount/stellarium-mount';
 import { AstroSessionPanel } from '../planning/astro-session-panel';
 
 import { useEquipmentStore } from '@/lib/stores';
-import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
-import { buildSelectionData } from './selection-utils';
-
-interface RightControlPanelProps {
-  stel: boolean;
-  currentFov: number;
-  selectedObject: SelectedObjectData | null;
-  showSessionPanel: boolean;
-  contextMenuCoords: ClickCoords | null;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFovSliderChange: (fov: number) => void;
-  onLocationChange: (lat: number, lon: number, alt: number) => void;
-}
+import { buildSelectionData } from '@/lib/core/selection-utils';
+import type { RightControlPanelProps } from '@/types/starmap/view';
 
 export const RightControlPanel = memo(function RightControlPanel({
   stel,

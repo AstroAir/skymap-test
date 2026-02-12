@@ -6,8 +6,8 @@ import {
   TOUCH_MOVE_THRESHOLD,
   RIGHT_CLICK_THRESHOLD,
   RIGHT_CLICK_TIME_THRESHOLD,
-} from '../constants';
-import type { ClickCoordinates } from '../types';
+} from '@/lib/core/constants/stellarium-canvas';
+import type { ClickCoordinates } from '@/types/stellarium-canvas';
 
 interface UseStellariumEventsOptions {
   containerRef: RefObject<HTMLDivElement | null>;

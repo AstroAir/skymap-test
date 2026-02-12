@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { MoonStar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useSettingsStore } from '@/lib/stores';
+import { useNightModeEffect } from '@/lib/hooks/use-night-mode';
 import { cn } from '@/lib/utils';
 
 interface NightModeToggleProps {
@@ -21,14 +21,7 @@ export function NightModeToggle({ className }: NightModeToggleProps) {
   const nightMode = useSettingsStore((state) => state.stellarium.nightMode);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
 
-  // Apply night mode class to document
-  useEffect(() => {
-    if (nightMode) {
-      document.documentElement.classList.add('night-mode');
-    } else {
-      document.documentElement.classList.remove('night-mode');
-    }
-  }, [nightMode]);
+  useNightModeEffect(nightMode);
 
   return (
     <>

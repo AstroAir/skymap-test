@@ -1,20 +1,10 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { useKeyboardShortcuts, STARMAP_SHORTCUT_KEYS, type KeyboardShortcut } from '@/lib/hooks';
+import { useKeyboardShortcuts, STARMAP_SHORTCUT_KEYS, useTimeControls, type KeyboardShortcut } from '@/lib/hooks';
 import { useStellariumStore, useSettingsStore, useEquipmentStore } from '@/lib/stores';
-import { utcToMJD } from '@/lib/astronomy/starmap-utils';
-
-interface KeyboardShortcutsManagerProps {
-  onToggleSearch?: () => void;
-  onToggleSessionPanel?: () => void;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
-  onResetView?: () => void;
-  onClosePanel?: () => void;
-  enabled?: boolean;
-}
+import type { KeyboardShortcutsManagerProps } from '@/types/starmap/controls';
 
 export function KeyboardShortcutsManager({
   onToggleSearch,
@@ -31,32 +21,8 @@ export function KeyboardShortcutsManager({
   const fovEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
   const setFovEnabled = useEquipmentStore((state) => state.setFOVEnabled);
 
-  // Time control handlers
-  const handlePauseTime = useCallback(() => {
-    if (!stel) return;
-    const currentSpeed = stel.core.time_speed;
-    Object.assign(stel.core, { time_speed: currentSpeed === 0 ? 1 : 0 });
-  }, [stel]);
-
-  const handleSpeedUp = useCallback(() => {
-    if (!stel) return;
-    const currentSpeed = stel.core.time_speed;
-    Object.assign(stel.core, { time_speed: Math.min(currentSpeed * 2, 1024) });
-  }, [stel]);
-
-  const handleSlowDown = useCallback(() => {
-    if (!stel) return;
-    const currentSpeed = stel.core.time_speed;
-    Object.assign(stel.core, { time_speed: Math.max(currentSpeed / 2, 1/1024) });
-  }, [stel]);
-
-  const handleResetTime = useCallback(() => {
-    if (!stel) return;
-    const now = new Date();
-    const mjd = utcToMJD(now);
-    Object.assign(stel.core.observer, { utc: mjd });
-    Object.assign(stel.core, { time_speed: 1 });
-  }, [stel]);
+  // Time control handlers (extracted to reusable hook)
+  const { handlePauseTime, handleSpeedUp, handleSlowDown, handleResetTime } = useTimeControls(stel);
 
   // Build shortcuts list
   const shortcuts = useMemo<KeyboardShortcut[]>(() => {

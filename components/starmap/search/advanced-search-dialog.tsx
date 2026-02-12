@@ -6,6 +6,10 @@ import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useObjectSearch, type ObjectType, useSkyCultureLanguage, useSelectTarget } from '@/lib/hooks';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import type { SearchResultItem } from '@/lib/core/types';
+import type { AdvancedSearchDialogProps } from '@/types/starmap/search';
+import { getResultId } from '@/lib/core/search-utils';
+import { ALL_OBJECT_TYPES, CATALOG_PRESETS } from '@/lib/core/constants/search';
+import { isValidRA, isValidDec } from '@/lib/astronomy/coordinate-validators';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -44,54 +48,10 @@ import {
   Bookmark,
   RotateCcw,
 } from 'lucide-react';
-import { SearchResultItemRow, getResultId } from './search-result-item';
+import { SearchResultItemRow } from './search-result-item';
 import { getTypeIcon } from './search-utils';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-interface AdvancedSearchDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelect?: (item?: SearchResultItem) => void;
-}
-
-// All available object types
-const ALL_OBJECT_TYPES: ObjectType[] = ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'];
-
-// ============================================================================
-// Validation Helpers
-// ============================================================================
-
-// Coordinate validation helpers
-function isValidRA(value: string): boolean {
-  if (!value.trim()) return true;
-  // Check decimal format (0-360)
-  const decimal = parseFloat(value);
-  if (!isNaN(decimal) && decimal >= 0 && decimal < 360) return true;
-  // Check HMS format
-  if (/^\d+h\s*\d+m\s*[\d.]+s?$/i.test(value)) return true;
-  // Check colon format
-  if (/^\d+:\d+:[\d.]+$/.test(value)) return true;
-  return false;
-}
-
-function isValidDec(value: string): boolean {
-  if (!value.trim()) return true;
-  // Check decimal format (-90 to 90)
-  const decimal = parseFloat(value);
-  if (!isNaN(decimal) && decimal >= -90 && decimal <= 90) return true;
-  // Check DMS format
-  if (/^[+-]?\d+[°d]\s*\d+[′']\s*[\d.]+[″"]?$/i.test(value)) return true;
-  // Check colon format
-  if (/^[+-]?\d+:\d+:[\d.]+$/.test(value)) return true;
-  return false;
-}
-
-// ============================================================================
-// Component
-// ============================================================================
+export type { AdvancedSearchDialogProps } from '@/types/starmap/search';
 
 export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedSearchDialogProps) {
   const t = useTranslations();
@@ -110,13 +70,6 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
   const [autoSearch, setAutoSearch] = useState(true);
   const [activeTab, setActiveTab] = useState('filters');
 
-  // Catalog presets
-  const catalogPresets = [
-    { id: 'messier', label: 'Messier (M)', query: 'M' },
-    { id: 'ngc', label: 'NGC', query: 'NGC' },
-    { id: 'ic', label: 'IC', query: 'IC' },
-    { id: 'caldwell', label: 'Caldwell', query: 'Caldwell' },
-  ];
   
   // Use the search hook
   const {
@@ -332,7 +285,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
                     {t('search.catalogPresets')}
                   </Label>
                   <div className="flex flex-wrap gap-1">
-                    {catalogPresets.map((preset) => (
+                    {CATALOG_PRESETS.map((preset) => (
                       <Button
                         key={preset.id}
                         variant={localQuery.startsWith(preset.query) ? 'default' : 'outline'}

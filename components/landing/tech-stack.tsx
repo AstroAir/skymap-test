@@ -11,27 +11,24 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Star, Zap, Palette, Monitor, Database, Component } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { TECHNOLOGIES, TECH_CATEGORY_COLORS } from '@/lib/constants/landing';
 
-const technologies = [
-  { name: 'Stellarium Web Engine', category: 'core', icon: Star, description: 'Realistic sky rendering engine' },
-  { name: 'Next.js 16', category: 'framework', icon: Zap, description: 'React framework with App Router' },
-  { name: 'React 19', category: 'framework', icon: Zap, description: 'Latest React with Server Components' },
-  { name: 'TypeScript', category: 'language', icon: Zap, description: 'Type-safe JavaScript' },
-  { name: 'Tailwind CSS v4', category: 'styling', icon: Palette, description: 'Utility-first CSS framework' },
-  { name: 'Tauri 2.9', category: 'desktop', icon: Monitor, description: 'Cross-platform desktop apps' },
-  { name: 'Zustand', category: 'state', icon: Database, description: 'Lightweight state management' },
-  { name: 'shadcn/ui', category: 'components', icon: Component, description: 'Beautiful UI components' },
-];
-
-const categoryColors: Record<string, string> = {
-  core: 'bg-primary/20 text-primary border-primary/30 hover:bg-primary/30',
-  framework: 'bg-secondary/20 text-secondary-foreground border-secondary/30 hover:bg-secondary/30',
-  language: 'bg-accent/20 text-accent-foreground border-accent/30 hover:bg-accent/30',
-  styling: 'bg-chart-3/20 text-foreground border-chart-3/30 hover:bg-chart-3/30',
-  desktop: 'bg-chart-1/20 text-foreground border-chart-1/30 hover:bg-chart-1/30',
-  state: 'bg-chart-2/20 text-foreground border-chart-2/30 hover:bg-chart-2/30',
-  components: 'bg-chart-4/20 text-foreground border-chart-4/30 hover:bg-chart-4/30',
+const techIconMap: Record<string, LucideIcon> = {
+  'Stellarium Web Engine': Star,
+  'Next.js 16': Zap,
+  'React 19': Zap,
+  'TypeScript': Zap,
+  'Tailwind CSS v4': Palette,
+  'Tauri 2.9': Monitor,
+  'Zustand': Database,
+  'shadcn/ui': Component,
 };
+
+const technologies = TECHNOLOGIES.map((tech) => ({
+  ...tech,
+  icon: techIconMap[tech.name] ?? Star,
+}));
 
 export function TechStack() {
   const t = useTranslations('landing.tech');
@@ -61,7 +58,7 @@ export function TechStack() {
                   <TooltipTrigger asChild>
                     <Badge
                       variant="outline"
-                      className={`px-4 py-2 text-sm font-medium cursor-default opacity-0 animate-fade-in transition-colors ${categoryColors[tech.category]}`}
+                      className={`px-4 py-2 text-sm font-medium cursor-default opacity-0 animate-fade-in transition-colors ${TECH_CATEGORY_COLORS[tech.category]}`}
                       style={{ animationDelay: `${index * 0.05}s`, animationFillMode: 'forwards' }}
                     >
                       <Icon className="h-3.5 w-3.5 mr-1.5" />

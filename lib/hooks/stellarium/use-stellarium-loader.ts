@@ -6,20 +6,20 @@ import { useStellariumStore, useSettingsStore, useMountStore } from '@/lib/store
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import { createStellariumTranslator } from '@/lib/translations';
 import { createLogger } from '@/lib/logger';
+import { DEFAULT_FOV } from '@/lib/core/constants/fov';
 import {
   SCRIPT_LOAD_TIMEOUT,
   WASM_INIT_TIMEOUT,
   MAX_RETRY_COUNT,
   SCRIPT_PATH,
   WASM_PATH,
-  DEFAULT_FOV,
   ENGINE_FOV_INIT_DELAY,
   ENGINE_SETTINGS_INIT_DELAY,
   RETRY_DELAY_MS,
-} from '../constants';
-import { withTimeout, prefetchWasm, fovToRad } from '../utils';
+} from '@/lib/core/constants/stellarium-canvas';
+import { withTimeout, prefetchWasm, fovToRad } from '@/lib/core/stellarium-canvas-utils';
 import type { StellariumEngine, SelectedObjectData } from '@/lib/core/types';
-import type { LoadingState } from '../types';
+import type { LoadingState } from '@/types/stellarium-canvas';
 
 const logger = createLogger('stellarium-loader');
 

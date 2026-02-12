@@ -4,11 +4,9 @@ import { useState, useEffect, useMemo, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore, useMountStore } from '@/lib/stores';
 import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
+import { getLST, lstToHours } from '@/lib/astronomy/time/sidereal';
 import { SystemStatusIndicator } from '@/components/common/system-status-indicator';
-
-interface BottomStatusBarProps {
-  currentFov: number;
-}
+import type { BottomStatusBarProps } from '@/types/starmap/view';
 
 // Sub-component: View Center Display - subscribes to store's viewDirection (no independent polling)
 const ViewCenterDisplay = memo(function ViewCenterDisplay() {
@@ -68,18 +66,9 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
       if (stel?.core?.observer) {
         try {
           const observer = stel.core.observer;
-          // Get sidereal time from Stellarium if available
           if (observer.utc !== undefined) {
-            const jd = observer.utc;
-            const T = (jd - 2451545.0) / 36525.0;
             const lon = profileInfo.AstrometrySettings.Longitude || 0;
-            // Greenwich Mean Sidereal Time
-            let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T;
-            gmst = ((gmst % 360) + 360) % 360;
-            // Local Sidereal Time
-            let lstDeg = gmst + lon;
-            lstDeg = ((lstDeg % 360) + 360) % 360;
-            const lstHours = lstDeg / 15;
+            const lstHours = lstToHours(getLST(lon, observer.utc));
             const h = Math.floor(lstHours);
             const m = Math.floor((lstHours - h) * 60);
             const s = Math.floor(((lstHours - h) * 60 - m) * 60);

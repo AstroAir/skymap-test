@@ -17,7 +17,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { LocationSearch } from './location-search';
-import type { Coordinates, LocationResult, TileLayerType } from './types';
+import type { Coordinates, LocationResult } from '@/types/starmap/map';
+import type { TileLayerType } from '@/lib/constants/map';
 
 // Lazy load LeafletMap to avoid SSR issues and improve initial load
 const LeafletMap = dynamic(() => import('./leaflet-map').then(mod => ({ default: mod.LeafletMap })), {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, Monitor, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useTranslations } from 'next-intl';
 import { useThemeStore } from '@/lib/stores/theme-store';
+import { useIsClient } from '@/lib/hooks/use-is-client';
 import { cn } from '@/lib/utils';
 
 interface ThemeToggleProps {
@@ -36,13 +37,7 @@ export function ThemeToggle({
   const t = useTranslations();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const applyCustomization = useThemeStore((state) => state.applyCustomization);
-  
-  // Use useSyncExternalStore to safely detect client-side rendering
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
+  const mounted = useIsClient();
   
   // Re-apply customization when theme changes
   useEffect(() => {

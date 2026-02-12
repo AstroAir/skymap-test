@@ -14,12 +14,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-
-interface CloseConfirmDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: (dontShowAgain: boolean) => void;
-}
+import type { CloseConfirmDialogProps } from '@/types/starmap/view';
 
 export const CloseConfirmDialog = memo(function CloseConfirmDialog({
   open,

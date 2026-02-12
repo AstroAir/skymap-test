@@ -2,11 +2,8 @@
 
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface LoadingSkeletonProps {
-  className?: string;
-  variant?: 'card' | 'panel' | 'list' | 'chart' | 'toolbar';
-}
+import { STAR_POSITIONS } from '@/lib/constants';
+import type { LoadingSkeletonProps } from '@/types';
 
 /**
  * Card skeleton for loading states
@@ -193,30 +190,6 @@ export function InlineLoader({ size = 'default' }: { size?: 'sm' | 'default' | '
     </div>
   );
 }
-
-// Pre-computed star positions for loading skeleton (deterministic)
-const STAR_POSITIONS = [
-  { left: 12, top: 8, delay: 0.1 },
-  { left: 45, top: 15, delay: 0.3 },
-  { left: 78, top: 22, delay: 0.5 },
-  { left: 23, top: 35, delay: 0.7 },
-  { left: 67, top: 42, delay: 0.9 },
-  { left: 34, top: 58, delay: 1.1 },
-  { left: 89, top: 65, delay: 1.3 },
-  { left: 56, top: 72, delay: 1.5 },
-  { left: 15, top: 85, delay: 1.7 },
-  { left: 82, top: 92, delay: 1.9 },
-  { left: 38, top: 18, delay: 0.2 },
-  { left: 91, top: 38, delay: 0.4 },
-  { left: 7, top: 52, delay: 0.6 },
-  { left: 62, top: 28, delay: 0.8 },
-  { left: 28, top: 78, delay: 1.0 },
-  { left: 73, top: 88, delay: 1.2 },
-  { left: 48, top: 45, delay: 1.4 },
-  { left: 95, top: 12, delay: 1.6 },
-  { left: 18, top: 68, delay: 1.8 },
-  { left: 55, top: 95, delay: 0.15 },
-];
 
 /**
  * Starmap-specific loading skeleton

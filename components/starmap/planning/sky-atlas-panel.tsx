@@ -52,6 +52,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
+import { getScoreBadgeVariant, formatPlanningTime } from '@/lib/core/constants/planning-styles';
+import type { DSOCardProps, FilterPanelProps } from '@/types/starmap/planning';
 import { useMountStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { TranslatedName } from '../objects/translated-name';
@@ -66,33 +68,11 @@ import {
   CONSTELLATION_NAMES,
 } from '@/lib/catalogs';
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-function formatTime(date: Date | null): string {
-  if (!date) return '--:--';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function getScoreBadgeVariant(score: number): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (score >= 80) return 'default';
-  if (score >= 60) return 'secondary';
-  if (score >= 40) return 'outline';
-  return 'destructive';
-}
 
 // ============================================================================
 // DSO Card Component
 // ============================================================================
 
-interface DSOCardProps {
-  object: DeepSkyObject;
-  onSelect: (object: DeepSkyObject) => void;
-  onAddToList?: (object: DeepSkyObject) => void;
-  onGoto?: (object: DeepSkyObject) => void;
-  isSelected?: boolean;
-}
 
 const DSOCard = memo(function DSOCard({ object, onSelect, onAddToList, onGoto, isSelected }: DSOCardProps) {
   const t = useTranslations();
@@ -209,10 +189,6 @@ const DSOCard = memo(function DSOCard({ object, onSelect, onAddToList, onGoto, i
 // Filter Panel Component
 // ============================================================================
 
-interface FilterPanelProps {
-  isOpen: boolean;
-  onToggle: () => void;
-}
 
 function FilterPanel({ isOpen, onToggle }: FilterPanelProps) {
   const t = useTranslations();
@@ -502,10 +478,10 @@ function NighttimeInfo() {
         {t('skyAtlas.twilightInfo')}
       </div>
       <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
-        <div>{t('skyAtlas.sunset')}: {formatTime(nighttimeData.sunRiseAndSet.set)}</div>
-        <div>{t('skyAtlas.sunrise')}: {formatTime(nighttimeData.sunRiseAndSet.rise)}</div>
-        <div>{t('skyAtlas.astronomicalDusk')}: {formatTime(nighttimeData.twilightRiseAndSet.set)}</div>
-        <div>{t('skyAtlas.astronomicalDawn')}: {formatTime(nighttimeData.twilightRiseAndSet.rise)}</div>
+        <div>{t('skyAtlas.sunset')}: {formatPlanningTime(nighttimeData.sunRiseAndSet.set)}</div>
+        <div>{t('skyAtlas.sunrise')}: {formatPlanningTime(nighttimeData.sunRiseAndSet.rise)}</div>
+        <div>{t('skyAtlas.astronomicalDusk')}: {formatPlanningTime(nighttimeData.twilightRiseAndSet.set)}</div>
+        <div>{t('skyAtlas.astronomicalDawn')}: {formatPlanningTime(nighttimeData.twilightRiseAndSet.rise)}</div>
       </div>
     </div>
   );

@@ -2,21 +2,7 @@
 
 import { useEffect, useState, useCallback, useId, useRef } from 'react';
 import { cn } from '@/lib/utils';
-
-interface SpotlightRect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
-interface TourSpotlightProps {
-  targetSelector: string;
-  padding?: number;
-  isActive: boolean;
-  spotlightRadius?: number;
-  className?: string;
-}
+import type { SpotlightRect, TourSpotlightProps } from '@/types/starmap/onboarding';
 
 export function TourSpotlight({
   targetSelector,

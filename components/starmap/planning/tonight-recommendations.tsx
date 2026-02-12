@@ -35,36 +35,20 @@ import {
   Sunset,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTonightRecommendations, useGeolocation, type RecommendedTarget, type TwilightInfo } from '@/lib/hooks';
+import { getScoreBadgeVariant, formatPlanningTime } from '@/lib/core/constants/planning-styles';
+import type { NightTimelineProps, MoonPhaseDisplayProps } from '@/types/starmap/planning';
+import { useTonightRecommendations, useGeolocation, type RecommendedTarget } from '@/lib/hooks';
 import { useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useMountStore } from '@/lib/stores';
 import { TranslatedName } from '../objects/translated-name';
 import { useAstronomy } from '@/lib/tauri/hooks';
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-function getScoreBadgeVariant(score: number): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (score >= 80) return 'default';
-  if (score >= 60) return 'secondary';
-  return 'outline';
-}
-
-function formatTime(date: Date | null): string {
-  if (!date) return '--:--';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
 
 // ============================================================================
 // Night Timeline Component - Beautiful day/night visualization
 // ============================================================================
 
-interface NightTimelineProps {
-  twilight: TwilightInfo;
-  currentTime: Date;
-}
 
 function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
   const t = useTranslations();
@@ -258,7 +242,7 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
             />
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('tonight.sunset')}: {formatTime(twilight.sunset)}</p>
+            <p>{t('tonight.sunset')}: {formatPlanningTime(twilight.sunset)}</p>
           </TooltipContent>
         </Tooltip>
         
@@ -270,7 +254,7 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
             />
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('tonight.astronomicalDusk')}: {formatTime(twilight.astronomicalDusk)}</p>
+            <p>{t('tonight.astronomicalDusk')}: {formatPlanningTime(twilight.astronomicalDusk)}</p>
           </TooltipContent>
         </Tooltip>
         
@@ -282,7 +266,7 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
             />
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('tonight.astronomicalDawn')}: {formatTime(twilight.astronomicalDawn)}</p>
+            <p>{t('tonight.astronomicalDawn')}: {formatPlanningTime(twilight.astronomicalDawn)}</p>
           </TooltipContent>
         </Tooltip>
         
@@ -294,7 +278,7 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
             />
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('tonight.sunrise')}: {formatTime(twilight.sunrise)}</p>
+            <p>{t('tonight.sunrise')}: {formatPlanningTime(twilight.sunrise)}</p>
           </TooltipContent>
         </Tooltip>
       </div>
@@ -329,11 +313,6 @@ function NightTimeline({ twilight, currentTime }: NightTimelineProps) {
 // Moon Phase Visualization
 // ============================================================================
 
-interface MoonPhaseDisplayProps {
-  phase: number;
-  illumination: number;
-  phaseName: string;
-}
 
 function MoonPhaseDisplay({ phase, illumination, phaseName }: MoonPhaseDisplayProps) {
   const t = useTranslations();
@@ -487,7 +466,7 @@ function TargetCard({
           <Tooltip>
             <TooltipTrigger className="flex items-center gap-1">
               <Target className="h-3 w-3" />
-              <span>{formatTime(target.transitTime)}</span>
+              <span>{formatPlanningTime(target.transitTime)}</span>
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('tonight.transitTime')}</p>

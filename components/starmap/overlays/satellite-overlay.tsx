@@ -11,12 +11,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import type { SatelliteData } from '@/lib/core/types';
-
-interface SatelliteOverlayProps {
-  containerWidth: number;
-  containerHeight: number;
-  onSatelliteClick?: (satellite: SatelliteData) => void;
-}
+import type { SatelliteOverlayProps, SatelliteMarkerProps, SatelliteTrailProps } from '@/types/starmap/overlays';
 
 // ============================================================================
 // Satellite Marker Component
@@ -28,13 +23,7 @@ function SatelliteMarker({
   y,
   showLabel,
   onClick,
-}: {
-  satellite: SatelliteData;
-  x: number;
-  y: number;
-  showLabel: boolean;
-  onClick?: () => void;
-}) {
+}: SatelliteMarkerProps) {
   const color = getSatelliteColor(satellite.type);
   const size = satellite.type === 'iss' ? 12 : 8;
   
@@ -220,12 +209,7 @@ export function SatelliteTrail({
   color,
   containerWidth,
   containerHeight,
-}: {
-  points: Array<{ x: number; y: number }>;
-  color: string;
-  containerWidth: number;
-  containerHeight: number;
-}) {
+}: SatelliteTrailProps) {
   if (points.length < 2) return null;
 
   const pathData = points

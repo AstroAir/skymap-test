@@ -67,21 +67,10 @@ import type {
   Observation, 
   ObservationStats,
 } from '@/lib/tauri/types';
+import type { ObservationLogProps } from '@/types/starmap/planning';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('observation-log');
-
-interface ObservationLogProps {
-  currentSelection?: {
-    name: string;
-    ra: number;
-    dec: number;
-    raString: string;
-    decString: string;
-    type?: string;
-    constellation?: string;
-  } | null;
-}
 
 export function ObservationLog({ currentSelection }: ObservationLogProps) {
   const t = useTranslations();

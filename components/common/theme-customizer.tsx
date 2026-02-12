@@ -38,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   useThemeStore, 
   themePresets,
+  getFontPreview,
   type ThemeCustomization,
 } from '@/lib/stores/theme-store';
 import { cn } from '@/lib/utils';
@@ -272,19 +273,6 @@ export function ThemeCustomizer({ trigger, open, onOpenChange }: ThemeCustomizer
       </DialogContent>
     </Dialog>
   );
-}
-
-function getFontPreview(font: ThemeCustomization['fontFamily']): string {
-  switch (font) {
-    case 'serif':
-      return 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif';
-    case 'mono':
-      return 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-    case 'system':
-      return 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    default:
-      return 'Libre Baskerville, serif';
-  }
 }
 
 export function ThemeCustomizerButton() {

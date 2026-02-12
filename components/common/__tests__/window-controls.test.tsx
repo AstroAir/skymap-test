@@ -13,6 +13,14 @@ const mockMinimizeWindow = jest.fn();
 const mockToggleMaximizeWindow = jest.fn();
 const mockIsWindowMaximized = jest.fn();
 const mockIsTauri = jest.fn();
+const mockIsAlwaysOnTop = jest.fn().mockResolvedValue(false);
+const mockToggleFullscreen = jest.fn();
+const mockRestartApp = jest.fn();
+const mockQuitApp = jest.fn();
+const mockReloadWebview = jest.fn();
+const mockSetAlwaysOnTop = jest.fn();
+const mockSaveWindowState = jest.fn();
+const mockCenterWindow = jest.fn();
 
 jest.mock('@/lib/tauri/app-control-api', () => ({
   closeWindow: () => mockCloseWindow(),
@@ -20,6 +28,14 @@ jest.mock('@/lib/tauri/app-control-api', () => ({
   toggleMaximizeWindow: () => mockToggleMaximizeWindow(),
   isWindowMaximized: () => mockIsWindowMaximized(),
   isTauri: () => mockIsTauri(),
+  isAlwaysOnTop: () => mockIsAlwaysOnTop(),
+  toggleFullscreen: () => mockToggleFullscreen(),
+  restartApp: () => mockRestartApp(),
+  quitApp: () => mockQuitApp(),
+  reloadWebview: () => mockReloadWebview(),
+  setAlwaysOnTop: (...args: unknown[]) => mockSetAlwaysOnTop(...args),
+  saveWindowState: () => mockSaveWindowState(),
+  centerWindow: () => mockCenterWindow(),
 }));
 
 const messages = {

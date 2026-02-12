@@ -6,40 +6,8 @@ import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Star } from 'lucide-react';
 import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion';
-
-// Pre-generate star data to avoid impure render - optimized for GPU performance
-function generateStars(count: number) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    size: (i % 4) + 1,
-    left: (i * 7.3 + 13) % 100,
-    top: (i * 11.7 + 23) % 100,
-    duration: 2 + (i % 3),
-    delay: (i * 0.13) % 3,
-    brightness: 0.3 + (i % 5) * 0.15,
-  }));
-}
-
-// Generate shooting star data
-function generateShootingStars(count: number) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    startX: 10 + (i * 25) % 60,
-    startY: 5 + (i * 15) % 30,
-    delay: i * 2.5,
-    duration: 3 + (i % 2),
-  }));
-}
-
-const STARS = generateStars(40);
-const SHOOTING_STARS = generateShootingStars(3);
-
-interface SplashScreenProps {
-  onComplete?: () => void;
-  minDuration?: number;
-  /** When true, splash will begin its fade-out sequence regardless of minDuration */
-  isReady?: boolean;
-}
+import { SPLASH_STARS, SPLASH_SHOOTING_STARS } from '@/lib/constants';
+import type { SplashScreenProps } from '@/types';
 
 export function SplashScreen({ 
   onComplete, 
@@ -193,7 +161,7 @@ export function SplashScreen({
             showContent ? 'opacity-100' : 'opacity-0'
           )}
         >
-          {STARS.map((star) => (
+          {SPLASH_STARS.map((star) => (
             <div
               key={`star-${star.id}`}
               className="absolute rounded-full bg-white splash-star"
@@ -212,7 +180,7 @@ export function SplashScreen({
         
         {/* Shooting stars with smooth animation */}
         <div className="absolute inset-0 pointer-events-none">
-          {SHOOTING_STARS.map((star) => (
+          {SPLASH_SHOOTING_STARS.map((star) => (
             <div
               key={`shooting-${star.id}`}
               className={cn(

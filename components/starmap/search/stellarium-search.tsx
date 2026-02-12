@@ -6,6 +6,8 @@ import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useObjectSearch, type ObjectType, useSkyCultureLanguage, useSelectTarget } from '@/lib/hooks';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import type { SearchResultItem } from '@/lib/core/types';
+import type { StellariumSearchRef, StellariumSearchProps } from '@/types/starmap/search';
+import { getResultId } from '@/lib/core/search-utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -16,7 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { SearchResultItemRow, getResultId } from './search-result-item';
+import { SearchResultItemRow } from './search-result-item';
 import { getTypeIcon, getCategoryIcon } from './search-utils';
 import {
   DropdownMenu,
@@ -47,25 +49,7 @@ import {
 } from 'lucide-react';
 import { AdvancedSearchDialog } from './advanced-search-dialog';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface StellariumSearchRef {
-  focusSearchInput: () => void;
-  closeSearch: () => void;
-}
-
-interface StellariumSearchProps {
-  onSelect?: (item?: SearchResultItem) => void;
-  enableMultiSelect?: boolean;
-  onBatchAdd?: (items: SearchResultItem[]) => void;
-  onFocusChange?: (focused: boolean) => void;
-}
-
-// ============================================================================
-// Main Component
-// ============================================================================
+export type { StellariumSearchRef, StellariumSearchProps } from '@/types/starmap/search';
 
 export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearchProps>(
   function StellariumSearch({ onSelect, enableMultiSelect = true, onBatchAdd, onFocusChange }, ref) {

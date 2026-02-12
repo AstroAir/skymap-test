@@ -11,33 +11,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { MIN_FOV, MAX_FOV } from '@/components/starmap/canvas';
-
-interface ZoomControlsProps {
-  fov: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFovChange: (fov: number) => void;
-}
+import { MIN_FOV, MAX_FOV } from '@/lib/core/constants/fov';
+import { fovToSlider as fovToSliderUtil, sliderToFov as sliderToFovUtil } from '@/lib/astronomy/fov-utils';
+import type { ZoomControlsProps } from '@/types/starmap/controls';
 
 export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomControlsProps) {
   const t = useTranslations();
-  // Convert FOV to slider value (logarithmic scale for better UX)
-  const fovToSlider = (f: number) => {
-    // Map MIN_FOV-MAX_FOV to 0-100 using log scale
-    const minLog = Math.log(MIN_FOV);
-    const maxLog = Math.log(MAX_FOV);
-    const clampedF = Math.max(MIN_FOV, Math.min(MAX_FOV, f));
-    return ((Math.log(clampedF) - minLog) / (maxLog - minLog)) * 100;
-  };
-
-  const sliderToFov = (v: number) => {
-    const minLog = Math.log(MIN_FOV);
-    const maxLog = Math.log(MAX_FOV);
-    return Math.exp(minLog + (v / 100) * (maxLog - minLog));
-  };
-
-  const sliderValue = fovToSlider(fov);
+  // Convert FOV to slider value (logarithmic scale, extracted to lib/astronomy/fov-utils)
+  const sliderValue = fovToSliderUtil(fov, MIN_FOV, MAX_FOV);
 
   return (
     <TooltipProvider>
@@ -66,7 +47,7 @@ export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOu
           <Slider
             orientation="vertical"
             value={[100 - sliderValue]}
-            onValueChange={([v]) => onFovChange(sliderToFov(100 - v))}
+            onValueChange={([v]) => onFovChange(sliderToFovUtil(100 - v, MIN_FOV, MAX_FOV))}
             max={100}
             step={1}
             className="h-full"

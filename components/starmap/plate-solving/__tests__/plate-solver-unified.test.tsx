@@ -114,6 +114,12 @@ jest.mock('@/lib/plate-solving', () => ({
     solveTime: 0,
     errorMessage,
   })),
+  persistFileForLocalSolve: jest.fn(async (file: File) => ({
+    filePath: `/tmp/${file.name}`,
+    cleanup: undefined,
+  })),
+  getProgressText: jest.fn(() => ''),
+  getProgressPercent: jest.fn(() => 0),
 }));
 
 const renderWithProviders = (ui: React.ReactElement) => {

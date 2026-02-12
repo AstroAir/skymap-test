@@ -52,57 +52,9 @@ import { toast } from 'sonner';
 import { useEquipment, tauriApi } from '@/lib/tauri';
 import type { TelescopeType as TScopeType, CameraType as TCamType } from '@/lib/tauri';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
-
-// Normalized types for unified rendering across Tauri/Web environments
-interface NormalizedTelescope {
-  id: string;
-  name: string;
-  aperture: number;
-  focalLength: number;
-  focalRatio: number;
-  isDefault: boolean;
-}
-
-interface NormalizedCamera {
-  id: string;
-  name: string;
-  sensorWidth: number;
-  sensorHeight: number;
-  isDefault: boolean;
-}
-
-function normalizeTelescopes(items: unknown[], isTauri: boolean): NormalizedTelescope[] {
-  return items.map((item) => {
-    const t = item as Record<string, unknown>;
-    const aperture = t.aperture as number;
-    const focalLength = isTauri ? (t.focal_length as number) : (t.focalLength as number);
-    return {
-      id: t.id as string,
-      name: t.name as string,
-      aperture,
-      focalLength,
-      focalRatio: isTauri ? (t.focal_ratio as number) : focalLength / aperture,
-      isDefault: isTauri ? (t.is_default as boolean) : false,
-    };
-  });
-}
-
-function normalizeCameras(items: unknown[], isTauri: boolean): NormalizedCamera[] {
-  return items.map((item) => {
-    const c = item as Record<string, unknown>;
-    return {
-      id: c.id as string,
-      name: c.name as string,
-      sensorWidth: isTauri ? (c.sensor_width as number) : (c.sensorWidth as number),
-      sensorHeight: isTauri ? (c.sensor_height as number) : (c.sensorHeight as number),
-      isDefault: isTauri ? (c.is_default as boolean) : false,
-    };
-  });
-}
-
-interface EquipmentManagerProps {
-  trigger?: React.ReactNode;
-}
+import { normalizeTelescopes, normalizeCameras } from '@/lib/core/equipment-normalize';
+import { validateTelescopeForm, validateCameraForm } from '@/lib/core/management-validators';
+import type { NormalizedTelescope, NormalizedCamera, EquipmentManagerProps } from '@/types/starmap/management';
 
 export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   const t = useTranslations();
@@ -202,25 +154,13 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   // ============================================================================
 
   const validateTelescope = (): string | null => {
-    if (!telescopeForm.name.trim()) return t('equipment.fillRequired') || 'Please fill required fields';
-    const aperture = parseFloat(telescopeForm.aperture);
-    const focalLength = parseFloat(telescopeForm.focal_length);
-    if (isNaN(aperture) || aperture < 10 || aperture > 10000)
-      return t('equipment.validation.apertureRange') || 'Aperture must be between 10 and 10,000 mm';
-    if (isNaN(focalLength) || focalLength < 50 || focalLength > 50000)
-      return t('equipment.validation.focalLengthRange') || 'Focal length must be between 50 and 50,000 mm';
-    return null;
+    const errorKey = validateTelescopeForm(telescopeForm);
+    return errorKey ? (t(errorKey) || errorKey) : null;
   };
 
   const validateCamera = (): string | null => {
-    if (!cameraForm.name.trim()) return t('equipment.fillRequired') || 'Please fill required fields';
-    const sw = parseFloat(cameraForm.sensor_width);
-    const sh = parseFloat(cameraForm.sensor_height);
-    if (isNaN(sw) || sw < 1 || sw > 100)
-      return t('equipment.validation.sensorWidthRange') || 'Sensor width must be between 1 and 100 mm';
-    if (isNaN(sh) || sh < 1 || sh > 100)
-      return t('equipment.validation.sensorHeightRange') || 'Sensor height must be between 1 and 100 mm';
-    return null;
+    const errorKey = validateCameraForm(cameraForm);
+    return errorKey ? (t(errorKey) || errorKey) : null;
   };
 
   // ============================================================================

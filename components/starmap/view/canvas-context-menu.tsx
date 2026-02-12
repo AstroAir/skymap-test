@@ -35,40 +35,7 @@ import {
 
 import { useStellariumStore } from '@/lib/stores';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
-import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
-import type { StellariumSettings as FullStellariumSettings } from '@/lib/core/types/stellarium';
-import type { MosaicSettings } from '@/lib/stores';
-
-type StellariumSettings = Pick<FullStellariumSettings,
-  'constellationsLinesVisible' | 'equatorialLinesVisible' | 'azimuthalLinesVisible' |
-  'dsosVisible' | 'surveyEnabled' | 'atmosphereVisible'
->;
-
-interface CanvasContextMenuProps {
-  open: boolean;
-  position: { x: number; y: number };
-  coords: ClickCoords | null;
-  selectedObject: SelectedObjectData | null;
-  mountConnected: boolean;
-  fovSimEnabled: boolean;
-  mosaic: MosaicSettings;
-  stellariumSettings: StellariumSettings;
-  onOpenChange: (open: boolean) => void;
-  onAddToTargetList: () => void;
-  onNavigateToCoords: () => void;
-  onOpenGoToDialog: () => void;
-  onSetPendingMarkerCoords: (coords: { ra: number; dec: number; raString: string; decString: string }) => void;
-  onSetFramingCoordinates: (data: { ra: number; dec: number; raString: string; decString: string; name: string }) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onSetFov: (fov: number) => void;
-  onSetFovSimEnabled: (enabled: boolean) => void;
-  onSetRotationAngle: (angle: number) => void;
-  onSetMosaic: (mosaic: MosaicSettings) => void;
-  onToggleStellariumSetting: (key: keyof StellariumSettings) => void;
-  onToggleSearch: () => void;
-  onResetView: () => void;
-}
+import type { CanvasContextMenuProps } from '@/types/starmap/view';
 
 export const CanvasContextMenu = memo(function CanvasContextMenu({
   open,

@@ -6,9 +6,10 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { useSearchStore, type SearchSourceConfig, type SearchSettings, type SearchMode } from '@/lib/stores/search-store';
-import type { OnlineSearchSource } from '@/lib/services/online-search-service';
+import { useSearchStore, type SearchSourceConfig } from '@/lib/stores/search-store';
 import { ONLINE_SEARCH_SOURCES } from '@/lib/services/online-search-service';
+import type { OnlineSearchSettingsProps, OnlineSearchSettingsContentProps } from '@/types/starmap/search';
+import { SOURCE_COLOR_MAP } from '@/lib/core/constants/search';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -35,9 +36,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-interface OnlineSearchSettingsProps {
-  compact?: boolean;
-}
+export type { OnlineSearchSettingsProps, OnlineSearchSettingsContentProps } from '@/types/starmap/search';
 
 export function OnlineSearchSettings({ compact = false }: OnlineSearchSettingsProps) {
   const t = useTranslations();
@@ -110,21 +109,6 @@ export function OnlineSearchSettings({ compact = false }: OnlineSearchSettingsPr
       />
     </div>
   );
-}
-
-interface OnlineSearchSettingsContentProps {
-  t: ReturnType<typeof useTranslations>;
-  settings: SearchSettings;
-  currentSearchMode: SearchMode;
-  sourceConfigs: Array<{
-    config: SearchSourceConfig;
-    info: typeof ONLINE_SEARCH_SOURCES[keyof typeof ONLINE_SEARCH_SOURCES];
-    isOnline: boolean;
-  }>;
-  updateSettings: (settings: Partial<SearchSettings>) => void;
-  setSearchMode: (mode: SearchMode) => void;
-  toggleOnlineSource: (sourceId: OnlineSearchSource, enabled: boolean) => void;
-  clearCache: () => void;
 }
 
 function OnlineSearchSettingsContent({
@@ -277,19 +261,12 @@ export function SourceBadge({ source }: { source: string }) {
   
   const sourceInfo = ONLINE_SEARCH_SOURCES[source as keyof typeof ONLINE_SEARCH_SOURCES];
   
-  const colorMap: Record<string, string> = {
-    simbad: 'bg-blue-500/10 text-blue-500 border-blue-500/30',
-    sesame: 'bg-purple-500/10 text-purple-500 border-purple-500/30',
-    vizier: 'bg-orange-500/10 text-orange-500 border-orange-500/30',
-    ned: 'bg-green-500/10 text-green-500 border-green-500/30',
-  };
-  
   return (
     <Tooltip>
       <TooltipTrigger>
         <Badge 
           variant="outline" 
-          className={`h-4 text-[9px] px-1 ${colorMap[source] || 'bg-gray-500/10 text-gray-500'}`}
+          className={`h-4 text-[9px] px-1 ${SOURCE_COLOR_MAP[source] || 'bg-gray-500/10 text-gray-500'}`}
         >
           {sourceInfo?.name || source}
         </Badge>

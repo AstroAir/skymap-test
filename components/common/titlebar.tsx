@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { Minus, Square, X, Maximize2, RotateCw, Power, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { createLogger } from "@/lib/logger";
-
-const logger = createLogger('titlebar');
-
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,16 +12,7 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  restartApp,
-  quitApp,
-  reloadWebview,
-  closeWindow,
-  minimizeWindow,
-  toggleMaximizeWindow,
-  isWindowMaximized,
-  isTauri,
-} from "@/lib/tauri/app-control-api";
+import { useWindowControls } from "@/lib/hooks/use-window-controls";
 
 interface TitleBarProps {
   className?: string;
@@ -33,92 +20,16 @@ interface TitleBarProps {
 
 export function TitleBar({ className }: TitleBarProps) {
   const t = useTranslations("titlebar");
-  const [isTauriEnv, setIsTauriEnv] = useState(false);
-  const [isMaximized, setIsMaximized] = useState(false);
-
-  useEffect(() => {
-    // Check if running in Tauri environment
-    const checkTauri = async () => {
-      if (isTauri()) {
-        setIsTauriEnv(true);
-        // Check initial maximized state
-        try {
-          const maximized = await isWindowMaximized();
-          setIsMaximized(maximized);
-        } catch (error) {
-          logger.error('Failed to get window state', error);
-        }
-      }
-    };
-    checkTauri();
-  }, []);
-
-  useEffect(() => {
-    if (!isTauriEnv) return;
-
-    // Listen for window resize to update maximized state
-    const handleResize = async () => {
-      try {
-        const maximized = await isWindowMaximized();
-        setIsMaximized(maximized);
-      } catch (error) {
-        logger.error('Failed to check maximized state', error);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [isTauriEnv]);
-
-  // Window control handlers - defined before useEffect that uses them
-  const handleMinimize = useCallback(async () => {
-    try {
-      await minimizeWindow();
-    } catch (error) {
-      logger.error('Failed to minimize', error);
-    }
-  }, []);
-
-  const handleMaximize = useCallback(async () => {
-    try {
-      await toggleMaximizeWindow();
-      setIsMaximized((prev) => !prev);
-    } catch (error) {
-      logger.error('Failed to toggle maximize', error);
-    }
-  }, []);
-
-  const handleClose = useCallback(async () => {
-    try {
-      await closeWindow();
-    } catch (error) {
-      logger.error('Failed to close', error);
-    }
-  }, []);
-
-  const handleQuit = useCallback(async () => {
-    try {
-      await quitApp();
-    } catch (error) {
-      logger.error('Failed to quit', error);
-    }
-  }, []);
-
-  const handleRestart = useCallback(async () => {
-    try {
-      await restartApp();
-    } catch (error) {
-      logger.error('Failed to restart', error);
-    }
-  }, []);
-
-  const handleReload = useCallback(async () => {
-    try {
-      await reloadWebview();
-    } catch (error) {
-      logger.error('Failed to reload', error);
-    }
-  }, []);
+  const {
+    isTauriEnv,
+    isMaximized,
+    handleMinimize,
+    handleMaximize,
+    handleClose,
+    handleQuit,
+    handleRestart,
+    handleReload,
+  } = useWindowControls();
 
   const handleDoubleClick = useCallback(async () => {
     await handleMaximize();

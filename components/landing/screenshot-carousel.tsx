@@ -12,9 +12,10 @@ import {
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Map, Calendar, Camera, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import type { ScreenshotItem } from '@/types/landing';
+import { useCarousel } from '@/lib/hooks/use-carousel';
 
-const screenshots = [
+const screenshots: ScreenshotItem[] = [
   { key: 'starmap', icon: Map },
   { key: 'planning', icon: Calendar },
   { key: 'fov', icon: Camera },
@@ -23,18 +24,12 @@ const screenshots = [
 
 export function ScreenshotCarousel() {
   const t = useTranslations('landing.screenshots');
-  const [activeTab, setActiveTab] = useState('starmap');
+  const { activeIndex, goToNext, goToPrev, goTo } = useCarousel({ items: screenshots });
+  const activeTab = screenshots[activeIndex].key;
 
-  const currentIndex = screenshots.findIndex((s) => s.key === activeTab);
-
-  const goToNext = () => {
-    const nextIndex = (currentIndex + 1) % screenshots.length;
-    setActiveTab(screenshots[nextIndex].key);
-  };
-
-  const goToPrev = () => {
-    const prevIndex = (currentIndex - 1 + screenshots.length) % screenshots.length;
-    setActiveTab(screenshots[prevIndex].key);
+  const handleTabChange = (value: string) => {
+    const index = screenshots.findIndex((s) => s.key === value);
+    if (index >= 0) goTo(index);
   };
 
   return (
@@ -54,7 +49,7 @@ export function ScreenshotCarousel() {
 
         {/* Tabs-based carousel */}
         <TooltipProvider>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             {/* Tab triggers */}
             <TabsList className="grid grid-cols-4 max-w-md mx-auto mb-8 glass-light">
               {screenshots.map((item) => {
