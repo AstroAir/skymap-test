@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-> **Last Updated:** 2026-02-11
-> **Documentation Version:** 1.2.0
+> **Last Updated:** 2026-02-13
+> **Documentation Version:** 1.3.0
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-02-13 | 1.3.0 | Major update: added mount-safety/simulator modules, event-sources-store, updater-store, use-object-actions/use-in-view hooks; removed titlebar/window-controls; updated module descriptions |
 | 2026-02-11 | 1.2.0 | Added llmdoc/index.md with comprehensive documentation links; updated scan coverage to 98%; added logger module documentation |
 | 2026-02-01 | 1.1.0 | Added tauri-api module documentation; updated scan coverage |
 | 2025-01-31 | 1.0.0 | Initial comprehensive documentation with module structure diagram |
@@ -88,8 +89,8 @@ graph TD
 |--------|------|----------|-------------|---------------|
 | **starmap-ui** | `components/starmap/` | TSX | Star map UI components (core, overlays, planning, objects, management) | [CLAUDE.md](./components/starmap/CLAUDE.md) |
 | **tauri-api** | `lib/tauri/` | TS | TypeScript wrappers for Tauri IPC commands | [CLAUDE.md](./lib/tauri/CLAUDE.md) |
-| **astronomy-calculations** | `lib/astronomy/` | TS | Pure astronomical calculations | [CLAUDE.md](./lib/astronomy/CLAUDE.md) |
-| **state-management** | `lib/stores/` | TS | Zustand stores (settings, equipment, targets, markers) | [CLAUDE.md](./lib/stores/CLAUDE.md) |
+| **astronomy-calculations** | `lib/astronomy/` | TS | Pure astronomical calculations (coordinates, time, visibility, mount-safety) | [CLAUDE.md](./lib/astronomy/CLAUDE.md) |
+| **state-management** | `lib/stores/` | TS | Zustand stores (settings, equipment, targets, markers, event-sources, updater) | [CLAUDE.md](./lib/stores/CLAUDE.md) |
 | **logger** | `lib/logger/` | TS | Unified logging system with multiple transports | [CLAUDE.md](./lib/logger/CLAUDE.md) |
 | **frontend-services** | `lib/services/` | TS | Service layer for external APIs | [CLAUDE.md](./lib/services/CLAUDE.md) |
 | **catalogs** | `lib/catalogs/` | TS | Astronomical catalog data and types | [CLAUDE.md](./lib/catalogs/CLAUDE.md) |
@@ -175,6 +176,8 @@ React Component --> Zustand Store --> lib/tauri/*-api.ts --> Tauri invoke() --> 
 - `visibility/` - Target visibility, circumpolar calculations
 - `twilight/` - Twilight times (civil, nautical, astronomical)
 - `imaging/` - Exposure and imaging feasibility calculations
+- `mount-safety.ts` - GEM mount safety checks (meridian flip, hour angle limits, pier collision)
+- `mount-simulator.ts` - Sequence simulation for mount safety analysis
 
 **`lib/stores/`** - Zustand state management:
 - `settings-store` - App preferences and UI settings
@@ -193,6 +196,28 @@ React Component --> Zustand Store --> lib/tauri/*-api.ts --> Tauri invoke() --> 
 - `favorites-store` - Favorite objects
 - `setup-wizard-store` - Setup wizard state
 - `log-store` - Application logs
+- `event-sources-store` - Astronomical event source configuration
+- `updater-store` - Application update state management
+
+**`lib/hooks/`** - Custom React hooks:
+- `use-geolocation` - Geolocation with fallback
+- `use-object-search` - Object search functionality
+- `use-object-actions` - Shared slew/add-to-list actions for object panels
+- `use-in-view` - Intersection Observer for scroll-triggered animations
+- `use-tonight-recommendations` - Tonight's best targets
+- `use-target-planner` - Target scheduling
+- `use-http-client` - Tauri HTTP integration
+- `use-animation-frame` - Animation loop management
+- `use-coordinate-projection` - Sky to screen coordinate projection
+- `use-keyboard-shortcuts` - Keyboard shortcut handling
+- `use-navigation-history` - View history management
+- `use-window-controls` - Desktop window controls
+- `use-system-stats` - FPS, memory, online status
+- `use-night-mode` - Night mode CSS effects
+- `use-mount-overlay` - Mount control overlay
+- `use-object-astro-data` - Astronomical data for objects
+- `use-time-controls` - Stellarium time controls
+- `stellarium/*` - Stellarium canvas hooks
 
 **`lib/logger/`** - Unified logging system:
 - `log-manager.ts` - Central log manager with singleton
@@ -205,11 +230,11 @@ React Component --> Zustand Store --> lib/tauri/*-api.ts --> Tauri invoke() --> 
 - `canvas/` - Stellarium Web Engine canvas wrapper
 - `view/` - Main sky view component
 - `search/` - Object search and advanced search
-- `settings/` - Settings panels and dialogs
+- `settings/` - Settings panels and dialogs (including event-sources-settings)
 - `controls/` - Zoom, navigation history, bookmarks, keyboard shortcuts
 - `time/` - Time control and clock display
 - `overlays/` - FOV simulator, satellite tracker, ocular simulator, sky markers
-- `planning/` - Altitude charts, exposure calculator, session planning
+- `planning/` - Altitude charts, exposure calculator, session planning, mount-safety-simulator, event-detail-dialog
 - `objects/` - Object info panels, detail drawers, image galleries
 - `management/` - Equipment, location, cache, and data managers
 - `dialogs/` - About, credits, keyboard shortcuts dialogs
@@ -243,7 +268,7 @@ React Component --> Zustand Store --> lib/tauri/*-api.ts --> Tauri invoke() --> 
 - User data stored in platform-specific app data directory (`skymap/stores/`)
 - Rust `storage.rs` provides generic JSON store operations
 - Frontend syncs state via `TauriSyncProvider` component
-- Known stores: `starmap-target-list`, `starmap-markers`, `starmap-settings`, `starmap-equipment`, `starmap-onboarding`, `skymap-offline`, `skymap-locale`
+- Known stores: `starmap-target-list`, `starmap-markers`, `starmap-settings`, `starmap-equipment`, `starmap-onboarding`, `starmap-event-sources`, `skymap-offline`, `skymap-locale`
 
 ### Internationalization
 
@@ -321,13 +346,15 @@ See `src-tauri/src/network/security.rs` for implementation details.
 | Add new Tauri command | `src-tauri/src/[module].rs`, `lib/tauri/[module]-api.ts` |
 | Add translations | `i18n/messages/en.json`, `i18n/messages/zh.json` |
 | Add logging | `lib/logger/index.ts` (use `createLogger()`) |
+| Add mount safety checks | `lib/astronomy/mount-safety.ts`, `lib/astronomy/mount-simulator.ts` |
+| Add event source config | `lib/stores/event-sources-store.ts`, `components/starmap/settings/event-sources-settings.tsx` |
 
 ---
 
 ## Scan Coverage
 
-- **Total Files:** ~540
-- **Scanned Files:** ~530
+- **Total Files:** ~560
+- **Scanned Files:** ~550
 - **Coverage:** 98%
 - **Ignored:** node_modules, .git, build artifacts, llmdoc
 
@@ -336,6 +363,23 @@ See `src-tauri/src/network/security.rs` for implementation details.
 - `src-tauri/src/cache/` - No unit tests yet
 - `src-tauri/src/platform/` - No unit tests yet
 - Smaller utility modules (lib/storage, lib/offline, lib/hooks, etc.) - No module-level CLAUDE.md
+
+### Recent Changes (2026-02-13)
+
+**New Modules:**
+- `lib/astronomy/mount-safety.ts` - GEM mount safety configuration and checks
+- `lib/astronomy/mount-simulator.ts` - Sequence simulation for mount safety
+- `lib/stores/event-sources-store.ts` - Event source configuration management
+- `lib/stores/updater-store.ts` - Application update state management
+- `lib/hooks/use-object-actions.ts` - Shared object action callbacks
+- `lib/hooks/use-in-view.ts` - Intersection Observer hook
+- `components/starmap/planning/mount-safety-simulator.tsx` - Mount safety UI
+- `components/starmap/planning/event-detail-dialog.tsx` - Event detail display
+- `components/starmap/settings/event-sources-settings.tsx` - Event source configuration UI
+
+**Deleted:**
+- `components/common/titlebar.tsx` - Removed (window controls refactored)
+- `components/common/window-controls.tsx` - Removed (window controls refactored)
 
 ---
 

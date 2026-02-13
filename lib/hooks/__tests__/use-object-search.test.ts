@@ -14,10 +14,33 @@ jest.mock('@/lib/stores/target-list-store', () => ({
   useTargetListStore: jest.fn(() => []),
 }));
 
+const mockRecentSearches: { query: string }[] = [];
+jest.mock('@/lib/stores/search-store', () => ({
+  useSearchStore: jest.fn(() => ({
+    currentSearchMode: 'local',
+    settings: { timeout: 15000 },
+    getEnabledSources: () => ['sesame', 'simbad'],
+    addRecentSearch: jest.fn((query: string) => {
+      if (query.trim() && !mockRecentSearches.some(s => s.query === query)) {
+        mockRecentSearches.unshift({ query });
+      }
+    }),
+    getRecentSearches: jest.fn(() => mockRecentSearches),
+    clearRecentSearches: jest.fn(() => { mockRecentSearches.length = 0; }),
+    updateAllOnlineStatus: jest.fn(),
+  })),
+}));
+
+jest.mock('@/lib/services/online-search-service', () => ({
+  searchOnlineByName: jest.fn().mockResolvedValue({ results: [], sources: [], totalCount: 0, searchTimeMs: 0 }),
+  // Return a never-resolving promise to avoid async setState outside act()
+  checkOnlineSearchAvailability: jest.fn().mockReturnValue(new Promise(() => {})),
+}));
+
 describe('useObjectSearch', () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    localStorage.clear();
+    mockRecentSearches.length = 0;
   });
 
   afterEach(() => {
@@ -53,6 +76,13 @@ describe('useObjectSearch', () => {
       
       expect(result.current.popularObjects).toBeDefined();
       expect(result.current.popularObjects.length).toBeGreaterThan(0);
+    });
+
+    it('should expose online search state', () => {
+      const { result } = renderHook(() => useObjectSearch());
+      
+      expect(result.current.isOnlineSearching).toBe(false);
+      expect(typeof result.current.onlineAvailable).toBe('boolean');
     });
   });
 
@@ -352,17 +382,18 @@ describe('useObjectSearch', () => {
   });
 
   describe('recent searches', () => {
-    it('should add recent search', () => {
+    it('should delegate addRecentSearch to store', () => {
       const { result } = renderHook(() => useObjectSearch());
       
       act(() => {
         result.current.addRecentSearch('M31');
       });
       
-      expect(result.current.recentSearches).toContain('M31');
+      // Verify the store mock was called
+      expect(mockRecentSearches.some(s => s.query === 'M31')).toBe(true);
     });
 
-    it('should clear recent searches', () => {
+    it('should delegate clearRecentSearches to store', () => {
       const { result } = renderHook(() => useObjectSearch());
       
       act(() => {
@@ -370,19 +401,14 @@ describe('useObjectSearch', () => {
         result.current.clearRecentSearches();
       });
       
-      expect(result.current.recentSearches).toEqual([]);
+      expect(mockRecentSearches).toEqual([]);
     });
 
-    it('should store recent searches in state', () => {
+    it('should expose recentSearches from store', () => {
       const { result } = renderHook(() => useObjectSearch());
       
-      act(() => {
-        result.current.addRecentSearch('M42');
-        result.current.addRecentSearch('NGC7000');
-      });
-      
-      expect(result.current.recentSearches).toContain('M42');
-      expect(result.current.recentSearches).toContain('NGC7000');
+      // recentSearches should be an array (from store)
+      expect(Array.isArray(result.current.recentSearches)).toBe(true);
     });
   });
 

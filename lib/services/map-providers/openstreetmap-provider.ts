@@ -72,6 +72,56 @@ interface NominatimReverseResponse {
   boundingbox: [string, string, string, string];
 }
 
+const OSM_TYPE_MAPPING: Record<string, GeocodingResult['type']> = {
+  'city': 'city',
+  'town': 'city',
+  'village': 'city',
+  'hamlet': 'city',
+  'municipality': 'administrative',
+  'county': 'administrative',
+  'state': 'administrative',
+  'country': 'administrative',
+  'house': 'building',
+  'building': 'building',
+  'residential': 'building',
+  'commercial': 'building',
+  'industrial': 'building',
+  'retail': 'building',
+  'office': 'building',
+  'hotel': 'building',
+  'school': 'building',
+  'university': 'building',
+  'church': 'building',
+  'mosque': 'building',
+  'synagogue': 'building',
+  'temple': 'building',
+  'restaurant': 'poi',
+  'cafe': 'poi',
+  'pub': 'poi',
+  'bar': 'poi',
+  'fast_food': 'poi',
+  'bank': 'poi',
+  'atm': 'poi',
+  'pharmacy': 'poi',
+  'hospital': 'poi',
+  'clinic': 'poi',
+  'dentist': 'poi',
+  'veterinary': 'poi',
+  'fuel': 'poi',
+  'parking': 'poi',
+  'bus_station': 'poi',
+  'railway': 'poi',
+  'airport': 'poi',
+  'park': 'natural',
+  'forest': 'natural',
+  'water': 'natural',
+  'river': 'natural',
+  'lake': 'natural',
+  'mountain': 'natural',
+  'hill': 'natural',
+  'beach': 'natural',
+};
+
 export class OpenStreetMapProvider extends BaseMapProvider {
   private readonly TILE_SERVERS = [
     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -115,7 +165,7 @@ export class OpenStreetMapProvider extends BaseMapProvider {
 
   async geocode(
     address: string,
-    options: { limit?: number; bounds?: BoundingBox } = {}
+    options: { limit?: number; bounds?: BoundingBox; language?: string } = {}
   ): Promise<GeocodingResult[]> {
     await this.applyRateLimit();
     
@@ -124,7 +174,7 @@ export class OpenStreetMapProvider extends BaseMapProvider {
       format: 'json',
       addressdetails: '1',
       limit: String(options.limit || 10),
-      'accept-language': 'en',
+      'accept-language': options.language || 'en',
     });
 
     if (options.bounds) {
@@ -217,55 +267,7 @@ export class OpenStreetMapProvider extends BaseMapProvider {
     const [south, north, west, east] = item.boundingbox.map(Number);
     
     // Map OSM types to our standardized types
-    const typeMapping: Record<string, GeocodingResult['type']> = {
-      'city': 'city',
-      'town': 'city',
-      'village': 'city',
-      'hamlet': 'city',
-      'municipality': 'administrative',
-      'county': 'administrative',
-      'state': 'administrative',
-      'country': 'administrative',
-      'house': 'building',
-      'building': 'building',
-      'residential': 'building',
-      'commercial': 'building',
-      'industrial': 'building',
-      'retail': 'building',
-      'office': 'building',
-      'hotel': 'building',
-      'school': 'building',
-      'university': 'building',
-      'church': 'building',
-      'mosque': 'building',
-      'synagogue': 'building',
-      'temple': 'building',
-      'restaurant': 'poi',
-      'cafe': 'poi',
-      'pub': 'poi',
-      'bar': 'poi',
-      'fast_food': 'poi',
-      'bank': 'poi',
-      'atm': 'poi',
-      'pharmacy': 'poi',
-      'hospital': 'poi',
-      'clinic': 'poi',
-      'dentist': 'poi',
-      'veterinary': 'poi',
-      'fuel': 'poi',
-      'parking': 'poi',
-      'bus_station': 'poi',
-      'railway': 'poi',
-      'airport': 'poi',
-      'park': 'natural',
-      'forest': 'natural',
-      'water': 'natural',
-      'river': 'natural',
-      'lake': 'natural',
-      'mountain': 'natural',
-      'hill': 'natural',
-      'beach': 'natural',
-    };
+    const typeMapping = OSM_TYPE_MAPPING;
 
     return {
       coordinates: {

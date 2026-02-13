@@ -281,8 +281,8 @@ function LocationSearchComponent({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -316,6 +316,12 @@ function LocationSearchComponent({
         <Input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={shouldShowDropdown}
+          aria-haspopup="listbox"
+          aria-controls="location-search-listbox"
+          aria-activedescendant={selectedIndex >= 0 ? `location-option-${selectedIndex}` : undefined}
+          aria-autocomplete="list"
           placeholder={placeholder || t('map.searchPlaceholder') || 'Search for a location...'}
           value={query}
           onChange={(e) => handleInputChange(e.target.value)}
@@ -345,7 +351,7 @@ function LocationSearchComponent({
         <Card className="absolute top-full left-0 right-0 z-50 mt-1 shadow-lg border">
           <CardContent className="p-0">
             <ScrollArea className="max-h-80">
-              <div className="py-1">
+              <div role="listbox" id="location-search-listbox" className="py-1">
                 {showCurrentLocation && !query.trim() && (
                   <>
                     <div
@@ -376,6 +382,9 @@ function LocationSearchComponent({
                 {results.map((result, index) => (
                   <div
                     key={`${result.coordinates.latitude}-${result.coordinates.longitude}`}
+                    id={`location-option-${index}`}
+                    role="option"
+                    aria-selected={selectedIndex === index}
                     className={cn(
                       'flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors',
                       selectedIndex === index ? 'bg-muted' : 'hover:bg-muted/50'

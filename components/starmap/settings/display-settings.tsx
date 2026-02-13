@@ -26,7 +26,7 @@ import { useSatelliteStore, useSettingsStore } from '@/lib/stores';
 import type { SkyCultureLanguage } from '@/lib/core/types';
 import { StellariumSurveySelector } from './stellarium-survey-selector';
 import { ObjectInfoSourcesConfig } from '../objects/object-info-sources-config';
-import { TourRestartButton } from '../onboarding/welcome-dialog';
+import { OnboardingRestartButton } from '../onboarding/welcome-dialog';
 import { SettingsSection, ToggleItem } from './settings-shared';
 import { DISPLAY_SETTINGS, GRID_SETTINGS } from './settings-constants';
 
@@ -216,7 +216,7 @@ export function DisplaySettings() {
                 {t('settings.restartTourDescription')}
               </p>
             </div>
-            <TourRestartButton />
+            <OnboardingRestartButton />
           </div>
         </div>
       </SettingsSection>

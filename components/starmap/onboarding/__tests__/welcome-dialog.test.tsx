@@ -1,16 +1,18 @@
 import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { WelcomeDialog, TourRestartButton } from '../welcome-dialog';
+import { WelcomeDialog, OnboardingRestartButton, TourRestartButton } from '../welcome-dialog';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
 
 // Mock next-intl
 jest.mock('next-intl', () => ({
   useTranslations: () => (key: string) => {
     const translations: Record<string, string> = {
-      'onboarding.restartTour': 'Restart Tour',
+      'onboarding.restartTour': 'Restart Guide',
       'onboarding.welcome.title': 'Welcome to SkyMap',
       'onboarding.welcome.subtitle': 'Your personal window to the universe',
       'onboarding.welcome.startTour': 'Start Tour',
+      'onboarding.welcome.startSetup': 'Start Setup',
+      'onboarding.welcome.skipToTour': 'Skip to Tour',
       'onboarding.welcome.skipTour': 'Skip for now',
       'onboarding.welcome.dontShowAgain': "Don't show this again",
       'onboarding.welcome.features.explore.title': 'Explore the Sky',
@@ -21,6 +23,10 @@ jest.mock('next-intl', () => ({
       'onboarding.welcome.features.plan.description': 'Create observation lists',
       'onboarding.welcome.features.track.title': 'Track Satellites',
       'onboarding.welcome.features.track.description': 'Follow ISS live',
+      'setupWizard.steps.welcome.whatWellConfigure': "What we'll configure:",
+      'setupWizard.steps.welcome.features.location.title': 'Location',
+      'setupWizard.steps.welcome.features.equipment.title': 'Equipment',
+      'setupWizard.steps.welcome.features.preferences.title': 'Preferences',
     };
     return translations[key] || key;
   },
@@ -30,7 +36,7 @@ describe('WelcomeDialog', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     act(() => {
-      useOnboardingStore.getState().resetOnboarding();
+      useOnboardingStore.getState().resetAll();
     });
   });
 
@@ -41,10 +47,8 @@ describe('WelcomeDialog', () => {
   it('should show dialog for first-time users after delay', async () => {
     render(<WelcomeDialog />);
     
-    // Dialog should not be visible immediately
     expect(screen.queryByText('Welcome to SkyMap')).not.toBeInTheDocument();
     
-    // Advance timers to trigger dialog
     act(() => {
       jest.advanceTimersByTime(600);
     });
@@ -97,7 +101,21 @@ describe('WelcomeDialog', () => {
     });
   });
 
-  it('should start tour when clicking Start Tour button', async () => {
+  it('should show setup preview when setup not completed', async () => {
+    render(<WelcomeDialog />);
+    
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText("What we'll configure:")).toBeInTheDocument();
+      expect(screen.getByText('Start Setup')).toBeInTheDocument();
+      expect(screen.getByText('Skip to Tour')).toBeInTheDocument();
+    });
+  });
+
+  it('should start setup when clicking Start Setup button', async () => {
     const onStartTour = jest.fn();
     
     render(<WelcomeDialog onStartTour={onStartTour} />);
@@ -107,14 +125,55 @@ describe('WelcomeDialog', () => {
     });
     
     await waitFor(() => {
-      expect(screen.getByText('Start Tour')).toBeInTheDocument();
+      expect(screen.getByText('Start Setup')).toBeInTheDocument();
     });
     
-    fireEvent.click(screen.getByText('Start Tour'));
+    fireEvent.click(screen.getByText('Start Setup'));
+    
+    expect(onStartTour).toHaveBeenCalled();
+    expect(useOnboardingStore.getState().isSetupOpen).toBe(true);
+    expect(useOnboardingStore.getState().hasSeenWelcome).toBe(true);
+  });
+
+  it('should skip to tour when clicking Skip to Tour button', async () => {
+    const onStartTour = jest.fn();
+    
+    render(<WelcomeDialog onStartTour={onStartTour} />);
+    
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('Skip to Tour')).toBeInTheDocument();
+    });
+    
+    fireEvent.click(screen.getByText('Skip to Tour'));
     
     expect(onStartTour).toHaveBeenCalled();
     expect(useOnboardingStore.getState().isTourActive).toBe(true);
     expect(useOnboardingStore.getState().hasSeenWelcome).toBe(true);
+  });
+
+  it('should show Start Tour button when setup already completed', async () => {
+    act(() => {
+      useOnboardingStore.getState().completeSetup();
+      // Reset welcome seen flag so dialog shows
+      useOnboardingStore.setState({ hasSeenWelcome: false, hasCompletedOnboarding: false, showOnNextVisit: true });
+    });
+
+    render(<WelcomeDialog />);
+    
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('Start Tour')).toBeInTheDocument();
+    });
+    
+    // Should not show setup preview
+    expect(screen.queryByText("What we'll configure:")).not.toBeInTheDocument();
   });
 
   it('should skip tour when clicking Skip button', async () => {
@@ -150,50 +209,39 @@ describe('WelcomeDialog', () => {
     const checkbox = screen.getByRole('checkbox');
     fireEvent.click(checkbox);
     
-    // Now skip the tour
     fireEvent.click(screen.getByText('Skip for now'));
     
     expect(useOnboardingStore.getState().showOnNextVisit).toBe(false);
   });
 });
 
-describe('TourRestartButton', () => {
+describe('OnboardingRestartButton', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
     act(() => {
-      useOnboardingStore.getState().resetOnboarding();
-      // Simulate completed onboarding
+      useOnboardingStore.getState().resetAll();
       useOnboardingStore.getState().completeOnboarding();
     });
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
   it('should render restart button', () => {
-    render(<TourRestartButton />);
+    render(<OnboardingRestartButton />);
     
-    expect(screen.getByText('Restart Tour')).toBeInTheDocument();
+    expect(screen.getByText('Restart Guide')).toBeInTheDocument();
   });
 
-  it('should restart tour when clicked', async () => {
-    render(<TourRestartButton />);
+  it('should reset all state when clicked', () => {
+    render(<OnboardingRestartButton />);
     
     expect(useOnboardingStore.getState().hasCompletedOnboarding).toBe(true);
     
-    fireEvent.click(screen.getByText('Restart Tour'));
+    fireEvent.click(screen.getByText('Restart Guide'));
     
-    // After reset
     expect(useOnboardingStore.getState().hasCompletedOnboarding).toBe(false);
-    
-    // After delay, tour should start
-    act(() => {
-      jest.advanceTimersByTime(150);
-    });
-    
-    await waitFor(() => {
-      expect(useOnboardingStore.getState().isTourActive).toBe(true);
-    });
+    expect(useOnboardingStore.getState().hasCompletedSetup).toBe(false);
+    expect(useOnboardingStore.getState().hasSeenWelcome).toBe(false);
+  });
+
+  it('should be aliased as TourRestartButton for backward compat', () => {
+    expect(TourRestartButton).toBe(OnboardingRestartButton);
   });
 });

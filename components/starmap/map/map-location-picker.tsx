@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback, useMemo, useRef, memo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { MapPin, Layers } from 'lucide-react';
+import { MapPin, Layers, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -63,10 +63,31 @@ function MapLocationPickerComponent({
   ], [t]);
 
   const [currentLocation, setCurrentLocation] = useState<Coordinates>(initialLocation);
+  const [prevInitialLocation, setPrevInitialLocation] = useState(initialLocation);
   const [zoom, setZoom] = useState(10);
   const [tileLayer, setTileLayer] = useState<TileLayerType>(initialTileLayer);
+  const [showLightPollution, setShowLightPollution] = useState(false);
   const latInputRef = useRef<HTMLInputElement>(null);
   const lngInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync ref input values when currentLocation changes from non-input sources (map click, search)
+  useEffect(() => {
+    if (latInputRef.current && document.activeElement !== latInputRef.current) {
+      latInputRef.current.value = String(currentLocation.latitude);
+    }
+    if (lngInputRef.current && document.activeElement !== lngInputRef.current) {
+      lngInputRef.current.value = String(currentLocation.longitude);
+    }
+  }, [currentLocation.latitude, currentLocation.longitude]);
+
+  // Sync with external initialLocation changes (render-time adjustment, no effect needed)
+  if (
+    initialLocation.latitude !== prevInitialLocation.latitude ||
+    initialLocation.longitude !== prevInitialLocation.longitude
+  ) {
+    setPrevInitialLocation(initialLocation);
+    setCurrentLocation(initialLocation);
+  }
 
   // Memoize map height style
   const mapHeight = useMemo(() => 
@@ -134,6 +155,7 @@ function MapLocationPickerComponent({
           disabled={disabled}
           showMarker={true}
           draggableMarker={!disabled}
+          showLightPollution={showLightPollution}
         />
       </div>
       {!compact && (
@@ -147,7 +169,6 @@ function MapLocationPickerComponent({
               min='-90' 
               max='90' 
               defaultValue={currentLocation.latitude} 
-              key={`lat-${currentLocation.latitude}`}
               onBlur={commitCoordinateInput}
               onKeyDown={handleCoordinateKeyDown}
               disabled={disabled} 
@@ -163,7 +184,6 @@ function MapLocationPickerComponent({
               min='-180' 
               max='180' 
               defaultValue={currentLocation.longitude} 
-              key={`lng-${currentLocation.longitude}`}
               onBlur={commitCoordinateInput}
               onKeyDown={handleCoordinateKeyDown}
               disabled={disabled} 
@@ -179,7 +199,16 @@ function MapLocationPickerComponent({
     return (
       <div className={cn('w-full space-y-3', className)}>
         {showControls && (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-1">
+            <Button
+              variant={showLightPollution ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setShowLightPollution(prev => !prev)}
+              title={t('map.lightPollution') || 'Light Pollution'}
+            >
+              <Sun className="h-3.5 w-3.5" />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -214,24 +243,35 @@ function MapLocationPickerComponent({
             {t('map.locationPicker') || 'Location Picker'}
           </CardTitle>
           {showControls && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Layers className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {TILE_LAYER_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => setTileLayer(option.value)}
-                    className={cn(tileLayer === option.value && 'bg-muted')}
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-1">
+              <Button
+                variant={showLightPollution ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setShowLightPollution(prev => !prev)}
+                title={t('map.lightPollution') || 'Light Pollution'}
+              >
+                <Sun className="h-4 w-4" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Layers className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {TILE_LAYER_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={() => setTileLayer(option.value)}
+                      className={cn(tileLayer === option.value && 'bg-muted')}
+                    >
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
       </CardHeader>

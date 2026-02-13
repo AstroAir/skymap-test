@@ -53,6 +53,7 @@ import { useLocations, tauriApi } from '@/lib/tauri';
 import { MapLocationPicker } from '@/components/starmap/map';
 import { createLogger } from '@/lib/logger';
 import { validateLocationForm } from '@/lib/core/management-validators';
+import { fetchElevation } from '@/lib/utils/map-utils';
 import type { WebLocation, LocationManagerProps } from '@/types/starmap/management';
 
 const logger = createLogger('location-manager');
@@ -302,12 +303,21 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   };
 
   const handleMapLocationSelect = (location: { coordinates: { latitude: number; longitude: number }; address?: string }) => {
-    setForm({
-      ...form,
+    setForm(prev => ({
+      ...prev,
       latitude: location.coordinates.latitude.toFixed(6),
       longitude: location.coordinates.longitude.toFixed(6),
-      name: form.name || location.address || `Location ${location.coordinates.latitude.toFixed(4)}, ${location.coordinates.longitude.toFixed(4)}`,
-    });
+      name: prev.name || location.address || `Location ${location.coordinates.latitude.toFixed(4)}, ${location.coordinates.longitude.toFixed(4)}`,
+    }));
+
+    // Auto-fetch elevation for the selected location
+    if (!form.altitude) {
+      fetchElevation(location.coordinates.latitude, location.coordinates.longitude).then(elevation => {
+        if (elevation !== null) {
+          setForm(prev => ({ ...prev, altitude: prev.altitude || Math.round(elevation).toString() }));
+        }
+      });
+    }
   };
 
   const resetForm = () => {

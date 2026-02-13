@@ -55,10 +55,14 @@ import { AppearanceSettings } from './appearance-settings';
 import { GeneralSettings } from './general-settings';
 import { PerformanceSettings } from './performance-settings';
 import { AccessibilitySettings } from './accessibility-settings';
+import { NotificationSettings } from './notification-settings';
+import { SearchBehaviorSettings } from './search-settings';
+import { KeyboardSettings } from './keyboard-settings';
 import { AboutSettings } from './about-settings';
 import { DataManager } from '../management/data-manager';
-import { SetupWizardButton } from '../setup-wizard';
+import { OnboardingRestartButton } from '../onboarding/welcome-dialog';
 import { EventSourcesSettings } from './event-sources-settings';
+import { SettingsExportImport } from './settings-export-import';
 import { UpdateSettings } from '../management/updater/update-settings';
 import { isTauri } from '@/lib/tauri/app-control-api';
 
@@ -192,7 +196,7 @@ export function UnifiedSettings() {
             </ScrollArea>
           </TabsContent>
 
-          {/* Preferences Tab — includes general, appearance, performance, accessibility */}
+          {/* Preferences Tab — includes general, appearance, performance, accessibility, notifications, search, keyboard */}
           <TabsContent value="preferences" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4 space-y-4">
@@ -202,7 +206,13 @@ export function UnifiedSettings() {
                 <Separator />
                 <PerformanceSettings />
                 <Separator />
+                <NotificationSettings />
+                <Separator />
+                <SearchBehaviorSettings />
+                <Separator />
                 <AccessibilitySettings />
+                <Separator />
+                <KeyboardSettings />
                 <Separator />
                 <EventSourcesSettings />
                 {isTauri() && (
@@ -237,13 +247,15 @@ export function UnifiedSettings() {
                   } 
                 />
                 <Separator className="my-4" />
+                <SettingsExportImport />
+                <Separator className="my-4" />
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">{t('setupWizard.steps.welcome.title')}</h3>
                   <p className="text-xs text-muted-foreground">
                     {t('onboarding.welcome.subtitle')}
                   </p>
                 </div>
-                <SetupWizardButton variant="outline" className="w-full" />
+                <OnboardingRestartButton variant="outline" className="w-full" />
               </div>
             </ScrollArea>
           </TabsContent>

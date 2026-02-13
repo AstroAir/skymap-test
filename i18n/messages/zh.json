@@ -29,6 +29,7 @@
     "copy": "复制",
     "copied": "已复制",
     "share": "分享",
+    "undo": "撤销",
     "refresh": "刷新",
     "percent": "%",
     "pixels": "像素",
@@ -386,6 +387,9 @@
     "sensorControlPermission": "点击启用设备方向",
     "constellationArt": "星座图案",
     "constellationArtDescription": "显示星座艺术图",
+    "constellationLabels": "星座名称标签",
+    "starLabels": "恒星名称标签",
+    "planetLabels": "行星名称标签",
     "viewModes": "视图模式",
     "connection": "连接设置",
     "protocol": "协议",
@@ -530,7 +534,41 @@
       "low": "低",
       "medium": "中",
       "high": "高"
-    }
+    },
+    "searchPlaceholder": "搜索目标...",
+    "noMatchingTargets": "无匹配目标",
+    "clearFilters": "清除筛选",
+    "filterByStatus": "按状态筛选",
+    "filterByPriority": "按优先级筛选",
+    "sortByLabel": "排序方式",
+    "sort": {
+      "manual": "手动排序",
+      "name": "名称",
+      "priority": "优先级",
+      "status": "状态",
+      "addedAt": "添加时间",
+      "ascending": "升序",
+      "descending": "降序"
+    },
+    "archive": "归档",
+    "unarchive": "取消归档",
+    "archiveSelected": "归档选中",
+    "addTagLabel": "添加标签",
+    "removeTagLabel": "移除标签",
+    "targetRemoved": "已移除 {name}",
+    "duplicateWarning": "「{name}」已在清单中",
+    "addAnyway": "仍然添加"
+  },
+  "targetDetail": {
+    "notes": "备注",
+    "notesPlaceholder": "观测备注、天气条件等",
+    "tags": "标签",
+    "newTag": "新标签...",
+    "exposurePlan": "曝光计划",
+    "singleExposure": "单帧 (秒)",
+    "totalExposure": "总计 (分)",
+    "subFrames": "子帧数",
+    "filter": "滤镜"
   },
   "observationLog": {
     "title": "观测日志",
@@ -775,7 +813,58 @@
     "disableAutoSync": "禁用自动同步",
     "disconnected": "未连接",
     "altitude": "高度",
-    "azimuth": "方位"
+    "azimuth": "方位",
+    "connectionSettings": "连接设置",
+    "connected": "已连接",
+    "connect": "连接",
+    "disconnect": "断开连接",
+    "protocol": "协议",
+    "simulator": "模拟器",
+    "host": "主机",
+    "port": "端口",
+    "deviceId": "设备 ID",
+    "discoverDevices": "发现设备",
+    "cancel": "取消",
+    "notDesktop": "赤道仪控制需要桌面应用",
+    "notConnectedWarning": "赤道仪未连接",
+    "mountParkedWarning": "赤道仪已归位 — 请先解除归位再指向",
+    "slewing": "指向中",
+    "parked": "已归位",
+    "startTracking": "开始跟踪",
+    "stopTracking": "停止跟踪",
+    "park": "归位",
+    "unpark": "解除归位",
+    "abortSlew": "紧急停止",
+    "slewConfirm": "确认指向",
+    "slewConfirmDescription": "指向前请检查目标和安全状态",
+    "safetyClear": "未发现安全问题",
+    "startSlew": "指向目标",
+    "slewAnyway": "仍然指向",
+    "north": "北",
+    "south": "南",
+    "east": "东",
+    "west": "西",
+    "stop": "停止",
+    "rate": {
+      "sidereal": "恒星速",
+      "lunar": "月球速",
+      "solar": "太阳速",
+      "stopped": "已停止"
+    },
+    "pier": {
+      "east": "东侧",
+      "west": "西侧"
+    },
+    "safetyIssues": {
+      "meridian_flip": "观测期间需要子午线翻转",
+      "hour_angle_limit": "目标超出时角限制",
+      "dec_limit": "目标超出赤纬限制",
+      "below_horizon": "目标低于最低高度",
+      "counterweight_up": "存在配重朝上风险",
+      "cable_wrap": "检测到缠线风险",
+      "pier_collision": "存在撞柱风险",
+      "slew_through_pole": "指向路径经过天极"
+    }
   },
   "cache": {
     "offlineCache": "离线缓存",
@@ -968,7 +1057,26 @@
     "hide": "隐藏",
     "showAll": "显示所有标注",
     "hideAll": "隐藏所有标注",
-    "addMarkerHere": "在此添加标注"
+    "addMarkerHere": "在此添加标注",
+    "contextMenu": "标注快捷菜单",
+    "showLabels": "显示标签",
+    "hideLabels": "隐藏标签",
+    "size": "大小",
+    "search": "搜索标注...",
+    "sortBy": "排序方式",
+    "sortByName": "名称",
+    "sortByDate": "创建时间",
+    "sortByRA": "赤经",
+    "renameGroup": "重命名分组",
+    "deleteGroup": "删除分组",
+    "deleteGroupDescription": "该分组中的标注将移至默认分组。",
+    "newGroupName": "新分组名称",
+    "exportMarkers": "导出标注",
+    "importMarkers": "导入标注",
+    "exportSuccess": "标注导出成功",
+    "importSuccess": "标注导入成功（{count} 个标注）",
+    "importError": "导入标注失败",
+    "maxMarkersReached": "已达到标注数量上限（{max}）。请先删除部分标注再添加新标注。"
   },
   "events": {
     "calendar": "天文事件",
@@ -1279,6 +1387,7 @@
     "searchFailed": "搜索失败",
     "providerUnavailable": "地图服务不可用",
     "layers": "图层",
+    "lightPollution": "光污染叠加层",
     "latitude": "纬度",
     "longitude": "经度",
     "recentSearches": "最近搜索",
@@ -1459,10 +1568,17 @@
     "skip": "跳过",
     "finish": "完成",
     "restartTour": "重新开始引导",
+    "transition": {
+      "description": "设置已完成！要来一个快速的界面导览吗？",
+      "startTour": "继续功能导览",
+      "skipTour": "自行探索"
+    },
     "welcome": {
       "title": "欢迎使用 SkyMap",
       "subtitle": "您的专属宇宙之窗，让我们带您快速了解！",
       "startTour": "开始引导",
+      "startSetup": "开始设置",
+      "skipToTour": "跳过设置，直接导览",
       "skipTour": "暂时跳过",
       "dontShowAgain": "不再显示此提示",
       "features": {
@@ -1795,7 +1911,69 @@
     "noSolversDetected": "未检测到解析器。点击刷新重新扫描。",
     "localSolverFallback": "本地解析器",
     "autoPlaceholder": "0 = 自动",
-    "indexPathNotAvailable": "索引路径不可用"
+    "indexPathNotAvailable": "索引路径不可用",
+    "astapDatabases": "ASTAP 数据库",
+    "astapDatabasesDesc": "管理 ASTAP 星表数据库用于解析",
+    "databaseName": "数据库",
+    "databaseFov": "视场范围",
+    "databaseSize": "大小",
+    "databaseInstalled": "已安装",
+    "databaseNotInstalled": "未安装",
+    "databaseRecommended": "推荐用于您的视场",
+    "downloadDatabase": "下载",
+    "imageAnalysis": "图像分析",
+    "imageAnalysisDesc": "使用 ASTAP 分析图像质量",
+    "analyseImage": "分析图像",
+    "analysing": "分析中...",
+    "medianHfd": "中位 HFD",
+    "starCount": "星数",
+    "background": "背景",
+    "hfdUnit": "像素",
+    "noStarsDetected": "未检测到星点",
+    "extractStars": "提取星点",
+    "extractingStars": "提取星点中...",
+    "includeCoordinates": "包含赤经/赤纬",
+    "snrMinimum": "最低信噪比",
+    "onlineSolving": "在线解析",
+    "onlineSolvingDesc": "使用 Astrometry.net 在线服务解析",
+    "authenticating": "认证中...",
+    "uploadingImage": "上传图像中...",
+    "waitingForJob": "等待任务...",
+    "solvingOnline": "解析中...",
+    "fetchingResults": "获取结果中...",
+    "solveComplete": "解析完成！",
+    "objectsInField": "视场内天体",
+    "annotations": "标注",
+    "orientation": "方位角",
+    "parity": "奇偶性",
+    "jobId": "任务 ID",
+    "publiclyVisible": "公开可见",
+    "publiclyVisibleDesc": "在 Astrometry.net 上公开显示提交",
+    "scaleEstimate": "比例估计",
+    "scaleError": "比例误差",
+    "tweakOrder": "微调阶数",
+    "telescopeInfo": "望远镜信息",
+    "focalLength": "焦距",
+    "aperture": "口径",
+    "focalRatio": "焦比",
+    "cameraInfo": "相机信息",
+    "pixelSize": "像素大小",
+    "binning": "像素合并",
+    "bayerPattern": "拜耳阵列",
+    "siteInfo": "观测站信息",
+    "latitude": "纬度",
+    "longitude": "经度",
+    "elevation": "海拔",
+    "processingInfo": "处理信息",
+    "software": "软件",
+    "stackCount": "叠加帧数",
+    "calibration": "校准",
+    "wcsTransform": "WCS 变换",
+    "pixelToWorld": "像素 → 天球",
+    "worldToPixel": "天球 → 像素",
+    "fieldOfView": "视场",
+    "sipDistortion": "SIP 畸变",
+    "sipOrder": "SIP 阶数"
   },
   "geolocation": {
     "title": "设备定位",
@@ -1855,7 +2033,19 @@
       "imperial": "英制 (英里, 英尺)",
       "temperatureUnit": "温度单位",
       "celsius": "摄氏度 (°C)",
-      "fahrenheit": "华氏度 (°F)"
+      "fahrenheit": "华氏度 (°F)",
+      "startup": "启动",
+      "startupView": "启动视图",
+      "startupViewLast": "恢复上次视图",
+      "startupViewDefault": "默认视图",
+      "startupViewDesc": "应用启动时星图显示的内容",
+      "showSplash": "显示启动画面",
+      "showSplashDesc": "启动时显示加载动画",
+      "autoConnect": "自动连接后端",
+      "autoConnectDesc": "启动时自动连接后端服务",
+      "behavior": "行为",
+      "skipCloseConfirmation": "跳过关闭确认",
+      "skipCloseConfirmationDesc": "关闭应用时不弹出确认对话框"
     },
     "appearance": {
       "themeMode": "主题模式",
@@ -1913,6 +2103,80 @@
       "screenReader": "屏幕阅读器",
       "screenReaderOptimized": "屏幕阅读器优化",
       "screenReaderOptimizedDesc": "为屏幕阅读器优化界面"
+    },
+    "notifications": {
+      "general": "通知",
+      "enableToasts": "显示通知",
+      "enableToastsDesc": "为事件和状态变更显示提示通知",
+      "enableSounds": "音效",
+      "enableSoundsDesc": "为通知和警报播放音频反馈",
+      "duration": "显示时长",
+      "toastDuration": "通知持续时间",
+      "toastDurationDesc": "通知在屏幕上保持可见的时间",
+      "alerts": "警报类型",
+      "objectAlerts": "天体警报",
+      "objectAlertsDesc": "当重要天体变得可见时通知（如 ISS 过境、行星升起）",
+      "satelliteAlerts": "卫星警报",
+      "satelliteAlertsDesc": "卫星可见性和跟踪事件通知"
+    },
+    "search": {
+      "behavior": "搜索行为",
+      "fuzzySearch": "模糊搜索",
+      "fuzzySearchDesc": "允许天体名称的近似匹配（如 'andrmeda' → 仙女座）",
+      "includeMinorObjects": "包含小天体",
+      "includeMinorObjectsDesc": "在搜索结果中显示小行星、彗星和矮行星",
+      "resultsAndTiming": "结果与时机",
+      "autoSearchDelay": "自动搜索延迟",
+      "autoSearchDelayDesc": "输入时搜索前的延迟时间。较低值感觉更快但消耗更多资源",
+      "faster": "更快",
+      "slower": "更慢",
+      "maxResults": "最大结果数",
+      "history": "搜索历史",
+      "rememberHistory": "记住搜索历史",
+      "rememberHistoryDesc": "保存最近的搜索以便快速访问",
+      "maxHistoryItems": "最大历史条目数"
+    },
+    "keyboard": {
+      "title": "键盘快捷键",
+      "description": "点击快捷键来录入新的按键组合。更改会自动保存。",
+      "pressKey": "按下按键...",
+      "resetToDefault": "恢复默认",
+      "resetAll": "全部重置",
+      "resetAllDesc": "将所有键盘快捷键重置为默认值",
+      "conflict": "与以下操作冲突：{action}",
+      "navigation": "导航",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "resetView": "重置视图",
+      "toggles": "切换面板",
+      "toggleSearch": "切换搜索",
+      "toggleSessionPanel": "切换会话面板",
+      "toggleFov": "切换视场叠加",
+      "toggleConstellations": "切换星座线",
+      "toggleGrid": "切换网格",
+      "toggleDso": "切换深空天体",
+      "toggleAtmosphere": "切换大气层",
+      "timeControl": "时间控制",
+      "pauseTime": "暂停时间",
+      "speedUp": "加速时间",
+      "slowDown": "减速时间",
+      "resetTime": "重置时间",
+      "other": "其他",
+      "closePanel": "关闭面板"
+    },
+    "exportImport": {
+      "title": "设置备份",
+      "description": "将设置导出到文件，或从之前的备份中导入",
+      "export": "导出设置",
+      "import": "导入设置",
+      "importSuccess": "设置导入成功！",
+      "invalidFile": "无效的设置文件格式",
+      "parseError": "无法解析设置文件",
+      "importError": "导入设置失败",
+      "confirmTitle": "导入设置",
+      "confirmDescription": "这将用导入的设置替换您当前的设置。此操作无法撤销。",
+      "confirmImport": "导入",
+      "exportedAt": "导出时间"
     },
     "about": {
       "appInfo": "应用信息",
@@ -1992,6 +2256,8 @@
     "history": "导航历史",
     "viewHistory": "查看历史",
     "clearHistory": "清除历史",
+    "confirmClearHistory": "确定要清除所有导航历史吗？",
+    "confirmClearTitle": "清除历史",
     "noHistory": "暂无导航历史",
     "historyCount": "已访问 {count} 个位置",
     "justNow": "刚刚",
@@ -2042,7 +2308,9 @@
     "raLabel": "赤经",
     "decLabel": "赤纬",
     "fovLabel": "视场",
-    "saveBookmark": "保存书签"
+    "saveBookmark": "保存书签",
+    "confirmDelete": "确定要删除此书签吗？",
+    "confirmDeleteTitle": "删除书签"
   },
   "sessionPlanner": {
     "title": "观测计划",
@@ -2448,7 +2716,17 @@
     "debug": "调试",
     "info": "信息",
     "warn": "警告",
-    "error": "错误"
+    "error": "错误",
+    "pause": "暂停",
+    "resume": "恢复",
+    "pausedNewLogs": "暂停期间有 {count} 条新日志",
+    "scrollToBottom": "底部",
+    "timeRange": "时间范围",
+    "last5min": "5 分钟",
+    "last15min": "15 分钟",
+    "last1hr": "1 小时",
+    "allTime": "全部",
+    "groupDuplicates": "合并重复日志"
   },
   "landing": {
     "nav": {
@@ -2467,7 +2745,22 @@
       "learnMore": "了解更多",
       "learnMoreTooltip": "探索功能和特性",
       "poweredBy": "由 Stellarium Web Engine 提供支持",
+      "openSourceFree": "免费开源 · 跨平台桌面应用",
       "scrollToFeatures": "滚动到功能介绍"
+    },
+    "stats": {
+      "celestialObjects": {
+        "label": "天体数量"
+      },
+      "platforms": {
+        "label": "桌面平台"
+      },
+      "openSource": {
+        "label": "免费开源"
+      },
+      "languages": {
+        "label": "支持语言"
+      }
     },
     "features": {
       "title": "强大功能",
@@ -2505,6 +2798,23 @@
         "description": "完整支持中英文，更多语言即将推出"
       }
     },
+    "gettingStarted": {
+      "title": "几分钟即可上手",
+      "subtitle": "三个简单步骤开启你的天文之旅",
+      "launch": {
+        "title": "启动应用",
+        "description": "在浏览器中打开 SkyMap，或下载 Windows、macOS 或 Linux 桌面应用。"
+      },
+      "setup": {
+        "title": "设置位置",
+        "description": "配置观测地点和设备参数，获得精确的星空渲染。"
+      },
+      "observe": {
+        "title": "开始观测",
+        "description": "探索夜空，规划观测计划，捕捉令人惊叹的天文摄影目标。"
+      },
+      "cta": "立即开始"
+    },
     "screenshots": {
       "title": "功能展示",
       "subtitle": "探索专为天文爱好者设计的直观界面",
@@ -2541,6 +2851,25 @@
         "shadcnui": "精美的 UI 组件"
       }
     },
+    "testimonials": {
+      "title": "深受天文爱好者喜爱",
+      "subtitle": "看看我们的社区对 SkyMap 的评价",
+      "astronomer": {
+        "name": "陈明",
+        "role": "业余天文爱好者",
+        "quote": "SkyMap 彻底改变了我的观测体验。规划工具和实时星空渲染让寻找和跟踪天体变得如此简单。"
+      },
+      "photographer": {
+        "name": "林雪",
+        "role": "天文摄影师",
+        "quote": "视场模拟器和马赛克拼接规划功能令人惊叹。我可以在架设望远镜之前就规划好整个拍摄计划。"
+      },
+      "beginner": {
+        "name": "王浩",
+        "role": "观星爱好者",
+        "quote": "作为初学者，SkyMap 让天文学变得触手可及。今晚推荐功能总能给我带来令人惊叹的观测目标。"
+      }
+    },
     "cta": {
       "title": "开启你的天文之旅",
       "description": "无论你是初学者还是经验丰富的天文爱好者，SkyMap 都能满足你探索星空的一切需求。",
@@ -2557,13 +2886,17 @@
       "githubTooltip": "在 GitHub 上查看源代码",
       "stellarium": "Stellarium",
       "stellariumTooltip": "访问 Stellarium 官方网站",
+      "community": "社区",
+      "discussions": "讨论区",
+      "reportIssue": "反馈问题",
       "credits": "数据来源",
       "stellariumEngine": "Stellarium Web Engine",
       "gaiaData": "ESA 盖亚任务",
       "dssImages": "数字化巡天",
       "allRightsReserved": "保留所有权利。",
       "madeWith": "用",
-      "forAstronomers": "为天文爱好者制作"
+      "forAstronomers": "为天文爱好者制作",
+      "backToTop": "回到顶部"
     }
   }
 }

@@ -57,10 +57,12 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       results,
       groupedResults,
       isSearching,
+      isOnlineSearching,
       selectedIds,
       filters,
       sortBy,
       recentSearches,
+      onlineAvailable,
       setQuery,
       clearSearch,
       toggleSelection,
@@ -370,10 +372,12 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         )}
 
         {/* Loading indicator */}
-        {isSearching && (
+        {(isSearching || isOnlineSearching) && (
           <div className="flex items-center justify-center py-2">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-xs text-muted-foreground">{t('common.loading')}</span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              {isOnlineSearching ? t('search.searchingOnline', { defaultValue: 'Searching online...' }) : t('common.loading')}
+            </span>
           </div>
         )}
 
@@ -383,6 +387,15 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
             <span>{t('search.foundResults', { count: searchStats.totalResults })}</span>
             <span className="text-muted-foreground/50">•</span>
             <span>{searchStats.searchTimeMs}ms</span>
+            {onlineAvailable && (
+              <>
+                <span className="text-muted-foreground/50">•</span>
+                <span className="flex items-center gap-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                  {t('search.onlineLabel', { defaultValue: 'Online' })}
+                </span>
+              </>
+            )}
           </div>
         )}
 

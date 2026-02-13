@@ -67,7 +67,7 @@ export function useStellariumZoom({
       if (!stelRef.current) return;
       
       const currentFovDeg = fovToDeg(stelRef.current.core.fov) || DEFAULT_FOV;
-      const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+      const zoomFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
       const newFovDeg = currentFovDeg * zoomFactor;
       setEngineFov(newFovDeg);
     };

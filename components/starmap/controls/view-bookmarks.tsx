@@ -37,6 +37,16 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -82,10 +92,10 @@ export const ViewBookmarks = memo(function ViewBookmarks({
   const [editingBookmark, setEditingBookmark] = useState<ViewBookmark | null>(null);
   
   // Form state for new/edit bookmark
-  const [formName, setFormName] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formColor, setFormColor] = useState<string>(BOOKMARK_COLORS[4]);
-  const [formIcon, setFormIcon] = useState<BookmarkIcon>('star');
+  const defaultForm = { name: '', description: '', color: BOOKMARK_COLORS[4] as string, icon: 'star' as BookmarkIcon };
+  const [form, setForm] = useState(defaultForm);
+  const updateForm = useCallback((patch: Partial<typeof defaultForm>) => setForm(prev => ({ ...prev, ...patch })), []);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const {
     bookmarks,
@@ -97,51 +107,42 @@ export const ViewBookmarks = memo(function ViewBookmarks({
 
   const handleAddBookmark = useCallback(() => {
     setEditingBookmark(null);
-    setFormName('');
-    setFormDescription('');
-    setFormColor(BOOKMARK_COLORS[4]);
-    setFormIcon('star');
+    setForm(defaultForm);
     setEditDialogOpen(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleEditBookmark = useCallback((bookmark: ViewBookmark) => {
     setEditingBookmark(bookmark);
-    setFormName(bookmark.name);
-    setFormDescription(bookmark.description || '');
-    setFormColor(bookmark.color || BOOKMARK_COLORS[4] as string);
-    setFormIcon(bookmark.icon || 'star');
+    setForm({
+      name: bookmark.name,
+      description: bookmark.description || '',
+      color: bookmark.color || BOOKMARK_COLORS[4] as string,
+      icon: bookmark.icon || 'star',
+    });
     setEditDialogOpen(true);
   }, []);
 
   const handleSaveBookmark = useCallback(() => {
-    if (!formName.trim()) return;
+    if (!form.name.trim()) return;
+
+    const data = {
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      color: form.color,
+      icon: form.icon,
+    };
 
     if (editingBookmark) {
-      updateBookmark(editingBookmark.id, {
-        name: formName.trim(),
-        description: formDescription.trim() || undefined,
-        color: formColor,
-        icon: formIcon,
-      });
+      updateBookmark(editingBookmark.id, data);
     } else {
-      addBookmark({
-        name: formName.trim(),
-        description: formDescription.trim() || undefined,
-        ra: currentRa,
-        dec: currentDec,
-        fov: currentFov,
-        color: formColor,
-        icon: formIcon,
-      });
+      addBookmark({ ...data, ra: currentRa, dec: currentDec, fov: currentFov });
     }
 
     setEditDialogOpen(false);
   }, [
     editingBookmark,
-    formName,
-    formDescription,
-    formColor,
-    formIcon,
+    form,
     currentRa,
     currentDec,
     currentFov,
@@ -283,7 +284,7 @@ export const ViewBookmarks = memo(function ViewBookmarks({
                               className="text-destructive focus:text-destructive"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                removeBookmark(bookmark.id);
+                                setDeleteConfirmId(bookmark.id);
                               }}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -325,8 +326,8 @@ export const ViewBookmarks = memo(function ViewBookmarks({
               <Label htmlFor="name">{t('bookmarks.name')}</Label>
               <Input
                 id="name"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
+                value={form.name}
+                onChange={(e) => updateForm({ name: e.target.value })}
                 placeholder={t('bookmarks.namePlaceholder')}
               />
             </div>
@@ -335,8 +336,8 @@ export const ViewBookmarks = memo(function ViewBookmarks({
               <Label htmlFor="description">{t('bookmarks.description')}</Label>
               <Textarea
                 id="description"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
+                value={form.description}
+                onChange={(e) => updateForm({ description: e.target.value })}
                 placeholder={t('bookmarks.descriptionPlaceholder')}
                 rows={2}
               />
@@ -350,10 +351,10 @@ export const ViewBookmarks = memo(function ViewBookmarks({
                   return (
                     <Button
                       key={icon}
-                      variant={formIcon === icon ? 'default' : 'outline'}
+                      variant={form.icon === icon ? 'default' : 'outline'}
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => setFormIcon(icon)}
+                      onClick={() => updateForm({ icon })}
                     >
                       <IconComp className="h-4 w-4" />
                     </Button>
@@ -370,12 +371,12 @@ export const ViewBookmarks = memo(function ViewBookmarks({
                     key={color}
                     className={cn(
                       'h-6 w-6 rounded-full border-2 transition-transform',
-                      formColor === color
+                      form.color === color
                         ? 'border-foreground scale-110'
                         : 'border-transparent hover:scale-105'
                     )}
                     style={{ backgroundColor: color }}
-                    onClick={() => setFormColor(color)}
+                    onClick={() => updateForm({ color })}
                   />
                 ))}
               </div>
@@ -394,12 +395,34 @@ export const ViewBookmarks = memo(function ViewBookmarks({
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               {t('common.cancel')}
             </Button>
-            <Button onClick={handleSaveBookmark} disabled={!formName.trim()}>
+            <Button onClick={handleSaveBookmark} disabled={!form.name.trim()}>
               {editingBookmark ? t('common.save') : t('bookmarks.saveBookmark')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('bookmarks.confirmDeleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('bookmarks.confirmDelete')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmId) removeBookmark(deleteConfirmId);
+                setDeleteConfirmId(null);
+              }}
+            >
+              {t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 });

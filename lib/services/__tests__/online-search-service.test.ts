@@ -182,4 +182,91 @@ describe('online-search-service', () => {
       expect(mockResponse.sources).toContain('sesame');
     });
   });
+
+  describe('signal support', () => {
+    it('should accept signal option without error', async () => {
+      const controller = new AbortController();
+      const mockResponse = createMockResponse(`
+        <Sesame>
+          <Resolver>
+            <oname>M 42</oname>
+            <jpos>83.8221 -5.3911</jpos>
+          </Resolver>
+        </Sesame>
+      `);
+      mockSmartFetch.mockResolvedValue(mockResponse as FetchResponse);
+
+      const result = await searchOnlineByName('M42', {
+        sources: ['sesame'],
+        signal: controller.signal,
+      });
+
+      expect(result.results.length).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('deduplication', () => {
+    it('should deduplicate results with close coordinates', async () => {
+      // Sesame returns one result
+      const mockResponse = createMockResponse(`
+        <Sesame>
+          <Resolver>
+            <oname>M 31</oname>
+            <jpos>10.6847 41.2689</jpos>
+            <otype>G</otype>
+          </Resolver>
+          <Resolver>
+            <oname>Andromeda Galaxy</oname>
+            <jpos>10.6848 41.2690</jpos>
+            <otype>G</otype>
+          </Resolver>
+        </Sesame>
+      `);
+      mockSmartFetch.mockResolvedValue(mockResponse as FetchResponse);
+
+      const result = await searchOnlineByName('M31', { sources: ['sesame'] });
+
+      // Should deduplicate close coordinates (within 0.001 deg)
+      expect(result.results.length).toBe(1);
+      // Alternate name should be merged
+      expect(result.results[0].alternateNames).toContain('Andromeda Galaxy');
+    });
+  });
+
+  describe('availability checks', () => {
+    it('should check all four sources', async () => {
+      mockSmartFetch.mockResolvedValue({ ok: true } as FetchResponse);
+
+      const result = await checkOnlineSearchAvailability();
+
+      expect(result).toHaveProperty('sesame');
+      expect(result).toHaveProperty('simbad');
+      expect(result).toHaveProperty('vizier');
+      expect(result).toHaveProperty('ned');
+      expect(result.local).toBe(true);
+    });
+  });
+
+  describe('retry behavior', () => {
+    it('should retry on network error and succeed on second attempt', async () => {
+      const mockResponse = createMockResponse(`
+        <Sesame>
+          <Resolver>
+            <oname>M 1</oname>
+            <jpos>83.6331 22.0145</jpos>
+          </Resolver>
+        </Sesame>
+      `);
+
+      mockSmartFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce(mockResponse as FetchResponse);
+
+      const result = await searchOnlineByName('M1', { sources: ['sesame'] });
+
+      // Should have called smartFetch at least twice (retry)
+      expect(mockSmartFetch.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(result.sources).toContain('sesame');
+    });
+  });
 });

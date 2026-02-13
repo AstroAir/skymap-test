@@ -4,6 +4,12 @@ import { useState, useCallback, useRef, useMemo, useEffect, useTransition } from
 import { useStellariumStore } from '@/lib/stores';
 import type { SearchResultItem } from '@/lib/core/types';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
+import { useSearchStore } from '@/lib/stores/search-store';
+import {
+  searchOnlineByName,
+  checkOnlineSearchAvailability,
+  type OnlineSearchResult,
+} from '@/lib/services/online-search-service';
 import { 
   CELESTIAL_BODIES,
   POPULAR_DSOS,
@@ -124,9 +130,11 @@ export interface SearchState {
   query: string;
   results: SearchResultItem[];
   isSearching: boolean;
+  isOnlineSearching: boolean;
   selectedIds: Set<string>;
   filters: SearchFilters;
   sortBy: SortOption;
+  onlineAvailable: boolean;
 }
 
 export interface UseObjectSearchReturn {
@@ -135,11 +143,13 @@ export interface UseObjectSearchReturn {
   results: SearchResultItem[];
   groupedResults: Map<string, SearchResultItem[]>;
   isSearching: boolean;
+  isOnlineSearching: boolean;
   selectedIds: Set<string>;
   filters: SearchFilters;
   sortBy: SortOption;
   recentSearches: string[];
   searchStats: SearchStats | null;
+  onlineAvailable: boolean;
   
   // Actions
   setQuery: (query: string) => void;
@@ -171,15 +181,54 @@ const MAX_RESULTS = 50;
 const MAX_RECENT = 8;
 const FUZZY_THRESHOLD = 0.3; // Minimum score to include in results
 
+// Convert online search result to SearchResultItem for unified display
+function onlineResultToSearchItem(result: OnlineSearchResult): SearchResultItem {
+  const typeMap: Record<string, string> = {
+    galaxy: 'DSO',
+    nebula: 'DSO',
+    cluster: 'DSO',
+    star: 'Star',
+    planet: 'Planet',
+    comet: 'Comet',
+    asteroid: 'DSO',
+    quasar: 'DSO',
+    other: 'DSO',
+  };
+  
+  return {
+    Name: result.name,
+    Type: typeMap[result.category] || 'DSO',
+    RA: result.ra,
+    Dec: result.dec,
+    'Common names': result.alternateNames?.join(', '),
+    Magnitude: result.magnitude,
+    Size: result.angularSize,
+    _isOnlineResult: true,
+    _onlineSource: result.source,
+  } as SearchResultItem;
+}
+
 
 export function useObjectSearch(): UseObjectSearchReturn {
   const stel = useStellariumStore((state) => state.stel);
   const targets = useTargetListStore((state) => state.targets);
   
+  // Search store integration for online search
+  const {
+    currentSearchMode,
+    settings: searchSettings,
+    getEnabledSources,
+    addRecentSearch: addStoreRecentSearch,
+    getRecentSearches,
+    clearRecentSearches: clearStoreRecentSearches,
+    updateAllOnlineStatus,
+  } = useSearchStore();
+  
   const [state, setState] = useState<SearchState>({
     query: '',
     results: [],
     isSearching: false,
+    isOnlineSearching: false,
     selectedIds: new Set(),
     filters: {
       types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'TargetList', 'Constellation'],
@@ -190,30 +239,34 @@ export function useObjectSearch(): UseObjectSearchReturn {
       searchRadius: 5,
     },
     sortBy: 'relevance',
+    onlineAvailable: true,
   });
   
   const [searchStats, setSearchStats] = useState<SearchStats | null>(null);
-  
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const stored = localStorage.getItem('starmap-recent-searches');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
   
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [, startTransition] = useTransition();
   
-  // Save recent searches to localStorage
+  // Refs to avoid stale closure
+  const searchModeRef = useRef(currentSearchMode);
+  const onlineAvailableRef = useRef(true);
+  const filtersRef = useRef(state.filters);
+  
+  useEffect(() => { searchModeRef.current = currentSearchMode; }, [currentSearchMode]);
+  useEffect(() => { onlineAvailableRef.current = state.onlineAvailable; }, [state.onlineAvailable]);
+  useEffect(() => { filtersRef.current = state.filters; }, [state.filters]);
+  
+  // Check online availability on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('starmap-recent-searches', JSON.stringify(recentSearches));
-    }
-  }, [recentSearches]);
+    checkOnlineSearchAvailability().then((status) => {
+      updateAllOnlineStatus(status);
+      const anyOnline = Object.values(status).some(v => v);
+      setState(prev => ({ ...prev, onlineAvailable: anyOnline }));
+    }).catch(() => {
+      setState(prev => ({ ...prev, onlineAvailable: false }));
+    });
+  }, [updateAllOnlineStatus]);
   
   // Cleanup on unmount
   useEffect(() => {
@@ -238,7 +291,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
     abortControllerRef.current = new AbortController();
     
     if (!query.trim()) {
-      setState(prev => ({ ...prev, results: [], isSearching: false }));
+      setState(prev => ({ ...prev, results: [], isSearching: false, isOnlineSearching: false }));
       setSearchStats(null);
       return;
     }
@@ -397,33 +450,96 @@ export function useObjectSearch(): UseObjectSearchReturn {
       })
       .slice(0, MAX_RESULTS);
     
-    // Calculate search statistics
-    const endTime = performance.now();
+    // Calculate search statistics for local results
+    const localEndTime = performance.now();
     const resultsByType: Record<string, number> = {};
     for (const result of sortedResults) {
       const type = result.Type || 'Unknown';
       resultsByType[type] = (resultsByType[type] || 0) + 1;
     }
     
-    setSearchStats({
-      totalResults: sortedResults.length,
-      resultsByType,
-      searchTimeMs: Math.round(endTime - startTime),
-    });
-    
+    // Show local results immediately
     setState(prev => ({
       ...prev,
       results: sortedResults,
       isSearching: false,
     }));
-  }, [stel, targets]);
+    
+    setSearchStats({
+      totalResults: sortedResults.length,
+      resultsByType,
+      searchTimeMs: Math.round(localEndTime - startTime),
+    });
+    
+    // Fire online search if mode is hybrid/online
+    const currentMode = searchModeRef.current;
+    const isOnlineAvailable = onlineAvailableRef.current;
+    const shouldSearchOnline = 
+      (currentMode === 'hybrid' || currentMode === 'online') &&
+      isOnlineAvailable &&
+      query.length >= 2;
+    
+    if (shouldSearchOnline) {
+      setState(prev => ({ ...prev, isOnlineSearching: true }));
+      
+      try {
+        const enabledSources = getEnabledSources().filter(s => s !== 'local');
+        const signal = abortControllerRef.current?.signal;
+        
+        const onlineResponse = await searchOnlineByName(query, {
+          sources: enabledSources.length > 0 ? enabledSources : ['sesame', 'simbad'],
+          limit: MAX_RESULTS,
+          timeout: searchSettings.timeout,
+          signal,
+        });
+        
+        // Convert online results to SearchResultItem and merge
+        const onlineItems = onlineResponse.results.map(onlineResultToSearchItem);
+        const existingNames = new Set(sortedResults.map(r => r.Name.toLowerCase()));
+        const newOnlineItems: SearchResultItem[] = [];
+        
+        for (const item of onlineItems) {
+          if (!existingNames.has(item.Name.toLowerCase())) {
+            existingNames.add(item.Name.toLowerCase());
+            newOnlineItems.push(item);
+          }
+        }
+        
+        if (newOnlineItems.length > 0) {
+          const mergedResults = [...sortedResults, ...newOnlineItems].slice(0, MAX_RESULTS + MAX_RESULTS);
+          
+          // Recalculate stats
+          const mergedResultsByType: Record<string, number> = {};
+          for (const result of mergedResults) {
+            const type = result.Type || 'Unknown';
+            mergedResultsByType[type] = (mergedResultsByType[type] || 0) + 1;
+          }
+          
+          setState(prev => ({
+            ...prev,
+            results: mergedResults,
+            isOnlineSearching: false,
+          }));
+          
+          setSearchStats({
+            totalResults: mergedResults.length,
+            resultsByType: mergedResultsByType,
+            searchTimeMs: Math.round(performance.now() - startTime),
+          });
+        } else {
+          setState(prev => ({ ...prev, isOnlineSearching: false }));
+        }
+      } catch (error) {
+        logger.debug('Online search error in unified hook', error);
+        setState(prev => ({ ...prev, isOnlineSearching: false }));
+      }
+    }
+    
+    // Record in store-based search history
+    addStoreRecentSearch(query, sortedResults.length, searchModeRef.current === 'local' ? 'local' : 'mixed');
+    
+  }, [stel, targets, getEnabledSources, searchSettings.timeout, addStoreRecentSearch]);
   
-  // Use ref to always have latest filters available in debounced callback
-  const filtersRef = useRef(state.filters);
-  useEffect(() => {
-    filtersRef.current = state.filters;
-  }, [state.filters]);
-
   // Debounced search with transition for smoother UI
   const search = useCallback((query: string) => {
     setState(prev => ({ ...prev, query }));
@@ -501,21 +617,19 @@ export function useObjectSearch(): UseObjectSearchReturn {
     setState(prev => ({ ...prev, sortBy: sort }));
   }, []);
   
-  // Recent searches
+  // Recent searches — unified via searchStore
   const addRecentSearch = useCallback((query: string) => {
     if (!query.trim()) return;
-    setRecentSearches(prev => {
-      const filtered = prev.filter(s => s !== query);
-      return [query, ...filtered].slice(0, MAX_RECENT);
-    });
-  }, []);
+    addStoreRecentSearch(query, 0, 'local');
+  }, [addStoreRecentSearch]);
   
   const clearRecentSearches = useCallback(() => {
-    setRecentSearches([]);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('starmap-recent-searches');
-    }
-  }, []);
+    clearStoreRecentSearches();
+  }, [clearStoreRecentSearches]);
+  
+  const recentSearches = useMemo(() => {
+    return getRecentSearches(MAX_RECENT).map(s => s.query);
+  }, [getRecentSearches]);
   
   // Grouped results by type
   const groupedResults = useMemo(() => {
@@ -561,10 +675,12 @@ export function useObjectSearch(): UseObjectSearchReturn {
     results: state.results,
     groupedResults,
     isSearching: state.isSearching,
+    isOnlineSearching: state.isOnlineSearching,
     selectedIds: state.selectedIds,
     filters: state.filters,
     sortBy: state.sortBy,
     recentSearches,
+    onlineAvailable: state.onlineAvailable,
     
     searchStats,
     

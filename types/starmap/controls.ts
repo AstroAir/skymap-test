@@ -18,31 +18,6 @@ export interface KeyboardShortcutsManagerProps {
 }
 
 // ============================================================================
-// MobileToolbar
-// ============================================================================
-
-export interface MobileToolbarProps {
-  onOpenSearch?: () => void;
-  onOpenMenu?: () => void;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
-  onResetView?: () => void;
-  onToggleFOV?: () => void;
-  onZoomToFov?: (fov: number) => void;
-  onOpenTargetList?: () => void;
-  currentFov?: number;
-  children?: React.ReactNode;
-  className?: string;
-}
-
-export interface MobileZoomControlProps {
-  currentFov: number;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
-  className?: string;
-}
-
-// ============================================================================
 // NavigationHistory
 // ============================================================================
 
@@ -59,37 +34,6 @@ export interface QuickActionsPanelProps {
   onZoomToFov?: (fov: number) => void;
   onResetView?: () => void;
   className?: string;
-}
-
-// ============================================================================
-// SidePanel
-// ============================================================================
-
-export interface SidePanelProps {
-  children?: React.ReactNode;
-  className?: string;
-  defaultCollapsed?: boolean;
-}
-
-export interface ToolButtonProps {
-  icon: React.ElementType;
-  label: string;
-  active?: boolean;
-  badge?: number;
-  onClick?: () => void;
-  disabled?: boolean;
-}
-
-export interface ZoomSectionProps {
-  currentFov: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFovChange?: (fov: number) => void;
-}
-
-export interface ToolSectionProps {
-  children: React.ReactNode;
-  title?: string;
 }
 
 // ============================================================================

@@ -9,8 +9,25 @@ import {
   formatPixelScale,
   formatExposure,
   isFITSFile,
+  isXISFFile,
   validateFITSFile,
+  generatePreviewImageData,
 } from '../fits-parser';
+import type { FITSPixelData } from '../fits-parser';
+
+// Polyfill ImageData for jsdom (not available by default)
+if (typeof globalThis.ImageData === 'undefined') {
+  (globalThis as Record<string, unknown>).ImageData = class ImageData {
+    width: number;
+    height: number;
+    data: Uint8ClampedArray;
+    constructor(sw: number, sh: number) {
+      this.width = sw;
+      this.height = sh;
+      this.data = new Uint8ClampedArray(sw * sh * 4);
+    }
+  };
+}
 
 // ============================================================================
 // Mock FITS Header Data
@@ -402,6 +419,178 @@ describe('FITS Parser', () => {
       const result = await parseFITSHeader(file);
       
       expect(result.header['CD1_1']).toBeCloseTo(0.0001234);
+    });
+  });
+
+  describe('Telescope Info Extraction', () => {
+    it('extracts telescope focal length and aperture', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "FOCALLEN=                  530 / Focal length in mm",
+        "APTDIA  =                  200 / Aperture diameter in mm",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.telescope).toBeDefined();
+      expect(result.telescope?.focalLength).toBe(530);
+      expect(result.telescope?.aperture).toBe(200);
+      expect(result.telescope?.focalRatio).toBeCloseTo(2.65, 1);
+    });
+
+    it('returns undefined telescope info when no telescope headers', async () => {
+      const file = createMockFITSFile(basicImageHeader);
+      const result = await parseFITSHeader(file);
+      expect(result.telescope).toBeUndefined();
+    });
+  });
+
+  describe('Camera Info Extraction', () => {
+    it('extracts camera pixel size and binning', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "XPIXSZ  =                3.76 / Pixel size X in microns",
+        "YPIXSZ  =                3.76 / Pixel size Y in microns",
+        "XBINNING=                    1 / X binning",
+        "YBINNING=                    1 / Y binning",
+        "BAYERPAT= 'RGGB'              / Bayer pattern",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.camera).toBeDefined();
+      expect(result.camera?.pixelSizeX).toBeCloseTo(3.76);
+      expect(result.camera?.pixelSizeY).toBeCloseTo(3.76);
+      expect(result.camera?.binningX).toBe(1);
+      expect(result.camera?.bayerPattern).toBe('RGGB');
+    });
+  });
+
+  describe('Site Info Extraction', () => {
+    it('extracts observation site coordinates', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "SITELAT =              40.748 / Site latitude",
+        "SITELONG=             -73.985 / Site longitude",
+        "SITEELEV=                  10 / Site elevation in meters",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.site).toBeDefined();
+      expect(result.site?.latitude).toBeCloseTo(40.748);
+      expect(result.site?.longitude).toBeCloseTo(-73.985);
+      expect(result.site?.elevation).toBe(10);
+    });
+  });
+
+  describe('Processing Info Extraction', () => {
+    it('extracts processing software and calibration status', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "SWCREATE= 'PixInsight'        / Software",
+        "STACKCNT=                   50 / Number of stacked frames",
+        "CALSTAT = 'BDF'               / Calibration status",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.processing).toBeDefined();
+      expect(result.processing?.software).toBe('PixInsight');
+      expect(result.processing?.stackCount).toBe(50);
+      expect(result.processing?.darkApplied).toBe(true);
+      expect(result.processing?.flatApplied).toBe(true);
+      expect(result.processing?.biasApplied).toBe(true);
+    });
+  });
+
+  describe('SIP Coefficients Extraction', () => {
+    it('extracts SIP polynomial coefficients', async () => {
+      const cards = [
+        ...wcsHeader,
+        "A_ORDER =                    2 / SIP polynomial order",
+        "B_ORDER =                    2 / SIP polynomial order",
+        "A_2_0   =          1.234E-07   / SIP coefficient",
+        "A_0_2   =          2.345E-07   / SIP coefficient",
+        "B_2_0   =         -1.234E-07   / SIP coefficient",
+        "B_0_2   =          1.111E-07   / SIP coefficient",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.sip).toBeDefined();
+      expect(result.sip?.aOrder).toBe(2);
+      expect(result.sip?.bOrder).toBe(2);
+      expect(result.sip?.a['A_2_0']).toBeCloseTo(1.234e-7);
+      expect(result.sip?.a['A_0_2']).toBeCloseTo(2.345e-7);
+      expect(result.sip?.b['B_2_0']).toBeCloseTo(-1.234e-7);
+    });
+
+    it('returns undefined SIP when no SIP headers', async () => {
+      const file = createMockFITSFile(wcsHeader);
+      const result = await parseFITSHeader(file);
+      expect(result.sip).toBeUndefined();
+    });
+  });
+
+  describe('XISF Detection', () => {
+    it('detects .xisf files', () => {
+      const file = new File([''], 'image.xisf');
+      expect(isXISFFile(file)).toBe(true);
+      expect(isFITSFile(file)).toBe(true);
+    });
+
+    it('rejects non-xisf files', () => {
+      const file = new File([''], 'image.fits');
+      expect(isXISFFile(file)).toBe(false);
+    });
+  });
+
+  describe('generatePreviewImageData', () => {
+    it('generates ImageData from pixel data with linear stretch', () => {
+      const pixelData: FITSPixelData = {
+        width: 4,
+        height: 4,
+        bitpix: -32,
+        data: new Float64Array([
+          0, 100, 200, 300,
+          400, 500, 600, 700,
+          800, 900, 1000, 1100,
+          1200, 1300, 1400, 1500,
+        ]),
+        min: 0,
+        max: 1500,
+        mean: 750,
+      };
+
+      const imageData = generatePreviewImageData(pixelData, 'linear', 0, 1);
+
+      expect(imageData.width).toBe(4);
+      expect(imageData.height).toBe(4);
+      expect(imageData.data.length).toBe(4 * 4 * 4); // RGBA
+      // First pixel should be ~0 (black)
+      expect(imageData.data[0]).toBe(0);
+      // Alpha should always be 255
+      expect(imageData.data[3]).toBe(255);
+    });
+
+    it('generates ImageData with asinh stretch', () => {
+      const pixelData: FITSPixelData = {
+        width: 2,
+        height: 2,
+        bitpix: 16,
+        data: new Float64Array([0, 500, 1000, 1500]),
+        min: 0,
+        max: 1500,
+        mean: 750,
+      };
+
+      const imageData = generatePreviewImageData(pixelData, 'asinh', 0, 1);
+      expect(imageData.width).toBe(2);
+      expect(imageData.height).toBe(2);
+      // All alpha channels should be 255
+      expect(imageData.data[3]).toBe(255);
+      expect(imageData.data[7]).toBe(255);
     });
   });
 });

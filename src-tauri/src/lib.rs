@@ -12,6 +12,7 @@ pub mod astronomy;
 pub mod data;
 pub mod cache;
 pub mod network;
+pub mod mount;
 pub mod utils;
 
 #[cfg(desktop)]
@@ -77,6 +78,15 @@ use network::{
     http_get, http_head, http_post, http_request, set_http_config,
 };
 
+use mount::{
+    mount_connect, mount_disconnect, mount_get_state, mount_get_capabilities,
+    mount_slew_to, mount_sync_to, mount_abort_slew,
+    mount_park, mount_unpark,
+    mount_set_tracking, mount_set_tracking_rate,
+    mount_move_axis, mount_stop_axis, mount_set_slew_rate,
+    mount_discover,
+};
+
 #[cfg(desktop)]
 use platform::{
     // App settings
@@ -88,10 +98,12 @@ use platform::{
     check_for_update, clear_pending_update, download_and_install_update, download_update,
     get_current_version, has_pending_update, install_update,
     // Plate solver
-    delete_index, detect_plate_solvers, download_index, get_available_indexes,
+    analyse_image, delete_index, detect_plate_solvers, download_index,
+    extract_stars, get_astap_databases, get_available_indexes,
     get_default_index_path, get_downloadable_indexes, get_installed_indexes,
     get_recommended_indexes, get_solver_indexes, get_solver_info, load_solver_config,
-    plate_solve, save_solver_config, solve_image_local, validate_solver_path,
+    plate_solve, recommend_astap_database, save_solver_config, solve_image_local,
+    solve_online, validate_solver_path,
 };
 
 #[cfg(desktop)]
@@ -294,6 +306,22 @@ pub fn run() {
             http_cancel_request,
             http_cancel_all_requests,
             http_batch_download,
+            // Mount control
+            mount_connect,
+            mount_disconnect,
+            mount_get_state,
+            mount_get_capabilities,
+            mount_slew_to,
+            mount_sync_to,
+            mount_abort_slew,
+            mount_park,
+            mount_unpark,
+            mount_set_tracking,
+            mount_set_tracking_rate,
+            mount_move_axis,
+            mount_stop_axis,
+            mount_set_slew_rate,
+            mount_discover,
             // Desktop-only commands
             #[cfg(desktop)]
             load_app_settings,
@@ -368,6 +396,17 @@ pub fn run() {
             save_solver_config,
             #[cfg(desktop)]
             load_solver_config,
+            // New plate solver commands
+            #[cfg(desktop)]
+            get_astap_databases,
+            #[cfg(desktop)]
+            recommend_astap_database,
+            #[cfg(desktop)]
+            analyse_image,
+            #[cfg(desktop)]
+            extract_stars,
+            #[cfg(desktop)]
+            solve_online,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

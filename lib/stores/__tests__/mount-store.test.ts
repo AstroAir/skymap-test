@@ -119,6 +119,158 @@ describe('useMountStore', () => {
     });
   });
 
+  describe('connectionConfig', () => {
+    it('should have default connection config', () => {
+      const { result } = renderHook(() => useMountStore());
+      expect(result.current.connectionConfig).toBeDefined();
+      expect(result.current.connectionConfig.protocol).toBe('simulator');
+      expect(result.current.connectionConfig.host).toBe('localhost');
+      expect(result.current.connectionConfig.port).toBe(11111);
+      expect(result.current.connectionConfig.deviceId).toBe(0);
+    });
+
+    it('should update connection config partially', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.setConnectionConfig({ host: '192.168.1.100', port: 8080 });
+      });
+      expect(result.current.connectionConfig.host).toBe('192.168.1.100');
+      expect(result.current.connectionConfig.port).toBe(8080);
+      expect(result.current.connectionConfig.protocol).toBe('simulator');
+    });
+
+    it('should update protocol to alpaca', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.setConnectionConfig({ protocol: 'alpaca' });
+      });
+      expect(result.current.connectionConfig.protocol).toBe('alpaca');
+    });
+  });
+
+  describe('capabilities', () => {
+    it('should have default capabilities (all false)', () => {
+      const { result } = renderHook(() => useMountStore());
+      expect(result.current.capabilities).toBeDefined();
+      expect(result.current.capabilities.canSlew).toBe(false);
+      expect(result.current.capabilities.canPark).toBe(false);
+      expect(result.current.capabilities.canSync).toBe(false);
+    });
+
+    it('should update capabilities', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.setCapabilities({
+          canSlew: true,
+          canSlewAsync: true,
+          canSync: true,
+          canPark: true,
+          canUnpark: true,
+          canSetTracking: true,
+          canMoveAxis: true,
+          canPulseGuide: false,
+          alignmentMode: 'GermanPolar',
+          equatorialSystem: 'J2000',
+        });
+      });
+      expect(result.current.capabilities.canSlew).toBe(true);
+      expect(result.current.capabilities.canPark).toBe(true);
+      expect(result.current.capabilities.alignmentMode).toBe('GermanPolar');
+    });
+  });
+
+  describe('applyMountState', () => {
+    it('should batch-update mount info from polling state', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.applyMountState({
+          connected: true,
+          ra: 120.5,
+          dec: 45.3,
+          tracking: true,
+          trackingRate: 'sidereal',
+          slewing: false,
+          parked: false,
+          atHome: false,
+          pierSide: 'west',
+          slewRateIndex: 3,
+        });
+      });
+      expect(result.current.mountInfo.Connected).toBe(true);
+      expect(result.current.mountInfo.Coordinates.RADegrees).toBe(120.5);
+      expect(result.current.mountInfo.Coordinates.Dec).toBe(45.3);
+      expect(result.current.mountInfo.Tracking).toBe(true);
+      expect(result.current.mountInfo.TrackMode).toBe('sidereal');
+      expect(result.current.mountInfo.Slewing).toBe(false);
+      expect(result.current.mountInfo.Parked).toBe(false);
+      expect(result.current.mountInfo.AtHome).toBe(false);
+      expect(result.current.mountInfo.PierSide).toBe('west');
+      expect(result.current.mountInfo.SlewRateIndex).toBe(3);
+    });
+
+    it('should handle slewing state', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.applyMountState({
+          connected: true,
+          ra: 90,
+          dec: 30,
+          tracking: false,
+          trackingRate: 'sidereal',
+          slewing: true,
+          parked: false,
+          atHome: false,
+          pierSide: 'east',
+          slewRateIndex: 5,
+        });
+      });
+      expect(result.current.mountInfo.Slewing).toBe(true);
+      expect(result.current.mountInfo.PierSide).toBe('east');
+    });
+  });
+
+  describe('resetMountInfo', () => {
+    it('should reset mount info and capabilities to defaults', () => {
+      const { result } = renderHook(() => useMountStore());
+      act(() => {
+        result.current.applyMountState({
+          connected: true,
+          ra: 100,
+          dec: 50,
+          tracking: true,
+          trackingRate: 'lunar',
+          slewing: true,
+          parked: false,
+          atHome: false,
+          pierSide: 'west',
+          slewRateIndex: 4,
+        });
+        result.current.setCapabilities({
+          canSlew: true,
+          canSlewAsync: true,
+          canSync: true,
+          canPark: true,
+          canUnpark: true,
+          canSetTracking: true,
+          canMoveAxis: true,
+          canPulseGuide: true,
+          alignmentMode: 'GermanPolar',
+          equatorialSystem: 'J2000',
+        });
+      });
+      expect(result.current.mountInfo.Connected).toBe(true);
+      expect(result.current.capabilities.canSlew).toBe(true);
+
+      act(() => {
+        result.current.resetMountInfo();
+      });
+      expect(result.current.mountInfo.Connected).toBe(false);
+      expect(result.current.mountInfo.Coordinates.RADegrees).toBe(0);
+      expect(result.current.mountInfo.Coordinates.Dec).toBe(0);
+      expect(result.current.capabilities.canSlew).toBe(false);
+    });
+  });
+
   describe('safetyConfig', () => {
     it('should have default safety config', () => {
       const { result } = renderHook(() => useMountStore());

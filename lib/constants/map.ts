@@ -35,6 +35,13 @@ export const TILE_LAYER_CONFIGS: Record<string, TileLayerConfig> = {
   },
 };
 
+// Light pollution overlay tile layer (VIIRS Earth at Night)
+export const LIGHT_POLLUTION_OVERLAY: TileLayerConfig = {
+  url: 'https://map1.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
+  attribution: 'Imagery &copy; NASA Earth Observatory',
+  maxZoom: 8,
+};
+
 export type TileLayerType = keyof typeof TILE_LAYER_CONFIGS;
 
 export const PROVIDER_STATIC_INFO: Record<MapProviderType, { keyFormat: string; docsUrl: string }> = {

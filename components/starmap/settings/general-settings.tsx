@@ -8,6 +8,8 @@ import {
   Ruler,
   Thermometer,
   MapPin,
+  Power,
+  XCircle,
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -26,8 +28,9 @@ import type {
   CoordinateFormat,
   DistanceUnit,
   TemperatureUnit,
+  StartupView,
 } from '@/lib/stores/settings-store';
-import { SettingsSection } from './settings-shared';
+import { SettingsSection, ToggleItem } from './settings-shared';
 
 export function GeneralSettings() {
   const t = useTranslations();
@@ -206,6 +209,70 @@ export function GeneralSettings() {
             </Select>
           </div>
         </div>
+      </SettingsSection>
+
+      <Separator />
+
+      {/* Startup Behavior */}
+      <SettingsSection
+        title={t('settingsNew.general.startup')}
+        icon={<Power className="h-4 w-4" />}
+        defaultOpen={false}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">
+              {t('settingsNew.general.startupView')}
+            </Label>
+            <Select
+              value={preferences.startupView}
+              onValueChange={(v) => setPreference('startupView', v as StartupView)}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="last">{t('settingsNew.general.startupViewLast')}</SelectItem>
+                <SelectItem value="default">{t('settingsNew.general.startupViewDefault')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {t('settingsNew.general.startupViewDesc')}
+            </p>
+          </div>
+
+          <ToggleItem
+            id="show-splash"
+            label={t('settingsNew.general.showSplash')}
+            description={t('settingsNew.general.showSplashDesc')}
+            checked={preferences.showSplash}
+            onCheckedChange={(checked) => setPreference('showSplash', checked)}
+          />
+          <ToggleItem
+            id="auto-connect-backend"
+            label={t('settingsNew.general.autoConnect')}
+            description={t('settingsNew.general.autoConnectDesc')}
+            checked={preferences.autoConnectBackend}
+            onCheckedChange={(checked) => setPreference('autoConnectBackend', checked)}
+          />
+        </div>
+      </SettingsSection>
+
+      <Separator />
+
+      {/* Close Confirmation */}
+      <SettingsSection
+        title={t('settingsNew.general.behavior')}
+        icon={<XCircle className="h-4 w-4" />}
+        defaultOpen={false}
+      >
+        <ToggleItem
+          id="skip-close-confirmation"
+          label={t('settingsNew.general.skipCloseConfirmation')}
+          description={t('settingsNew.general.skipCloseConfirmationDesc')}
+          checked={preferences.skipCloseConfirmation}
+          onCheckedChange={(checked) => setPreference('skipCloseConfirmation', checked)}
+        />
       </SettingsSection>
     </div>
   );

@@ -27,6 +27,12 @@ import {
   Upload,
   FileText,
   MoreVertical,
+  Search,
+  Filter,
+  Tag,
+  SortAsc,
+  SortDesc,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +40,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   Drawer,
   DrawerContent,
@@ -82,11 +94,286 @@ import {
   type ImagingFeasibility,
 } from '@/lib/astronomy/astro-utils';
 import { getStatusColor, getPriorityColor } from '@/lib/core/constants/planning-styles';
+import type { PlannedTarget } from '@/lib/core/types/astronomy';
 import { FeasibilityBadge } from './feasibility-badge';
 import type { ShotListProps } from '@/types/starmap/planning';
+import { TargetDetailDialog } from './target-detail-dialog';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('shot-list');
+
+
+interface TargetCardProps {
+  target: TargetItem;
+  index: number;
+  total: number;
+  isSelected: boolean;
+  isActive: boolean;
+  isManualSort: boolean;
+  feasibility?: ImagingFeasibility;
+  planTarget?: PlannedTarget;
+  t: ReturnType<typeof useTranslations>;
+  onToggleSelection: (id: string) => void;
+  onNavigate: (target: TargetItem) => void;
+  onStatusChange: (id: string, status: TargetItem['status']) => void;
+  onDelete: (target: TargetItem) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number, total: number) => void;
+  onUpdateTarget: (id: string, updates: Partial<TargetItem>) => void;
+  onToggleFavorite: (id: string) => void;
+  onToggleArchive: (id: string) => void;
+  onEdit: (target: TargetItem) => void;
+}
+
+function TargetCard({
+  target, index, total, isSelected, isActive, isManualSort,
+  feasibility, planTarget, t,
+  onToggleSelection, onNavigate, onStatusChange, onDelete,
+  onMoveUp, onMoveDown, onUpdateTarget, onToggleFavorite, onToggleArchive, onEdit,
+}: TargetCardProps) {
+  return (
+    <div
+      className={`p-2 rounded-lg border transition-colors ${
+        isActive
+          ? 'bg-primary/20 border-primary'
+          : isSelected
+          ? 'bg-accent/30 border-accent'
+          : 'bg-muted/50 border-border hover:border-muted-foreground'
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-start gap-2">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelection(target.id)}
+          className="mt-0.5 h-4 w-4"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <button
+              className="text-sm text-foreground font-medium truncate flex-1 text-left hover:text-primary transition-colors"
+              onClick={() => onEdit(target)}
+            >
+              <TranslatedName name={target.name} />
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-5 w-5 ${target.isFavorite ? 'text-red-400' : 'text-muted-foreground/50 hover:text-red-400'}`}
+              onClick={() => onToggleFavorite(target.id)}
+            >
+              <Heart className={`h-3 w-3 ${target.isFavorite ? 'fill-red-400' : ''}`} />
+            </Button>
+            {target.isArchived && (
+              <Archive className="h-3 w-3 text-muted-foreground" />
+            )}
+          </div>
+          <p className="text-[10px] text-muted-foreground font-mono">
+            {target.raString} / {target.decString}
+          </p>
+          {target.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {target.tags.slice(0, 3).map(tag => (
+                <Badge key={tag} variant="secondary" className="h-4 text-[9px] px-1">
+                  {tag}
+                </Badge>
+              ))}
+              {target.tags.length > 3 && (
+                <Badge variant="secondary" className="h-4 text-[9px] px-1">
+                  +{target.tags.length - 3}
+                </Badge>
+              )}
+            </div>
+          )}
+          {target.notes && (
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate italic">
+              {target.notes}
+            </p>
+          )}
+        </div>
+        {/* Status dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Badge className={`${getStatusColor(target.status)} text-white text-[10px] h-5 cursor-pointer`}>
+              {t(`shotList.${target.status === 'in_progress' ? 'inProgress' : target.status}`)}
+            </Badge>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {(['planned', 'in_progress', 'completed'] as const).map((s) => (
+              <DropdownMenuCheckboxItem
+                key={s}
+                checked={target.status === s}
+                onCheckedChange={() => onStatusChange(target.id, s)}
+              >
+                {t(`shotList.${s === 'in_progress' ? 'inProgress' : s}`)}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* FOV info */}
+      {target.focalLength && (
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+          <Camera className="h-3 w-3" />
+          <span>{target.focalLength}mm</span>
+          {target.mosaic?.enabled && (
+            <span>• {target.mosaic.cols}×{target.mosaic.rows}</span>
+          )}
+        </div>
+      )}
+
+      {/* Exposure plan */}
+      {target.exposurePlan && (
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          <span>
+            {target.exposurePlan.subFrames}× {target.exposurePlan.singleExposure}s
+            ({target.exposurePlan.totalExposure}m)
+          </span>
+        </div>
+      )}
+
+      {/* Feasibility indicator */}
+      {feasibility && (
+        <div className="mt-1.5 space-y-1">
+          <FeasibilityBadge feasibility={feasibility} variant="badge" tooltipSide="left" />
+          {planTarget?.windowStart && planTarget?.windowEnd && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Moon className="h-3 w-3" />
+              <span>
+                {formatTimeShort(planTarget.windowStart)} - {formatTimeShort(planTarget.windowEnd)}
+                {planTarget.duration != null && ` (${formatDuration(planTarget.duration)})`}
+              </span>
+            </div>
+          )}
+          {planTarget?.conflicts && planTarget.conflicts.length > 0 && (
+            <div className="flex items-center gap-1 text-[10px] text-yellow-400">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{t('shotList.overlapsWith', { count: planTarget.conflicts.length })}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="mt-2 flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          {isManualSort && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={() => onMoveUp(index)}
+                disabled={index === 0}
+              >
+                <ChevronUp className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={() => onMoveDown(index, total)}
+                disabled={index === total - 1}
+              >
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </>
+          )}
+          <Badge
+            variant="outline"
+            className={`text-[10px] h-5 cursor-pointer ${getPriorityColor(target.priority)}`}
+            onClick={() => {
+              const priorities: TargetItem['priority'][] = ['low', 'medium', 'high'];
+              const currentIdx = priorities.indexOf(target.priority);
+              const nextPriority = priorities[(currentIdx + 1) % 3];
+              onUpdateTarget(target.id, { priority: nextPriority });
+            }}
+          >
+            {t(`shotList.priority.${target.priority}`)}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-primary hover:text-primary/80"
+                onClick={() => onNavigate(target)}
+              >
+                <Eye className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.goToTarget')}</TooltipContent>
+          </Tooltip>
+
+          {target.status === 'planned' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-amber-400 hover:text-amber-300"
+                  onClick={() => onStatusChange(target.id, 'in_progress')}
+                >
+                  <Play className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('actions.startImaging')}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {target.status === 'in_progress' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-green-400 hover:text-green-300"
+                  onClick={() => onStatusChange(target.id, 'completed')}
+                >
+                  <Check className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('actions.markComplete')}</TooltipContent>
+            </Tooltip>
+          )}
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-muted-foreground/80"
+                onClick={() => onToggleArchive(target.id)}
+              >
+                <Archive className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{target.isArchived ? t('shotList.unarchive') : t('shotList.archive')}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-red-400 hover:text-red-300"
+                onClick={() => onDelete(target)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('common.remove')}</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
 export function ShotList({
@@ -96,6 +383,7 @@ export function ShotList({
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [showPlanAnalysis, setShowPlanAnalysis] = useState(false);
+  const [editingTarget, setEditingTarget] = useState<TargetItem | null>(null);
   
   // Store state
   const targets = useTargetListStore((state) => state.targets);
@@ -103,6 +391,11 @@ export function ShotList({
   const selectedIds = useTargetListStore((state) => state.selectedIds);
   const groupBy = useTargetListStore((state) => state.groupBy);
   const showArchived = useTargetListStore((state) => state.showArchived);
+  const searchQuery = useTargetListStore((state) => state.searchQuery);
+  const filterStatus = useTargetListStore((state) => state.filterStatus);
+  const filterPriority = useTargetListStore((state) => state.filterPriority);
+  const sortBy = useTargetListStore((state) => state.sortBy);
+  const sortOrder = useTargetListStore((state) => state.sortOrder);
   
   // Store actions
   const addTarget = useTargetListStore((state) => state.addTarget);
@@ -117,11 +410,23 @@ export function ShotList({
   const clearSelection = useTargetListStore((state) => state.clearSelection);
   const setGroupBy = useTargetListStore((state) => state.setGroupBy);
   const setShowArchived = useTargetListStore((state) => state.setShowArchived);
+  const setSearchQuery = useTargetListStore((state) => state.setSearchQuery);
+  const setFilterStatus = useTargetListStore((state) => state.setFilterStatus);
+  const setFilterPriority = useTargetListStore((state) => state.setFilterPriority);
+  const setSortBy = useTargetListStore((state) => state.setSortBy);
+  const setSortOrder = useTargetListStore((state) => state.setSortOrder);
   const removeTargetsBatch = useTargetListStore((state) => state.removeTargetsBatch);
   const setStatusBatch = useTargetListStore((state) => state.setStatusBatch);
   const setPriorityBatch = useTargetListStore((state) => state.setPriorityBatch);
   const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
   const getFilteredTargets = useTargetListStore((state) => state.getFilteredTargets);
+  const getGroupedTargets = useTargetListStore((state) => state.getGroupedTargets);
+  const toggleFavorite = useTargetListStore((state) => state.toggleFavorite);
+  const toggleArchive = useTargetListStore((state) => state.toggleArchive);
+  const addTagBatch = useTargetListStore((state) => state.addTagBatch);
+  const removeTagBatch = useTargetListStore((state) => state.removeTagBatch);
+  const availableTags = useTargetListStore((state) => state.availableTags);
+  const checkDuplicate = useTargetListStore((state) => state.checkDuplicate);
   
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const profileInfo = useMountStore((state) => state.profileInfo);
@@ -165,10 +470,41 @@ export function ShotList({
   }, [targets, latitude, longitude]);
 
   // Filtered targets
-  const filteredTargets = useMemo(() => getFilteredTargets(), [getFilteredTargets]);
+  const filteredTargets = getFilteredTargets();
 
   const handleAddCurrentTarget = useCallback(() => {
     if (!currentSelection) return;
+    
+    const duplicate = checkDuplicate(currentSelection.name, currentSelection.ra, currentSelection.dec);
+    if (duplicate) {
+      toast.warning(t('shotList.duplicateWarning', { name: duplicate.name }), {
+        action: {
+          label: t('shotList.addAnyway'),
+          onClick: () => {
+            addTarget({
+              name: currentSelection.name,
+              ra: currentSelection.ra,
+              dec: currentSelection.dec,
+              raString: currentSelection.raString,
+              decString: currentSelection.decString,
+              sensorWidth,
+              sensorHeight,
+              focalLength,
+              rotationAngle,
+              mosaic: mosaic.enabled ? {
+                enabled: mosaic.enabled,
+                rows: mosaic.rows,
+                cols: mosaic.cols,
+                overlap: mosaic.overlap,
+              } : undefined,
+              priority: 'medium',
+            });
+          },
+        },
+        duration: 5000,
+      });
+      return;
+    }
     
     addTarget({
       name: currentSelection.name,
@@ -188,7 +524,7 @@ export function ShotList({
       } : undefined,
       priority: 'medium',
     });
-  }, [currentSelection, sensorWidth, sensorHeight, focalLength, rotationAngle, mosaic, addTarget]);
+  }, [currentSelection, sensorWidth, sensorHeight, focalLength, rotationAngle, mosaic, addTarget, checkDuplicate, t]);
 
   const handleNavigate = useCallback((target: TargetItem) => {
     setActiveTarget(target.id);
@@ -214,6 +550,38 @@ export function ShotList({
     updateTarget(id, { status });
   }, [updateTarget]);
 
+  const handleDeleteWithUndo = useCallback((target: TargetItem) => {
+    removeTarget(target.id);
+    toast(t('shotList.targetRemoved', { name: target.name }), {
+      action: {
+        label: t('common.undo'),
+        onClick: () => {
+          addTarget({
+            name: target.name,
+            ra: target.ra,
+            dec: target.dec,
+            raString: target.raString,
+            decString: target.decString,
+            priority: target.priority,
+            notes: target.notes,
+            tags: target.tags,
+            sensorWidth: target.sensorWidth,
+            sensorHeight: target.sensorHeight,
+            focalLength: target.focalLength,
+            rotationAngle: target.rotationAngle,
+            mosaic: target.mosaic,
+            exposurePlan: target.exposurePlan,
+          });
+        },
+      },
+      duration: 5000,
+    });
+  }, [removeTarget, addTarget, t]);
+
+  // Grouped targets for rendering
+  const groupedTargets = useMemo(() => getGroupedTargets(), [getGroupedTargets]);
+  const hasActiveFilters = searchQuery.trim() !== '' || filterStatus !== 'all' || filterPriority !== 'all';
+  const isManualSort = sortBy === 'manual';
 
   // Batch actions
   const handleBatchDelete = useCallback(() => {
@@ -374,14 +742,14 @@ export function ShotList({
                     </Button>
                   )}
                   
-                  {/* View Options Dropdown */}
+                  {/* View/Sort/Group Options Dropdown */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                         <Layers className="h-3 w-3" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuLabel>{t('shotList.groupBy')}</DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       <DropdownMenuCheckboxItem
@@ -409,6 +777,27 @@ export function ShotList({
                         {t('shotList.byTag')}
                       </DropdownMenuCheckboxItem>
                       <DropdownMenuSeparator />
+                      <DropdownMenuLabel>{t('shotList.sortByLabel')}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {(['manual', 'name', 'priority', 'status', 'addedAt'] as const).map((s) => (
+                        <DropdownMenuCheckboxItem
+                          key={s}
+                          checked={sortBy === s}
+                          onCheckedChange={() => setSortBy(s)}
+                        >
+                          {t(`shotList.sort.${s}`)}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {sortBy !== 'manual' && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+                            {sortOrder === 'asc' ? <SortAsc className="h-3 w-3 mr-2" /> : <SortDesc className="h-3 w-3 mr-2" />}
+                            {sortOrder === 'asc' ? t('shotList.sort.ascending') : t('shotList.sort.descending')}
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      <DropdownMenuSeparator />
                       <DropdownMenuCheckboxItem
                         checked={showArchived}
                         onCheckedChange={setShowArchived}
@@ -416,6 +805,49 @@ export function ShotList({
                         <Archive className="h-3 w-3 mr-2" />
                         {t('shotList.showArchived')}
                       </DropdownMenuCheckboxItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  
+                  {/* Filter Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className={`h-7 w-7 ${hasActiveFilters ? 'text-primary' : ''}`}>
+                        <Filter className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>{t('shotList.filterByStatus')}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {(['all', 'planned', 'in_progress', 'completed'] as const).map((s) => (
+                        <DropdownMenuCheckboxItem
+                          key={s}
+                          checked={filterStatus === s}
+                          onCheckedChange={() => setFilterStatus(s)}
+                        >
+                          {s === 'all' ? t('shotList.allTargets') : t(`shotList.${s === 'in_progress' ? 'inProgress' : s}`)}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>{t('shotList.filterByPriority')}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {(['all', 'high', 'medium', 'low'] as const).map((p) => (
+                        <DropdownMenuCheckboxItem
+                          key={p}
+                          checked={filterPriority === p}
+                          onCheckedChange={() => setFilterPriority(p)}
+                        >
+                          {p === 'all' ? t('shotList.allTargets') : t(`shotList.${p}Priority`)}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {hasActiveFilters && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => { setFilterStatus('all'); setFilterPriority('all'); setSearchQuery(''); }}>
+                            <X className="h-3 w-3 mr-2" />
+                            {t('shotList.clearFilters')}
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   
@@ -469,6 +901,29 @@ export function ShotList({
                   </DropdownMenu>
                 </div>
               </div>
+              
+              {/* Search bar */}
+              {targets.length > 0 && (
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                  <Input
+                    placeholder={t('shotList.searchPlaceholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-7 text-xs pl-7 pr-7 bg-muted/50"
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-7 w-7"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
               
               {/* Multi-select toolbar */}
               {selectedCount > 0 && (
@@ -530,6 +985,51 @@ export function ShotList({
                       </DropdownMenuContent>
                     </DropdownMenu>
                     
+                    {/* Batch Tag */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                          <Tag className="h-3 w-3 mr-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuLabel className="text-xs">{t('shotList.addTagLabel')}</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {availableTags.map((tag) => (
+                          <DropdownMenuItem key={tag} onClick={() => addTagBatch(Array.from(selectedIds), tag)}>
+                            {tag}
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs">{t('shotList.removeTagLabel')}</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {availableTags.map((tag) => (
+                          <DropdownMenuItem key={`rm-${tag}`} onClick={() => removeTagBatch(Array.from(selectedIds), tag)}>
+                            <X className="h-3 w-3 mr-1" />{tag}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    
+                    {/* Batch Archive */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => {
+                            const ids = Array.from(selectedIds);
+                            ids.forEach(id => toggleArchive(id));
+                            clearSelection();
+                          }}
+                        >
+                          <Archive className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('shotList.archiveSelected')}</TooltipContent>
+                    </Tooltip>
+                    
                     {/* Batch Delete */}
                     <Button
                       variant="ghost"
@@ -581,7 +1081,7 @@ export function ShotList({
                 )}
                 {targetPlan.recommendations.length > 0 && (
                   <div className="text-[10px] text-muted-foreground mt-1">
-                    {t(targetPlan.recommendations[0].key, targetPlan.recommendations[0].params)}
+                    {targetPlan.recommendations[0]}
                   </div>
                 )}
               </div>
@@ -608,224 +1108,91 @@ export function ShotList({
                   <p className="text-sm">{t('shotList.noTargetsInList')}</p>
                   <p className="text-xs mt-1">{t('shotList.selectAndAdd')}</p>
                 </div>
+              ) : filteredTargets.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">{t('shotList.noMatchingTargets')}</p>
+                  <Button variant="link" size="sm" className="text-xs" onClick={() => { setFilterStatus('all'); setFilterPriority('all'); setSearchQuery(''); }}>
+                    {t('shotList.clearFilters')}
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-2 pr-2">
-                  {filteredTargets.map((target, index) => {
-                    const isSelected = selectedIds.has(target.id);
-                    
-                    return (
-                      <div
-                        key={target.id}
-                        className={`p-2 rounded-lg border transition-colors ${
-                          activeTargetId === target.id
-                            ? 'bg-primary/20 border-primary'
-                            : isSelected
-                            ? 'bg-accent/30 border-accent'
-                            : 'bg-muted/50 border-border hover:border-muted-foreground'
-                        }`}
-                      >
-                        {/* Header */}
-                        <div className="flex items-start gap-2">
-                          {/* Checkbox */}
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleSelection(target.id)}
-                            className="mt-0.5 h-4 w-4"
-                          />
-                        
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1">
-                              <p className="text-sm text-foreground font-medium truncate flex-1">
-                                <TranslatedName name={target.name} />
-                              </p>
-                              {target.isFavorite && (
-                                <Heart className="h-3 w-3 text-red-400 fill-red-400" />
-                              )}
-                              {target.isArchived && (
-                                <Archive className="h-3 w-3 text-muted-foreground" />
-                              )}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground font-mono">
-                              {target.raString} / {target.decString}
-                            </p>
-                            {/* Tags */}
-                            {target.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {target.tags.slice(0, 3).map(tag => (
-                                  <Badge key={tag} variant="secondary" className="h-4 text-[9px] px-1">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                                {target.tags.length > 3 && (
-                                  <Badge variant="secondary" className="h-4 text-[9px] px-1">
-                                    +{target.tags.length - 3}
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <Badge className={`${getStatusColor(target.status)} text-white text-[10px] h-5`}>
-                            {t(`shotList.${target.status === 'in_progress' ? 'inProgress' : target.status}`)}
+                  {groupBy !== 'none' ? (
+                    // Grouped rendering
+                    Array.from(groupedTargets.entries()).map(([groupKey, groupTargets]) => (
+                      <Collapsible key={groupKey} defaultOpen>
+                        <CollapsibleTrigger className="flex items-center gap-2 w-full p-1.5 rounded-md hover:bg-muted/50 text-xs font-medium text-muted-foreground">
+                          <ChevronRight className="h-3 w-3 transition-transform data-[state=open]:rotate-90" />
+                          <span className="capitalize">{groupKey}</span>
+                          <Badge variant="secondary" className="h-4 text-[9px] px-1 ml-auto">
+                            {groupTargets.length}
                           </Badge>
-                        </div>
-
-                        {/* FOV info */}
-                        {target.focalLength && (
-                          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                            <Camera className="h-3 w-3" />
-                            <span>{target.focalLength}mm</span>
-                            {target.mosaic?.enabled && (
-                              <span>• {target.mosaic.cols}×{target.mosaic.rows}</span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Exposure plan */}
-                        {target.exposurePlan && (
-                          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>
-                              {target.exposurePlan.subFrames}× {target.exposurePlan.singleExposure}s
-                              ({target.exposurePlan.totalExposure}m)
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Feasibility indicator */}
-                        {(() => {
-                          const feasibility = targetFeasibility.get(target.id);
-                          const planTarget = targetPlan?.targets.find(t => t.id === target.id);
-                          if (!feasibility) return null;
-                          
-                          return (
-                            <div className="mt-1.5 space-y-1">
-                              <FeasibilityBadge feasibility={feasibility} variant="badge" tooltipSide="left" />
-                              
-                              {/* Dark window times */}
-                              {planTarget?.windowStart && planTarget?.windowEnd && (
-                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                  <Moon className="h-3 w-3" />
-                                  <span>
-                                    {formatTimeShort(planTarget.windowStart)} - {formatTimeShort(planTarget.windowEnd)}
-                                    ({formatDuration(planTarget.duration)})
-                                  </span>
-                                </div>
-                              )}
-                              
-                              {/* Conflicts warning */}
-                              {planTarget?.conflicts && planTarget.conflicts.length > 0 && (
-                                <div className="flex items-center gap-1 text-[10px] text-yellow-400">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  <span>{t('shotList.overlapsWith', { count: planTarget.conflicts.length })}</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-
-                        {/* Actions */}
-                        <div className="mt-2 flex items-center justify-between">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              onClick={() => handleMoveUp(index)}
-                              disabled={index === 0}
-                            >
-                              <ChevronUp className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              onClick={() => handleMoveDown(index, filteredTargets.length)}
-                              disabled={index === filteredTargets.length - 1}
-                            >
-                              <ChevronDown className="h-3 w-3" />
-                            </Button>
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] h-5 cursor-pointer ${getPriorityColor(target.priority)}`}
-                              onClick={() => {
-                                const priorities: TargetItem['priority'][] = ['low', 'medium', 'high'];
-                                const currentIdx = priorities.indexOf(target.priority);
-                                const nextPriority = priorities[(currentIdx + 1) % 3];
-                                updateTarget(target.id, { priority: nextPriority });
-                              }}
-                            >
-                              {t(`shotList.priority.${target.priority}`)}
-                            </Badge>
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-primary hover:text-primary/80"
-                                  onClick={() => handleNavigate(target)}
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{t('actions.goToTarget')}</TooltipContent>
-                            </Tooltip>
-
-                            {target.status === 'planned' && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-amber-400 hover:text-amber-300"
-                                    onClick={() => handleStatusChange(target.id, 'in_progress')}
-                                  >
-                                    <Play className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>{t('actions.startImaging')}</TooltipContent>
-                              </Tooltip>
-                            )}
-
-                            {target.status === 'in_progress' && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-green-400 hover:text-green-300"
-                                    onClick={() => handleStatusChange(target.id, 'completed')}
-                                  >
-                                    <Check className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>{t('actions.markComplete')}</TooltipContent>
-                              </Tooltip>
-                            )}
-
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-red-400 hover:text-red-300"
-                                  onClick={() => removeTarget(target.id)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{t('common.remove')}</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-2 mt-1">
+                          {groupTargets.map((target, index) => (
+                            <TargetCard
+                              key={target.id}
+                              target={target}
+                              index={index}
+                              total={groupTargets.length}
+                              isSelected={selectedIds.has(target.id)}
+                              isActive={activeTargetId === target.id}
+                              isManualSort={false}
+                              feasibility={targetFeasibility.get(target.id)}
+                              planTarget={targetPlan?.targets.find(pt => pt.id === target.id)}
+                              t={t}
+                              onToggleSelection={toggleSelection}
+                              onNavigate={handleNavigate}
+                              onStatusChange={handleStatusChange}
+                              onDelete={handleDeleteWithUndo}
+                              onMoveUp={handleMoveUp}
+                              onMoveDown={handleMoveDown}
+                              onUpdateTarget={updateTarget}
+                              onToggleFavorite={toggleFavorite}
+                              onToggleArchive={toggleArchive}
+                              onEdit={setEditingTarget}
+                            />
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ))
+                  ) : (
+                    // Flat rendering
+                    filteredTargets.map((target, index) => (
+                      <TargetCard
+                        key={target.id}
+                        target={target}
+                        index={index}
+                        total={filteredTargets.length}
+                        isSelected={selectedIds.has(target.id)}
+                        isActive={activeTargetId === target.id}
+                        isManualSort={isManualSort}
+                        feasibility={targetFeasibility.get(target.id)}
+                        planTarget={targetPlan?.targets.find(pt => pt.id === target.id)}
+                        t={t}
+                        onToggleSelection={toggleSelection}
+                        onNavigate={handleNavigate}
+                        onStatusChange={handleStatusChange}
+                        onDelete={handleDeleteWithUndo}
+                        onMoveUp={handleMoveUp}
+                        onMoveDown={handleMoveDown}
+                        onUpdateTarget={updateTarget}
+                        onToggleFavorite={toggleFavorite}
+                        onToggleArchive={toggleArchive}
+                        onEdit={setEditingTarget}
+                      />
+                    ))
+                  )}
                 </div>
               )}
             </ScrollArea>
+
+            <TargetDetailDialog
+              target={editingTarget}
+              open={editingTarget !== null}
+              onOpenChange={(isOpen) => { if (!isOpen) setEditingTarget(null); }}
+            />
 
             {/* Footer actions */}
             {targets.length > 0 && (

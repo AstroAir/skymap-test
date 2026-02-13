@@ -67,8 +67,10 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
     results,
     groupedResults,
     isSearching,
+    isOnlineSearching,
     selectedIds,
     sortBy,
+    onlineAvailable,
     setQuery,
     clearSearch,
     toggleSelection,
@@ -402,6 +404,15 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
               <div className="flex items-center gap-3 py-2 px-1 text-xs text-muted-foreground border-b">
                 <span className="font-medium">{t('search.foundResults', { count: searchStats.totalResults })}</span>
                 <span className="text-muted-foreground/50">|</span>
+                {onlineAvailable && (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
+                      {t('search.onlineLabel', { defaultValue: 'Online' })}
+                    </span>
+                    <span className="text-muted-foreground/50">|</span>
+                  </>
+                )}
                 {Object.entries(searchStats.resultsByType).map(([type, count]) => (
                   <span key={type} className="flex items-center gap-1">
                     {getTypeIcon(type)}
@@ -413,10 +424,12 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
             )}
 
             {/* Loading indicator */}
-            {isSearching && (
+            {(isSearching || isOnlineSearching) && (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">{t('common.loading')}</span>
+                <span className="ml-2 text-sm text-muted-foreground">
+                  {isOnlineSearching ? t('search.searchingOnline', { defaultValue: 'Searching online...' }) : t('common.loading')}
+                </span>
               </div>
             )}
 

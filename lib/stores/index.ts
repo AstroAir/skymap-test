@@ -26,9 +26,11 @@ export {
   type SkyMarker, 
   type MarkerIcon, 
   type MarkerInput,
+  type MarkerSortBy,
   type PendingMarkerCoords, 
   MARKER_COLORS, 
-  MARKER_ICONS 
+  MARKER_ICONS,
+  MAX_MARKERS,
 } from './marker-store';
 
 // Satellite store
@@ -57,18 +59,18 @@ export {
   type ExposureDefaults,
 } from './equipment-store';
 
-// Onboarding store
+// Onboarding store (unified: setup wizard + feature tour)
 export {
   useOnboardingStore,
   TOUR_STEPS,
+  SETUP_WIZARD_STEPS,
   type TourStep,
+  type SetupWizardStep,
 } from './onboarding-store';
 
-// Setup wizard store
+// @deprecated - Use useOnboardingStore instead
 export {
   useSetupWizardStore,
-  SETUP_WIZARD_STEPS,
-  type SetupWizardStep,
 } from './setup-wizard-store';
 
 // Theme customization store

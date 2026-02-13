@@ -8,6 +8,22 @@ import { NextIntlClientProvider } from 'next-intl';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LogLevel } from '@/lib/logger';
 
+// Mock @tanstack/react-virtual for JSDOM (no layout engine)
+jest.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        index: i,
+        start: i * 40,
+        size: 40,
+        key: i,
+      })),
+    getTotalSize: () => count * 40,
+    scrollToIndex: jest.fn(),
+    measureElement: jest.fn(),
+  }),
+}));
+
 // Mock log store
 const mockSetFilter = jest.fn();
 const mockClearFilter = jest.fn();
@@ -21,7 +37,7 @@ let mockLogs: Array<{
   level: number;
   module: string;
   message: string;
-  timestamp: number;
+  timestamp: Date;
   data?: unknown;
   stack?: string;
 }> = [];
@@ -49,9 +65,25 @@ jest.mock('@/lib/stores/log-store', () => ({
 jest.mock('@/lib/logger', () => ({
   LogLevel: { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 },
   LOG_LEVEL_NAMES: { 0: 'debug', 1: 'info', 2: 'warn', 3: 'error' },
-  formatTimestamp: (ts: number) => new Date(ts).toLocaleTimeString(),
+  formatTimestamp: (ts: Date) => ts.toLocaleTimeString(),
   serializeData: (data: unknown) => JSON.stringify(data, null, 2),
   formatLogEntryToText: (entry: { message: string }) => entry.message,
+  groupConsecutiveLogs: (logs: Array<{ id: string; module: string; message: string; timestamp: Date }>) => {
+    if (logs.length === 0) return [];
+    const groups: Array<{ entry: typeof logs[0]; count: number; timestamps: Date[] }> = [];
+    let cur = { entry: logs[0], count: 1, timestamps: [logs[0].timestamp] };
+    for (let i = 1; i < logs.length; i++) {
+      if (logs[i].module === cur.entry.module && logs[i].message === cur.entry.message) {
+        cur.count++;
+        cur.timestamps.push(logs[i].timestamp);
+      } else {
+        groups.push(cur);
+        cur = { entry: logs[i], count: 1, timestamps: [logs[i].timestamp] };
+      }
+    }
+    groups.push(cur);
+    return groups;
+  },
 }));
 
 const messages = {
@@ -79,6 +111,16 @@ const messages = {
     data: 'Data',
     stackTrace: 'Stack Trace',
     errors: 'errors',
+    pause: 'Pause',
+    resume: 'Resume',
+    pausedNewLogs: '{count} new logs while paused',
+    scrollToBottom: 'Bottom',
+    timeRange: 'Time Range',
+    last5min: '5 min',
+    last15min: '15 min',
+    last1hr: '1 hour',
+    allTime: 'All',
+    groupDuplicates: 'Group duplicates',
   },
 };
 
@@ -115,7 +157,7 @@ describe('LogViewer', () => {
         level: LogLevel.INFO,
         module: 'App',
         message: 'Application started',
-        timestamp: Date.now(),
+        timestamp: new Date(),
       },
     ];
     renderWithProviders(<LogViewer />);
@@ -176,7 +218,7 @@ describe('LogViewer', () => {
         level: LogLevel.INFO,
         module: 'App',
         message: 'Test message',
-        timestamp: Date.now(),
+        timestamp: new Date(),
         data: { key: 'value' },
       },
     ];

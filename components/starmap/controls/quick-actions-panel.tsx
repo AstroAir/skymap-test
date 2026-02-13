@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Zap,
@@ -43,7 +43,15 @@ import { getCelestialReferencePoint } from '@/lib/astronomy/navigation';
 import { ZOOM_PRESETS } from '@/lib/core/constants/fov';
 import type { QuickActionsPanelProps, CelestialDirection } from '@/types/starmap/controls';
 
-export function QuickActionsPanel({
+const CELESTIAL_DIRECTIONS = [
+  { key: 'NCP' as CelestialDirection, labelKey: 'ncp', tooltipKey: 'ncpTooltip' },
+  { key: 'SCP' as CelestialDirection, labelKey: 'scp', tooltipKey: 'scpTooltip' },
+  { key: 'vernal' as CelestialDirection, labelKey: 'vernal', tooltipKey: 'vernalTooltip' },
+  { key: 'autumnal' as CelestialDirection, labelKey: 'autumnal', tooltipKey: 'autumnalTooltip' },
+  { key: 'zenith' as CelestialDirection, labelKey: 'zenith', tooltipKey: 'zenithTooltip', icon: true },
+] as const;
+
+export const QuickActionsPanel = memo(function QuickActionsPanel({
   onZoomToFov,
   onResetView,
   className,
@@ -192,81 +200,23 @@ export function QuickActionsPanel({
                     {t('quickActions.navigation')}
                   </h4>
                   <div className="grid grid-cols-5 gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={() => navigateToDirection('NCP')}
-                        >
-                          {t('quickActions.ncp')}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>{t('quickActions.ncpTooltip')}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={() => navigateToDirection('SCP')}
-                        >
-                          {t('quickActions.scp')}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>{t('quickActions.scpTooltip')}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={() => navigateToDirection('vernal')}
-                        >
-                          {t('quickActions.vernal')}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>{t('quickActions.vernalTooltip')}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={() => navigateToDirection('autumnal')}
-                        >
-                          {t('quickActions.autumnal')}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>{t('quickActions.autumnalTooltip')}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={() => navigateToDirection('zenith')}
-                        >
-                          <ChevronUp className="h-3 w-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>{t('quickActions.zenithTooltip')}</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    {CELESTIAL_DIRECTIONS.map((dir) => (
+                      <Tooltip key={dir.key}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => navigateToDirection(dir.key)}
+                          >
+                            {'icon' in dir ? <ChevronUp className="h-3 w-3" /> : t(`quickActions.${dir.labelKey}`)}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p>{t(`quickActions.${dir.tooltipKey}`)}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
                   </div>
                 </div>
 
@@ -384,4 +334,5 @@ export function QuickActionsPanel({
       </PopoverContent>
     </Popover>
   );
-}
+});
+QuickActionsPanel.displayName = 'QuickActionsPanel';

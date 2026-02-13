@@ -32,7 +32,7 @@ class TestMapProvider extends BaseMapProvider {
     };
   }
 
-  async geocode(address: string, _options?: { limit?: number; bounds?: BoundingBox }): Promise<GeocodingResult[]> {
+  async geocode(address: string, _options?: { limit?: number; bounds?: BoundingBox; language?: string }): Promise<GeocodingResult[]> {
     return [{
       coordinates: { latitude: 45.5, longitude: -73.5 },
       address: address,
@@ -76,6 +76,10 @@ class TestMapProvider extends BaseMapProvider {
 
   public testNormalizeLongitude(longitude: number): number {
     return this.normalizeLongitude(longitude);
+  }
+
+  public testFetchWithRetry(url: string, options?: RequestInit, attempts?: number): Promise<Response> {
+    return this.fetchWithRetry(url, options, attempts);
   }
 }
 
@@ -279,6 +283,57 @@ describe('BaseMapProvider', () => {
       expect(() => {
         provider.testValidateCoordinates({ latitude: 0, longitude: -181 });
       }).toThrow('Invalid longitude');
+    });
+  });
+
+  describe('fetchWithRetry - exponential backoff', () => {
+    beforeEach(() => {
+      // Speed up tests by making delay instant
+      jest.spyOn(provider as unknown as { delay: (ms: number) => Promise<void> }, 'delay')
+        .mockResolvedValue(undefined);
+    });
+
+    it('should retry on failure and succeed', async () => {
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const response = await provider.testFetchWithRetry('https://test.com', {}, 2);
+      expect(response.ok).toBe(true);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw after all retries exhausted', async () => {
+      mockFetch.mockRejectedValue(new Error('Persistent failure'));
+
+      await expect(provider.testFetchWithRetry('https://test.com', {}, 3))
+        .rejects.toThrow('Persistent failure');
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('should retry on non-ok response', async () => {
+      mockFetch
+        .mockResolvedValueOnce({ ok: false, status: 503 })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const response = await provider.testFetchWithRetry('https://test.com', {}, 2);
+      expect(response.ok).toBe(true);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('geocode language option', () => {
+    it('should accept language option in geocode signature', async () => {
+      const results = await provider.geocode('Test', { language: 'zh' });
+      expect(results).toBeDefined();
+    });
+
+    it('should accept limit and bounds options', async () => {
+      const results = await provider.geocode('Test', {
+        limit: 5,
+        bounds: { north: 41, south: 40, east: -73, west: -75 },
+      });
+      expect(results).toBeDefined();
     });
   });
 

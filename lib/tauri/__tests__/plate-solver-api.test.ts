@@ -8,8 +8,22 @@ import {
   isLocalSolver,
   convertToLegacyResult,
   DEFAULT_SOLVER_CONFIG,
+  getAstapDatabases,
+  recommendAstapDatabase,
+  analyseImage,
+  extractStars,
+  solveOnline,
 } from '../plate-solver-api';
-import type { SolveResult, SolverType } from '../plate-solver-api';
+import type {
+  SolveResult,
+  SolverType,
+  AstapDatabaseInfo,
+  ImageAnalysisResult,
+  OnlineSolveConfig,
+  OnlineSolveResult,
+  StarDetection,
+  OnlineAnnotation,
+} from '../plate-solver-api';
 
 // Mock Tauri invoke
 jest.mock('@tauri-apps/api/core', () => ({
@@ -209,6 +223,188 @@ describe('plate-solver-api', () => {
       expect(DEFAULT_SOLVER_CONFIG.auto_hints).toBe(true);
       expect(DEFAULT_SOLVER_CONFIG.retry_on_failure).toBe(false);
       expect(DEFAULT_SOLVER_CONFIG.max_retries).toBe(2);
+    });
+  });
+
+  describe('new API functions', () => {
+    const mockInvoke = jest.requireMock('@tauri-apps/api/core').invoke;
+
+    beforeEach(() => {
+      mockInvoke.mockReset();
+    });
+
+    describe('getAstapDatabases', () => {
+      it('should invoke get_astap_databases command', async () => {
+        const mockDatabases: AstapDatabaseInfo[] = [
+          {
+            name: 'D50',
+            abbreviation: 'd50',
+            installed: true,
+            path: '/path/to/d50',
+            fov_min_deg: 0.3,
+            fov_max_deg: 10,
+            description: 'Medium star database',
+            size_mb: 500,
+            download_url: null,
+          },
+        ];
+        mockInvoke.mockResolvedValueOnce(mockDatabases);
+
+        const result = await getAstapDatabases();
+
+        expect(mockInvoke).toHaveBeenCalledWith('get_astap_databases');
+        expect(result).toEqual(mockDatabases);
+      });
+    });
+
+    describe('recommendAstapDatabase', () => {
+      it('should invoke recommend_astap_database with fovDegrees', async () => {
+        mockInvoke.mockResolvedValueOnce([]);
+
+        await recommendAstapDatabase(2.5);
+
+        expect(mockInvoke).toHaveBeenCalledWith('recommend_astap_database', { fovDegrees: 2.5 });
+      });
+    });
+
+    describe('analyseImage', () => {
+      it('should invoke analyse_image with imagePath', async () => {
+        const mockResult: ImageAnalysisResult = {
+          success: true,
+          median_hfd: 3.5,
+          star_count: 150,
+          background: 1200,
+          noise: 45,
+          stars: [],
+          error_message: null,
+        };
+        mockInvoke.mockResolvedValueOnce(mockResult);
+
+        const result = await analyseImage('/path/to/image.fits');
+
+        expect(mockInvoke).toHaveBeenCalledWith('analyse_image', {
+          imagePath: '/path/to/image.fits',
+          snrMinimum: null,
+        });
+        expect(result).toEqual(mockResult);
+      });
+
+      it('should pass snrMinimum when provided', async () => {
+        mockInvoke.mockResolvedValueOnce({ success: true, median_hfd: null, star_count: 0, background: null, noise: null, stars: [], error_message: null });
+
+        await analyseImage('/path/to/image.fits', 10);
+
+        expect(mockInvoke).toHaveBeenCalledWith('analyse_image', {
+          imagePath: '/path/to/image.fits',
+          snrMinimum: 10,
+        });
+      });
+    });
+
+    describe('extractStars', () => {
+      it('should invoke extract_stars with correct params', async () => {
+        mockInvoke.mockResolvedValueOnce({ success: true, median_hfd: null, star_count: 0, background: null, noise: null, stars: [], error_message: null });
+
+        await extractStars('/path/to/image.fits', 5, true);
+
+        expect(mockInvoke).toHaveBeenCalledWith('extract_stars', {
+          imagePath: '/path/to/image.fits',
+          snrMinimum: 5,
+          includeCoordinates: true,
+        });
+      });
+
+      it('should default includeCoordinates to false', async () => {
+        mockInvoke.mockResolvedValueOnce({ success: true, median_hfd: null, star_count: 0, background: null, noise: null, stars: [], error_message: null });
+
+        await extractStars('/path/to/image.fits');
+
+        expect(mockInvoke).toHaveBeenCalledWith('extract_stars', {
+          imagePath: '/path/to/image.fits',
+          snrMinimum: null,
+          includeCoordinates: false,
+        });
+      });
+    });
+
+    describe('solveOnline', () => {
+      it('should invoke solve_online with config', async () => {
+        const config: OnlineSolveConfig = {
+          api_key: 'test-key',
+          image_path: '/path/to/image.fits',
+          ra_hint: 180.0,
+          dec_hint: 45.0,
+          radius: 5.0,
+        };
+        const mockResult: OnlineSolveResult = {
+          success: true,
+          ra: 180.1,
+          dec: 45.05,
+          orientation: 12.5,
+          pixscale: 1.2,
+          radius: 1.5,
+          parity: 1,
+          fov_width: 2.5,
+          fov_height: 1.8,
+          objects_in_field: ['M31', 'NGC 224'],
+          annotations: [],
+          job_id: 12345,
+          solve_time_ms: 30000,
+          error_message: null,
+        };
+        mockInvoke.mockResolvedValueOnce(mockResult);
+
+        const result = await solveOnline(config);
+
+        expect(mockInvoke).toHaveBeenCalledWith('solve_online', { config });
+        expect(result).toEqual(mockResult);
+        expect(result.objects_in_field).toContain('M31');
+      });
+    });
+  });
+
+  describe('type structures', () => {
+    it('StarDetection should have correct shape', () => {
+      const star: StarDetection = {
+        x: 100.5,
+        y: 200.3,
+        hfd: 3.5,
+        flux: 50000,
+        snr: 25.5,
+        ra: 180.0,
+        dec: 45.0,
+        magnitude: 12.5,
+      };
+      expect(star.x).toBe(100.5);
+      expect(star.ra).toBe(180.0);
+    });
+
+    it('OnlineAnnotation should have correct shape', () => {
+      const annotation: OnlineAnnotation = {
+        names: ['M31', 'Andromeda Galaxy'],
+        annotation_type: 'galaxy',
+        pixelx: 500,
+        pixely: 600,
+        radius: 120,
+      };
+      expect(annotation.names).toHaveLength(2);
+      expect(annotation.annotation_type).toBe('galaxy');
+    });
+
+    it('AstapDatabaseInfo should have correct shape', () => {
+      const db: AstapDatabaseInfo = {
+        name: 'D50',
+        abbreviation: 'd50',
+        installed: false,
+        path: null,
+        fov_min_deg: 0.3,
+        fov_max_deg: 10,
+        description: 'Test',
+        size_mb: 500,
+        download_url: 'https://example.com/d50.zip',
+      };
+      expect(db.installed).toBe(false);
+      expect(db.fov_min_deg).toBe(0.3);
     });
   });
 });

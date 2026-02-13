@@ -150,12 +150,28 @@ jest.mock('@/components/starmap/settings/accessibility-settings', () => ({
   AccessibilitySettings: () => <div data-testid="accessibility-settings">AccessibilitySettings</div>,
 }));
 
+jest.mock('@/components/starmap/settings/notification-settings', () => ({
+  NotificationSettings: () => <div data-testid="notification-settings">NotificationSettings</div>,
+}));
+
+jest.mock('@/components/starmap/settings/search-settings', () => ({
+  SearchBehaviorSettings: () => <div data-testid="search-settings">SearchBehaviorSettings</div>,
+}));
+
+jest.mock('@/components/starmap/settings/keyboard-settings', () => ({
+  KeyboardSettings: () => <div data-testid="keyboard-settings">KeyboardSettings</div>,
+}));
+
 jest.mock('@/components/starmap/settings/about-settings', () => ({
   AboutSettings: () => <div data-testid="about-settings">AboutSettings</div>,
 }));
 
 jest.mock('@/components/starmap/settings/event-sources-settings', () => ({
   EventSourcesSettings: () => <div data-testid="event-sources-settings">EventSourcesSettings</div>,
+}));
+
+jest.mock('@/components/starmap/settings/settings-export-import', () => ({
+  SettingsExportImport: () => <div data-testid="settings-export-import">SettingsExportImport</div>,
 }));
 
 jest.mock('@/components/starmap/map', () => ({
@@ -167,8 +183,8 @@ jest.mock('@/components/starmap/management/data-manager', () => ({
   DataManager: () => <div data-testid="data-manager">DataManager</div>,
 }));
 
-jest.mock('@/components/starmap/setup-wizard', () => ({
-  SetupWizardButton: () => <button data-testid="setup-wizard-button">Setup Wizard</button>,
+jest.mock('@/components/starmap/onboarding/welcome-dialog', () => ({
+  OnboardingRestartButton: () => <button data-testid="onboarding-restart-button">Restart Onboarding</button>,
 }));
 
 import { UnifiedSettings } from '../unified-settings';
@@ -220,12 +236,15 @@ describe('UnifiedSettings Integration', () => {
       expect(screen.getByTestId('exposure-settings')).toBeInTheDocument();
     });
 
-    it('renders GeneralSettings, AppearanceSettings, PerformanceSettings, AccessibilitySettings, EventSourcesSettings in preferences tab', () => {
+    it('renders GeneralSettings, AppearanceSettings, PerformanceSettings, NotificationSettings, SearchBehaviorSettings, AccessibilitySettings, KeyboardSettings, EventSourcesSettings in preferences tab', () => {
       render(<UnifiedSettings />);
       expect(screen.getByTestId('general-settings')).toBeInTheDocument();
       expect(screen.getByTestId('appearance-settings')).toBeInTheDocument();
       expect(screen.getByTestId('performance-settings')).toBeInTheDocument();
+      expect(screen.getByTestId('notification-settings')).toBeInTheDocument();
+      expect(screen.getByTestId('search-settings')).toBeInTheDocument();
       expect(screen.getByTestId('accessibility-settings')).toBeInTheDocument();
+      expect(screen.getByTestId('keyboard-settings')).toBeInTheDocument();
       expect(screen.getByTestId('event-sources-settings')).toBeInTheDocument();
     });
 
@@ -234,7 +253,8 @@ describe('UnifiedSettings Integration', () => {
       expect(screen.getByTestId('map-provider-settings')).toBeInTheDocument();
       expect(screen.getByTestId('map-health-monitor')).toBeInTheDocument();
       expect(screen.getByTestId('data-manager')).toBeInTheDocument();
-      expect(screen.getByTestId('setup-wizard-button')).toBeInTheDocument();
+      expect(screen.getByTestId('settings-export-import')).toBeInTheDocument();
+      expect(screen.getByTestId('onboarding-restart-button')).toBeInTheDocument();
     });
 
     it('renders AboutSettings in about tab', () => {

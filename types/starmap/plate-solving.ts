@@ -96,3 +96,22 @@ export interface ProgressPercentOptions {
   localProgress: number;
   progress: SolveProgress | null;
 }
+
+// ============================================================================
+// Image Analysis Card
+// ============================================================================
+
+export interface ImageAnalysisCardProps {
+  imagePath?: string;
+  className?: string;
+  onAnalyse?: (imagePath: string) => void;
+}
+
+// ============================================================================
+// ASTAP Database Manager
+// ============================================================================
+
+export interface AstapDatabaseManagerProps {
+  className?: string;
+  onDatabaseChange?: () => void;
+}

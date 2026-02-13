@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ViewBookmarks } from '../view-bookmarks';
 
 // Mock UI components
@@ -50,6 +50,25 @@ jest.mock('@/components/ui/separator', () => ({
 
 jest.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+jest.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) => open ? <div data-testid="alert-dialog">{children}</div> : null,
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div data-testid="alert-dialog-content">{children}</div>,
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h2 data-testid="alert-title">{children}</h2>,
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p data-testid="alert-description">{children}</p>,
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogCancel: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => <button data-testid="alert-cancel" {...props}>{children}</button>,
+  AlertDialogAction: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => <button data-testid="alert-confirm" onClick={onClick} {...props}>{children}</button>,
+}));
+
+jest.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div data-testid="dropdown-content">{children}</div>,
+  DropdownMenuItem: ({ children, onClick, ...props }: React.HTMLAttributes<HTMLDivElement> & { children: React.ReactNode }) => <div role="menuitem" onClick={onClick} {...props}>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // Mock bookmarks store
@@ -154,5 +173,58 @@ describe('ViewBookmarks', () => {
     
     expect(screen.getByText('Test Bookmark')).toBeInTheDocument();
     expect(screen.getByText('Andromeda Galaxy')).toBeInTheDocument();
+  });
+
+  it('shows delete confirmation dialog instead of deleting directly', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'To Delete',
+        ra: 0,
+        dec: 0,
+        fov: 60,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Click delete in dropdown menu
+    const deleteItems = screen.getAllByRole('menuitem').filter(el => el.textContent?.includes('common.delete'));
+    expect(deleteItems.length).toBeGreaterThan(0);
+    fireEvent.click(deleteItems[0]);
+
+    // Confirm dialog should appear
+    expect(screen.getByTestId('alert-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('alert-title')).toHaveTextContent('bookmarks.confirmDeleteTitle');
+    expect(screen.getByTestId('alert-description')).toHaveTextContent('bookmarks.confirmDelete');
+
+    // Should not have deleted yet
+    expect(mockBookmarksStore.removeBookmark).not.toHaveBeenCalled();
+  });
+
+  it('deletes bookmark when confirmation is accepted', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'To Delete',
+        ra: 0,
+        dec: 0,
+        fov: 60,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Trigger delete
+    const deleteItems = screen.getAllByRole('menuitem').filter(el => el.textContent?.includes('common.delete'));
+    fireEvent.click(deleteItems[0]);
+
+    // Confirm
+    fireEvent.click(screen.getByTestId('alert-confirm'));
+    expect(mockBookmarksStore.removeBookmark).toHaveBeenCalledWith('bm1');
   });
 });

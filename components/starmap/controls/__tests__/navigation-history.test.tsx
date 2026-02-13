@@ -21,8 +21,18 @@ jest.mock('@/components/ui/popover', () => ({
 jest.mock('@/components/ui/tooltip', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) => open ? <div data-testid="alert-dialog">{children}</div> : null,
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div data-testid="alert-dialog-content">{children}</div>,
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h2 data-testid="alert-title">{children}</h2>,
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p data-testid="alert-description">{children}</p>,
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogCancel: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => <button data-testid="alert-cancel" {...props}>{children}</button>,
+  AlertDialogAction: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => <button data-testid="alert-confirm" onClick={onClick} {...props}>{children}</button>,
 }));
 
 jest.mock('@/components/ui/separator', () => ({
@@ -130,5 +140,47 @@ describe('NavigationHistory', () => {
     
     const nav = screen.getByRole('navigation');
     expect(nav).toBeInTheDocument();
+  });
+
+  it('shows confirmation dialog when clear button is clicked', () => {
+    mockStore.history = [
+      { id: '1', ra: 10, dec: 20, fov: 30, timestamp: Date.now() },
+    ];
+    mockStore.currentIndex = 0;
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    // Find and click the clear/trash button (small icon button in the history header)
+    const allButtons = screen.getAllByRole('button');
+    // The clear button has a Trash2 icon; it's the last small button rendered when history is non-empty
+    const clearBtn = allButtons.find(btn => btn.className?.includes('h-6'));
+    expect(clearBtn).toBeDefined();
+    fireEvent.click(clearBtn!);
+
+    // Confirmation dialog should appear
+    expect(screen.getByTestId('alert-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('alert-title')).toHaveTextContent('navigation.confirmClearTitle');
+    expect(screen.getByTestId('alert-description')).toHaveTextContent('navigation.confirmClearHistory');
+
+    // Should not have cleared yet
+    expect(mockStore.clear).not.toHaveBeenCalled();
+  });
+
+  it('clears history when confirmation is accepted', () => {
+    mockStore.history = [
+      { id: '1', ra: 10, dec: 20, fov: 30, timestamp: Date.now() },
+    ];
+    mockStore.currentIndex = 0;
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    // Click clear button
+    const allButtons = screen.getAllByRole('button');
+    const clearBtn = allButtons.find(btn => btn.className?.includes('h-6'));
+    fireEvent.click(clearBtn!);
+
+    // Confirm clear
+    fireEvent.click(screen.getByTestId('alert-confirm'));
+    expect(mockStore.clear).toHaveBeenCalled();
   });
 });

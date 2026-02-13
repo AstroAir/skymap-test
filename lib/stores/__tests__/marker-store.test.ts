@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { useMarkerStore, MARKER_COLORS, MARKER_ICONS, type MarkerInput } from '../marker-store';
+import { useMarkerStore, MARKER_COLORS, MARKER_ICONS, MAX_MARKERS, type MarkerInput } from '../marker-store';
 
 // Mock Tauri platform check
 jest.mock('@/lib/storage/platform', () => ({
@@ -70,7 +70,7 @@ describe('useMarkerStore', () => {
         icon: 'star',
       };
 
-      let markerId: string;
+      let markerId: string | null;
       act(() => {
         markerId = result.current.addMarker(markerInput);
       });
@@ -106,7 +106,7 @@ describe('useMarkerStore', () => {
     it('should remove a marker by id', () => {
       const { result } = renderHook(() => useMarkerStore());
       
-      let markerId: string;
+      let markerId: string | null;
       act(() => {
         markerId = result.current.addMarker({
           name: 'Test Marker',
@@ -131,7 +131,7 @@ describe('useMarkerStore', () => {
     it('should clear active marker if removed', () => {
       const { result } = renderHook(() => useMarkerStore());
       
-      let markerId: string;
+      let markerId: string | null;
       act(() => {
         markerId = result.current.addMarker({
           name: 'Test Marker',
@@ -159,7 +159,7 @@ describe('useMarkerStore', () => {
     it('should update marker properties', () => {
       const { result } = renderHook(() => useMarkerStore());
       
-      let markerId: string;
+      let markerId: string | null;
       act(() => {
         markerId = result.current.addMarker({
           name: 'Test Marker',
@@ -184,7 +184,7 @@ describe('useMarkerStore', () => {
     it('should toggle marker visibility', () => {
       const { result } = renderHook(() => useMarkerStore());
       
-      let markerId: string;
+      let markerId: string | null;
       act(() => {
         markerId = result.current.addMarker({
           name: 'Test Marker',
@@ -331,5 +331,172 @@ describe('MARKER_ICONS', () => {
     expect(MARKER_ICONS).toContain('circle');
     expect(MARKER_ICONS).toContain('crosshair');
     expect(MARKER_ICONS).toContain('pin');
+  });
+});
+
+describe('MAX_MARKERS limit', () => {
+  it('should export MAX_MARKERS constant', () => {
+    expect(MAX_MARKERS).toBe(500);
+  });
+
+  it('should return null when marker limit is reached', () => {
+    const { result } = renderHook(() => useMarkerStore());
+
+    // Directly set markers to the max count
+    act(() => {
+      for (let i = 0; i < MAX_MARKERS; i++) {
+        result.current.addMarker({
+          name: `Marker ${i}`,
+          ra: i,
+          dec: i,
+          raString: `${i}h`,
+          decString: `${i}d`,
+          color: '#ef4444',
+          icon: 'star',
+        });
+      }
+    });
+
+    expect(result.current.markers).toHaveLength(MAX_MARKERS);
+
+    let id: string | null;
+    act(() => {
+      id = result.current.addMarker({
+        name: 'Over Limit',
+        ra: 0,
+        dec: 0,
+        raString: '0h',
+        decString: '0d',
+        color: '#ef4444',
+        icon: 'star',
+      });
+    });
+
+    expect(id!).toBeNull();
+    expect(result.current.markers).toHaveLength(MAX_MARKERS);
+
+    // Cleanup
+    act(() => {
+      result.current.clearAllMarkers();
+    });
+  });
+});
+
+describe('display settings', () => {
+  it('should have showLabels enabled by default', () => {
+    const { result } = renderHook(() => useMarkerStore());
+    expect(result.current.showLabels).toBe(true);
+  });
+
+  it('should toggle showLabels', () => {
+    const { result } = renderHook(() => useMarkerStore());
+    act(() => {
+      result.current.setShowLabels(false);
+    });
+    expect(result.current.showLabels).toBe(false);
+    act(() => {
+      result.current.setShowLabels(true);
+    });
+    expect(result.current.showLabels).toBe(true);
+  });
+
+  it('should have default globalMarkerSize of 20', () => {
+    const { result } = renderHook(() => useMarkerStore());
+    expect(result.current.globalMarkerSize).toBe(20);
+  });
+
+  it('should clamp globalMarkerSize between 8 and 48', () => {
+    const { result } = renderHook(() => useMarkerStore());
+    act(() => {
+      result.current.setGlobalMarkerSize(2);
+    });
+    expect(result.current.globalMarkerSize).toBe(8);
+    act(() => {
+      result.current.setGlobalMarkerSize(100);
+    });
+    expect(result.current.globalMarkerSize).toBe(48);
+  });
+
+  it('should have default sortBy as date', () => {
+    const { result } = renderHook(() => useMarkerStore());
+    expect(result.current.sortBy).toBe('date');
+  });
+
+  it('should change sortBy', () => {
+    const { result } = renderHook(() => useMarkerStore());
+    act(() => {
+      result.current.setSortBy('name');
+    });
+    expect(result.current.sortBy).toBe('name');
+    act(() => {
+      result.current.setSortBy('ra');
+    });
+    expect(result.current.sortBy).toBe('ra');
+  });
+});
+
+describe('import/export', () => {
+  it('should export markers as JSON string', () => {
+    const { result } = renderHook(() => useMarkerStore());
+
+    act(() => {
+      result.current.addMarker({
+        name: 'Export Test',
+        ra: 180,
+        dec: 45,
+        raString: '12h 00m 00s',
+        decString: '+45° 00\' 00"',
+        color: '#ef4444',
+        icon: 'star',
+        group: 'TestGroup',
+      });
+    });
+
+    const json = result.current.exportMarkers();
+    const data = JSON.parse(json);
+    expect(data.version).toBe(1);
+    expect(data.markers).toHaveLength(1);
+    expect(data.markers[0].name).toBe('Export Test');
+    expect(data.groups).toContain('TestGroup');
+  });
+
+  it('should import markers from JSON string', () => {
+    const { result } = renderHook(() => useMarkerStore());
+
+    const importData = JSON.stringify({
+      version: 1,
+      markers: [
+        {
+          name: 'Imported Marker',
+          ra: 90,
+          dec: 30,
+          raString: '06h 00m 00s',
+          decString: '+30° 00\' 00"',
+          color: '#3b82f6',
+          icon: 'circle',
+          group: 'ImportedGroup',
+          visible: true,
+        },
+      ],
+      groups: ['ImportedGroup'],
+    });
+
+    let importResult: { count: number };
+    act(() => {
+      importResult = result.current.importMarkers(importData);
+    });
+
+    expect(importResult!.count).toBe(1);
+    expect(result.current.markers.some(m => m.name === 'Imported Marker')).toBe(true);
+    expect(result.current.groups).toContain('ImportedGroup');
+  });
+
+  it('should throw on invalid import data', () => {
+    const { result } = renderHook(() => useMarkerStore());
+    expect(() => {
+      act(() => {
+        result.current.importMarkers('not json');
+      });
+    }).toThrow();
   });
 });

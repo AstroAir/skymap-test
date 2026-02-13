@@ -84,7 +84,7 @@ export class MapboxProvider extends BaseMapProvider {
 
   async geocode(
     address: string,
-    options: { limit?: number; bounds?: BoundingBox } = {}
+    options: { limit?: number; bounds?: BoundingBox; language?: string } = {}
   ): Promise<GeocodingResult[]> {
     await this.applyRateLimit();
     
@@ -92,7 +92,7 @@ export class MapboxProvider extends BaseMapProvider {
     const params = new URLSearchParams({
       access_token: this.config.apiKey!,
       limit: String(options.limit || 10),
-      language: 'en',
+      language: options.language || 'en',
     });
 
     if (options.bounds) {
@@ -181,7 +181,7 @@ export class MapboxProvider extends BaseMapProvider {
   }
 
   protected getHealthCheckUrl(): string {
-    return `${this.GEOCODING_BASE_URL}/test.json?access_token=${this.config.apiKey}`;
+    return `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/0/0/0?access_token=${this.config.apiKey}`;
   }
 
   private transformGeocodingResult(feature: MapboxGeocodingResponse['features'][0]): GeocodingResult {

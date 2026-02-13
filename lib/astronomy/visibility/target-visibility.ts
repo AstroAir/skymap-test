@@ -290,7 +290,7 @@ function calculateRiseSetTimes(
   }
   
   // Calculate hour angle at horizon crossing
-  const horizonAlt = customHorizon ? 0 : 0; // Use 0 for now, could use average horizon
+  const horizonAlt = customHorizon?.hasPoints() ? customHorizon.getAltitude(180) : 0;
   const cosH = (Math.sin(deg2rad(horizonAlt)) - Math.sin(latRad) * Math.sin(decRad)) /
                (Math.cos(latRad) * Math.cos(decRad));
   
@@ -349,7 +349,7 @@ function calculateMoonInfo(
   const phaseName = getMoonPhaseName(phase);
   
   // Calculate moon altitude now
-  const moonAltAz = calculateMoonAltAz(moonPos.ra, moonPos.dec, latitude, longitude);
+  const moonAltAz = calculateMoonAltAz(moonPos.ra, moonPos.dec, latitude, longitude, referenceDate);
   
   // Calculate moon altitude data points over 24 hours
   const dataPoints: DataPoint[] = [];
@@ -359,7 +359,7 @@ function calculateMoonInfo(
   for (let i = 0; i < 240; i++) {
     const moonJd = currentTime.getTime() / 86400000 + 2440587.5;
     const moonPosAtTime = getMoonPosition(moonJd);
-    const altAz = calculateMoonAltAz(moonPosAtTime.ra, moonPosAtTime.dec, latitude, longitude);
+    const altAz = calculateMoonAltAz(moonPosAtTime.ra, moonPosAtTime.dec, latitude, longitude, currentTime);
     
     const point: DataPoint = {
       x: dateToDouble(currentTime),
@@ -394,9 +394,10 @@ function calculateMoonAltAz(
   moonRa: number,
   moonDec: number,
   latitude: number,
-  longitude: number
+  longitude: number,
+  date: Date = new Date()
 ): { altitude: number; azimuth: number } {
-  const lst = getLSTForDateInternal(new Date(), longitude);
+  const lst = getLSTForDateInternal(date, longitude);
   const ha = lst - moonRa;
   
   const altitude = calculateAltitude(ha, latitude, moonDec);

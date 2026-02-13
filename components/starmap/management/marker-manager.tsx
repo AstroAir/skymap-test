@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import {
   useMarkerStore,
   useStellariumStore,
   type SkyMarker,
+  type MarkerSortBy,
   MARKER_COLORS,
   MARKER_ICONS,
+  MAX_MARKERS,
 } from '@/lib/stores';
+import { readFileAsText } from '@/lib/storage';
 import {
   Drawer,
   DrawerContent,
@@ -52,6 +56,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Slider } from '@/components/ui/slider';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   MapPinned,
   Plus,
@@ -61,6 +73,12 @@ import {
   EyeOff,
   Navigation,
   Trash,
+  Search,
+  Tag,
+  Download,
+  Upload,
+  Pencil,
+  ArrowUpDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkerIconDisplay } from '@/lib/constants/marker-icons';
@@ -87,15 +105,26 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
   const [editingMarker, setEditingMarker] = useState<SkyMarker | null>(null);
   const [formData, setFormData] = useState<MarkerFormData>(defaultFormData);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
-    markers, groups, showMarkers, pendingCoords, editingMarkerId,
+    markers, groups, showMarkers, showLabels, globalMarkerSize, sortBy,
+    pendingCoords, editingMarkerId,
     addMarker, removeMarker, updateMarker, toggleMarkerVisibility,
-    setShowMarkers, clearAllMarkers, setPendingCoords, setEditingMarkerId,
+    setShowMarkers, setShowLabels, setGlobalMarkerSize, setSortBy,
+    clearAllMarkers, setPendingCoords, setEditingMarkerId,
+    renameGroup, removeGroup, exportMarkers, importMarkers,
   } = useMarkerStore(useShallow((state) => ({
     markers: state.markers,
     groups: state.groups,
     showMarkers: state.showMarkers,
+    showLabels: state.showLabels,
+    globalMarkerSize: state.globalMarkerSize,
+    sortBy: state.sortBy,
     pendingCoords: state.pendingCoords,
     editingMarkerId: state.editingMarkerId,
     addMarker: state.addMarker,
@@ -103,9 +132,16 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     updateMarker: state.updateMarker,
     toggleMarkerVisibility: state.toggleMarkerVisibility,
     setShowMarkers: state.setShowMarkers,
+    setShowLabels: state.setShowLabels,
+    setGlobalMarkerSize: state.setGlobalMarkerSize,
+    setSortBy: state.setSortBy,
     clearAllMarkers: state.clearAllMarkers,
     setPendingCoords: state.setPendingCoords,
     setEditingMarkerId: state.setEditingMarkerId,
+    renameGroup: state.renameGroup,
+    removeGroup: state.removeGroup,
+    exportMarkers: state.exportMarkers,
+    importMarkers: state.importMarkers,
   })));
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
 
@@ -156,10 +192,34 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     }
   }, [editingMarkerId, markers, setEditingMarkerId]);
 
-  // Filter markers by selected group
-  const filteredMarkers = selectedGroup
-    ? markers.filter((m) => m.group === selectedGroup)
-    : markers;
+  // Filter markers by selected group and search query, then sort
+  const filteredMarkers = useMemo(() => {
+    let result = selectedGroup
+      ? markers.filter((m) => m.group === selectedGroup)
+      : markers;
+    
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (m) => m.name.toLowerCase().includes(q) || m.description?.toLowerCase().includes(q)
+      );
+    }
+    
+    const sorted = [...result];
+    switch (sortBy) {
+      case 'name':
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'ra':
+        sorted.sort((a, b) => a.ra - b.ra);
+        break;
+      case 'date':
+      default:
+        sorted.sort((a, b) => b.createdAt - a.createdAt);
+        break;
+    }
+    return sorted;
+  }, [markers, selectedGroup, searchQuery, sortBy]);
 
   // Open add marker dialog with initial coordinates
   const handleAddMarker = useCallback(
@@ -209,7 +269,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
         group: formData.group,
       });
     } else {
-      addMarker({
+      const id = addMarker({
         name: formData.name,
         description: formData.description || undefined,
         color: formData.color,
@@ -220,12 +280,16 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
         raString: formData.raString,
         decString: formData.decString,
       });
+      if (id === null) {
+        toast.warning(t('markers.maxMarkersReached', { max: MAX_MARKERS }));
+        return;
+      }
     }
 
     setEditDialogOpen(false);
     setEditingMarker(null);
     setFormData(defaultFormData);
-  }, [formData, editingMarker, addMarker, updateMarker]);
+  }, [formData, editingMarker, addMarker, updateMarker, t]);
 
   // Confirm delete marker
   const handleConfirmDelete = useCallback(() => {
@@ -246,6 +310,57 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     },
     [setViewDirection, onNavigateToMarker]
   );
+
+  // Export markers
+  const handleExport = useCallback(() => {
+    try {
+      const json = exportMarkers();
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `skymap-markers-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(t('markers.exportSuccess'));
+    } catch {
+      toast.error('Export failed');
+    }
+  }, [exportMarkers, t]);
+
+  // Import markers
+  const handleImport = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const json = await readFileAsText(file);
+      const { count } = importMarkers(json);
+      toast.success(t('markers.importSuccess', { count }));
+    } catch {
+      toast.error(t('markers.importError'));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [importMarkers, t]);
+
+  // Rename group
+  const handleRenameGroup = useCallback((oldName: string) => {
+    if (!renameValue.trim() || renameValue === oldName) {
+      setRenamingGroup(null);
+      return;
+    }
+    renameGroup(oldName, renameValue.trim());
+    if (selectedGroup === oldName) setSelectedGroup(renameValue.trim());
+    setRenamingGroup(null);
+  }, [renameValue, renameGroup, selectedGroup]);
+
+  // Delete group
+  const handleDeleteGroup = useCallback(() => {
+    if (!deleteGroupTarget) return;
+    removeGroup(deleteGroupTarget);
+    if (selectedGroup === deleteGroupTarget) setSelectedGroup(null);
+    setDeleteGroupTarget(null);
+  }, [deleteGroupTarget, removeGroup, selectedGroup]);
 
   return (
     <>
@@ -286,6 +401,21 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
                     {showMarkers ? t('markers.hideAll') : t('markers.showAll')}
                   </TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn('h-8 w-8', showLabels && 'bg-accent')}
+                      onClick={() => setShowLabels(!showLabels)}
+                    >
+                      <Tag className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {showLabels ? t('markers.hideLabels') : t('markers.showLabels')}
+                  </TooltipContent>
+                </Tooltip>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -298,6 +428,47 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
             </div>
           </DrawerHeader>
 
+          {/* Search & Sort */}
+          <div className="px-4 pb-2 space-y-2">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('markers.search')}
+                  className="h-8 pl-8 text-sm"
+                />
+              </div>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as MarkerSortBy)}>
+                <SelectTrigger className="h-8 w-[110px] text-xs">
+                  <ArrowUpDown className="h-3 w-3 mr-1" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">{t('markers.sortByDate')}</SelectItem>
+                  <SelectItem value="name">{t('markers.sortByName')}</SelectItem>
+                  <SelectItem value="ra">{t('markers.sortByRA')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Marker size slider */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">{t('markers.size')}</Label>
+              <Slider
+                value={[globalMarkerSize]}
+                onValueChange={([v]) => setGlobalMarkerSize(v)}
+                min={8}
+                max={48}
+                step={2}
+                className="flex-1"
+              />
+              <span className="text-xs text-muted-foreground w-6 text-right">{globalMarkerSize}</span>
+            </div>
+          </div>
+
+          {/* Group filters */}
           <div className="px-4 pb-2">
             <div className="flex gap-1 flex-wrap">
               <Badge
@@ -309,15 +480,59 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
               </Badge>
               {groups.map((group) => {
                 const count = markers.filter((m) => m.group === group).length;
+                if (renamingGroup === group) {
+                  return (
+                    <Input
+                      key={group}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => handleRenameGroup(group)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameGroup(group);
+                        if (e.key === 'Escape') setRenamingGroup(null);
+                      }}
+                      className="h-6 w-24 text-xs px-1"
+                      autoFocus
+                    />
+                  );
+                }
                 return (
-                  <Badge
-                    key={group}
-                    variant={selectedGroup === group ? 'default' : 'outline'}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedGroup(group)}
-                  >
-                    {group} ({count})
-                  </Badge>
+                  <Popover key={group}>
+                    <PopoverTrigger asChild>
+                      <Badge
+                        variant={selectedGroup === group ? 'default' : 'outline'}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedGroup(group)}
+                      >
+                        {group} ({count})
+                      </Badge>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-36 p-1" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs h-7"
+                        onClick={() => {
+                          setRenamingGroup(group);
+                          setRenameValue(group);
+                        }}
+                      >
+                        <Pencil className="h-3 w-3 mr-1.5" />
+                        {t('markers.renameGroup')}
+                      </Button>
+                      {group !== 'Default' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-xs h-7 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteGroupTarget(group)}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1.5" />
+                          {t('markers.deleteGroup')}
+                        </Button>
+                      )}
+                    </PopoverContent>
+                  </Popover>
                 );
               })}
             </div>
@@ -434,25 +649,52 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
             )}
           </ScrollArea>
 
-          {markers.length > 0 && (
-            <>
-              <Separator />
-              <div className="p-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-destructive hover:text-destructive"
-                  onClick={() => {
-                    setEditingMarker(null);
-                    setDeleteDialogOpen(true);
-                  }}
-                >
-                  <Trash className="h-4 w-4 mr-2" />
-                  {t('markers.clearAll')}
-                </Button>
-              </div>
-            </>
-          )}
+          {/* Footer: import/export + clear */}
+          <Separator />
+          <div className="p-2 space-y-1">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleImport}
+              className="hidden"
+            />
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-1 text-xs h-7"
+                onClick={handleExport}
+                disabled={markers.length === 0}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                {t('markers.exportMarkers')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-1 text-xs h-7"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1" />
+                {t('markers.importMarkers')}
+              </Button>
+            </div>
+            {markers.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-destructive hover:text-destructive h-7 text-xs"
+                onClick={() => {
+                  setEditingMarker(null);
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash className="h-3.5 w-3.5 mr-1" />
+                {t('markers.clearAll')}
+              </Button>
+            )}
+          </div>
         </DrawerContent>
       </Drawer>
 
@@ -612,6 +854,27 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
                   setDeleteDialogOpen(false);
                 }
               }}
+            >
+              {t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Group Confirmation */}
+      <AlertDialog open={!!deleteGroupTarget} onOpenChange={(open) => !open && setDeleteGroupTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('markers.deleteGroup')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('markers.deleteGroupDescription')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteGroup}
             >
               {t('common.delete')}
             </AlertDialogAction>

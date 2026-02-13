@@ -8,11 +8,10 @@ import { Slider } from '@/components/ui/slider';
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { MIN_FOV, MAX_FOV } from '@/lib/core/constants/fov';
-import { fovToSlider as fovToSliderUtil, sliderToFov as sliderToFovUtil } from '@/lib/astronomy/fov-utils';
+import { fovToSlider as fovToSliderUtil, sliderToFov as sliderToFovUtil, formatFov } from '@/lib/astronomy/fov-utils';
 import type { ZoomControlsProps } from '@/types/starmap/controls';
 
 export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOut, onFovChange }: ZoomControlsProps) {
@@ -21,7 +20,6 @@ export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOu
   const sliderValue = fovToSliderUtil(fov, MIN_FOV, MAX_FOV);
 
   return (
-    <TooltipProvider>
       <div className="flex flex-col items-center gap-1 sm:gap-1.5 bg-background/80 backdrop-blur-sm rounded-lg p-1 sm:p-1.5 border border-border" role="group" aria-label={t('zoom.zoomControls')}>
         {/* Zoom In Button */}
         <Tooltip>
@@ -79,10 +77,9 @@ export const ZoomControls = memo(function ZoomControls({ fov, onZoomIn, onZoomOu
 
         {/* FOV Display */}
         <div className="text-[10px] sm:text-xs text-muted-foreground text-center font-mono" aria-live="polite" aria-atomic="true">
-          {fov < 1 ? fov.toFixed(2) : fov.toFixed(1)}°
+          {formatFov(fov)}°
         </div>
       </div>
-    </TooltipProvider>
   );
 });
 ZoomControls.displayName = 'ZoomControls';

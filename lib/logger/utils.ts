@@ -293,3 +293,44 @@ export function getLogStats(logs: LogEntry[]): {
     byModule,
   };
 }
+
+/**
+ * Grouped log entry — represents one or more consecutive identical logs
+ */
+export interface GroupedLogEntry {
+  /** The representative log entry */
+  entry: LogEntry;
+  /** Number of consecutive duplicates (1 = no duplicates) */
+  count: number;
+  /** Timestamps of all occurrences */
+  timestamps: Date[];
+}
+
+/**
+ * Group consecutive duplicate log entries.
+ * Two entries are considered duplicates if they share the same module and message.
+ */
+export function groupConsecutiveLogs(logs: LogEntry[]): GroupedLogEntry[] {
+  if (logs.length === 0) return [];
+  
+  const groups: GroupedLogEntry[] = [];
+  let current: GroupedLogEntry = {
+    entry: logs[0],
+    count: 1,
+    timestamps: [logs[0].timestamp],
+  };
+  
+  for (let i = 1; i < logs.length; i++) {
+    const entry = logs[i];
+    if (entry.module === current.entry.module && entry.message === current.entry.message) {
+      current.count++;
+      current.timestamps.push(entry.timestamp);
+    } else {
+      groups.push(current);
+      current = { entry, count: 1, timestamps: [entry.timestamp] };
+    }
+  }
+  
+  groups.push(current);
+  return groups;
+}

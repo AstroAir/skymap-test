@@ -8,6 +8,9 @@ const mockSettingsState = {
   stellarium: {
     constellationsLinesVisible: true,
     constellationArtVisible: false,
+    constellationLabelsVisible: true,
+    starLabelsVisible: true,
+    planetLabelsVisible: true,
     azimuthalLinesVisible: false,
     equatorialLinesVisible: false,
     meridianLinesVisible: false,
@@ -83,7 +86,7 @@ jest.mock('@/components/starmap/objects/object-info-sources-config', () => ({
 }));
 
 jest.mock('@/components/starmap/onboarding/welcome-dialog', () => ({
-  TourRestartButton: () => <button data-testid="tour-restart-button">Restart Tour</button>,
+  OnboardingRestartButton: () => <button data-testid="tour-restart-button">Restart Tour</button>,
 }));
 
 import { DisplaySettings } from '../display-settings';

@@ -6,7 +6,7 @@ import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-lea
 import 'leaflet/dist/leaflet.css';
 import { cn } from '@/lib/utils';
 import type { Coordinates } from '@/types/starmap/map';
-import { TILE_LAYER_CONFIGS, type TileLayerType } from '@/lib/constants/map';
+import { TILE_LAYER_CONFIGS, LIGHT_POLLUTION_OVERLAY, type TileLayerType } from '@/lib/constants/map';
 
 // Fix default marker icon (Leaflet + bundler issue)
 // Icons are copied from node_modules/leaflet/dist/images/ to public/leaflet/
@@ -29,6 +29,7 @@ export interface LeafletMapProps {
   disabled?: boolean;
   minZoom?: number;
   maxZoom?: number;
+  showLightPollution?: boolean;
 }
 
 /**
@@ -48,18 +49,23 @@ function MapController({
 }) {
   const map = useMap();
   const prevCenterRef = useRef({ lat: center.latitude, lng: center.longitude });
+  const prevZoomRef = useRef(zoom);
 
   // Sync center/zoom from props
   useEffect(() => {
     const prevLat = prevCenterRef.current.lat;
     const prevLng = prevCenterRef.current.lng;
+    const prevZoom = prevZoomRef.current;
 
-    if (
+    const centerChanged =
       Math.abs(prevLat - center.latitude) > 0.0001 ||
-      Math.abs(prevLng - center.longitude) > 0.0001
-    ) {
+      Math.abs(prevLng - center.longitude) > 0.0001;
+    const zoomChanged = prevZoom !== zoom;
+
+    if (centerChanged || zoomChanged) {
       map.setView([center.latitude, center.longitude], zoom, { animate: true });
       prevCenterRef.current = { lat: center.latitude, lng: center.longitude };
+      prevZoomRef.current = zoom;
     }
   }, [map, center.latitude, center.longitude, zoom]);
 
@@ -112,11 +118,20 @@ function DraggableMarker({
 
   const eventHandlers = useMemo(
     () => ({
+      dragstart() {
+        const marker = markerRef.current;
+        if (marker) {
+          marker.setOpacity(0.6);
+        }
+      },
       dragend() {
         const marker = markerRef.current;
-        if (marker && !disabled) {
-          const pos = marker.getLatLng();
-          onDragEnd?.({ latitude: pos.lat, longitude: pos.lng });
+        if (marker) {
+          marker.setOpacity(1);
+          if (!disabled) {
+            const pos = marker.getLatLng();
+            onDragEnd?.({ latitude: pos.lat, longitude: pos.lng });
+          }
         }
       },
     }),
@@ -146,6 +161,7 @@ function LeafletMapComponent({
   disabled = false,
   minZoom = 2,
   maxZoom = 19,
+  showLightPollution = false,
 }: LeafletMapProps) {
   const tileConfig = TILE_LAYER_CONFIGS[tileLayer] || TILE_LAYER_CONFIGS.openstreetmap;
 
@@ -160,6 +176,9 @@ function LeafletMapComponent({
 
   return (
     <div
+      role="application"
+      aria-label="Interactive map"
+      aria-disabled={disabled || undefined}
       className={cn(
         'relative rounded-lg overflow-hidden',
         disabled && 'opacity-50 pointer-events-none',
@@ -186,6 +205,15 @@ function LeafletMapComponent({
           maxZoom={tileConfig.maxZoom}
           {...(tileConfig.subdomains ? { subdomains: tileConfig.subdomains } : {})}
         />
+        {showLightPollution && (
+          <TileLayer
+            key="light-pollution-overlay"
+            url={LIGHT_POLLUTION_OVERLAY.url}
+            attribution={LIGHT_POLLUTION_OVERLAY.attribution}
+            maxZoom={LIGHT_POLLUTION_OVERLAY.maxZoom}
+            opacity={0.5}
+          />
+        )}
         <MapController
           center={center}
           zoom={zoom}

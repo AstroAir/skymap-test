@@ -10,7 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Star, Github, Heart, ExternalLink, Map, BookOpen } from 'lucide-react';
+import { Star, Github, Heart, ExternalLink, Map, BookOpen, ArrowUp, Mail } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface FooterLinkProps {
@@ -66,7 +66,7 @@ export function Footer() {
   return (
     <footer className="py-12 bg-card border-t border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-2 mb-4 group">
@@ -91,6 +91,35 @@ export function Footer() {
               </ul>
             </TooltipProvider>
           </nav>
+
+          {/* Community */}
+          <div>
+            <h4 className="font-semibold text-foreground mb-4">{t('community')}</h4>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>
+                <a
+                  href="https://github.com/AstroAir/skymap/discussions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+                >
+                  <Github className="h-3.5 w-3.5" />
+                  {t('discussions')}
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/AstroAir/skymap/issues"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  {t('reportIssue')}
+                </a>
+              </li>
+            </ul>
+          </div>
 
           {/* Credits */}
           <div>
@@ -119,9 +148,20 @@ export function Footer() {
           <p className="text-sm text-muted-foreground">
             © {currentYear} SkyMap. {t('allRightsReserved')}
           </p>
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            {t('madeWith')} <Heart className="h-3 w-3 text-destructive animate-pulse-subtle" /> {t('forAstronomers')}
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-muted-foreground flex items-center gap-1">
+              {t('madeWith')} <Heart className="h-3 w-3 text-destructive animate-pulse-subtle" /> {t('forAstronomers')}
+            </p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              aria-label={t('backToTop')}
+            >
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </footer>

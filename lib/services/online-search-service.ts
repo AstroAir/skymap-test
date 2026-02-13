@@ -59,6 +59,7 @@ export interface OnlineSearchOptions {
   timeout?: number;
   includeCoordinateSearch?: boolean;
   searchRadius?: number; // degrees for coordinate search
+  signal?: AbortSignal;
 }
 
 export interface CoordinateSearchParams {
@@ -202,6 +203,76 @@ function generateResultId(name: string, source: OnlineSearchSource): string {
 }
 
 // ============================================================================
+// Rate Limiter for CDS Services
+// ============================================================================
+
+const CDS_MIN_INTERVAL_MS = 200; // ≥200ms between requests to avoid SIMBAD blacklisting
+let cdsGate: Promise<void> = Promise.resolve();
+
+async function rateLimitedFetch(
+  url: string,
+  options: { timeout?: number; headers?: Record<string, string>; signal?: AbortSignal } = {}
+) {
+  const isCds = url.includes('cds.unistra.fr') || url.includes('simbad.cds.unistra.fr') || url.includes('vizier.cds.unistra.fr');
+  if (isCds) {
+    // Chain off the previous CDS request to serialize access
+    const prev = cdsGate;
+    let resolve: () => void;
+    cdsGate = new Promise<void>((r) => { resolve = r; });
+    await prev;
+    // Ensure minimum interval then release after delay
+    const doFetch = smartFetch(url, options);
+    doFetch.finally(() => {
+      setTimeout(() => resolve!(), CDS_MIN_INTERVAL_MS);
+    });
+    return doFetch;
+  }
+  return smartFetch(url, options);
+}
+
+// ============================================================================
+// Retry Helper
+// ============================================================================
+
+async function fetchWithRetry(
+  url: string,
+  options: { timeout?: number; headers?: Record<string, string>; signal?: AbortSignal } = {},
+  maxRetries: number = 1
+) {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (options.signal?.aborted) {
+        throw new Error('Request aborted');
+      }
+      return await rateLimitedFetch(url, options);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      // Only retry on network errors, not on abort
+      if (options.signal?.aborted || attempt >= maxRetries) {
+        throw lastError;
+      }
+      // Wait 500ms before retry
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+  throw lastError ?? new Error('Fetch failed');
+}
+
+// ============================================================================
+// ADQL Escape Utility
+// ============================================================================
+
+function escapeAdqlLike(value: string): string {
+  // Escape single quotes for ADQL string literals
+  let escaped = value.replace(/'/g, "''");
+  // Escape LIKE wildcards
+  escaped = escaped.replace(/%/g, '\\%');
+  escaped = escaped.replace(/_/g, '\\_');
+  return escaped;
+}
+
+// ============================================================================
 // Sesame Name Resolver (Primary - queries SIMBAD + NED + VizieR)
 // ============================================================================
 
@@ -213,12 +284,12 @@ interface SesameResult {
   aliases?: string[];
 }
 
-async function searchSesame(query: string, timeout: number = 10000): Promise<OnlineSearchResult[]> {
+async function searchSesame(query: string, timeout: number = 10000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
   try {
     const encodedQuery = encodeURIComponent(query);
     const url = `${ONLINE_SEARCH_SOURCES.sesame.baseUrl}${ONLINE_SEARCH_SOURCES.sesame.endpoint}/-ox/SNV?${encodedQuery}`;
     
-    const response = await smartFetch(url, { timeout });
+    const response = await fetchWithRetry(url, { timeout, signal });
 
     if (!response || typeof response.ok !== 'boolean') {
       throw new Error('Sesame API error: invalid response');
@@ -338,23 +409,24 @@ interface SimbadTapRow {
   rvz_redshift?: number | null;
 }
 
-async function searchSimbadByName(query: string, limit: number = 20, timeout: number = 15000): Promise<OnlineSearchResult[]> {
+async function searchSimbadByName(query: string, limit: number = 20, timeout: number = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
   if (!query.trim()) {
     return [];
   }
 
   try {
-    // Build ADQL query for SIMBAD TAP
-    const escapedQuery = query.replace(/'/g, "''");
+    // Build ADQL query for SIMBAD TAP with proper escaping
+    const escapedQuery = escapeAdqlLike(query);
     const adqlQuery = `
       SELECT TOP ${limit}
-        main_id, ra, dec, otype_txt, sp_type, 
-        flux AS flux_v, galdim_majaxis, galdim_minaxis, 
-        morph_type, rvz_redshift
-      FROM basic
-      JOIN ident ON basic.oid = ident.oidref
+        b.main_id, b.ra, b.dec, b.otype_txt, b.sp_type,
+        f.V AS flux_v, b.galdim_majaxis, b.galdim_minaxis,
+        b.morph_type, b.rvz_redshift
+      FROM basic AS b
+      JOIN ident ON b.oid = ident.oidref
+      LEFT JOIN allfluxes AS f ON b.oid = f.oidref
       WHERE ident.id LIKE '%${escapedQuery}%'
-      ORDER BY flux ASC
+      ORDER BY f.V ASC
     `;
     
     const params = new URLSearchParams({
@@ -366,9 +438,10 @@ async function searchSimbadByName(query: string, limit: number = 20, timeout: nu
     
     const url = `${ONLINE_SEARCH_SOURCES.simbad.baseUrl}${ONLINE_SEARCH_SOURCES.simbad.tapEndpoint}?${params}`;
     
-    const response = await smartFetch(url, {
+    const response = await fetchWithRetry(url, {
       timeout,
       headers: { 'Accept': 'application/json' },
+      signal,
     });
 
     if (!response || typeof response.ok !== 'boolean') {
@@ -441,17 +514,19 @@ async function searchSimbadByCoordinates(
   dec: number, 
   radius: number = 0.5, 
   limit: number = 20, 
-  timeout: number = 15000
+  timeout: number = 15000,
+  signal?: AbortSignal
 ): Promise<OnlineSearchResult[]> {
   try {
     const adqlQuery = `
       SELECT TOP ${limit}
-        main_id, ra, dec, otype_txt, sp_type, 
-        flux AS flux_v, galdim_majaxis, galdim_minaxis, 
-        morph_type, rvz_redshift,
-        DISTANCE(POINT('ICRS', ra, dec), POINT('ICRS', ${ra}, ${dec})) AS dist
-      FROM basic
-      WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', ${ra}, ${dec}, ${radius})) = 1
+        b.main_id, b.ra, b.dec, b.otype_txt, b.sp_type,
+        f.V AS flux_v, b.galdim_majaxis, b.galdim_minaxis,
+        b.morph_type, b.rvz_redshift,
+        DISTANCE(POINT('ICRS', b.ra, b.dec), POINT('ICRS', ${ra}, ${dec})) AS dist
+      FROM basic AS b
+      LEFT JOIN allfluxes AS f ON b.oid = f.oidref
+      WHERE CONTAINS(POINT('ICRS', b.ra, b.dec), CIRCLE('ICRS', ${ra}, ${dec}, ${radius})) = 1
       ORDER BY dist ASC
     `;
     
@@ -464,9 +539,10 @@ async function searchSimbadByCoordinates(
     
     const url = `${ONLINE_SEARCH_SOURCES.simbad.baseUrl}${ONLINE_SEARCH_SOURCES.simbad.tapEndpoint}?${params}`;
     
-    const response = await smartFetch(url, {
+    const response = await fetchWithRetry(url, {
       timeout,
       headers: { 'Accept': 'application/json' },
+      signal,
     });
 
     if (!response || typeof response.ok !== 'boolean') {
@@ -541,7 +617,8 @@ async function searchVizierCatalogs(
   query: string, 
   catalogs: string[] = ['VII/118', 'VII/239B', 'I/355/gaiadr3'], // NGC/IC, Tycho-2, Gaia DR3
   limit: number = 20, 
-  timeout: number = 20000
+  timeout: number = 20000,
+  signal?: AbortSignal
 ): Promise<OnlineSearchResult[]> {
   try {
     const catalogParam = catalogs.join(',');
@@ -549,13 +626,13 @@ async function searchVizierCatalogs(
       '-source': catalogParam,
       '-words': query,
       '-out.max': limit.toString(),
-      '-out.form': 'JSON',
+      '-mime': 'json',
       '-out': '_RAJ2000,_DEJ2000,Name,Vmag,SpType',
     });
     
     const url = `${ONLINE_SEARCH_SOURCES.vizier.baseUrl}/viz-bin/VizieR-4?${params}`;
     
-    const response = await smartFetch(url, { timeout });
+    const response = await fetchWithRetry(url, { timeout, signal });
     
     if (!response || !response.ok) {
       throw new Error(`VizieR search error: ${response?.status ?? 'no response'}`);
@@ -566,25 +643,43 @@ async function searchVizierCatalogs(
     const results: OnlineSearchResult[] = [];
     
     try {
-      // Try parsing as JSON
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
+      // Try direct JSON parse first (with -mime=json it should be valid JSON)
+      let data: Record<string, unknown> | null = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Fallback: extract JSON object from mixed content
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          data = JSON.parse(jsonMatch[0]);
+        }
+      }
+      
+      if (data) {
         // Process VizieR JSON structure
-        if (data.data) {
-          for (const row of data.data) {
+        const rows = (data as Record<string, unknown>).data as Record<string, unknown>[] | undefined;
+        if (rows && Array.isArray(rows)) {
+          for (const row of rows) {
             if (row._RAJ2000 && row._DEJ2000) {
+              const ra = parseFloat(String(row._RAJ2000));
+              const dec = parseFloat(String(row._DEJ2000));
+              if (isNaN(ra) || isNaN(dec)) continue;
+              
+              const name = row.Name 
+                ? String(row.Name)
+                : `J${ra.toFixed(4)}${dec >= 0 ? '+' : ''}${dec.toFixed(4)}`;
+              
               results.push({
-                id: generateResultId(row.Name || `${row._RAJ2000}_${row._DEJ2000}`, 'vizier'),
-                name: row.Name || `J${row._RAJ2000.toFixed(4)}${row._DEJ2000 >= 0 ? '+' : ''}${row._DEJ2000.toFixed(4)}`,
+                id: generateResultId(name, 'vizier'),
+                name,
                 type: row.SpType ? 'Star' : 'Unknown',
                 category: row.SpType ? 'star' : 'other',
-                ra: parseFloat(row._RAJ2000),
-                dec: parseFloat(row._DEJ2000),
-                raString: formatRA(parseFloat(row._RAJ2000)),
-                decString: formatDec(parseFloat(row._DEJ2000)),
-                magnitude: row.Vmag ? parseFloat(row.Vmag) : undefined,
-                spectralType: row.SpType,
+                ra,
+                dec,
+                raString: formatRA(ra),
+                decString: formatDec(dec),
+                magnitude: row.Vmag ? parseFloat(String(row.Vmag)) : undefined,
+                spectralType: row.SpType ? String(row.SpType) : undefined,
                 source: 'vizier',
                 sourceUrl: `https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=${catalogParam}&-c=${encodeURIComponent(query)}`,
               });
@@ -593,8 +688,7 @@ async function searchVizierCatalogs(
         }
       }
     } catch {
-      // Fallback: parse as VOTable or plain text
-      logger.warn('VizieR JSON parse failed, trying VOTable format');
+      logger.warn('VizieR JSON parse failed for query:', query);
     }
     
     return results;
@@ -607,7 +701,7 @@ async function searchVizierCatalogs(
 // NED (NASA/IPAC Extragalactic Database)
 // ============================================================================
 
-async function searchNED(query: string, limit: number = 20, timeout: number = 15000): Promise<OnlineSearchResult[]> {
+async function searchNED(query: string, limit: number = 20, timeout: number = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
   try {
     const params = new URLSearchParams({
       objname: query,
@@ -618,7 +712,7 @@ async function searchNED(query: string, limit: number = 20, timeout: number = 15
     
     const url = `${ONLINE_SEARCH_SOURCES.ned.baseUrl}${ONLINE_SEARCH_SOURCES.ned.endpoint}?${params}`;
     
-    const response = await smartFetch(url, { timeout });
+    const response = await fetchWithRetry(url, { timeout, signal });
     
     if (!response.ok) {
       throw new Error(`NED search error: ${response.status}`);
@@ -698,6 +792,7 @@ export async function searchOnlineByName(
     sources = ['sesame', 'simbad'],
     limit = 20,
     timeout = 15000,
+    signal,
   } = options;
 
   if (!query.trim()) {
@@ -719,7 +814,7 @@ export async function searchOnlineByName(
   
   if (sources.includes('sesame')) {
     searchPromises.push(
-      searchSesame(query, timeout)
+      searchSesame(query, timeout, signal)
         .then(results => ({ source: 'sesame' as const, results }))
         .catch(error => {
           errors.push({ source: 'sesame', error: error.message });
@@ -730,7 +825,7 @@ export async function searchOnlineByName(
   
   if (sources.includes('simbad')) {
     searchPromises.push(
-      searchSimbadByName(query, limit, timeout)
+      searchSimbadByName(query, limit, timeout, signal)
         .then(results => ({ source: 'simbad' as const, results }))
         .catch(error => {
           errors.push({ source: 'simbad', error: error.message });
@@ -741,7 +836,7 @@ export async function searchOnlineByName(
   
   if (sources.includes('vizier')) {
     searchPromises.push(
-      searchVizierCatalogs(query, undefined, limit, timeout)
+      searchVizierCatalogs(query, undefined, limit, timeout, signal)
         .then(results => ({ source: 'vizier' as const, results }))
         .catch(error => {
           errors.push({ source: 'vizier', error: error.message });
@@ -752,7 +847,7 @@ export async function searchOnlineByName(
   
   if (sources.includes('ned')) {
     searchPromises.push(
-      searchNED(query, limit, timeout)
+      searchNED(query, limit, timeout, signal)
         .then(results => ({ source: 'ned' as const, results }))
         .catch(error => {
           errors.push({ source: 'ned', error: error.message });
@@ -763,8 +858,9 @@ export async function searchOnlineByName(
   
   const searchResults = await Promise.all(searchPromises);
   
-  // Deduplicate results by coordinates (within 1 arcmin)
+  // Deduplicate results by coordinates (within ~3.6 arcsec) + name similarity
   const seenPositions = new Map<string, OnlineSearchResult>();
+  const seenNames = new Map<string, OnlineSearchResult>();
   
   for (const { source, results } of searchResults) {
     if (results.length > 0) {
@@ -772,21 +868,32 @@ export async function searchOnlineByName(
     }
     
     for (const result of results) {
-      // Create position key with 0.01 degree precision (~36 arcsec)
-      const posKey = `${Math.round(result.ra * 100)}_${Math.round(result.dec * 100)}`;
+      // Create position key with 0.001 degree precision (~3.6 arcsec)
+      const posKey = `${Math.round(result.ra * 1000)}_${Math.round(result.dec * 1000)}`;
+      // Normalize name for comparison (strip common prefixes)
+      const normalizedName = result.name.replace(/^(NAME\s+|\*\s+|V\*\s+)/i, '').toLowerCase().trim();
       
-      if (!seenPositions.has(posKey)) {
+      const posMatch = seenPositions.get(posKey);
+      const nameMatch = seenNames.get(normalizedName);
+      const existing = posMatch || nameMatch;
+      
+      if (!existing) {
         seenPositions.set(posKey, result);
+        seenNames.set(normalizedName, result);
         allResults.push(result);
       } else {
         // Merge alternate names if same object
-        const existing = seenPositions.get(posKey)!;
         if (existing.name !== result.name) {
           existing.alternateNames = existing.alternateNames || [];
           if (!existing.alternateNames.includes(result.name)) {
             existing.alternateNames.push(result.name);
           }
         }
+        // Fill in missing fields from other sources
+        if (!existing.magnitude && result.magnitude) existing.magnitude = result.magnitude;
+        if (!existing.redshift && result.redshift) existing.redshift = result.redshift;
+        if (!existing.angularSize && result.angularSize) existing.angularSize = result.angularSize;
+        if (!existing.spectralType && result.spectralType) existing.spectralType = result.spectralType;
       }
     }
   }
@@ -813,6 +920,7 @@ export async function searchOnlineByCoordinates(
     sources = ['simbad'],
     limit = 20,
     timeout = 15000,
+    signal,
   } = options;
   
   const startTime = performance.now();
@@ -828,7 +936,8 @@ export async function searchOnlineByCoordinates(
         params.dec, 
         params.radius, 
         limit, 
-        timeout
+        timeout,
+        signal
       );
       if (results.length > 0) {
         usedSources.push('simbad');
@@ -882,6 +991,12 @@ export async function checkOnlineSearchAvailability(): Promise<Record<OnlineSear
     smartFetch(`${ONLINE_SEARCH_SOURCES.simbad.baseUrl}/simbad/`, { timeout: 5000 })
       .then(r => { results.simbad = r.ok; })
       .catch(() => { results.simbad = false; }),
+    smartFetch(`${ONLINE_SEARCH_SOURCES.vizier.baseUrl}/viz-bin/VizieR`, { timeout: 5000 })
+      .then(r => { results.vizier = r.ok; })
+      .catch(() => { results.vizier = false; }),
+    smartFetch(`${ONLINE_SEARCH_SOURCES.ned.baseUrl}/`, { timeout: 5000 })
+      .then(r => { results.ned = r.ok; })
+      .catch(() => { results.ned = false; }),
   ];
   
   await Promise.allSettled(checks);

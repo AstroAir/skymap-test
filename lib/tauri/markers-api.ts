@@ -4,6 +4,7 @@
  */
 
 import { isTauri } from '@/lib/storage/platform';
+import type { MarkerIcon } from '@/lib/stores/marker-store';
 
 // Lazy import to avoid errors in web environment
 async function getInvoke() {
@@ -15,18 +16,8 @@ async function getInvoke() {
 }
 
 // ============================================================================
-// Types
+// Types (snake_case for Tauri/Rust IPC compatibility)
 // ============================================================================
-
-export type MarkerIcon = 
-  | 'star'
-  | 'circle'
-  | 'crosshair'
-  | 'pin'
-  | 'diamond'
-  | 'triangle'
-  | 'square'
-  | 'flag';
 
 export interface SkyMarker {
   id: string;

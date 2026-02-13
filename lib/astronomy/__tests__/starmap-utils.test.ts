@@ -1,5 +1,12 @@
 /**
- * Tests for starmap-utils coordinate conversion and astronomical utilities
+ * Tests for starmap-utils.ts (re-export shim)
+ *
+ * Validates that the backward-compatible re-export shim correctly
+ * exposes coordinate conversion and time utility functions from
+ * the modular subdirectories (coordinates/, time/).
+ *
+ * Note: formatTimeForInput is the only inline function (includes seconds),
+ * since the modular version in time/formats.ts returns HH:MM only.
  */
 
 import {
@@ -301,22 +308,22 @@ describe('formatDateForInput', () => {
 });
 
 describe('formatTimeForInput', () => {
-  it('should format time as HH:MM', () => {
+  it('should format time as HH:MM:SS', () => {
     const date = new Date('2024-06-15T14:30:00');
     const result = formatTimeForInput(date);
-    expect(result).toBe('14:30');
+    expect(result).toBe('14:30:00');
   });
 
   it('should pad single digit hour', () => {
     const date = new Date('2024-06-15T09:05:00');
     const result = formatTimeForInput(date);
-    expect(result).toBe('09:05');
+    expect(result).toBe('09:05:00');
   });
 
   it('should handle midnight', () => {
     const date = new Date('2024-06-15T00:00:00');
     const result = formatTimeForInput(date);
-    expect(result).toBe('00:00');
+    expect(result).toBe('00:00:00');
   });
 });
 

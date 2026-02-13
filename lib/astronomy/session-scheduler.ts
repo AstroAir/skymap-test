@@ -42,7 +42,7 @@ export function optimizeSchedule(
       target.ra, target.dec, latitude, longitude, minAltitude, date
     );
     const feasibility = calculateImagingFeasibility(
-      target.ra, target.dec, latitude, longitude, date
+      target.ra, target.dec, latitude, longitude, minAltitude, date
     );
     const moonDist = angularSeparation(target.ra, target.dec, moonPos.ra, moonPos.dec);
     

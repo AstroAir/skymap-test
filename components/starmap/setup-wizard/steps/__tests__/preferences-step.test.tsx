@@ -14,6 +14,9 @@ describe('PreferencesStep', () => {
       stellarium: {
         constellationsLinesVisible: true,
         constellationArtVisible: false,
+        constellationLabelsVisible: true,
+        starLabelsVisible: true,
+        planetLabelsVisible: true,
         azimuthalLinesVisible: false,
         equatorialLinesVisible: false,
         meridianLinesVisible: false,

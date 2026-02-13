@@ -249,6 +249,15 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
   const abortControllerRef = useRef<AbortController | null>(null);
   const [, startTransition] = useTransition();
   
+  // Refs to avoid stale closure in performSearch
+  const searchModeRef = useRef(currentSearchMode);
+  const onlineAvailableRef = useRef(true);
+  const filtersRef = useRef(state.filters);
+  
+  useEffect(() => { searchModeRef.current = state.searchMode; }, [state.searchMode]);
+  useEffect(() => { onlineAvailableRef.current = state.onlineAvailable; }, [state.onlineAvailable]);
+  useEffect(() => { filtersRef.current = state.filters; }, [state.filters]);
+  
   useEffect(() => {
     const currentDebounce = debounceRef.current;
     const currentAbort = abortControllerRef.current;
@@ -365,7 +374,7 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
       .slice(0, MAX_LOCAL_RESULTS);
   }, [stel, targets]);
   
-  const performOnlineSearch = useCallback(async (query: string, _filters: OnlineSearchFilters): Promise<OnlineSearchResultItem[]> => {
+  const performOnlineSearch = useCallback(async (query: string, _filters: OnlineSearchFilters, signal?: AbortSignal): Promise<OnlineSearchResultItem[]> => {
     if (!query.trim() || query.length < 2) return [];
     
     try {
@@ -375,6 +384,7 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
         sources: enabledSources.length > 0 ? enabledSources : ['sesame', 'simbad'],
         limit: MAX_ONLINE_RESULTS,
         timeout: searchSettings.timeout,
+        signal,
       });
       
       return response.results.map(onlineResultToSearchItem);
@@ -420,9 +430,11 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
     
     setState(prev => ({ ...prev, results: localResults }));
     
+    const currentMode = searchModeRef.current;
+    const isOnlineAvailable = onlineAvailableRef.current;
     const shouldSearchOnline = 
-      (state.searchMode === 'hybrid' || state.searchMode === 'online') &&
-      state.onlineAvailable &&
+      (currentMode === 'hybrid' || currentMode === 'online') &&
+      isOnlineAvailable &&
       query.length >= 2;
     
     if (shouldSearchOnline) {
@@ -430,7 +442,7 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
       
       try {
         const onlineStartTime = performance.now();
-        const onlineResults = await performOnlineSearch(query, filters);
+        const onlineResults = await performOnlineSearch(query, filters, abortControllerRef.current?.signal);
         const onlineEndTime = performance.now();
         
         const mergedResults = [...localResults];
@@ -475,11 +487,18 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
           const onlineForCache = onlineResults.map(r => ({
             id: getResultId(r),
             name: r.Name,
+            alternateNames: r.alternateNames,
             type: r.Type || 'Unknown',
             category: 'other' as const,
             ra: r.RA || 0,
             dec: r.Dec || 0,
+            magnitude: r.Magnitude,
+            angularSize: r.Size,
+            spectralType: r.spectralType,
+            redshift: r.redshift,
+            morphologicalType: r.morphologicalType,
             source: r.source || 'local',
+            sourceUrl: r.sourceUrl,
           }));
           cacheSearchResults(query, onlineForCache, 'online');
         }
@@ -507,9 +526,9 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
     
     setState(prev => ({ ...prev, isSearching: false }));
     
-    addStoreRecentSearch(query, localResults.length, state.searchMode === 'local' ? 'local' : 'mixed');
+    addStoreRecentSearch(query, localResults.length, searchModeRef.current === 'local' ? 'local' : 'mixed');
     
-  }, [state.searchMode, state.onlineAvailable, performLocalSearch, performOnlineSearch, getCachedResults, cacheSearchResults, addStoreRecentSearch]);
+  }, [performLocalSearch, performOnlineSearch, getCachedResults, cacheSearchResults, addStoreRecentSearch]);
   
   const search = useCallback((query: string) => {
     setState(prev => ({ ...prev, query }));
@@ -520,16 +539,16 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
     
     debounceRef.current = setTimeout(() => {
       startTransition(() => {
-        performSearch(query, state.filters);
+        performSearch(query, filtersRef.current);
       });
     }, DEBOUNCE_MS);
-  }, [performSearch, state.filters, startTransition]);
+  }, [performSearch, startTransition]);
   
   const searchOnlineDirect = useCallback(async (query: string) => {
     setState(prev => ({ ...prev, query, isOnlineSearching: true }));
     
     try {
-      const results = await performOnlineSearch(query, state.filters);
+      const results = await performOnlineSearch(query, filtersRef.current);
       setState(prev => ({ 
         ...prev, 
         results,
@@ -538,7 +557,7 @@ export function useOnlineSearch(): UseOnlineSearchReturn {
     } catch {
       setState(prev => ({ ...prev, isOnlineSearching: false }));
     }
-  }, [performOnlineSearch, state.filters]);
+  }, [performOnlineSearch]);
   
   const setQuery = useCallback((query: string) => {
     search(query);

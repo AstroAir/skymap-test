@@ -5,7 +5,6 @@ import React from 'react';
 import { render } from '@testing-library/react';
 import { KeyboardShortcutsManager } from '../keyboard-shortcuts-manager';
 
-// Mock stores
 const mockStel = {
   core: {
     time_speed: 1,
@@ -14,23 +13,35 @@ const mockStel = {
   },
 };
 
-jest.mock('@/lib/stores', () => ({
-  useStellariumStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
-    selector({ stel: mockStel })
-  ),
-  useSettingsStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
-    selector({
-      stellarium: {},
-      toggleStellariumSetting: jest.fn(),
-    })
-  ),
-  useEquipmentStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
-    selector({
-      fovDisplay: { enabled: false },
-      setFOVEnabled: jest.fn(),
-    })
-  ),
-}));
+// Mock keybinding store with actual defaults
+jest.mock('@/lib/stores', () => {
+  const actual = jest.requireActual('@/lib/stores/keybinding-store');
+  return {
+    ...jest.requireActual('@/lib/stores'),
+    useStellariumStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
+      selector({ stel: mockStel })
+    ),
+    useSettingsStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
+      selector({
+        stellarium: {},
+        toggleStellariumSetting: jest.fn(),
+      })
+    ),
+    useEquipmentStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
+      selector({
+        fovDisplay: { enabled: false },
+        setFOVEnabled: jest.fn(),
+      })
+    ),
+    useKeybindingStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
+      selector({
+        getBinding: (id: string) => actual.DEFAULT_KEYBINDINGS[id],
+        customBindings: {},
+      })
+    ),
+    DEFAULT_KEYBINDINGS: actual.DEFAULT_KEYBINDINGS,
+  };
+});
 
 // Mock keyboard shortcuts hook
 jest.mock('@/lib/hooks', () => ({
@@ -41,23 +52,6 @@ jest.mock('@/lib/hooks', () => ({
     handleSlowDown: jest.fn(),
     handleResetTime: jest.fn(),
   })),
-  STARMAP_SHORTCUT_KEYS: {
-    ZOOM_IN: '+',
-    ZOOM_OUT: '-',
-    RESET_VIEW: 'r',
-    TOGGLE_SEARCH: 'f',
-    TOGGLE_SESSION_PANEL: 's',
-    TOGGLE_FOV: 'v',
-    TOGGLE_CONSTELLATIONS: 'c',
-    TOGGLE_GRID: 'g',
-    TOGGLE_DSO: 'd',
-    TOGGLE_ATMOSPHERE: 'a',
-    PAUSE_TIME: ' ',
-    SPEED_UP: ']',
-    SLOW_DOWN: '[',
-    RESET_TIME: 't',
-    CLOSE_PANEL: 'Escape',
-  },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -110,7 +104,7 @@ describe('KeyboardShortcutsManager', () => {
     const shortcuts = call.shortcuts;
     const keys = shortcuts.map((s: { key: string }) => s.key);
 
-    expect(keys).toContain('c'); // constellations
+    expect(keys).toContain('l'); // constellations (DEFAULT_KEYBINDINGS.TOGGLE_CONSTELLATIONS)
     expect(keys).toContain('g'); // grid
     expect(keys).toContain('d'); // DSO
     expect(keys).toContain('a'); // atmosphere

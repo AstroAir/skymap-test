@@ -49,6 +49,6 @@ describe('Home Page', () => {
   it('renders dynamic below-the-fold components', () => {
     render(React.createElement(Home));
     const dynamicComponents = screen.getAllByTestId('dynamic-component');
-    expect(dynamicComponents.length).toBe(5);
+    expect(dynamicComponents.length).toBe(8);
   });
 });

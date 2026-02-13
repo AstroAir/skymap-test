@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, memo } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, History, Trash2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,16 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
@@ -27,6 +37,7 @@ import type { NavigationHistoryProps } from '@/types/starmap/controls';
 
 export const NavigationHistory = memo(function NavigationHistory({ onNavigate, className }: NavigationHistoryProps) {
   const t = useTranslations();
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const {
     history,
     currentIndex,
@@ -137,7 +148,7 @@ export const NavigationHistory = memo(function NavigationHistory({ onNavigate, c
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={clear}
+                    onClick={() => setClearConfirmOpen(true)}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -208,6 +219,27 @@ export const NavigationHistory = memo(function NavigationHistory({ onNavigate, c
           )}
         </PopoverContent>
       </Popover>
+      {/* Clear History Confirmation */}
+      <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('navigation.confirmClearTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('navigation.confirmClearHistory')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                clear();
+                setClearConfirmOpen(false);
+              }}
+            >
+              {t('navigation.clearHistory')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });

@@ -47,6 +47,8 @@ export {
   filterLogs,
   getUniqueModules,
   getLogStats,
+  groupConsecutiveLogs,
+  type GroupedLogEntry,
 } from './utils';
 
 // Log Manager

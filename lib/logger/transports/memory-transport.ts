@@ -31,6 +31,11 @@ export class MemoryTransport implements LogTransport {
   private logs: LogEntry[] = [];
   private listeners: Set<LogListener> = new Set();
   private logsChangedListeners: Set<LogsChangedListener> = new Set();
+  private changeNotifyTimer: ReturnType<typeof setTimeout> | null = null;
+  private changeNotifyPending = false;
+  
+  /** Throttle interval for batching logsChanged notifications (ms) */
+  private static readonly NOTIFY_THROTTLE_MS = 100;
   
   constructor(config: Partial<MemoryTransportConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -45,9 +50,10 @@ export class MemoryTransport implements LogTransport {
       this.logs.splice(0, trimCount);
     }
     
-    // Notify listeners
+    // Notify per-entry listeners immediately
     this.notifyListeners(entry);
-    this.notifyLogsChanged();
+    // Throttle bulk change notifications to reduce GC pressure
+    this.scheduleLogsChanged();
   }
   
   /**
@@ -82,6 +88,8 @@ export class MemoryTransport implements LogTransport {
    */
   clear(): void {
     this.logs = [];
+    // Clear immediately on explicit action (not throttled)
+    this.cancelPendingNotify();
     this.notifyLogsChanged();
   }
   
@@ -130,6 +138,7 @@ export class MemoryTransport implements LogTransport {
    * Dispose and clean up
    */
   dispose(): void {
+    this.cancelPendingNotify();
     this.logs = [];
     this.listeners.clear();
     this.logsChangedListeners.clear();
@@ -143,6 +152,31 @@ export class MemoryTransport implements LogTransport {
         // Ignore listener errors
       }
     }
+  }
+  
+  /**
+   * Schedule a throttled logsChanged notification.
+   * Multiple writes within NOTIFY_THROTTLE_MS are batched into one notification.
+   */
+  private scheduleLogsChanged(): void {
+    this.changeNotifyPending = true;
+    if (!this.changeNotifyTimer) {
+      this.changeNotifyTimer = setTimeout(() => {
+        this.changeNotifyTimer = null;
+        if (this.changeNotifyPending) {
+          this.changeNotifyPending = false;
+          this.notifyLogsChanged();
+        }
+      }, MemoryTransport.NOTIFY_THROTTLE_MS);
+    }
+  }
+  
+  private cancelPendingNotify(): void {
+    if (this.changeNotifyTimer) {
+      clearTimeout(this.changeNotifyTimer);
+      this.changeNotifyTimer = null;
+    }
+    this.changeNotifyPending = false;
   }
   
   private notifyLogsChanged(): void {

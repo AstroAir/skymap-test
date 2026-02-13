@@ -3,7 +3,7 @@
  * Extracts duplicated logic from InfoPanel and ObjectDetailDrawer
  */
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMountStore, useTargetListStore } from '@/lib/stores';
 import type { SelectedObjectData } from '@/lib/core/types';
@@ -20,10 +20,18 @@ export interface UseObjectActionsReturn {
   handleSlew: () => void;
   handleAddToList: () => void;
   mountConnected: boolean;
+  /** Slew confirm dialog state — render <SlewConfirmDialog> with these props */
+  slewDialogOpen: boolean;
+  slewDialogTarget: { name: string; ra: number; dec: number } | null;
+  setSlewDialogOpen: (open: boolean) => void;
 }
 
 /**
  * Provides shared slew and add-to-list callbacks for celestial object panels.
+ *
+ * When mount is connected, handleSlew opens the slew confirm dialog instead
+ * of immediately setting framing coordinates.
+ * When mount is NOT connected, falls back to the original framing behavior.
  */
 export function useObjectActions({
   selectedObject,
@@ -34,17 +42,32 @@ export function useObjectActions({
   const mountConnected = useMountStore((state) => state.mountInfo.Connected);
   const addTarget = useTargetListStore((state) => state.addTarget);
 
+  const [slewDialogOpen, setSlewDialogOpen] = useState(false);
+  const [slewDialogTarget, setSlewDialogTarget] = useState<{ name: string; ra: number; dec: number } | null>(null);
+
   const handleSlew = useCallback(() => {
     if (!selectedObject) return;
-    onSetFramingCoordinates?.({
-      ra: selectedObject.raDeg,
-      dec: selectedObject.decDeg,
-      raString: selectedObject.ra,
-      decString: selectedObject.dec,
-      name: selectedObject.names[0] || '',
-    });
-    onAfterSlew?.();
-  }, [selectedObject, onSetFramingCoordinates, onAfterSlew]);
+
+    if (mountConnected) {
+      // Open slew confirm dialog for real mount control
+      setSlewDialogTarget({
+        name: selectedObject.names[0] || '',
+        ra: selectedObject.raDeg,
+        dec: selectedObject.decDeg,
+      });
+      setSlewDialogOpen(true);
+    } else {
+      // Fallback: set framing coordinates (no mount connected)
+      onSetFramingCoordinates?.({
+        ra: selectedObject.raDeg,
+        dec: selectedObject.decDeg,
+        raString: selectedObject.ra,
+        decString: selectedObject.dec,
+        name: selectedObject.names[0] || '',
+      });
+      onAfterSlew?.();
+    }
+  }, [selectedObject, mountConnected, onSetFramingCoordinates, onAfterSlew]);
 
   const handleAddToList = useCallback(() => {
     if (!selectedObject) return;
@@ -62,5 +85,8 @@ export function useObjectActions({
     handleSlew,
     handleAddToList,
     mountConnected,
+    slewDialogOpen,
+    slewDialogTarget,
+    setSlewDialogOpen,
   };
 }

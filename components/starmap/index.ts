@@ -23,8 +23,6 @@ export { KeyboardShortcutsManager } from './controls/keyboard-shortcuts-manager'
 export { NavigationHistory } from './controls/navigation-history';
 export { ViewBookmarks } from './controls/view-bookmarks';
 export { QuickActionsPanel } from './controls/quick-actions-panel';
-export { MobileToolbar, MobileZoomControl } from './controls/mobile-toolbar';
-export { SidePanel, ZoomSection, ToolSection, ToolButton } from './controls/side-panel';
 
 // Time - Time control
 export { StellariumClock } from './time/stellarium-clock';
@@ -37,9 +35,10 @@ export { AboutDialog } from './dialogs/about-dialog';
 export { StellariumCredits } from './dialogs/stellarium-credits';
 export { KeyboardShortcutsDialog } from './dialogs/keyboard-shortcuts-dialog';
 
-// Onboarding - Tour and welcome components
+// Onboarding - Unified onboarding (setup wizard + feature tour)
+export { UnifiedOnboarding } from './onboarding/unified-onboarding';
 export { OnboardingTour } from './onboarding/onboarding-tour';
-export { WelcomeDialog, TourRestartButton } from './onboarding/welcome-dialog';
+export { WelcomeDialog, OnboardingRestartButton, TourRestartButton } from './onboarding/welcome-dialog';
 export { TourSpotlight } from './onboarding/tour-spotlight';
 export { TourTooltip } from './onboarding/tour-tooltip';
 

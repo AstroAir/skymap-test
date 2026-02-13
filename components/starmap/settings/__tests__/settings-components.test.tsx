@@ -26,11 +26,6 @@ jest.mock('next/navigation', () => ({
   usePathname: () => '/starmap',
 }));
 
-// Mock next-intl
-jest.mock('@/components/starmap/settings/general-settings', () => ({
-  GeneralSettings: () => <div data-testid="general-settings">General Settings</div>,
-}));
-
 // Mock next-themes
 jest.mock('next-themes', () => ({
   useTheme: () => ({
@@ -63,10 +58,89 @@ jest.mock('@/lib/stores/theme-store', () => ({
   ],
 }));
 
+// Mock keybinding store
+jest.mock('@/lib/stores/keybinding-store', () => {
+  const defaultBindings: Record<string, { key: string; ctrl?: boolean }> = {
+    ZOOM_IN: { key: '+' },
+    ZOOM_OUT: { key: '-' },
+    RESET_VIEW: { key: 'r' },
+    TOGGLE_SEARCH: { key: 'f', ctrl: true },
+    TOGGLE_SESSION_PANEL: { key: 'p' },
+    TOGGLE_FOV: { key: 'o' },
+    TOGGLE_CONSTELLATIONS: { key: 'l' },
+    TOGGLE_GRID: { key: 'g' },
+    TOGGLE_DSO: { key: 'd' },
+    TOGGLE_ATMOSPHERE: { key: 'a' },
+    PAUSE_TIME: { key: ' ' },
+    SPEED_UP: { key: ']' },
+    SLOW_DOWN: { key: '[' },
+    RESET_TIME: { key: 't' },
+    CLOSE_PANEL: { key: 'Escape' },
+  };
+  return {
+    useKeybindingStore: (selector: (state: unknown) => unknown) => {
+      const state = {
+        customBindings: {},
+        getBinding: (id: string) => defaultBindings[id] || { key: '?' },
+        setBinding: jest.fn(),
+        resetBinding: jest.fn(),
+        resetAllBindings: jest.fn(),
+        isCustom: () => false,
+        findConflict: () => null,
+      };
+      return selector ? selector(state) : state;
+    },
+    formatKeyBinding: (b: { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean }) => {
+      const parts: string[] = [];
+      if (b.ctrl) parts.push('Ctrl');
+      if (b.alt) parts.push('Alt');
+      if (b.shift) parts.push('Shift');
+      parts.push(b.key.length === 1 ? b.key.toUpperCase() : b.key);
+      return parts.join('+');
+    },
+    eventToKeyBinding: jest.fn(),
+    DEFAULT_KEYBINDINGS: defaultBindings,
+  };
+});
+
+// Mock theme store for export-import
+jest.mock('@/lib/stores/theme-store', () => ({
+  useThemeStore: Object.assign(
+    (selector: (state: unknown) => unknown) => {
+      const state = {
+        customization: { radius: 0.5, fontFamily: 'default', fontSize: 'default', animationsEnabled: true, activePreset: null },
+        setRadius: jest.fn(),
+        setFontFamily: jest.fn(),
+        setFontSize: jest.fn(),
+        setAnimationsEnabled: jest.fn(),
+        setActivePreset: jest.fn(),
+        resetCustomization: jest.fn(),
+      };
+      return selector ? selector(state) : state;
+    },
+    {
+      getState: () => ({
+        customization: { radius: 0.5, fontFamily: 'default', fontSize: 'default', animationsEnabled: true, activePreset: null },
+        setRadius: jest.fn(),
+        setFontFamily: jest.fn(),
+        setFontSize: jest.fn(),
+        setActivePreset: jest.fn(),
+      }),
+    }
+  ),
+  themePresets: [
+    { id: 'default', name: 'Default', colors: { light: { primary: '#000', secondary: '#666', accent: '#999' }, dark: { primary: '#fff', secondary: '#999', accent: '#666' } } },
+  ],
+}));
+
 // Import components after mocks
 import { GeneralSettings } from '../general-settings';
 import { PerformanceSettings } from '../performance-settings';
 import { AccessibilitySettings } from '../accessibility-settings';
+import { NotificationSettings } from '../notification-settings';
+import { SearchBehaviorSettings } from '../search-settings';
+import { KeyboardSettings } from '../keyboard-settings';
+import { SettingsExportImport } from '../settings-export-import';
 import { AboutSettings } from '../about-settings';
 import { useSettingsStore } from '@/lib/stores';
 
@@ -82,6 +156,9 @@ describe('Settings Components', () => {
         distanceUnit: 'metric',
         temperatureUnit: 'celsius',
         skipCloseConfirmation: false,
+        startupView: 'last',
+        showSplash: true,
+        autoConnectBackend: true,
       },
       performance: {
         renderQuality: 'high',
@@ -181,6 +258,70 @@ describe('Settings Components', () => {
     });
   });
 
+  describe('NotificationSettings', () => {
+    it('renders without crashing', () => {
+      const { container } = render(<NotificationSettings />);
+      expect(container).toBeInTheDocument();
+    });
+
+    it('renders switch controls for notification toggles', () => {
+      render(<NotificationSettings />);
+      const switches = screen.getAllByRole('switch');
+      expect(switches.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('renders collapsible sections', () => {
+      render(<NotificationSettings />);
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('SearchBehaviorSettings', () => {
+    it('renders without crashing', () => {
+      const { container } = render(<SearchBehaviorSettings />);
+      expect(container).toBeInTheDocument();
+    });
+
+    it('renders switch controls for search toggles', () => {
+      render(<SearchBehaviorSettings />);
+      const switches = screen.getAllByRole('switch');
+      expect(switches.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('renders collapsible sections', () => {
+      render(<SearchBehaviorSettings />);
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('KeyboardSettings', () => {
+    it('renders without crashing', () => {
+      const { container } = render(<KeyboardSettings />);
+      expect(container).toBeInTheDocument();
+    });
+
+    it('renders collapsible sections for shortcut groups', () => {
+      render(<KeyboardSettings />);
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('SettingsExportImport', () => {
+    it('renders without crashing', () => {
+      const { container } = render(<SettingsExportImport />);
+      expect(container).toBeInTheDocument();
+    });
+
+    it('renders export and import buttons', () => {
+      render(<SettingsExportImport />);
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
   describe('AboutSettings', () => {
     it('renders without crashing', () => {
       const { container } = render(<AboutSettings />);
@@ -195,7 +336,7 @@ describe('Settings Components', () => {
 
     it('renders version badge', () => {
       render(<AboutSettings />);
-      expect(screen.getByText(/v1\.0\.0/)).toBeInTheDocument();
+      expect(screen.getByText(/v\d+\.\d+\.\d+/)).toBeInTheDocument();
     });
 
     it('renders Stellarium Web Engine text', () => {

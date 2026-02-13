@@ -1,0 +1,174 @@
+'use client';
+
+import { memo, useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Square } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+
+import { mountApi, SLEW_RATE_PRESETS } from '@/lib/tauri/mount-api';
+import { useMountStore } from '@/lib/stores';
+import { isTauri } from '@/lib/tauri/app-control-api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('mount-direction-pad');
+
+/**
+ * NSEW direction pad for manual mount motion.
+ * Press-and-hold starts axis motion; release stops it.
+ */
+export const MountDirectionPad = memo(function MountDirectionPad() {
+  const t = useTranslations('mount');
+  const slewRateIndex = useMountStore((s) => s.mountInfo.SlewRateIndex ?? 3);
+  const parked = useMountStore((s) => s.mountInfo.Parked);
+  const connected = useMountStore((s) => s.mountInfo.Connected);
+  const canMoveAxis = useMountStore((s) => s.capabilities.canMoveAxis);
+
+  const movingRef = useRef<{ axis: 'primary' | 'secondary'; direction: number } | null>(null);
+
+  const disabled = !connected || !canMoveAxis || !!parked;
+
+  const startMove = useCallback(async (axis: 'primary' | 'secondary', direction: number) => {
+    if (disabled || !isTauri()) return;
+    movingRef.current = { axis, direction };
+    const rate = SLEW_RATE_PRESETS[slewRateIndex]?.value ?? 16;
+    try {
+      await mountApi.moveAxis(axis, rate * direction);
+    } catch (e) {
+      logger.error('Move axis failed', { error: e });
+    }
+  }, [disabled, slewRateIndex]);
+
+  const stopMove = useCallback(async () => {
+    if (!movingRef.current || !isTauri()) return;
+    const { axis } = movingRef.current;
+    movingRef.current = null;
+    try {
+      await mountApi.stopAxis(axis);
+    } catch (e) {
+      logger.error('Stop axis failed', { error: e });
+    }
+  }, []);
+
+  const stopAll = useCallback(async () => {
+    if (!isTauri()) return;
+    movingRef.current = null;
+    try {
+      await Promise.all([
+        mountApi.stopAxis('primary'),
+        mountApi.stopAxis('secondary'),
+      ]);
+    } catch (e) {
+      logger.error('Stop all failed', { error: e });
+    }
+  }, []);
+
+  const handleRateChange = useCallback(async (value: string) => {
+    const idx = parseInt(value, 10);
+    if (!isTauri()) return;
+    try {
+      await mountApi.setSlewRate(idx);
+      useMountStore.getState().setMountInfo({ SlewRateIndex: idx });
+    } catch (e) {
+      logger.error('Set slew rate failed', { error: e });
+    }
+  }, []);
+
+  const btnClass = cn(
+    'h-7 w-7 p-0',
+    disabled && 'opacity-40 pointer-events-none'
+  );
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {/* Speed selector */}
+      <Select value={String(slewRateIndex)} onValueChange={handleRateChange} disabled={disabled}>
+        <SelectTrigger className="h-6 w-full text-[10px] px-1.5">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SLEW_RATE_PRESETS.map((preset, i) => (
+            <SelectItem key={i} value={String(i)} className="text-xs">
+              {preset.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Direction grid */}
+      <div className="grid grid-cols-3 gap-0.5 w-fit">
+        {/* Row 1: empty / N / empty */}
+        <div />
+        <Button
+          variant="ghost"
+          size="icon"
+          className={btnClass}
+          onPointerDown={() => startMove('secondary', 1)}
+          onPointerUp={stopMove}
+          onPointerLeave={stopMove}
+          aria-label={t('north')}
+        >
+          <ChevronUp className="h-4 w-4" />
+        </Button>
+        <div />
+
+        {/* Row 2: W / STOP / E */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={btnClass}
+          onPointerDown={() => startMove('primary', -1)}
+          onPointerUp={stopMove}
+          onPointerLeave={stopMove}
+          aria-label={t('west')}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(btnClass, 'text-destructive hover:text-destructive hover:bg-destructive/10')}
+          onClick={stopAll}
+          aria-label={t('stop')}
+        >
+          <Square className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={btnClass}
+          onPointerDown={() => startMove('primary', 1)}
+          onPointerUp={stopMove}
+          onPointerLeave={stopMove}
+          aria-label={t('east')}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        {/* Row 3: empty / S / empty */}
+        <div />
+        <Button
+          variant="ghost"
+          size="icon"
+          className={btnClass}
+          onPointerDown={() => startMove('secondary', -1)}
+          onPointerUp={stopMove}
+          onPointerLeave={stopMove}
+          aria-label={t('south')}
+        >
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+        <div />
+      </div>
+    </div>
+  );
+});
+MountDirectionPad.displayName = 'MountDirectionPad';

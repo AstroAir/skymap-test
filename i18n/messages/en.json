@@ -29,6 +29,7 @@
     "copy": "Copy",
     "copied": "Copied",
     "share": "Share",
+    "undo": "Undo",
     "refresh": "Refresh",
     "percent": "%",
     "pixels": "px",
@@ -386,6 +387,9 @@
     "sensorControlPermission": "Tap to enable device orientation",
     "constellationArt": "Constellation Art",
     "constellationArtDescription": "Show constellation illustrations",
+    "constellationLabels": "Constellation Labels",
+    "starLabels": "Star Labels",
+    "planetLabels": "Planet Labels",
     "viewModes": "View Modes",
     "connection": "Connection",
     "protocol": "Protocol",
@@ -530,7 +534,41 @@
       "low": "low",
       "medium": "medium",
       "high": "high"
-    }
+    },
+    "searchPlaceholder": "Search targets...",
+    "noMatchingTargets": "No matching targets",
+    "clearFilters": "Clear Filters",
+    "filterByStatus": "Filter by Status",
+    "filterByPriority": "Filter by Priority",
+    "sortByLabel": "Sort By",
+    "sort": {
+      "manual": "Manual Order",
+      "name": "Name",
+      "priority": "Priority",
+      "status": "Status",
+      "addedAt": "Date Added",
+      "ascending": "Ascending",
+      "descending": "Descending"
+    },
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "archiveSelected": "Archive Selected",
+    "addTagLabel": "Add Tag",
+    "removeTagLabel": "Remove Tag",
+    "targetRemoved": "{name} removed",
+    "duplicateWarning": "\"{name}\" is already in the list",
+    "addAnyway": "Add Anyway"
+  },
+  "targetDetail": {
+    "notes": "Notes",
+    "notesPlaceholder": "Observation notes, conditions, etc.",
+    "tags": "Tags",
+    "newTag": "New tag...",
+    "exposurePlan": "Exposure Plan",
+    "singleExposure": "Single (s)",
+    "totalExposure": "Total (min)",
+    "subFrames": "Sub Frames",
+    "filter": "Filter"
   },
   "observationLog": {
     "title": "Observation Log",
@@ -775,7 +813,58 @@
     "disableAutoSync": "Disable Auto-Sync",
     "disconnected": "Disconnected",
     "altitude": "Alt",
-    "azimuth": "Az"
+    "azimuth": "Az",
+    "connectionSettings": "Connection Settings",
+    "connected": "Connected",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "protocol": "Protocol",
+    "simulator": "Simulator",
+    "host": "Host",
+    "port": "Port",
+    "deviceId": "Device ID",
+    "discoverDevices": "Discover Devices",
+    "cancel": "Cancel",
+    "notDesktop": "Mount control requires the desktop app",
+    "notConnectedWarning": "Mount is not connected",
+    "mountParkedWarning": "Mount is parked — unpark before slewing",
+    "slewing": "Slewing",
+    "parked": "Parked",
+    "startTracking": "Start Tracking",
+    "stopTracking": "Stop Tracking",
+    "park": "Park",
+    "unpark": "Unpark",
+    "abortSlew": "Abort Slew",
+    "slewConfirm": "Confirm Slew",
+    "slewConfirmDescription": "Review target and safety checks before slewing",
+    "safetyClear": "No safety issues detected",
+    "startSlew": "Slew to Target",
+    "slewAnyway": "Slew Anyway",
+    "north": "North",
+    "south": "South",
+    "east": "East",
+    "west": "West",
+    "stop": "Stop",
+    "rate": {
+      "sidereal": "Sidereal",
+      "lunar": "Lunar",
+      "solar": "Solar",
+      "stopped": "Stopped"
+    },
+    "pier": {
+      "east": "Pier East",
+      "west": "Pier West"
+    },
+    "safetyIssues": {
+      "meridian_flip": "Meridian flip required during observation",
+      "hour_angle_limit": "Target exceeds hour angle limits",
+      "dec_limit": "Target exceeds declination limits",
+      "below_horizon": "Target is below minimum altitude",
+      "counterweight_up": "Counterweight-up position risk",
+      "cable_wrap": "Cable wrap risk detected",
+      "pier_collision": "Pier collision risk",
+      "slew_through_pole": "Slew path crosses celestial pole"
+    }
   },
   "cache": {
     "offlineCache": "Offline Cache",
@@ -968,7 +1057,26 @@
     "hide": "Hide",
     "showAll": "Show all markers",
     "hideAll": "Hide all markers",
-    "addMarkerHere": "Add Marker Here"
+    "addMarkerHere": "Add Marker Here",
+    "contextMenu": "Marker Context Menu",
+    "showLabels": "Show labels",
+    "hideLabels": "Hide labels",
+    "size": "Size",
+    "search": "Search markers...",
+    "sortBy": "Sort by",
+    "sortByName": "Name",
+    "sortByDate": "Date created",
+    "sortByRA": "Right Ascension",
+    "renameGroup": "Rename group",
+    "deleteGroup": "Delete group",
+    "deleteGroupDescription": "Markers in this group will be moved to Default.",
+    "newGroupName": "New group name",
+    "exportMarkers": "Export Markers",
+    "importMarkers": "Import Markers",
+    "exportSuccess": "Markers exported successfully",
+    "importSuccess": "Markers imported successfully ({count} markers)",
+    "importError": "Failed to import markers",
+    "maxMarkersReached": "Maximum number of markers reached ({max}). Remove some markers before adding new ones."
   },
   "events": {
     "calendar": "Astronomical Events",
@@ -1279,6 +1387,7 @@
     "searchFailed": "Search failed",
     "providerUnavailable": "Map provider unavailable",
     "layers": "Layers",
+    "lightPollution": "Light Pollution Overlay",
     "latitude": "Latitude",
     "longitude": "Longitude",
     "recentSearches": "Recent Searches",
@@ -1458,11 +1567,18 @@
     "prev": "Back",
     "skip": "Skip",
     "finish": "Finish",
-    "restartTour": "Restart Tour",
+    "restartTour": "Restart Guide",
+    "transition": {
+      "description": "Setup is complete! Would you like a quick tour of the interface?",
+      "startTour": "Continue to Tour",
+      "skipTour": "Explore on my own"
+    },
     "welcome": {
       "title": "Welcome to SkyMap",
       "subtitle": "Your personal window to the universe. Let us show you around!",
       "startTour": "Start Tour",
+      "startSetup": "Start Setup",
+      "skipToTour": "Skip to Tour",
       "skipTour": "Skip for now",
       "dontShowAgain": "Don't show this again",
       "features": {
@@ -1795,7 +1911,69 @@
     "noSolversDetected": "No solvers detected. Click refresh to scan again.",
     "localSolverFallback": "Local Solver",
     "autoPlaceholder": "0 = Auto",
-    "indexPathNotAvailable": "Index path not available"
+    "indexPathNotAvailable": "Index path not available",
+    "astapDatabases": "ASTAP Databases",
+    "astapDatabasesDesc": "Manage ASTAP star databases for plate solving",
+    "databaseName": "Database",
+    "databaseFov": "FOV Range",
+    "databaseSize": "Size",
+    "databaseInstalled": "Installed",
+    "databaseNotInstalled": "Not Installed",
+    "databaseRecommended": "Recommended for your FOV",
+    "downloadDatabase": "Download",
+    "imageAnalysis": "Image Analysis",
+    "imageAnalysisDesc": "Analyse image quality using ASTAP",
+    "analyseImage": "Analyse Image",
+    "analysing": "Analysing...",
+    "medianHfd": "Median HFD",
+    "starCount": "Star Count",
+    "background": "Background",
+    "hfdUnit": "px",
+    "noStarsDetected": "No stars detected",
+    "extractStars": "Extract Stars",
+    "extractingStars": "Extracting stars...",
+    "includeCoordinates": "Include RA/Dec",
+    "snrMinimum": "SNR Minimum",
+    "onlineSolving": "Online Solving",
+    "onlineSolvingDesc": "Solve using Astrometry.net online service",
+    "authenticating": "Authenticating...",
+    "uploadingImage": "Uploading image...",
+    "waitingForJob": "Waiting for job...",
+    "solvingOnline": "Solving...",
+    "fetchingResults": "Fetching results...",
+    "solveComplete": "Solve complete!",
+    "objectsInField": "Objects in Field",
+    "annotations": "Annotations",
+    "orientation": "Orientation",
+    "parity": "Parity",
+    "jobId": "Job ID",
+    "publiclyVisible": "Publicly Visible",
+    "publiclyVisibleDesc": "Make submission publicly visible on Astrometry.net",
+    "scaleEstimate": "Scale Estimate",
+    "scaleError": "Scale Error",
+    "tweakOrder": "Tweak Order",
+    "telescopeInfo": "Telescope Info",
+    "focalLength": "Focal Length",
+    "aperture": "Aperture",
+    "focalRatio": "Focal Ratio",
+    "cameraInfo": "Camera Info",
+    "pixelSize": "Pixel Size",
+    "binning": "Binning",
+    "bayerPattern": "Bayer Pattern",
+    "siteInfo": "Site Info",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "elevation": "Elevation",
+    "processingInfo": "Processing Info",
+    "software": "Software",
+    "stackCount": "Stack Count",
+    "calibration": "Calibration",
+    "wcsTransform": "WCS Transform",
+    "pixelToWorld": "Pixel → World",
+    "worldToPixel": "World → Pixel",
+    "fieldOfView": "Field of View",
+    "sipDistortion": "SIP Distortion",
+    "sipOrder": "SIP Order"
   },
   "geolocation": {
     "title": "Device Location",
@@ -1855,7 +2033,19 @@
       "imperial": "Imperial (mi, ft)",
       "temperatureUnit": "Temperature Unit",
       "celsius": "Celsius (°C)",
-      "fahrenheit": "Fahrenheit (°F)"
+      "fahrenheit": "Fahrenheit (°F)",
+      "startup": "Startup",
+      "startupView": "Startup View",
+      "startupViewLast": "Restore Last View",
+      "startupViewDefault": "Default View",
+      "startupViewDesc": "What the star map shows when the app starts",
+      "showSplash": "Show Splash Screen",
+      "showSplashDesc": "Display the loading animation on startup",
+      "autoConnect": "Auto-connect Backend",
+      "autoConnectDesc": "Automatically connect to the backend service on startup",
+      "behavior": "Behavior",
+      "skipCloseConfirmation": "Skip Close Confirmation",
+      "skipCloseConfirmationDesc": "Close the app without asking for confirmation"
     },
     "appearance": {
       "themeMode": "Theme Mode",
@@ -1913,6 +2103,80 @@
       "screenReader": "Screen Reader",
       "screenReaderOptimized": "Screen Reader Optimized",
       "screenReaderOptimizedDesc": "Optimize interface for screen readers"
+    },
+    "notifications": {
+      "general": "Notifications",
+      "enableToasts": "Show Notifications",
+      "enableToastsDesc": "Display toast notifications for events and status changes",
+      "enableSounds": "Sound Effects",
+      "enableSoundsDesc": "Play audio feedback for notifications and alerts",
+      "duration": "Display Duration",
+      "toastDuration": "Notification Duration",
+      "toastDurationDesc": "How long notifications stay visible on screen",
+      "alerts": "Alert Types",
+      "objectAlerts": "Celestial Object Alerts",
+      "objectAlertsDesc": "Notify when notable objects become visible (e.g. ISS pass, planet rise)",
+      "satelliteAlerts": "Satellite Alerts",
+      "satelliteAlertsDesc": "Notify for satellite visibility and tracking events"
+    },
+    "search": {
+      "behavior": "Search Behavior",
+      "fuzzySearch": "Fuzzy Search",
+      "fuzzySearchDesc": "Allow approximate matches for object names (e.g. 'andrmeda' → Andromeda)",
+      "includeMinorObjects": "Include Minor Objects",
+      "includeMinorObjectsDesc": "Show asteroids, comets, and minor planets in search results",
+      "resultsAndTiming": "Results & Timing",
+      "autoSearchDelay": "Auto-search Delay",
+      "autoSearchDelayDesc": "Delay before searching as you type. Lower values feel faster but use more resources",
+      "faster": "Faster",
+      "slower": "Slower",
+      "maxResults": "Maximum Results",
+      "history": "Search History",
+      "rememberHistory": "Remember Search History",
+      "rememberHistoryDesc": "Save recent searches for quick access",
+      "maxHistoryItems": "Max History Items"
+    },
+    "keyboard": {
+      "title": "Keyboard Shortcuts",
+      "description": "Click on a shortcut to record a new key combination. Changes are saved automatically.",
+      "pressKey": "Press key...",
+      "resetToDefault": "Reset to default",
+      "resetAll": "Reset All",
+      "resetAllDesc": "Reset all keyboard shortcuts to their defaults",
+      "conflict": "Conflicts with: {action}",
+      "navigation": "Navigation",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "resetView": "Reset View",
+      "toggles": "Toggle Panels",
+      "toggleSearch": "Toggle Search",
+      "toggleSessionPanel": "Toggle Session Panel",
+      "toggleFov": "Toggle FOV Overlay",
+      "toggleConstellations": "Toggle Constellations",
+      "toggleGrid": "Toggle Grid",
+      "toggleDso": "Toggle Deep Sky Objects",
+      "toggleAtmosphere": "Toggle Atmosphere",
+      "timeControl": "Time Control",
+      "pauseTime": "Pause Time",
+      "speedUp": "Speed Up Time",
+      "slowDown": "Slow Down Time",
+      "resetTime": "Reset Time",
+      "other": "Other",
+      "closePanel": "Close Panel"
+    },
+    "exportImport": {
+      "title": "Settings Backup",
+      "description": "Export your settings to a file or import from a previous backup",
+      "export": "Export Settings",
+      "import": "Import Settings",
+      "importSuccess": "Settings imported successfully!",
+      "invalidFile": "Invalid settings file format",
+      "parseError": "Could not parse the settings file",
+      "importError": "Failed to import settings",
+      "confirmTitle": "Import Settings",
+      "confirmDescription": "This will replace your current settings with the imported ones. This action cannot be undone.",
+      "confirmImport": "Import",
+      "exportedAt": "Exported at"
     },
     "about": {
       "appInfo": "App Information",
@@ -1992,6 +2256,8 @@
     "history": "Navigation History",
     "viewHistory": "View History",
     "clearHistory": "Clear History",
+    "confirmClearHistory": "Are you sure you want to clear all navigation history?",
+    "confirmClearTitle": "Clear History",
     "noHistory": "No navigation history yet",
     "historyCount": "{count} locations visited",
     "justNow": "Just now",
@@ -2042,7 +2308,9 @@
     "raLabel": "RA",
     "decLabel": "Dec",
     "fovLabel": "FOV",
-    "saveBookmark": "Save Bookmark"
+    "saveBookmark": "Save Bookmark",
+    "confirmDelete": "Are you sure you want to delete this bookmark?",
+    "confirmDeleteTitle": "Delete Bookmark"
   },
   "sessionPlanner": {
     "title": "Session Planner",
@@ -2448,7 +2716,17 @@
     "debug": "Debug",
     "info": "Info",
     "warn": "Warning",
-    "error": "Error"
+    "error": "Error",
+    "pause": "Pause",
+    "resume": "Resume",
+    "pausedNewLogs": "{count} new logs while paused",
+    "scrollToBottom": "Bottom",
+    "timeRange": "Time Range",
+    "last5min": "5 min",
+    "last15min": "15 min",
+    "last1hr": "1 hour",
+    "allTime": "All",
+    "groupDuplicates": "Group duplicates"
   },
   "landing": {
     "nav": {
@@ -2467,7 +2745,22 @@
       "learnMore": "Learn More",
       "learnMoreTooltip": "Explore features and capabilities",
       "poweredBy": "Powered by Stellarium Web Engine",
+      "openSourceFree": "Free & Open Source · Cross-platform Desktop App",
       "scrollToFeatures": "Scroll to features"
+    },
+    "stats": {
+      "celestialObjects": {
+        "label": "Celestial Objects"
+      },
+      "platforms": {
+        "label": "Desktop Platforms"
+      },
+      "openSource": {
+        "label": "Free & Open Source"
+      },
+      "languages": {
+        "label": "Languages Supported"
+      }
     },
     "features": {
       "title": "Powerful Features",
@@ -2505,6 +2798,23 @@
         "description": "Full support for English and Chinese with more languages coming soon"
       }
     },
+    "gettingStarted": {
+      "title": "Get Started in Minutes",
+      "subtitle": "Three simple steps to begin your astronomical journey",
+      "launch": {
+        "title": "Launch the App",
+        "description": "Open SkyMap in your browser or download the desktop app for Windows, macOS, or Linux."
+      },
+      "setup": {
+        "title": "Set Your Location",
+        "description": "Configure your observation site and equipment profiles for accurate sky rendering."
+      },
+      "observe": {
+        "title": "Start Observing",
+        "description": "Explore the night sky, plan sessions, and capture stunning astrophotography targets."
+      },
+      "cta": "Get Started Now"
+    },
     "screenshots": {
       "title": "See It in Action",
       "subtitle": "Explore the intuitive interface designed for astronomers",
@@ -2541,6 +2851,25 @@
         "shadcnui": "Beautiful UI components"
       }
     },
+    "testimonials": {
+      "title": "Loved by Astronomers",
+      "subtitle": "See what our community has to say about SkyMap",
+      "astronomer": {
+        "name": "Alex Chen",
+        "role": "Amateur Astronomer",
+        "quote": "SkyMap has completely transformed my observation sessions. The planning tools and real-time sky rendering make it so easy to find and track objects."
+      },
+      "photographer": {
+        "name": "Sarah Mitchell",
+        "role": "Astrophotographer",
+        "quote": "The FOV simulator and mosaic planning features are incredible. I can plan my entire imaging session before I even set up my telescope."
+      },
+      "beginner": {
+        "name": "David Park",
+        "role": "Stargazing Enthusiast",
+        "quote": "As a beginner, SkyMap made astronomy accessible. The tonight's picks feature always gives me something amazing to look at."
+      }
+    },
     "cta": {
       "title": "Start Your Astronomical Journey",
       "description": "Whether you're a beginner or an experienced astronomer, SkyMap has everything you need to explore the night sky.",
@@ -2557,13 +2886,17 @@
       "githubTooltip": "View source code on GitHub",
       "stellarium": "Stellarium",
       "stellariumTooltip": "Visit Stellarium official website",
+      "community": "Community",
+      "discussions": "Discussions",
+      "reportIssue": "Report Issue",
       "credits": "Data Credits",
       "stellariumEngine": "Stellarium Web Engine",
       "gaiaData": "ESA Gaia Mission",
       "dssImages": "Digitized Sky Survey",
       "allRightsReserved": "All rights reserved.",
       "madeWith": "Made with",
-      "forAstronomers": "for astronomers"
+      "forAstronomers": "for astronomers",
+      "backToTop": "Back to top"
     }
   }
 }

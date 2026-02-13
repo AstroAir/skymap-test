@@ -82,6 +82,20 @@ export {
   isWindowMaximized,
 } from './app-control-api';
 
+// Mount API (desktop only)
+export { mountApi } from './mount-api';
+export type {
+  MountState as TauriMountState,
+  MountCapabilities as TauriMountCapabilities,
+  ConnectionConfig as TauriConnectionConfig,
+  TrackingRate as TauriTrackingRate,
+  PierSide as TauriPierSide,
+  MountAxis as TauriMountAxis,
+  DiscoveredDevice,
+  SlewRatePreset,
+} from './mount-api';
+export { SLEW_RATE_PRESETS, DEFAULT_CONNECTION_CONFIG } from './mount-api';
+
 // Plate Solver API (desktop only)
 export { plateSolverApi } from './plate-solver-api';
 export type {

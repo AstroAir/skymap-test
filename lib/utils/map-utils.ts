@@ -29,3 +29,31 @@ export function formatResponseTime(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
+
+/**
+ * Fetch elevation (meters) for given coordinates using Open-Elevation API.
+ * Returns null on failure so callers can fall back gracefully.
+ */
+export async function fetchElevation(
+  latitude: number,
+  longitude: number,
+  options: { timeout?: number } = {}
+): Promise<number | null> {
+  const { timeout = 5000 } = options;
+  const url = `https://api.open-elevation.com/api/v1/lookup?locations=${latitude},${longitude}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) return null;
+
+    const data: { results?: Array<{ elevation: number }> } = await response.json();
+    return data.results?.[0]?.elevation ?? null;
+  } catch {
+    clearTimeout(timeoutId);
+    return null;
+  }
+}

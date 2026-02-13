@@ -1,10 +1,11 @@
 /**
  * Tauri Transport
  * 
- * Bridges frontend logs to Tauri backend logging system.
+ * Bridges frontend logs to Tauri backend logging system
+ * via the official @tauri-apps/plugin-log JS bindings.
  */
 
-import { LogEntry, LogTransport, LogLevel, LOG_LEVEL_NAMES } from '../types';
+import { LogEntry, LogTransport, LogLevel } from '../types';
 import { serializeData } from '../utils';
 
 export interface TauriTransportConfig {
@@ -25,23 +26,24 @@ const DEFAULT_CONFIG: TauriTransportConfig = {
   batchInterval: 1000,
 };
 
-interface LogBatch {
-  level: string;
-  module: string;
+interface LogBatchItem {
+  level: LogLevel;
   message: string;
-  data?: string;
 }
+
+type TauriLogFn = (message: string) => Promise<void>;
 
 /**
  * Tauri transport for sending logs to the Rust backend
+ * using @tauri-apps/plugin-log
  */
 export class TauriTransport implements LogTransport {
   readonly name = 'tauri';
   private config: TauriTransportConfig;
-  private batch: LogBatch[] = [];
+  private batch: LogBatchItem[] = [];
   private batchTimer: ReturnType<typeof setTimeout> | null = null;
   private isTauri: boolean = false;
-  private invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+  private logFns: Record<number, TauriLogFn> | null = null;
   
   constructor(config: Partial<TauriTransportConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -50,10 +52,14 @@ export class TauriTransport implements LogTransport {
   
   private async initTauri(): Promise<void> {
     try {
-      // Check if we're in Tauri environment
       if (typeof window !== 'undefined' && '__TAURI__' in window) {
-        const { invoke } = await import('@tauri-apps/api/core');
-        this.invoke = invoke;
+        const { debug, info, warn, error } = await import('@tauri-apps/plugin-log');
+        this.logFns = {
+          [LogLevel.DEBUG]: debug,
+          [LogLevel.INFO]: info,
+          [LogLevel.WARN]: warn,
+          [LogLevel.ERROR]: error,
+        };
         this.isTauri = true;
       }
     } catch {
@@ -71,29 +77,34 @@ export class TauriTransport implements LogTransport {
       return;
     }
     
-    const logData: LogBatch = {
-      level: LOG_LEVEL_NAMES[entry.level] as string,
-      module: entry.module,
-      message: entry.message,
-    };
+    // Format message: [module] message [data] [stack]
+    let message = `[${entry.module}] ${entry.message}`;
     
     if (entry.data !== undefined) {
-      logData.data = serializeData(entry.data);
+      const dataStr = serializeData(entry.data);
+      if (dataStr) {
+        message += ` | ${dataStr}`;
+      }
     }
     
     if (entry.stack) {
-      logData.message += `\n${entry.stack}`;
+      message += `\n${entry.stack}`;
     }
     
+    const item: LogBatchItem = {
+      level: entry.level,
+      message,
+    };
+    
     if (this.config.batching) {
-      this.addToBatch(logData);
+      this.addToBatch(item);
     } else {
-      this.sendLog(logData);
+      this.sendLog(item);
     }
   }
   
-  private addToBatch(log: LogBatch): void {
-    this.batch.push(log);
+  private addToBatch(item: LogBatchItem): void {
+    this.batch.push(item);
     
     if (!this.batchTimer) {
       this.batchTimer = setTimeout(() => {
@@ -107,28 +118,25 @@ export class TauriTransport implements LogTransport {
       return;
     }
     
-    const logsToSend = [...this.batch];
+    const items = [...this.batch];
     this.batch = [];
     this.batchTimer = null;
     
-    // Send each log
-    for (const log of logsToSend) {
-      this.sendLog(log);
+    for (const item of items) {
+      this.sendLog(item);
     }
   }
   
-  private async sendLog(log: LogBatch): Promise<void> {
-    if (!this.invoke) {
+  private async sendLog(item: LogBatchItem): Promise<void> {
+    if (!this.logFns) {
       return;
     }
     
     try {
-      await this.invoke('log_from_frontend', {
-        level: log.level,
-        module: log.module,
-        message: log.message,
-        data: log.data,
-      });
+      const fn = this.logFns[item.level];
+      if (fn) {
+        await fn(item.message);
+      }
     } catch {
       // Silently fail - we don't want logging errors to break the app
     }
@@ -144,7 +152,7 @@ export class TauriTransport implements LogTransport {
   
   dispose(): void {
     this.flush();
-    this.invoke = null;
+    this.logFns = null;
   }
   
   /**

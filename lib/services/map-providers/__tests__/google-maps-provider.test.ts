@@ -78,9 +78,47 @@ describe('GoogleMapsProvider', () => {
       expect(url).toContain('z=3');
     });
 
-    it('should use random server for load balancing', () => {
-      const url = provider.getTileUrl(0, 0, 0);
-      expect(url).toMatch(/mt[0-3]\.google\.com/);
+    it('should use consistent server selection based on coordinate hash', () => {
+      // Same coordinates should always produce the same server
+      const url1 = provider.getTileUrl(5, 10, 3);
+      const url2 = provider.getTileUrl(5, 10, 3);
+      expect(url1).toBe(url2);
+      expect(url1).toMatch(/mt[0-3]\.google\.com/);
+    });
+
+    it('should distribute across multiple servers', () => {
+      const servers = new Set<string>();
+      for (let x = 0; x < 10; x++) {
+        for (let y = 0; y < 10; y++) {
+          const url = provider.getTileUrl(x, y, 5);
+          const match = url.match(/mt(\d)/);
+          if (match) servers.add(match[1]);
+        }
+      }
+      expect(servers.size).toBeGreaterThan(1);
+    });
+  });
+
+  describe('geocode with language option', () => {
+    it('should pass language parameter to API', async () => {
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          status: 'OK',
+          results: [{
+            formatted_address: '东京',
+            geometry: { location: { lat: 35.68, lng: 139.69 }, location_type: 'APPROXIMATE', viewport: { northeast: { lat: 36, lng: 140 }, southwest: { lat: 35, lng: 139 } } },
+            address_components: [{ long_name: '東京都', short_name: '東京都', types: ['locality'] }],
+            types: ['locality'],
+          }],
+        }),
+      };
+      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+
+      await provider.geocode('Tokyo', { language: 'ja' });
+
+      const fetchCall = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(fetchCall).toContain('language=ja');
     });
   });
 

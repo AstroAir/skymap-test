@@ -173,6 +173,24 @@ describe('MapboxProvider', () => {
     });
   });
 
+  describe('geocode with language option', () => {
+    it('should pass language parameter to API', async () => {
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          type: 'FeatureCollection',
+          features: [],
+        }),
+      };
+      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+
+      await provider.geocode('Tokyo', { language: 'ja' });
+
+      const fetchCall = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(fetchCall).toContain('language=ja');
+    });
+  });
+
   describe('reverseGeocode', () => {
     it('should call Mapbox reverse geocoding API', async () => {
       const mockResponse = {

@@ -61,7 +61,7 @@ export interface LogStoreActions {
   /** Export logs as JSON */
   exportAsJson: () => string;
   /** Download logs as file */
-  downloadLogs: (format: 'text' | 'json') => void;
+  downloadLogs: (format: 'text' | 'json') => void | Promise<void>;
   /** Open log panel */
   openPanel: () => void;
   /** Close log panel */
@@ -177,14 +177,37 @@ export const useLogStore = create<LogStore>((set, get) => {
       return exportLogsAsJson(allLogs);
     },
     
-    downloadLogs: (format) => {
+    downloadLogs: async (format) => {
       const { exportAsText, exportAsJson } = get();
       const content = format === 'text' ? exportAsText() : exportAsJson();
-      const mimeType = format === 'text' ? 'text/plain' : 'application/json';
       const extension = format === 'text' ? 'txt' : 'json';
       const filename = `skymap-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
       
-      // Create download link
+      // Use Tauri native save dialog when available
+      if (typeof window !== 'undefined' && '__TAURI__' in window) {
+        try {
+          const { save } = await import('@tauri-apps/plugin-dialog');
+          const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+          const filePath = await save({
+            defaultPath: filename,
+            filters: [{
+              name: format === 'text' ? 'Text Files' : 'JSON Files',
+              extensions: [extension],
+            }],
+          });
+          if (filePath) {
+            await writeTextFile(filePath, content);
+            return;
+          }
+          // User cancelled — fall through to no-op
+          return;
+        } catch {
+          // Fall through to browser download on error
+        }
+      }
+      
+      // Browser fallback
+      const mimeType = format === 'text' ? 'text/plain' : 'application/json';
       const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

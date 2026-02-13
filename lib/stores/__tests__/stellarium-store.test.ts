@@ -16,6 +16,9 @@ jest.mock('@/lib/core/constants', () => ({
 const createMockSettings = (overrides?: Partial<StellariumSettings>): StellariumSettings => ({
   constellationsLinesVisible: true,
   constellationArtVisible: false,
+  constellationLabelsVisible: true,
+  starLabelsVisible: true,
+  planetLabelsVisible: true,
   azimuthalLinesVisible: true,
   equatorialLinesVisible: true,
   meridianLinesVisible: false,

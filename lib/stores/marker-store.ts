@@ -7,6 +7,12 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('marker-store');
 
+/** Maximum number of markers allowed */
+export const MAX_MARKERS = 500;
+
+/** Sort options for markers list */
+export type MarkerSortBy = 'name' | 'date' | 'ra';
+
 /**
  * Sky marker for annotating positions on the celestial sphere
  */
@@ -26,6 +32,8 @@ export interface SkyMarker {
   updatedAt: number;
   // Grouping
   group?: string;
+  // Visual size (optional, overrides global)
+  size?: number;
   // Visibility
   visible: boolean;
 }
@@ -81,11 +89,14 @@ interface MarkerState {
   groups: string[];
   activeMarkerId: string | null;
   showMarkers: boolean;
+  showLabels: boolean;
+  globalMarkerSize: number;
+  sortBy: MarkerSortBy;
   pendingCoords: PendingMarkerCoords | null;
   editingMarkerId: string | null;
   
   // CRUD operations
-  addMarker: (marker: MarkerInput) => string;
+  addMarker: (marker: MarkerInput) => string | null;
   setPendingCoords: (coords: PendingMarkerCoords | null) => void;
   setEditingMarkerId: (id: string | null) => void;
   removeMarker: (id: string) => void;
@@ -96,10 +107,13 @@ interface MarkerState {
   removeMarkersByGroup: (group: string) => void;
   clearAllMarkers: () => void;
   
-  // Visibility
+  // Visibility & display
   toggleMarkerVisibility: (id: string) => void;
   setAllMarkersVisible: (visible: boolean) => void;
   setShowMarkers: (show: boolean) => void;
+  setShowLabels: (show: boolean) => void;
+  setGlobalMarkerSize: (size: number) => void;
+  setSortBy: (sortBy: MarkerSortBy) => void;
   
   // Group management
   addGroup: (group: string) => void;
@@ -109,6 +123,10 @@ interface MarkerState {
   // Getters
   getMarkersByGroup: (group?: string) => SkyMarker[];
   getVisibleMarkers: () => SkyMarker[];
+  
+  // Import/Export
+  exportMarkers: () => string;
+  importMarkers: (json: string) => { count: number };
   
   // Tauri sync
   syncWithTauri: () => Promise<void>;
@@ -125,6 +143,9 @@ export const useMarkerStore = create<MarkerState>()(
       groups: ['Default'],
       activeMarkerId: null,
       showMarkers: true,
+      showLabels: true,
+      globalMarkerSize: 20,
+      sortBy: 'date' as MarkerSortBy,
       pendingCoords: null,
       editingMarkerId: null,
       
@@ -133,6 +154,12 @@ export const useMarkerStore = create<MarkerState>()(
       setEditingMarkerId: (id) => set({ editingMarkerId: id }),
       
       addMarker: (marker) => {
+        // Check marker count limit
+        if (get().markers.length >= MAX_MARKERS) {
+          logger.warn(`Maximum marker count reached (${MAX_MARKERS})`);
+          return null;
+        }
+        
         const id = generateId();
         const newMarker: SkyMarker = {
           ...marker,
@@ -266,6 +293,10 @@ export const useMarkerStore = create<MarkerState>()(
         }
       },
       
+      setShowLabels: (show) => set({ showLabels: show }),
+      setGlobalMarkerSize: (size) => set({ globalMarkerSize: Math.max(8, Math.min(48, size)) }),
+      setSortBy: (sortBy) => set({ sortBy }),
+      
       // ========== Group management ==========
       addGroup: (group) => {
         set((state) => ({
@@ -343,6 +374,59 @@ export const useMarkerStore = create<MarkerState>()(
         if (!state.showMarkers) return [];
         return state.markers.filter((m) => m.visible);
       },
+      
+      // ========== Import/Export ==========
+      exportMarkers: () => {
+        const state = get();
+        const data = {
+          version: 1,
+          markers: state.markers,
+          groups: state.groups,
+        };
+        return JSON.stringify(data, null, 2);
+      },
+      
+      importMarkers: (json) => {
+        try {
+          const data = JSON.parse(json);
+          const importedMarkers: SkyMarker[] = Array.isArray(data.markers) ? data.markers : (Array.isArray(data) ? data : []);
+          const importedGroups: string[] = Array.isArray(data.groups) ? data.groups : [];
+          
+          if (importedMarkers.length === 0) {
+            throw new Error('No markers found in import data');
+          }
+          
+          // Validate and re-id markers to avoid collisions
+          const now = Date.now();
+          const currentMarkers = get().markers;
+          const remaining = MAX_MARKERS - currentMarkers.length;
+          const toImport = importedMarkers.slice(0, remaining).map((m, i) => ({
+            ...m,
+            id: `marker-${now}-import-${i}-${Math.random().toString(36).slice(2, 7)}`,
+            createdAt: m.createdAt || now,
+            updatedAt: now,
+            visible: m.visible ?? true,
+            color: m.color || '#3b82f6',
+            icon: (m.icon || 'pin') as MarkerIcon,
+          }));
+          
+          // Merge groups
+          const currentGroups = get().groups;
+          const newGroups = importedGroups.filter(g => !currentGroups.includes(g));
+          const markerGroups = toImport.map(m => m.group).filter((g): g is string => !!g && !currentGroups.includes(g) && !newGroups.includes(g));
+          const allNewGroups = [...new Set([...newGroups, ...markerGroups])];
+          
+          set((state) => ({
+            markers: [...state.markers, ...toImport],
+            groups: [...state.groups, ...allNewGroups],
+          }));
+          
+          return { count: toImport.length };
+        } catch (error) {
+          logger.error('Failed to import markers', error);
+          throw error;
+        }
+      },
     }),
     {
       name: 'starmap-markers',
@@ -351,6 +435,9 @@ export const useMarkerStore = create<MarkerState>()(
         markers: state.markers,
         groups: state.groups,
         showMarkers: state.showMarkers,
+        showLabels: state.showLabels,
+        globalMarkerSize: state.globalMarkerSize,
+        sortBy: state.sortBy,
       }),
     }
   )

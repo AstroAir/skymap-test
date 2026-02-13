@@ -99,6 +99,9 @@ export type SkyCultureLanguage = 'native' | 'en' | 'zh';
 export interface StellariumSettings {
   constellationsLinesVisible: boolean;
   constellationArtVisible: boolean;
+  constellationLabelsVisible: boolean;
+  starLabelsVisible: boolean;
+  planetLabelsVisible: boolean;
   azimuthalLinesVisible: boolean;
   equatorialLinesVisible: boolean;
   meridianLinesVisible: boolean;
@@ -139,6 +142,30 @@ export interface FramingState {
 // Mount Types
 // ============================================================================
 
+export type MountProtocol = 'alpaca' | 'simulator';
+export type MountTrackingRate = 'sidereal' | 'lunar' | 'solar' | 'stopped';
+export type MountPierSide = 'east' | 'west' | 'unknown';
+
+export interface MountConnectionConfig {
+  protocol: MountProtocol;
+  host: string;
+  port: number;
+  deviceId: number;
+}
+
+export interface MountCapabilities {
+  canSlew: boolean;
+  canSlewAsync: boolean;
+  canSync: boolean;
+  canPark: boolean;
+  canUnpark: boolean;
+  canSetTracking: boolean;
+  canMoveAxis: boolean;
+  canPulseGuide: boolean;
+  alignmentMode: string;
+  equatorialSystem: string;
+}
+
 export interface MountInfo {
   Connected: boolean;
   Coordinates: {
@@ -146,13 +173,12 @@ export interface MountInfo {
     Dec: number;
   };
   Tracking?: boolean;
-  TrackMode?: 'sidereal' | 'lunar' | 'solar' | 'custom';
+  TrackMode?: MountTrackingRate;
   Slewing?: boolean;
   Parked?: boolean;
-  PierSide?: 'east' | 'west' | 'unknown';
-  CanSlew?: boolean;
-  CanPark?: boolean;
-  CanSync?: boolean;
+  AtHome?: boolean;
+  PierSide?: MountPierSide;
+  SlewRateIndex?: number;
 }
 
 export interface ProfileInfo {

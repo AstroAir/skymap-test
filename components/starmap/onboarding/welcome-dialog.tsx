@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Sparkles, Rocket } from 'lucide-react';
+import { Sparkles, Rocket, MapPin, Telescope, Settings2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,38 +17,57 @@ import { Label } from '@/components/ui/label';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
 import { WELCOME_FEATURES } from '@/lib/constants/onboarding';
 import { cn } from '@/lib/utils';
-import type { WelcomeDialogProps } from '@/types/starmap/onboarding';
+import type { WelcomeDialogProps, OnboardingRestartButtonProps } from '@/types/starmap/onboarding';
+
+const SETUP_FEATURES = [
+  { icon: MapPin, key: 'location' },
+  { icon: Telescope, key: 'equipment' },
+  { icon: Settings2, key: 'preferences' },
+] as const;
 
 export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
   const t = useTranslations();
   const hasSeenWelcome = useOnboardingStore((state) => state.hasSeenWelcome);
   const hasCompletedOnboarding = useOnboardingStore((state) => state.hasCompletedOnboarding);
+  const hasCompletedSetup = useOnboardingStore((state) => state.hasCompletedSetup);
   const showOnNextVisit = useOnboardingStore((state) => state.showOnNextVisit);
   const isTourActive = useOnboardingStore((state) => state.isTourActive);
+  const isSetupOpen = useOnboardingStore((state) => state.isSetupOpen);
   const setHasSeenWelcome = useOnboardingStore((state) => state.setHasSeenWelcome);
   const setShowOnNextVisit = useOnboardingStore((state) => state.setShowOnNextVisit);
-  const startTour = useOnboardingStore((state) => state.startTour);
+  const openSetup = useOnboardingStore((state) => state.openSetup);
+  const skipSetupStartTour = useOnboardingStore((state) => state.skipSetupStartTour);
 
   const [isOpen, setIsOpen] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  // Show dialog only for first-time users or if they haven't completed onboarding
+  // Show dialog only for first-time users
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (!hasSeenWelcome && showOnNextVisit && !hasCompletedOnboarding && !isTourActive) {
+      if (!hasSeenWelcome && showOnNextVisit && !hasCompletedOnboarding && !isTourActive && !isSetupOpen) {
         setIsOpen(true);
       }
-    }, 500); // Delay after splash screen
+    }, 500);
     return () => clearTimeout(timer);
-  }, [hasSeenWelcome, showOnNextVisit, hasCompletedOnboarding, isTourActive]);
+  }, [hasSeenWelcome, showOnNextVisit, hasCompletedOnboarding, isTourActive, isSetupOpen]);
 
-  const handleStartTour = () => {
+  const handleStartSetup = () => {
     setHasSeenWelcome(true);
     if (dontShowAgain) {
       setShowOnNextVisit(false);
     }
     setIsOpen(false);
-    startTour();
+    openSetup();
+    onStartTour?.();
+  };
+
+  const handleSkipToTour = () => {
+    setHasSeenWelcome(true);
+    if (dontShowAgain) {
+      setShowOnNextVisit(false);
+    }
+    setIsOpen(false);
+    skipSetupStartTour();
     onStartTour?.();
   };
 
@@ -68,7 +87,6 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
     setIsOpen(open);
   };
 
-  // Don't render if already completed and chose not to show again
   if (hasCompletedOnboarding || !showOnNextVisit) {
     return null;
   }
@@ -112,8 +130,8 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Features grid */}
-        <div className="relative z-10 grid grid-cols-2 gap-3 py-4">
+        {/* App features grid */}
+        <div className="relative z-10 grid grid-cols-2 gap-3 py-3">
           {WELCOME_FEATURES.map(({ icon: Icon, key }, index) => (
             <div
               key={key}
@@ -140,6 +158,23 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
           ))}
         </div>
 
+        {/* Setup configuration preview */}
+        {!hasCompletedSetup && (
+          <div className="relative z-10 py-2">
+            <p className="text-xs text-muted-foreground mb-2">
+              {t('setupWizard.steps.welcome.whatWellConfigure')}
+            </p>
+            <div className="flex items-center gap-4">
+              {SETUP_FEATURES.map(({ icon: Icon, key }) => (
+                <div key={key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Icon className="w-3.5 h-3.5 text-primary/70" />
+                  <span>{t(`setupWizard.steps.welcome.features.${key}.title`)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Don't show again checkbox */}
         <div className="relative z-10 flex items-center space-x-2 py-2">
           <Checkbox
@@ -164,41 +199,65 @@ export function WelcomeDialog({ onStartTour, onSkip }: WelcomeDialogProps) {
           >
             {t('onboarding.welcome.skipTour')}
           </Button>
-          <Button
-            onClick={handleStartTour}
-            className="bg-primary hover:bg-primary/90 text-white gap-2"
-          >
-            <Rocket className="w-4 h-4" />
-            {t('onboarding.welcome.startTour')}
-          </Button>
+          {!hasCompletedSetup ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleSkipToTour}
+                className="gap-1"
+              >
+                <ArrowRight className="w-4 h-4" />
+                {t('onboarding.welcome.skipToTour')}
+              </Button>
+              <Button
+                onClick={handleStartSetup}
+                className="bg-primary hover:bg-primary/90 text-white gap-2"
+              >
+                <Rocket className="w-4 h-4" />
+                {t('onboarding.welcome.startSetup')}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleSkipToTour}
+              className="bg-primary hover:bg-primary/90 text-white gap-2"
+            >
+              <Rocket className="w-4 h-4" />
+              {t('onboarding.welcome.startTour')}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-export function TourRestartButton() {
+export function OnboardingRestartButton({
+  variant = 'outline',
+  size = 'sm',
+  className,
+}: OnboardingRestartButtonProps) {
   const t = useTranslations();
-  const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
-  const startTour = useOnboardingStore((state) => state.startTour);
+  const resetAll = useOnboardingStore((state) => state.resetAll);
 
   const handleRestart = () => {
-    resetOnboarding();
-    // Delay to allow state to reset
-    setTimeout(() => {
-      startTour();
-    }, 100);
+    resetAll();
   };
 
   return (
     <Button
-      variant="outline"
-      size="sm"
+      variant={variant}
+      size={size}
       onClick={handleRestart}
-      className="gap-2"
+      className={cn('gap-2', className)}
     >
       <Sparkles className="w-4 h-4" />
       {t('onboarding.restartTour')}
     </Button>
   );
 }
+
+/**
+ * @deprecated Use OnboardingRestartButton instead.
+ */
+export const TourRestartButton = OnboardingRestartButton;

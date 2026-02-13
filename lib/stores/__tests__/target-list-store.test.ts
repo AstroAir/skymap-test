@@ -39,6 +39,13 @@ describe('useTargetListStore', () => {
     const { result } = renderHook(() => useTargetListStore());
     act(() => {
       result.current.clearAll();
+      result.current.setSearchQuery('');
+      result.current.setFilterStatus('all');
+      result.current.setFilterPriority('all');
+      result.current.setFilterTags([]);
+      result.current.setSortBy('manual');
+      result.current.setSortOrder('asc');
+      result.current.setShowArchived(false);
     });
   });
 
@@ -436,6 +443,313 @@ describe('useTargetListStore', () => {
       const favorites = result.current.targets.filter(t => t.isFavorite);
       expect(favorites).toHaveLength(1);
       expect(favorites[0].name).toBe('Favorite Target');
+    });
+  });
+
+  describe('search and filter state', () => {
+    it('should have default search/filter/sort state', () => {
+      const { result } = renderHook(() => useTargetListStore());
+      expect(result.current.searchQuery).toBe('');
+      expect(result.current.filterStatus).toBe('all');
+      expect(result.current.filterPriority).toBe('all');
+      expect(result.current.sortBy).toBe('manual');
+      expect(result.current.sortOrder).toBe('asc');
+    });
+
+    it('should set search query', () => {
+      const { result } = renderHook(() => useTargetListStore());
+      act(() => { result.current.setSearchQuery('andromeda'); });
+      expect(result.current.searchQuery).toBe('andromeda');
+    });
+
+    it('should set filter status', () => {
+      const { result } = renderHook(() => useTargetListStore());
+      act(() => { result.current.setFilterStatus('completed'); });
+      expect(result.current.filterStatus).toBe('completed');
+    });
+
+    it('should set filter priority', () => {
+      const { result } = renderHook(() => useTargetListStore());
+      act(() => { result.current.setFilterPriority('high'); });
+      expect(result.current.filterPriority).toBe('high');
+    });
+
+    it('should set sort by', () => {
+      const { result } = renderHook(() => useTargetListStore());
+      act(() => { result.current.setSortBy('name'); });
+      expect(result.current.sortBy).toBe('name');
+    });
+
+    it('should set sort order', () => {
+      const { result } = renderHook(() => useTargetListStore());
+      act(() => { result.current.setSortOrder('desc'); });
+      expect(result.current.sortOrder).toBe('desc');
+    });
+  });
+
+  describe('getFilteredTargets', () => {
+    it('should filter by search query (name)', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'M31 - Andromeda Galaxy' });
+        result.current.addTarget({ ...mockTarget, name: 'M42 - Orion Nebula' });
+        result.current.addTarget({ ...mockTarget, name: 'M45 - Pleiades' });
+      });
+
+      act(() => { result.current.setSearchQuery('orion'); });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('M42 - Orion Nebula');
+    });
+
+    it('should filter by search query (tags)', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Target A', tags: ['galaxy'] });
+        result.current.addTarget({ ...mockTarget, name: 'Target B', tags: ['nebula'] });
+      });
+
+      act(() => { result.current.setSearchQuery('galaxy'); });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('Target A');
+    });
+
+    it('should filter by search query (notes)', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Target A' });
+        result.current.addTarget({ ...mockTarget, name: 'Target B' });
+      });
+
+      const idB = result.current.targets[1].id;
+      act(() => { result.current.updateTarget(idB, { notes: 'best in winter' }); });
+      act(() => { result.current.setSearchQuery('winter'); });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('Target B');
+    });
+
+    it('should filter by status', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Planned' });
+        result.current.addTarget({ ...mockTarget, name: 'Done' });
+      });
+
+      const doneId = result.current.targets[1].id;
+      act(() => { result.current.updateTarget(doneId, { status: 'completed' }); });
+      act(() => { result.current.setFilterStatus('completed'); });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('Done');
+    });
+
+    it('should filter by priority', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'High', priority: 'high' });
+        result.current.addTarget({ ...mockTarget, name: 'Low', priority: 'low' });
+      });
+
+      act(() => { result.current.setFilterPriority('low'); });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('Low');
+    });
+
+    it('should combine search and filter', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'M31', priority: 'high' });
+        result.current.addTarget({ ...mockTarget, name: 'M42', priority: 'high' });
+        result.current.addTarget({ ...mockTarget, name: 'M45', priority: 'low' });
+      });
+
+      act(() => {
+        result.current.setSearchQuery('M4');
+        result.current.setFilterPriority('high');
+      });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('M42');
+    });
+
+    it('should exclude archived targets by default', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Active' });
+        result.current.addTarget({ ...mockTarget, name: 'Archived' });
+      });
+
+      const archivedId = result.current.targets[1].id;
+      act(() => { result.current.toggleArchive(archivedId); });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('Active');
+    });
+
+    it('should include archived targets when showArchived is true', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Active' });
+        result.current.addTarget({ ...mockTarget, name: 'Archived' });
+      });
+
+      const archivedId = result.current.targets[1].id;
+      act(() => {
+        result.current.toggleArchive(archivedId);
+        result.current.setShowArchived(true);
+      });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered).toHaveLength(2);
+    });
+  });
+
+  describe('sorting via getFilteredTargets', () => {
+    it('should sort by name ascending', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Zeta' });
+        result.current.addTarget({ ...mockTarget, name: 'Alpha' });
+        result.current.addTarget({ ...mockTarget, name: 'Mu' });
+      });
+
+      act(() => {
+        result.current.setSortBy('name');
+        result.current.setSortOrder('asc');
+      });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered.map(t => t.name)).toEqual(['Alpha', 'Mu', 'Zeta']);
+    });
+
+    it('should sort by name descending', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Zeta' });
+        result.current.addTarget({ ...mockTarget, name: 'Alpha' });
+      });
+
+      act(() => {
+        result.current.setSortBy('name');
+        result.current.setSortOrder('desc');
+      });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered.map(t => t.name)).toEqual(['Zeta', 'Alpha']);
+    });
+
+    it('should sort by priority', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Low', priority: 'low' });
+        result.current.addTarget({ ...mockTarget, name: 'High', priority: 'high' });
+        result.current.addTarget({ ...mockTarget, name: 'Med', priority: 'medium' });
+      });
+
+      act(() => {
+        result.current.setSortBy('priority');
+        result.current.setSortOrder('asc');
+      });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered.map(t => t.name)).toEqual(['High', 'Med', 'Low']);
+    });
+
+    it('should sort by status', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Done' });
+        result.current.addTarget({ ...mockTarget, name: 'Planned' });
+        result.current.addTarget({ ...mockTarget, name: 'InProg' });
+      });
+
+      const doneId = result.current.targets[0].id;
+      const inProgId = result.current.targets[2].id;
+      act(() => {
+        result.current.updateTarget(doneId, { status: 'completed' });
+        result.current.updateTarget(inProgId, { status: 'in_progress' });
+      });
+
+      act(() => {
+        result.current.setSortBy('status');
+        result.current.setSortOrder('asc');
+      });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered.map(t => t.name)).toEqual(['Planned', 'InProg', 'Done']);
+    });
+
+    it('should not sort when sortBy is manual', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'B' });
+        result.current.addTarget({ ...mockTarget, name: 'A' });
+        result.current.addTarget({ ...mockTarget, name: 'C' });
+      });
+
+      act(() => { result.current.setSortBy('manual'); });
+
+      const filtered = result.current.getFilteredTargets();
+      expect(filtered.map(t => t.name)).toEqual(['B', 'A', 'C']);
+    });
+  });
+
+  describe('checkDuplicate', () => {
+    it('should find duplicate by exact name match (case-insensitive)', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'M31' });
+      });
+
+      const dup = result.current.checkDuplicate('m31', 0, 0);
+      expect(dup).toBeDefined();
+      expect(dup!.name).toBe('M31');
+    });
+
+    it('should find duplicate by close coordinates', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'M31', ra: 10.684, dec: 41.269 });
+      });
+
+      const dup = result.current.checkDuplicate('Different Name', 10.685, 41.268);
+      expect(dup).toBeDefined();
+    });
+
+    it('should return undefined when no duplicate', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'M31', ra: 10.684, dec: 41.269 });
+      });
+
+      const dup = result.current.checkDuplicate('M42', 83.822, -5.391);
+      expect(dup).toBeUndefined();
     });
   });
 });

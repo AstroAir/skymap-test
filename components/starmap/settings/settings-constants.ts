@@ -7,6 +7,9 @@ import type { GridType, BinningType } from '@/lib/stores';
 export const DISPLAY_SETTINGS = [
   { key: 'constellationsLinesVisible' as const, labelKey: 'settings.constellationLines' },
   { key: 'constellationArtVisible' as const, labelKey: 'settings.constellationArt' },
+  { key: 'constellationLabelsVisible' as const, labelKey: 'settings.constellationLabels' },
+  { key: 'starLabelsVisible' as const, labelKey: 'settings.starLabels' },
+  { key: 'planetLabelsVisible' as const, labelKey: 'settings.planetLabels' },
   { key: 'dsosVisible' as const, labelKey: 'settings.deepSkyObjects' },
   { key: 'atmosphereVisible' as const, labelKey: 'settings.atmosphere' },
   { key: 'landscapesVisible' as const, labelKey: 'settings.landscape' },
@@ -77,6 +80,9 @@ export const FRAME_COLORS = [
 export const DEFAULT_STELLARIUM_SETTINGS = {
   constellationsLinesVisible: true,
   constellationArtVisible: false,
+  constellationLabelsVisible: true,
+  starLabelsVisible: true,
+  planetLabelsVisible: true,
   azimuthalLinesVisible: false,
   equatorialLinesVisible: false,
   meridianLinesVisible: false,

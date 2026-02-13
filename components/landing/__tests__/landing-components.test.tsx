@@ -26,12 +26,15 @@ jest.mock('embla-carousel-react', () => {
 
 import { Navbar } from '../navbar';
 import { HeroSection } from '../hero-section';
+import { StatsSection } from '../stats-section';
 import { FeaturesSection } from '../features-section';
+import { GettingStartedSection } from '../getting-started-section';
 import { CTASection } from '../cta-section';
 import { SectionHeader } from '../section-header';
 import { StarField } from '../star-field';
 import { Footer } from '../footer';
 import { TechStack } from '../tech-stack';
+import { TestimonialsSection } from '../testimonials-section';
 
 // ============================================================================
 // SectionHeader
@@ -267,5 +270,89 @@ describe('Footer', () => {
     expect(screen.getByText('stellariumEngine')).toBeInTheDocument();
     expect(screen.getByText('gaiaData')).toBeInTheDocument();
     expect(screen.getByText('dssImages')).toBeInTheDocument();
+  });
+
+  it('renders community section', () => {
+    render(<Footer />);
+    expect(screen.getByText('community')).toBeInTheDocument();
+    expect(screen.getByText('discussions')).toBeInTheDocument();
+    expect(screen.getByText('reportIssue')).toBeInTheDocument();
+  });
+
+  it('renders back to top button', () => {
+    render(<Footer />);
+    expect(screen.getByLabelText('backToTop')).toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// StatsSection
+// ============================================================================
+describe('StatsSection', () => {
+  it('renders stats section with aria-label', () => {
+    const { container } = render(<StatsSection />);
+    const section = container.querySelector('section');
+    expect(section).toHaveAttribute('aria-label', 'Statistics');
+  });
+
+  it('renders all 4 stat items with labels', () => {
+    render(<StatsSection />);
+    expect(screen.getByText('celestialObjects.label')).toBeInTheDocument();
+    expect(screen.getByText('platforms.label')).toBeInTheDocument();
+    expect(screen.getByText('openSource.label')).toBeInTheDocument();
+    expect(screen.getByText('languages.label')).toBeInTheDocument();
+  });
+
+  it('applies animation classes when in view', () => {
+    render(<StatsSection />);
+    const animatedItems = document.querySelectorAll('.animate-fade-in');
+    expect(animatedItems.length).toBe(4);
+  });
+});
+
+// ============================================================================
+// GettingStartedSection
+// ============================================================================
+describe('GettingStartedSection', () => {
+  it('renders section with aria-labelledby', () => {
+    const { container } = render(<GettingStartedSection />);
+    const section = container.querySelector('section');
+    expect(section).toHaveAttribute('aria-labelledby', 'getting-started-title');
+  });
+
+  it('renders all 3 steps', () => {
+    render(<GettingStartedSection />);
+    expect(screen.getByText('launch.title')).toBeInTheDocument();
+    expect(screen.getByText('setup.title')).toBeInTheDocument();
+    expect(screen.getByText('observe.title')).toBeInTheDocument();
+  });
+
+  it('renders CTA button', () => {
+    render(<GettingStartedSection />);
+    expect(screen.getByText('cta')).toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// TestimonialsSection
+// ============================================================================
+describe('TestimonialsSection', () => {
+  it('renders section with aria-labelledby', () => {
+    const { container } = render(<TestimonialsSection />);
+    const section = container.querySelector('section');
+    expect(section).toHaveAttribute('aria-labelledby', 'testimonials-title');
+  });
+
+  it('renders all 3 testimonial cards', () => {
+    render(<TestimonialsSection />);
+    expect(screen.getByText(/astronomer\.quote/)).toBeInTheDocument();
+    expect(screen.getByText(/photographer\.quote/)).toBeInTheDocument();
+    expect(screen.getByText(/beginner\.quote/)).toBeInTheDocument();
+  });
+
+  it('renders testimonial names and roles', () => {
+    render(<TestimonialsSection />);
+    expect(screen.getByText('astronomer.name')).toBeInTheDocument();
+    expect(screen.getByText('astronomer.role')).toBeInTheDocument();
   });
 });

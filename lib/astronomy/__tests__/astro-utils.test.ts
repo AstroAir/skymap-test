@@ -1,19 +1,44 @@
 /**
- * Tests for astro-utils.ts
+ * Tests for astro-utils.ts (re-export shim)
+ *
+ * Validates that the backward-compatible re-export shim correctly
+ * exposes all functions from the modular subdirectories.
  */
 
 import {
+  // Time
   getJulianDateFromDate,
   julianDateToDate,
+  getJulianDate,
+  // Coordinates
+  deg2rad,
+  rad2deg,
+  getLST,
+  raDecToAltAz,
+  // Celestial
   getSunPosition,
   getMoonPhase,
   getMoonPhaseName,
   getMoonIllumination,
   getMoonPosition,
   angularSeparation,
+  // Twilight
+  calculateTwilightTimes,
+  // Visibility
+  calculateTargetVisibility,
+  getAltitudeOverTime,
+  getTransitTime,
   getMaxAltitude,
   isCircumpolar,
   neverRises,
+  calculateImagingHours,
+  // Imaging
+  calculateImagingFeasibility,
+  calculateExposure,
+  calculateTotalIntegration,
+  BORTLE_SCALE,
+  planMultipleTargets,
+  // Formatting
   formatTimeShort,
   formatDuration,
 } from '../astro-utils';
@@ -216,5 +241,135 @@ describe('formatDuration', () => {
 
   it('should handle negative values', () => {
     expect(formatDuration(-1)).toBe('0m');
+  });
+});
+
+// ============================================================================
+// Re-export shim validation: ensure all re-exported symbols are accessible
+// ============================================================================
+
+describe('re-export shim: time', () => {
+  it('getJulianDate returns current JD', () => {
+    const jd = getJulianDate();
+    expect(jd).toBeGreaterThan(2451545);
+  });
+
+  it('deg2rad / rad2deg roundtrip', () => {
+    expect(rad2deg(deg2rad(45))).toBeCloseTo(45, 10);
+  });
+
+  it('getLST returns a number', () => {
+    expect(typeof getLST(0)).toBe('number');
+  });
+
+  it('raDecToAltAz returns altitude and azimuth', () => {
+    const result = raDecToAltAz(180, 45, 45, 0);
+    expect(result).toHaveProperty('altitude');
+    expect(result).toHaveProperty('azimuth');
+  });
+});
+
+describe('re-export shim: twilight', () => {
+  it('calculateTwilightTimes returns all required fields', () => {
+    const tw = calculateTwilightTimes(45, -75);
+    expect(tw).toHaveProperty('sunset');
+    expect(tw).toHaveProperty('sunrise');
+    expect(tw).toHaveProperty('astronomicalDusk');
+    expect(tw).toHaveProperty('astronomicalDawn');
+    expect(tw).toHaveProperty('nightDuration');
+    expect(tw).toHaveProperty('currentTwilightPhase');
+  });
+});
+
+describe('re-export shim: visibility', () => {
+  it('calculateTargetVisibility returns visibility info', () => {
+    const vis = calculateTargetVisibility(180, 45, 45, -75);
+    expect(vis).toHaveProperty('transitTime');
+    expect(vis).toHaveProperty('transitAltitude');
+    expect(vis).toHaveProperty('isCircumpolar');
+    expect(vis).toHaveProperty('neverRises');
+    expect(vis).toHaveProperty('imagingHours');
+  });
+
+  it('getAltitudeOverTime returns array of points', () => {
+    const data = getAltitudeOverTime(180, 45, 45, -75, 4, 60);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThan(0);
+    expect(data[0]).toHaveProperty('altitude');
+    expect(data[0]).toHaveProperty('azimuth');
+  });
+
+  it('getTransitTime returns transit info', () => {
+    const t = getTransitTime(180, -75);
+    expect(t).toHaveProperty('transitLST');
+    expect(t).toHaveProperty('hoursUntilTransit');
+  });
+
+  it('calculateImagingHours returns 0 for null dark window', () => {
+    const points = [{ altitude: 60, time: new Date() }];
+    expect(calculateImagingHours({ points }, 30, null, null)).toBe(0);
+  });
+
+  it('calculateImagingHours counts points in window', () => {
+    const base = new Date('2024-06-15T22:00:00Z');
+    const points = [
+      { altitude: 60, time: new Date(base.getTime() + 0) },
+      { altitude: 55, time: new Date(base.getTime() + 360000) },
+      { altitude: 10, time: new Date(base.getTime() + 720000) }, // below minAlt
+    ];
+    const darkStart = new Date(base.getTime() - 60000);
+    const darkEnd = new Date(base.getTime() + 800000);
+    const hours = calculateImagingHours({ points }, 30, darkStart, darkEnd);
+    expect(hours).toBeCloseTo(0.2, 1); // 2 points × 0.1h
+  });
+});
+
+describe('re-export shim: imaging', () => {
+  it('calculateImagingFeasibility returns score and recommendation', () => {
+    const f = calculateImagingFeasibility(180, 45, 45, -75);
+    expect(f.score).toBeGreaterThanOrEqual(0);
+    expect(f.score).toBeLessThanOrEqual(100);
+    expect(['excellent', 'good', 'fair', 'poor', 'not_recommended']).toContain(f.recommendation);
+  });
+
+  it('calculateExposure returns exposure recommendations', () => {
+    const result = calculateExposure({
+      bortle: 5,
+      focalLength: 400,
+      aperture: 80,
+      tracking: 'guided',
+    });
+    expect(result).toHaveProperty('maxUntracked');
+    expect(result).toHaveProperty('recommendedSingle');
+    expect(result).toHaveProperty('minForSignal');
+  });
+
+  it('calculateTotalIntegration returns time recommendations', () => {
+    const result = calculateTotalIntegration({
+      bortle: 5,
+      targetType: 'nebula',
+    });
+    expect(result.minimum).toBeGreaterThan(0);
+    expect(result.recommended).toBeGreaterThan(result.minimum);
+    expect(result.ideal).toBeGreaterThan(result.recommended);
+  });
+
+  it('BORTLE_SCALE has 9 entries', () => {
+    expect(BORTLE_SCALE).toHaveLength(9);
+    expect(BORTLE_SCALE[0].value).toBe(1);
+    expect(BORTLE_SCALE[8].value).toBe(9);
+  });
+
+  it('planMultipleTargets returns plan structure', () => {
+    const targets = [
+      { id: '1', name: 'M31', ra: 10.68, dec: 41.27 },
+      { id: '2', name: 'M42', ra: 83.82, dec: -5.39 },
+    ];
+    const plan = planMultipleTargets(targets, 45, -75);
+    expect(plan).toHaveProperty('targets');
+    expect(plan).toHaveProperty('totalImagingTime');
+    expect(plan).toHaveProperty('nightCoverage');
+    expect(plan).toHaveProperty('recommendations');
+    expect(plan.targets).toHaveLength(2);
   });
 });

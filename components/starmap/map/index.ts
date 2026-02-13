@@ -17,4 +17,4 @@ export type {
   SearchHistory,
 } from '@/types/starmap/map';
 
-export { TILE_LAYER_CONFIGS, type TileLayerType } from '@/lib/constants/map';
+export { TILE_LAYER_CONFIGS, LIGHT_POLLUTION_OVERLAY, type TileLayerType } from '@/lib/constants/map';

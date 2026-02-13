@@ -10,14 +10,29 @@ const mockUseMarkerStore = jest.fn((selector) => {
     markers: [],
     groups: [],
     selectedGroup: 'all',
+    showMarkers: true,
+    showLabels: true,
+    globalMarkerSize: 20,
+    sortBy: 'date',
+    pendingCoords: null,
+    editingMarkerId: null,
     addMarker: jest.fn(),
     removeMarker: jest.fn(),
     updateMarker: jest.fn(),
     toggleMarkerVisibility: jest.fn(),
     clearAllMarkers: jest.fn(),
     setSelectedGroup: jest.fn(),
+    setShowMarkers: jest.fn(),
+    setShowLabels: jest.fn(),
+    setGlobalMarkerSize: jest.fn(),
+    setSortBy: jest.fn(),
+    setPendingCoords: jest.fn(),
+    setEditingMarkerId: jest.fn(),
     addGroup: jest.fn(),
     removeGroup: jest.fn(),
+    renameGroup: jest.fn(),
+    exportMarkers: jest.fn(() => '{}'),
+    importMarkers: jest.fn(() => ({ count: 0 })),
   };
   return selector ? selector(state) : state;
 });
@@ -34,6 +49,7 @@ jest.mock('@/lib/stores', () => ({
   useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
   MARKER_COLORS: ['red', 'blue', 'green', 'yellow'],
   MARKER_ICONS: ['star', 'circle', 'crosshair', 'diamond'],
+  MAX_MARKERS: 500,
 }));
 
 // Mock UI components
@@ -106,6 +122,56 @@ jest.mock('@/components/ui/badge', () => ({
 
 jest.mock('@/components/ui/separator', () => ({
   Separator: () => <hr data-testid="separator" />,
+}));
+
+jest.mock('@/components/ui/slider', () => ({
+  Slider: (props: Record<string, unknown>) => <input data-testid="slider" type="range" {...props} />,
+}));
+
+jest.mock('@/components/ui/select', () => ({
+  Select: ({ children }: { children: React.ReactNode }) => <div data-testid="select">{children}</div>,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <div data-testid="select-content">{children}</div>,
+  SelectItem: ({ children }: { children: React.ReactNode }) => <div data-testid="select-item">{children}</div>,
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="select-trigger">{children}</div>,
+  SelectValue: () => <span data-testid="select-value" />,
+}));
+
+jest.mock('@/components/ui/toggle-group', () => ({
+  ToggleGroup: ({ children }: { children: React.ReactNode }) => <div data-testid="toggle-group">{children}</div>,
+  ToggleGroupItem: ({ children }: { children: React.ReactNode }) => <div data-testid="toggle-group-item">{children}</div>,
+}));
+
+jest.mock('@/components/ui/popover', () => ({
+  Popover: ({ children }: { children: React.ReactNode }) => <div data-testid="popover">{children}</div>,
+  PopoverContent: ({ children }: { children: React.ReactNode }) => <div data-testid="popover-content">{children}</div>,
+  PopoverTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
+    asChild ? <>{children}</> : <div data-testid="popover-trigger">{children}</div>
+  ),
+}));
+
+jest.mock('@/lib/constants/marker-icons', () => ({
+  MarkerIconDisplay: {
+    star: (props: Record<string, unknown>) => <svg data-testid="icon-star" {...props} />,
+    circle: (props: Record<string, unknown>) => <svg data-testid="icon-circle" {...props} />,
+    crosshair: (props: Record<string, unknown>) => <svg data-testid="icon-crosshair" {...props} />,
+    diamond: (props: Record<string, unknown>) => <svg data-testid="icon-diamond" {...props} />,
+    pin: (props: Record<string, unknown>) => <svg data-testid="icon-pin" {...props} />,
+    triangle: (props: Record<string, unknown>) => <svg data-testid="icon-triangle" {...props} />,
+    square: (props: Record<string, unknown>) => <svg data-testid="icon-square" {...props} />,
+    flag: (props: Record<string, unknown>) => <svg data-testid="icon-flag" {...props} />,
+  },
+}));
+
+jest.mock('@/lib/storage', () => ({
+  readFileAsText: jest.fn().mockResolvedValue('{}'),
+}));
+
+jest.mock('sonner', () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+    warning: jest.fn(),
+  },
 }));
 
 import { MarkerManager } from '../marker-manager';

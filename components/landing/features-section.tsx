@@ -11,6 +11,7 @@ import {
   Compass,
   Settings,
   Globe,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useInView } from '@/lib/hooks/use-in-view';
@@ -54,11 +55,12 @@ export function FeaturesSection() {
                 style={isInView ? { animationDelay: `${index * 0.1}s`, animationFillMode: 'forwards' } : undefined}
               >
                 <CardHeader>
-                  <div className="mb-2 p-3 rounded-lg bg-primary/10 w-fit group-hover:bg-primary/20 transition-colors">
+                  <div className="mb-2 p-3 rounded-lg bg-primary/10 w-fit group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
                     <Icon className="h-6 w-6 text-primary" />
                   </div>
-                  <CardTitle className="text-lg">
+                  <CardTitle className="text-lg flex items-center gap-2">
                     {t(`${feature.key}.title`)}
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
                   </CardTitle>
                   <CardDescription className="leading-relaxed">
                     {t(`${feature.key}.description`)}

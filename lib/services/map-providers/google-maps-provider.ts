@@ -88,14 +88,14 @@ export class GoogleMapsProvider extends BaseMapProvider {
 
   async geocode(
     address: string,
-    options: { limit?: number; bounds?: BoundingBox } = {}
+    options: { limit?: number; bounds?: BoundingBox; language?: string } = {}
   ): Promise<GeocodingResult[]> {
     await this.applyRateLimit();
     
     const params = new URLSearchParams({
       address,
       key: this.config.apiKey!,
-      language: 'en',
+      language: options.language || 'en',
     });
 
     if (options.bounds) {
@@ -168,8 +168,8 @@ export class GoogleMapsProvider extends BaseMapProvider {
   }
 
   getTileUrl(x: number, y: number, z: number): string {
-    // Google Maps tile URL format
-    const server = Math.floor(Math.random() * 4); // mt0 - mt3
+    // Coordinate-based hash for consistent, cache-friendly server selection (mt0 - mt3)
+    const server = Math.abs((x + y * 2 + z * 3) % 4);
     return `https://mt${server}.google.com/vt/lyrs=m&x=${x}&y=${y}&z=${z}`;
   }
 
@@ -182,7 +182,7 @@ export class GoogleMapsProvider extends BaseMapProvider {
   }
 
   protected getHealthCheckUrl(): string {
-    return `${this.GEOCODING_BASE_URL}?address=New+York&key=${this.config.apiKey}`;
+    return `https://mt0.google.com/vt/lyrs=m&x=0&y=0&z=0`;
   }
 
   private transformGeocodingResult(item: GoogleGeocodingResponse['results'][0]): GeocodingResult {

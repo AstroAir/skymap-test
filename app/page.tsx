@@ -1,9 +1,12 @@
 import dynamic from 'next/dynamic';
 import { Navbar, HeroSection } from '@/components/landing';
 
+const StatsSection = dynamic(() => import('@/components/landing/stats-section').then(m => ({ default: m.StatsSection })));
 const FeaturesSection = dynamic(() => import('@/components/landing/features-section').then(m => ({ default: m.FeaturesSection })));
+const GettingStartedSection = dynamic(() => import('@/components/landing/getting-started-section').then(m => ({ default: m.GettingStartedSection })));
 const ScreenshotCarousel = dynamic(() => import('@/components/landing/screenshot-carousel').then(m => ({ default: m.ScreenshotCarousel })));
 const TechStack = dynamic(() => import('@/components/landing/tech-stack').then(m => ({ default: m.TechStack })));
+const TestimonialsSection = dynamic(() => import('@/components/landing/testimonials-section').then(m => ({ default: m.TestimonialsSection })));
 const CTASection = dynamic(() => import('@/components/landing/cta-section').then(m => ({ default: m.CTASection })));
 const Footer = dynamic(() => import('@/components/landing/footer').then(m => ({ default: m.Footer })));
 
@@ -25,6 +28,17 @@ const jsonLd = {
     name: 'AstroAir',
     url: 'https://github.com/AstroAir',
   },
+  downloadUrl: 'https://github.com/AstroAir/skymap/releases',
+  softwareVersion: '1.0.0',
+  license: 'https://opensource.org/licenses/MIT',
+  programmingLanguage: ['TypeScript', 'Rust'],
+  featureList: [
+    'Real-time sky rendering',
+    'Observation planning',
+    'FOV simulation',
+    'Equipment management',
+    'Multi-language support',
+  ],
 };
 
 export default function Home() {
@@ -37,9 +51,12 @@ export default function Home() {
       <main className="min-h-screen bg-background">
         <Navbar />
         <HeroSection />
+        <StatsSection />
         <FeaturesSection />
+        <GettingStartedSection />
         <ScreenshotCarousel />
         <TechStack />
+        <TestimonialsSection />
         <CTASection />
         <Footer />
       </main>

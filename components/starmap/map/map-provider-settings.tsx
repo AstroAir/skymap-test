@@ -85,10 +85,9 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
   ], [t]);
   const [config, setConfig] = useState<MapConfiguration>(mapConfig.getConfiguration());
   const [hasChanges, setHasChanges] = useState(false);
-  const [providerHealth, setProviderHealth] = useState<Record<string, { healthy: boolean; responseTime: number }>>({});
 
-  // Compute provider health status using useMemo instead of useEffect
-  const computedProviderHealth = useMemo(() => {
+  // Compute provider health status directly via useMemo
+  const providerHealth = useMemo(() => {
     const healthStatus: Record<string, { healthy: boolean; responseTime: number }> = {};
     config.providers.forEach(p => {
       const health = connectivityChecker.getProviderHealth(p.provider);
@@ -99,11 +98,6 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
     });
     return healthStatus;
   }, [config.providers]);
-
-  // Sync computed health to state only when it changes
-  useEffect(() => {
-    setProviderHealth(computedProviderHealth);
-  }, [computedProviderHealth]);
 
   // Listen for config changes
   useEffect(() => {

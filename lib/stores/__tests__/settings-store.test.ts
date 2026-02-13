@@ -20,6 +20,9 @@ jest.mock('@/lib/storage', () => ({
 const DEFAULT_STELLARIUM = {
   constellationsLinesVisible: true,
   constellationArtVisible: false,
+  constellationLabelsVisible: true,
+  starLabelsVisible: true,
+  planetLabelsVisible: true,
   azimuthalLinesVisible: false,
   equatorialLinesVisible: false,
   meridianLinesVisible: false,
@@ -43,6 +46,9 @@ const DEFAULT_PREFERENCES = {
   distanceUnit: 'metric' as const,
   temperatureUnit: 'celsius' as const,
   skipCloseConfirmation: false,
+  startupView: 'last' as const,
+  showSplash: true,
+  autoConnectBackend: true,
 };
 
 const DEFAULT_PERFORMANCE = {
@@ -207,6 +213,9 @@ describe('Settings Store', () => {
       const newSettings = {
         constellationsLinesVisible: false,
         constellationArtVisible: true,
+        constellationLabelsVisible: false,
+        starLabelsVisible: false,
+        planetLabelsVisible: false,
         azimuthalLinesVisible: true,
         equatorialLinesVisible: true,
         meridianLinesVisible: true,
@@ -264,6 +273,10 @@ describe('Settings Store', () => {
       expect(state.preferences.coordinateFormat).toBe('dms');
       expect(state.preferences.distanceUnit).toBe('metric');
       expect(state.preferences.temperatureUnit).toBe('celsius');
+      expect(state.preferences.startupView).toBe('last');
+      expect(state.preferences.showSplash).toBe(true);
+      expect(state.preferences.autoConnectBackend).toBe(true);
+      expect(state.preferences.skipCloseConfirmation).toBe(false);
     });
 
     it('setPreference updates single preference', () => {

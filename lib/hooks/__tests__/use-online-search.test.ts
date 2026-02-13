@@ -40,13 +40,8 @@ jest.mock('@/lib/services/online-search-service', () => ({
     totalCount: 0,
     searchTimeMs: 100,
   })),
-  checkOnlineSearchAvailability: jest.fn(() => Promise.resolve({
-    simbad: true,
-    sesame: true,
-    vizier: true,
-    ned: true,
-    local: true,
-  })),
+  // Return a never-resolving promise to avoid async setState outside act()
+  checkOnlineSearchAvailability: jest.fn().mockReturnValue(new Promise(() => {})),
 }));
 
 jest.mock('@/lib/catalogs', () => ({

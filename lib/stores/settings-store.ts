@@ -15,6 +15,7 @@ export type CoordinateFormat = 'degrees' | 'dms' | 'hms';
 export type DistanceUnit = 'metric' | 'imperial';
 export type TemperatureUnit = 'celsius' | 'fahrenheit';
 export type RenderQuality = 'low' | 'medium' | 'high' | 'ultra';
+export type StartupView = 'last' | 'default' | 'custom';
 
 export interface AppPreferences {
   locale: AppLocale;
@@ -24,6 +25,9 @@ export interface AppPreferences {
   distanceUnit: DistanceUnit;
   temperatureUnit: TemperatureUnit;
   skipCloseConfirmation: boolean;
+  startupView: StartupView;
+  showSplash: boolean;
+  autoConnectBackend: boolean;
 }
 
 export interface PerformanceSettings {
@@ -131,6 +135,9 @@ const DEFAULT_PREFERENCES: AppPreferences = {
   distanceUnit: 'metric',
   temperatureUnit: 'celsius',
   skipCloseConfirmation: false,
+  startupView: 'last',
+  showSplash: true,
+  autoConnectBackend: true,
 };
 
 const DEFAULT_PERFORMANCE: PerformanceSettings = {
@@ -271,12 +278,12 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'starmap-settings',
       storage: getZustandStorage(),
-      version: 5, // Bump version for new settings structure
+      version: 6, // Bump version for startup behavior and display label settings
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState>;
         
         // Migration from older versions
-        if (version < 5) {
+        if (version < 6) {
           return {
             ...state,
             stellarium: {

@@ -49,11 +49,70 @@ export interface FITSObservationInfo {
   ccdTemp?: number;
 }
 
+export interface FITSTelescopeInfo {
+  focalLength?: number;
+  aperture?: number;
+  focalRatio?: number;
+}
+
+export interface FITSCameraInfo {
+  pixelSizeX?: number;
+  pixelSizeY?: number;
+  binningX?: number;
+  binningY?: number;
+  bayerPattern?: string;
+  readoutMode?: string;
+  offset?: number;
+  usbLimit?: number;
+}
+
+export interface FITSSiteInfo {
+  latitude?: number;
+  longitude?: number;
+  elevation?: number;
+  siteName?: string;
+}
+
+export interface FITSProcessingInfo {
+  software?: string;
+  stackCount?: number;
+  calibrationStatus?: string;
+  darkApplied?: boolean;
+  flatApplied?: boolean;
+  biasApplied?: boolean;
+}
+
+export interface SIPCoefficients {
+  aOrder: number;
+  bOrder: number;
+  apOrder?: number;
+  bpOrder?: number;
+  a: Record<string, number>;
+  b: Record<string, number>;
+  ap: Record<string, number>;
+  bp: Record<string, number>;
+}
+
+export interface FITSPixelData {
+  width: number;
+  height: number;
+  bitpix: number;
+  data: Float64Array;
+  min: number;
+  max: number;
+  mean: number;
+}
+
 export interface FITSMetadata {
   header: FITSHeader;
   image?: FITSImageInfo;
   wcs?: WCSInfo;
   observation?: FITSObservationInfo;
+  telescope?: FITSTelescopeInfo;
+  camera?: FITSCameraInfo;
+  site?: FITSSiteInfo;
+  processing?: FITSProcessingInfo;
+  sip?: SIPCoefficients;
   rawCards: string[];
 }
 
@@ -226,6 +285,11 @@ export async function parseFITSHeader(file: File): Promise<FITSMetadata> {
         metadata.image = extractImageInfo(fullHeader);
         metadata.wcs = extractWCSInfo(fullHeader);
         metadata.observation = extractObservationInfo(fullHeader);
+        metadata.telescope = extractTelescopeInfo(fullHeader);
+        metadata.camera = extractCameraInfo(fullHeader);
+        metadata.site = extractSiteInfo(fullHeader);
+        metadata.processing = extractProcessingInfo(fullHeader);
+        metadata.sip = extractSIPCoefficients(fullHeader);
         
         resolve(metadata);
       } catch (error) {
@@ -332,6 +396,238 @@ function extractObservationInfo(header: FITSHeader): FITSObservationInfo {
   };
 }
 
+function extractTelescopeInfo(header: FITSHeader): FITSTelescopeInfo | undefined {
+  const focalLength = (header['FOCALLEN'] as number) || (header['FLENGTH'] as number);
+  const aperture = (header['APTDIA'] as number) || (header['APTDIAM'] as number);
+  if (!focalLength && !aperture) return undefined;
+  return {
+    focalLength,
+    aperture,
+    focalRatio: focalLength && aperture ? focalLength / aperture : undefined,
+  };
+}
+
+function extractCameraInfo(header: FITSHeader): FITSCameraInfo | undefined {
+  const pixelSizeX = (header['XPIXSZ'] as number) || (header['PIXSIZE1'] as number);
+  const pixelSizeY = (header['YPIXSZ'] as number) || (header['PIXSIZE2'] as number);
+  const binningX = (header['XBINNING'] as number) || (header['XBIN'] as number);
+  const binningY = (header['YBINNING'] as number) || (header['YBIN'] as number);
+  if (!pixelSizeX && !binningX) return undefined;
+  return {
+    pixelSizeX,
+    pixelSizeY: pixelSizeY || pixelSizeX,
+    binningX,
+    binningY: binningY || binningX,
+    bayerPattern: header['BAYERPAT'] as string,
+    readoutMode: header['READOUTM'] as string,
+    offset: header['OFFSET'] as number,
+    usbLimit: header['USBLIMIT'] as number,
+  };
+}
+
+function extractSiteInfo(header: FITSHeader): FITSSiteInfo | undefined {
+  const lat = (header['SITELAT'] as number) || (header['LAT-OBS'] as number) || (header['OBSLAT'] as number);
+  const lon = (header['SITELONG'] as number) || (header['LONG-OBS'] as number) || (header['OBSLON'] as number);
+  if (lat === undefined && lon === undefined) return undefined;
+  return {
+    latitude: lat,
+    longitude: lon,
+    elevation: (header['SITEELEV'] as number) || (header['ALT-OBS'] as number) || (header['OBSALT'] as number),
+    siteName: header['SITENAME'] as string,
+  };
+}
+
+function extractProcessingInfo(header: FITSHeader): FITSProcessingInfo | undefined {
+  const software = (header['SWCREATE'] as string) || (header['CREATOR'] as string) || (header['SOFTWARE'] as string);
+  const stackCount = header['STACKCNT'] as number;
+  const calstat = header['CALSTAT'] as string;
+  if (!software && !stackCount && !calstat) return undefined;
+  return {
+    software,
+    stackCount,
+    calibrationStatus: calstat,
+    darkApplied: calstat ? calstat.includes('D') : undefined,
+    flatApplied: calstat ? calstat.includes('F') : undefined,
+    biasApplied: calstat ? calstat.includes('B') : undefined,
+  };
+}
+
+function extractSIPCoefficients(header: FITSHeader): SIPCoefficients | undefined {
+  const aOrder = header['A_ORDER'] as number;
+  const bOrder = header['B_ORDER'] as number;
+  if (aOrder === undefined || bOrder === undefined) return undefined;
+
+  const a: Record<string, number> = {};
+  const b: Record<string, number> = {};
+  const ap: Record<string, number> = {};
+  const bp: Record<string, number> = {};
+
+  // Extract A/B forward SIP polynomial coefficients
+  for (const [key, value] of Object.entries(header)) {
+    if (typeof value !== 'number') continue;
+    if (/^A_\d+_\d+$/.test(key)) a[key] = value;
+    else if (/^B_\d+_\d+$/.test(key)) b[key] = value;
+    else if (/^AP_\d+_\d+$/.test(key)) ap[key] = value;
+    else if (/^BP_\d+_\d+$/.test(key)) bp[key] = value;
+  }
+
+  return {
+    aOrder,
+    bOrder,
+    apOrder: header['AP_ORDER'] as number,
+    bpOrder: header['BP_ORDER'] as number,
+    a,
+    b,
+    ap,
+    bp,
+  };
+}
+
+// ============================================================================
+// FITS Pixel Data Reader
+// ============================================================================
+
+export async function readFITSPixelData(file: File): Promise<FITSPixelData | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const buffer = reader.result as ArrayBuffer;
+        const result = parseFITSPixels(buffer);
+        resolve(result);
+      } catch {
+        resolve(null);
+      }
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function parseFITSPixels(buffer: ArrayBuffer): FITSPixelData | null {
+  // Parse header first to find data start
+  const header: FITSHeader = {};
+  const lastKey = { value: '' };
+  let offset = 0;
+  let complete = false;
+  let blockCount = 0;
+
+  while (!complete && offset < buffer.byteLength && blockCount < MAX_HEADER_BLOCKS) {
+    const blockEnd = Math.min(offset + FITS_BLOCK_SIZE, buffer.byteLength);
+    const block = buffer.slice(offset, blockEnd);
+    const { complete: isComplete } = parseHeaderBlock(block, header, lastKey);
+    complete = isComplete;
+    offset += FITS_BLOCK_SIZE;
+    blockCount++;
+  }
+
+  // Data starts at next block boundary after header
+  const dataOffset = offset;
+  const bitpix = header['BITPIX'] as number;
+  const naxis = header['NAXIS'] as number;
+  if (!bitpix || !naxis || naxis < 2) return null;
+
+  const width = (header['NAXIS1'] as number) || 0;
+  const height = (header['NAXIS2'] as number) || 0;
+  if (width === 0 || height === 0) return null;
+
+  const bzero = (header['BZERO'] as number) || 0;
+  const bscale = (header['BSCALE'] as number) || 1;
+
+  const totalPixels = width * height;
+  const bytesPerPixel = Math.abs(bitpix) / 8;
+  const dataEnd = dataOffset + totalPixels * bytesPerPixel;
+
+  if (dataEnd > buffer.byteLength) return null;
+
+  const dataView = new DataView(buffer, dataOffset);
+  const data = new Float64Array(totalPixels);
+  let min = Infinity;
+  let max = -Infinity;
+  let sum = 0;
+
+  for (let i = 0; i < totalPixels; i++) {
+    const byteOffset = i * bytesPerPixel;
+    let rawValue: number;
+
+    switch (bitpix) {
+      case 8:  rawValue = dataView.getUint8(byteOffset); break;
+      case 16: rawValue = dataView.getInt16(byteOffset, false); break;  // FITS is big-endian
+      case 32: rawValue = dataView.getInt32(byteOffset, false); break;
+      case -32: rawValue = dataView.getFloat32(byteOffset, false); break;
+      case -64: rawValue = dataView.getFloat64(byteOffset, false); break;
+      default: return null;
+    }
+
+    const physValue = bzero + bscale * rawValue;
+    data[i] = physValue;
+    if (physValue < min) min = physValue;
+    if (physValue > max) max = physValue;
+    sum += physValue;
+  }
+
+  return {
+    width,
+    height,
+    bitpix,
+    data,
+    min,
+    max,
+    mean: sum / totalPixels,
+  };
+}
+
+export function generatePreviewImageData(
+  pixelData: FITSPixelData,
+  stretchMode: 'linear' | 'asinh' | 'log' | 'sqrt' = 'asinh',
+  clipLow = 0.05,
+  clipHigh = 0.995,
+): ImageData {
+  const { width, height, data } = pixelData;
+
+  // Sort a sample to compute percentile-based clipping
+  const sampleSize = Math.min(data.length, 100000);
+  const step = Math.max(1, Math.floor(data.length / sampleSize));
+  const sample: number[] = [];
+  for (let i = 0; i < data.length; i += step) {
+    sample.push(data[i]);
+  }
+  sample.sort((a, b) => a - b);
+
+  const lo = sample[Math.floor(sample.length * clipLow)];
+  const hi = sample[Math.floor(sample.length * clipHigh)];
+  const range = hi - lo || 1;
+
+  const imageData = new ImageData(width, height);
+  const pixels = imageData.data;
+
+  for (let i = 0; i < data.length; i++) {
+    let normalized = (data[i] - lo) / range;
+    normalized = Math.max(0, Math.min(1, normalized));
+
+    let stretched: number;
+    switch (stretchMode) {
+      case 'linear': stretched = normalized; break;
+      case 'log': stretched = normalized > 0 ? Math.log1p(normalized * 1000) / Math.log1p(1000) : 0; break;
+      case 'sqrt': stretched = Math.sqrt(normalized); break;
+      case 'asinh': {
+        const a = 10;
+        stretched = Math.asinh(normalized * a) / Math.asinh(a);
+        break;
+      }
+    }
+
+    const val = Math.round(stretched * 255);
+    const idx = i * 4;
+    pixels[idx] = val;
+    pixels[idx + 1] = val;
+    pixels[idx + 2] = val;
+    pixels[idx + 3] = 255;
+  }
+
+  return imageData;
+}
+
 // ============================================================================
 // Formatting Utilities
 // ============================================================================
@@ -360,7 +656,83 @@ export function formatExposure(seconds: number): string {
 
 export function isFITSFile(file: File): boolean {
   const name = file.name.toLowerCase();
-  return name.endsWith('.fits') || name.endsWith('.fit') || name.endsWith('.fts');
+  return name.endsWith('.fits') || name.endsWith('.fit') || name.endsWith('.fts') || name.endsWith('.xisf');
+}
+
+export function isXISFFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.xisf');
+}
+
+export async function parseXISFHeader(file: File): Promise<FITSMetadata | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = new TextDecoder().decode(reader.result as ArrayBuffer);
+        // XISF header is XML - extract FITSKeyword elements
+        const header: FITSHeader = {};
+        const rawCards: string[] = [];
+
+        // Parse FITSKeyword elements: <FITSKeyword name="KEY" value="VAL" comment="..." />
+        const keywordRegex = new RegExp('<FITSKeyword\\s+name="([^"]+)"\\s+value="([^"]*)"[^>]*\\/>', 'g');
+        let match;
+        while ((match = keywordRegex.exec(text)) !== null) {
+          const [, key, rawVal] = match;
+          rawCards.push(`${key} = ${rawVal}`);
+          // Try to parse as number, boolean, or string
+          if (rawVal === 'T') header[key] = true;
+          else if (rawVal === 'F') header[key] = false;
+          else {
+            const num = parseFloat(rawVal);
+            header[key] = isNaN(num) ? rawVal.replace(/^'+|'+$/g, '').trim() : num;
+          }
+        }
+
+        // Also extract Geometry for dimensions
+        const geomMatch = text.match(/Geometry="(\d+):(\d+):\d+"/);
+        if (geomMatch) {
+          header['NAXIS'] = 2;
+          header['NAXIS1'] = parseInt(geomMatch[1]);
+          header['NAXIS2'] = parseInt(geomMatch[2]);
+        }
+
+        const sampleFormatMatch = text.match(/sampleFormat="(\w+)"/i);
+        if (sampleFormatMatch) {
+          const fmt = sampleFormatMatch[1].toLowerCase();
+          if (fmt.includes('float32')) header['BITPIX'] = -32;
+          else if (fmt.includes('float64')) header['BITPIX'] = -64;
+          else if (fmt.includes('uint16') || fmt.includes('int16')) header['BITPIX'] = 16;
+          else if (fmt.includes('uint8') || fmt.includes('int8')) header['BITPIX'] = 8;
+          else if (fmt.includes('uint32') || fmt.includes('int32')) header['BITPIX'] = 32;
+        }
+
+        if (Object.keys(header).length === 0) {
+          resolve(null);
+          return;
+        }
+
+        const metadata: FITSMetadata = {
+          header,
+          rawCards,
+          image: extractImageInfo(header),
+          wcs: extractWCSInfo(header),
+          observation: extractObservationInfo(header),
+          telescope: extractTelescopeInfo(header),
+          camera: extractCameraInfo(header),
+          site: extractSiteInfo(header),
+          processing: extractProcessingInfo(header),
+          sip: extractSIPCoefficients(header),
+        };
+        resolve(metadata);
+      } catch {
+        resolve(null);
+      }
+    };
+    reader.onerror = () => resolve(null);
+    // Read first 1MB for XISF XML header (should be enough)
+    reader.readAsArrayBuffer(file.slice(0, 1024 * 1024));
+  });
 }
 
 export async function validateFITSFile(file: File): Promise<boolean> {

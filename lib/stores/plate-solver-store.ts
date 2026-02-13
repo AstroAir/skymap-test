@@ -13,6 +13,9 @@ import type {
   SolveResult,
   IndexInfo,
   DownloadableIndex,
+  AstapDatabaseInfo,
+  ImageAnalysisResult,
+  OnlineSolveProgress,
 } from '@/lib/tauri/plate-solver-api';
 import {
   detectPlateSolvers,
@@ -20,6 +23,8 @@ import {
   saveSolverConfig,
   getAvailableIndexes,
   getInstalledIndexes,
+  getAstapDatabases,
+  analyseImage as analyseImageApi,
   DEFAULT_SOLVER_CONFIG,
 } from '@/lib/tauri/plate-solver-api';
 
@@ -57,6 +62,17 @@ export interface PlateSolverState {
   // Download state
   downloadingIndexes: Map<string, { progress: number; status: string }>;
   
+  // ASTAP databases
+  astapDatabases: AstapDatabaseInfo[];
+  isLoadingAstapDatabases: boolean;
+  
+  // Image analysis
+  imageAnalysis: ImageAnalysisResult | null;
+  isAnalysingImage: boolean;
+  
+  // Online solve progress
+  onlineSolveProgress: OnlineSolveProgress | null;
+  
   // Actions
   detectSolvers: () => Promise<void>;
   setConfig: (config: Partial<SolverConfig>) => void;
@@ -69,6 +85,10 @@ export interface PlateSolverState {
   loadInstalledIndexes: (solverType: SolverType, indexPath?: string) => Promise<void>;
   setDownloadProgress: (fileName: string, progress: number, status: string) => void;
   clearDownloadProgress: (fileName: string) => void;
+  loadAstapDatabases: () => Promise<void>;
+  analyseImage: (imagePath: string, snrMinimum?: number) => Promise<void>;
+  setOnlineSolveProgress: (progress: OnlineSolveProgress | null) => void;
+  clearImageAnalysis: () => void;
   reset: () => void;
 }
 
@@ -90,6 +110,11 @@ const initialState = {
   installedIndexes: [] as IndexInfo[],
   isLoadingIndexes: false,
   downloadingIndexes: new Map<string, { progress: number; status: string }>(),
+  astapDatabases: [] as AstapDatabaseInfo[],
+  isLoadingAstapDatabases: false,
+  imageAnalysis: null as ImageAnalysisResult | null,
+  isAnalysingImage: false,
+  onlineSolveProgress: null as OnlineSolveProgress | null,
 };
 
 // ============================================================================
@@ -188,12 +213,55 @@ export const usePlateSolverStore = create<PlateSolverState>()(
         });
       },
 
+      loadAstapDatabases: async () => {
+        set({ isLoadingAstapDatabases: true });
+        try {
+          const databases = await getAstapDatabases();
+          set({ astapDatabases: databases, isLoadingAstapDatabases: false });
+        } catch (error) {
+          logger.error('Failed to load ASTAP databases', error);
+          set({ isLoadingAstapDatabases: false });
+        }
+      },
+
+      analyseImage: async (imagePath, snrMinimum) => {
+        set({ isAnalysingImage: true, imageAnalysis: null });
+        try {
+          const result = await analyseImageApi(imagePath, snrMinimum);
+          set({ imageAnalysis: result, isAnalysingImage: false });
+        } catch (error) {
+          logger.error('Failed to analyse image', error);
+          set({
+            isAnalysingImage: false,
+            imageAnalysis: {
+              success: false,
+              median_hfd: null,
+              star_count: 0,
+              background: null,
+              noise: null,
+              stars: [],
+              error_message: error instanceof Error ? error.message : 'Analysis failed',
+            },
+          });
+        }
+      },
+
+      setOnlineSolveProgress: (progress) => {
+        set({ onlineSolveProgress: progress });
+      },
+
+      clearImageAnalysis: () => {
+        set({ imageAnalysis: null });
+      },
+
       reset: () => {
         set({
           solveStatus: 'idle',
           solveProgress: 0,
           solveMessage: '',
           lastResult: null,
+          imageAnalysis: null,
+          onlineSolveProgress: null,
         });
       },
     }),

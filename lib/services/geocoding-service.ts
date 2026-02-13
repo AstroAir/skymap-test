@@ -51,6 +51,7 @@ class GeocodingService {
   private cache: LRUCache<string, CacheValue>;
   private geocodeDeduplicator = new RequestDeduplicator<string, GeocodingResult[]>();
   private reverseGeocodeDeduplicator = new RequestDeduplicator<string, ReverseGeocodingResult>();
+  private pruneIntervalId: ReturnType<typeof setInterval> | null = null;
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
   private readonly MAX_CACHE_SIZE = 500; // Maximum cached entries
   private readonly DEFAULT_TIMEOUT = 10000; // 10 seconds
@@ -63,6 +64,7 @@ class GeocodingService {
     });
     
     this.initializeProviders();
+    this.startPruneInterval();
     
     // Listen for configuration changes
     mapConfig.addConfigurationListener(() => {
@@ -73,12 +75,16 @@ class GeocodingService {
       });
       this.initializeProviders();
     });
-    
-    // Periodically prune expired cache entries
-    if (typeof window !== 'undefined') {
-      setInterval(() => this.cache.prune(), 60000); // Prune every minute
-    }
+  }
 
+  private startPruneInterval(): void {
+    if (typeof window !== 'undefined') {
+      if (this.pruneIntervalId !== null) {
+        clearInterval(this.pruneIntervalId);
+      }
+      // Arrow function captures `this`, so this.cache always references the current cache
+      this.pruneIntervalId = setInterval(() => this.cache.prune(), 60000);
+    }
   }
 
   private shouldUseCache(): boolean {
@@ -204,7 +210,7 @@ class GeocodingService {
       });
 
       try {
-        const geocodePromise = currentProvider.geocode(address, { limit, bounds });
+        const geocodePromise = currentProvider.geocode(address, { limit, bounds, language });
         const results = await Promise.race([geocodePromise, timeoutPromise]);
         
         // Cache successful results
@@ -387,38 +393,19 @@ class GeocodingService {
   ): Promise<Array<{ description: string; place_id?: string; coordinates?: Coordinates }>> {
     const { provider: preferredProvider, limit = 5 } = options;
 
-    // For autocomplete, we prefer providers with this capability
-    const provider = this.getProviderForGeocoding(preferredProvider);
-    
-    // Check if provider supports autocomplete
-    if (provider && provider.getCapabilities().autocomplete) {
-      try {
-        // For now, fallback to geocoding as most providers don't have separate autocomplete
-        const results = await this.geocode(query, { 
-          limit, 
-          language: options.language,
-          provider: preferredProvider 
-        });
-        
-        return results.map(result => ({
-          description: result.displayName,
-          coordinates: result.coordinates,
-        }));
-      } catch (error) {
-        logger.warn('Autocomplete failed', error);
-        return [];
-      }
-    }
-
-    // Fallback to regular geocoding
     try {
-      const results = await this.geocode(query, { limit, language: options.language });
-      return results.slice(0, limit).map(result => ({
+      const results = await this.geocode(query, {
+        limit,
+        language: options.language,
+        provider: preferredProvider,
+      });
+
+      return results.map(result => ({
         description: result.displayName,
         coordinates: result.coordinates,
       }));
     } catch (error) {
-      logger.warn('Autocomplete fallback failed', error);
+      logger.warn('Autocomplete failed', error);
       return [];
     }
   }

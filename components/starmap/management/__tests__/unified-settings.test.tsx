@@ -282,12 +282,28 @@ jest.mock('../../settings/accessibility-settings', () => ({
   AccessibilitySettings: () => <div data-testid="accessibility-settings">AccessibilitySettings</div>,
 }));
 
+jest.mock('../../settings/notification-settings', () => ({
+  NotificationSettings: () => <div data-testid="notification-settings">NotificationSettings</div>,
+}));
+
+jest.mock('../../settings/search-settings', () => ({
+  SearchBehaviorSettings: () => <div data-testid="search-settings">SearchBehaviorSettings</div>,
+}));
+
+jest.mock('../../settings/keyboard-settings', () => ({
+  KeyboardSettings: () => <div data-testid="keyboard-settings">KeyboardSettings</div>,
+}));
+
 jest.mock('../../settings/about-settings', () => ({
   AboutSettings: () => <div data-testid="about-settings">AboutSettings</div>,
 }));
 
 jest.mock('../../settings/event-sources-settings', () => ({
   EventSourcesSettings: () => <div data-testid="event-sources-settings">EventSourcesSettings</div>,
+}));
+
+jest.mock('../../settings/settings-export-import', () => ({
+  SettingsExportImport: () => <div data-testid="settings-export-import">SettingsExportImport</div>,
 }));
 
 jest.mock('../../map', () => ({

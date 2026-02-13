@@ -175,6 +175,32 @@ describe('OpenStreetMapProvider', () => {
       expect(fetchCall).toContain('bounded=1');
     });
 
+    it('should pass language parameter via accept-language', async () => {
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue([]),
+      };
+      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+
+      await provider.geocode('Tokyo', { language: 'ja' });
+
+      const fetchCall = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(fetchCall).toContain('accept-language=ja');
+    });
+
+    it('should default to English when no language specified', async () => {
+      const mockResponse = {
+        ok: true,
+        json: jest.fn().mockResolvedValue([]),
+      };
+      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+
+      await provider.geocode('Tokyo');
+
+      const fetchCall = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(fetchCall).toContain('accept-language=en');
+    });
+
     it('should map OSM types correctly', async () => {
       const mockResponse = {
         ok: true,

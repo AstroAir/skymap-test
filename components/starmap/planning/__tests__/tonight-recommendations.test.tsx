@@ -31,6 +31,8 @@ jest.mock('@/lib/hooks', () => ({
     },
     isLoading: false,
     refresh: jest.fn(),
+    planDate: new Date('2024-06-15T00:00:00'),
+    setPlanDate: jest.fn(),
   })),
   useGeolocation: jest.fn(() => ({
     latitude: 40.7128,

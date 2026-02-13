@@ -44,6 +44,16 @@ class ConnectivityChecker {
   private lastCheckTime: Map<string, number> = new Map();
   private isPageVisible = true;
   private providers: Map<string, BaseMapProvider> = new Map();
+  private roundRobinCounter = 0;
+
+  // Bound handlers for proper cleanup
+  private readonly boundHandleNetworkChange = () => this.handleNetworkChange();
+  private readonly boundHandleVisibilityChange = () => {
+    this.isPageVisible = document.visibilityState === 'visible';
+    if (this.isPageVisible) {
+      this.checkAllProvidersHealth();
+    }
+  };
   
   private readonly MAX_HISTORY_SIZE = 50;
   private readonly ERROR_THRESHOLD = 0.7; // Consider unhealthy if success rate < 70%
@@ -59,22 +69,15 @@ class ConnectivityChecker {
   private initializeNetworkMonitoring(): void {
     // Monitor online/offline status
     if (typeof window !== 'undefined') {
-      window.addEventListener('online', this.handleNetworkChange.bind(this));
-      window.addEventListener('offline', this.handleNetworkChange.bind(this));
+      window.addEventListener('online', this.boundHandleNetworkChange);
+      window.addEventListener('offline', this.boundHandleNetworkChange);
     }
   }
 
   private initializeVisibilityMonitoring(): void {
     // Reduce health check frequency when page is not visible
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
-        this.isPageVisible = document.visibilityState === 'visible';
-        
-        // Resume checks immediately when page becomes visible
-        if (this.isPageVisible) {
-          this.checkAllProvidersHealth();
-        }
-      });
+      document.addEventListener('visibilitychange', this.boundHandleVisibilityChange);
     }
   }
 
@@ -423,8 +426,7 @@ class ConnectivityChecker {
       }
       
       case 'round-robin': {
-        // Simple round-robin based on timestamp
-        const index = Math.floor(Date.now() / 60000) % healthyProviders.length;
+        const index = this.roundRobinCounter++ % healthyProviders.length;
         return healthyProviders[index].provider;
       }
       
@@ -500,6 +502,15 @@ class ConnectivityChecker {
     // Clear all intervals
     this.intervalIds.forEach(intervalId => clearInterval(intervalId));
     this.intervalIds.clear();
+    
+    // Remove event listeners
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', this.boundHandleNetworkChange);
+      window.removeEventListener('offline', this.boundHandleNetworkChange);
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.boundHandleVisibilityChange);
+    }
     
     // Clear data
     this.healthStatuses.clear();

@@ -23,6 +23,8 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
   saveSolverConfig: jest.fn(),
   getAvailableIndexes: jest.fn(),
   getInstalledIndexes: jest.fn(),
+  getAstapDatabases: jest.fn(),
+  analyseImage: jest.fn(),
   DEFAULT_SOLVER_CONFIG: {
     solver_type: 'astap',
     executable_path: null,
@@ -37,6 +39,8 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
 const mockDetectPlateSolvers = jest.requireMock('@/lib/tauri/plate-solver-api').detectPlateSolvers;
 const mockLoadSolverConfig = jest.requireMock('@/lib/tauri/plate-solver-api').loadSolverConfig;
 const mockSaveSolverConfig = jest.requireMock('@/lib/tauri/plate-solver-api').saveSolverConfig;
+const mockGetAstapDatabases = jest.requireMock('@/lib/tauri/plate-solver-api').getAstapDatabases;
+const mockAnalyseImage = jest.requireMock('@/lib/tauri/plate-solver-api').analyseImage;
 
 describe('usePlateSolverStore', () => {
   beforeEach(() => {
@@ -80,6 +84,11 @@ describe('usePlateSolverStore', () => {
       installedIndexes: [],
       isLoadingIndexes: false,
       downloadingIndexes: new Map(),
+      astapDatabases: [],
+      isLoadingAstapDatabases: false,
+      imageAnalysis: null,
+      isAnalysingImage: false,
+      onlineSolveProgress: null,
     });
     jest.clearAllMocks();
   });
@@ -269,6 +278,188 @@ describe('usePlateSolverStore', () => {
       });
 
       expect(result.current.config.solver_type).toBe('astap');
+    });
+  });
+
+  describe('loadAstapDatabases', () => {
+    it('should load ASTAP databases successfully', async () => {
+      const mockDatabases = [
+        {
+          name: 'D50',
+          abbreviation: 'd50',
+          installed: true,
+          path: '/path/to/d50',
+          fov_min_deg: 0.3,
+          fov_max_deg: 10,
+          description: 'Medium database',
+          size_mb: 500,
+          download_url: null,
+        },
+      ];
+      mockGetAstapDatabases.mockResolvedValueOnce(mockDatabases);
+
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      await act(async () => {
+        await result.current.loadAstapDatabases();
+      });
+
+      expect(result.current.astapDatabases).toEqual(mockDatabases);
+      expect(result.current.isLoadingAstapDatabases).toBe(false);
+    });
+
+    it('should handle load error', async () => {
+      mockGetAstapDatabases.mockRejectedValueOnce(new Error('Load failed'));
+
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      await act(async () => {
+        await result.current.loadAstapDatabases();
+      });
+
+      expect(result.current.astapDatabases).toEqual([]);
+      expect(result.current.isLoadingAstapDatabases).toBe(false);
+    });
+  });
+
+  describe('analyseImage', () => {
+    it('should analyse image successfully', async () => {
+      const mockResult = {
+        success: true,
+        median_hfd: 3.5,
+        star_count: 150,
+        background: 1200,
+        noise: 45,
+        stars: [],
+        error_message: null,
+      };
+      mockAnalyseImage.mockResolvedValueOnce(mockResult);
+
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      await act(async () => {
+        await result.current.analyseImage('/path/to/image.fits');
+      });
+
+      expect(result.current.imageAnalysis).toEqual(mockResult);
+      expect(result.current.isAnalysingImage).toBe(false);
+    });
+
+    it('should handle analysis error', async () => {
+      mockAnalyseImage.mockRejectedValueOnce(new Error('Analysis failed'));
+
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      await act(async () => {
+        await result.current.analyseImage('/path/to/image.fits');
+      });
+
+      expect(result.current.imageAnalysis).toBeDefined();
+      expect(result.current.imageAnalysis?.success).toBe(false);
+      expect(result.current.imageAnalysis?.error_message).toBe('Analysis failed');
+      expect(result.current.isAnalysingImage).toBe(false);
+    });
+  });
+
+  describe('setOnlineSolveProgress', () => {
+    it('should update online solve progress', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      const progress = {
+        stage: 'solving',
+        progress: 50,
+        message: 'Processing...',
+        sub_id: 123,
+        job_id: 456,
+      };
+
+      act(() => {
+        result.current.setOnlineSolveProgress(progress);
+      });
+
+      expect(result.current.onlineSolveProgress).toEqual(progress);
+    });
+
+    it('should clear online solve progress', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      act(() => {
+        result.current.setOnlineSolveProgress({
+          stage: 'solving',
+          progress: 50,
+          message: 'test',
+          sub_id: null,
+          job_id: null,
+        });
+      });
+
+      act(() => {
+        result.current.setOnlineSolveProgress(null);
+      });
+
+      expect(result.current.onlineSolveProgress).toBeNull();
+    });
+  });
+
+  describe('clearImageAnalysis', () => {
+    it('should clear image analysis', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      act(() => {
+        usePlateSolverStore.setState({
+          imageAnalysis: {
+            success: true,
+            median_hfd: 3.5,
+            star_count: 150,
+            background: null,
+            noise: null,
+            stars: [],
+            error_message: null,
+          },
+        });
+      });
+
+      act(() => {
+        result.current.clearImageAnalysis();
+      });
+
+      expect(result.current.imageAnalysis).toBeNull();
+    });
+  });
+
+  describe('reset with new fields', () => {
+    it('should reset image analysis and online progress', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      act(() => {
+        usePlateSolverStore.setState({
+          solveStatus: 'success',
+          imageAnalysis: {
+            success: true,
+            median_hfd: 3.5,
+            star_count: 150,
+            background: null,
+            noise: null,
+            stars: [],
+            error_message: null,
+          },
+          onlineSolveProgress: {
+            stage: 'complete',
+            progress: 100,
+            message: 'Done',
+            sub_id: 1,
+            job_id: 2,
+          },
+        });
+      });
+
+      act(() => {
+        result.current.reset();
+      });
+
+      expect(result.current.solveStatus).toBe('idle');
+      expect(result.current.imageAnalysis).toBeNull();
+      expect(result.current.onlineSolveProgress).toBeNull();
     });
   });
 });

@@ -7,8 +7,7 @@ import { StellariumCanvas } from '../canvas/stellarium-canvas';
 import { InfoPanel } from '../objects/info-panel';
 import { ObjectDetailDrawer } from '../objects/object-detail-drawer';
 import { KeyboardShortcutsManager } from '../controls/keyboard-shortcuts-manager';
-import { WelcomeDialog } from '../onboarding/welcome-dialog';
-import { OnboardingTour } from '../onboarding/onboarding-tour';
+import { UnifiedOnboarding } from '../onboarding/unified-onboarding';
 
 import { TopToolbar } from './top-toolbar';
 import { RightControlPanel } from './right-control-panel';
@@ -99,9 +98,8 @@ export function StellariumView() {
   return (
     <TooltipProvider>
       <div ref={containerRef} className="relative w-full h-full bg-black overflow-hidden" data-tour-id="canvas">
-        {/* Onboarding Components */}
-        <WelcomeDialog />
-        <OnboardingTour />
+        {/* Unified Onboarding (Welcome + Setup Wizard + Tour) */}
+        <UnifiedOnboarding />
 
         {/* Keyboard Shortcuts Manager */}
         <KeyboardShortcutsManager

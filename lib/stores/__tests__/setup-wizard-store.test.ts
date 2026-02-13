@@ -1,24 +1,23 @@
-import { act, renderHook } from '@testing-library/react';
-import { useSetupWizardStore, SETUP_WIZARD_STEPS } from '../setup-wizard-store';
+import { act } from '@testing-library/react';
+import { useOnboardingStore, SETUP_WIZARD_STEPS } from '../onboarding-store';
 
-describe('setup-wizard-store', () => {
+describe('setup-wizard (unified onboarding store)', () => {
+  const getState = () => useOnboardingStore.getState();
+
   beforeEach(() => {
-    // Reset store state before each test
-    const { result } = renderHook(() => useSetupWizardStore());
     act(() => {
-      result.current.resetSetup();
+      getState().resetAll();
     });
   });
 
   describe('initial state', () => {
     it('should have correct initial values', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      expect(result.current.hasCompletedSetup).toBe(false);
-      expect(result.current.showOnNextVisit).toBe(true);
-      expect(result.current.currentStep).toBe('welcome');
-      expect(result.current.isOpen).toBe(false);
-      expect(result.current.completedSteps).toEqual([]);
+      const s = getState();
+      expect(s.hasCompletedSetup).toBe(false);
+      expect(s.showOnNextVisit).toBe(true);
+      expect(s.setupStep).toBe('welcome');
+      expect(s.isSetupOpen).toBe(false);
+      expect(s.setupCompletedSteps).toEqual([]);
     });
 
     it('should export SETUP_WIZARD_STEPS', () => {
@@ -33,248 +32,182 @@ describe('setup-wizard-store', () => {
   });
 
   describe('wizard navigation', () => {
-    it('should open wizard', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      act(() => {
-        result.current.openWizard();
-      });
-      
-      expect(result.current.isOpen).toBe(true);
+    it('should open wizard at location step', () => {
+      act(() => { getState().openSetup(); });
+      expect(getState().isSetupOpen).toBe(true);
+      expect(getState().setupStep).toBe('location');
     });
 
     it('should close wizard', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
       act(() => {
-        result.current.openWizard();
-        result.current.closeWizard();
+        getState().openSetup();
+        getState().closeSetup();
       });
-      
-      expect(result.current.isOpen).toBe(false);
+      expect(getState().isSetupOpen).toBe(false);
     });
 
     it('should navigate to next step', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      act(() => {
-        result.current.nextStep();
-      });
-      
-      expect(result.current.currentStep).toBe('location');
-      expect(result.current.completedSteps).toContain('welcome');
+      act(() => { getState().setupNextStep(); });
+      expect(getState().setupStep).toBe('location');
     });
 
     it('should navigate through all steps', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      // Navigate through each step
-      act(() => {
-        result.current.nextStep(); // welcome -> location
-      });
-      expect(result.current.currentStep).toBe('location');
-      
-      act(() => {
-        result.current.nextStep(); // location -> equipment
-      });
-      expect(result.current.currentStep).toBe('equipment');
-      
-      act(() => {
-        result.current.nextStep(); // equipment -> preferences
-      });
-      expect(result.current.currentStep).toBe('preferences');
-      
-      act(() => {
-        result.current.nextStep(); // preferences -> complete
-      });
-      expect(result.current.currentStep).toBe('complete');
+      act(() => { getState().setupNextStep(); }); // welcome -> location
+      expect(getState().setupStep).toBe('location');
+
+      act(() => { getState().setupNextStep(); }); // location -> equipment
+      expect(getState().setupStep).toBe('equipment');
+
+      act(() => { getState().setupNextStep(); }); // equipment -> preferences
+      expect(getState().setupStep).toBe('preferences');
+
+      act(() => { getState().setupNextStep(); }); // preferences -> complete
+      expect(getState().setupStep).toBe('complete');
     });
 
     it('should navigate to previous step', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
       act(() => {
-        result.current.nextStep(); // welcome -> location
-        result.current.nextStep(); // location -> equipment
-        result.current.prevStep(); // equipment -> location
+        getState().setupNextStep(); // welcome -> location
+        getState().setupNextStep(); // location -> equipment
+        getState().setupPrevStep(); // equipment -> location
       });
-      
-      expect(result.current.currentStep).toBe('location');
+      expect(getState().setupStep).toBe('location');
     });
 
     it('should not go before first step', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      act(() => {
-        result.current.prevStep();
-      });
-      
-      expect(result.current.currentStep).toBe('welcome');
+      act(() => { getState().setupPrevStep(); });
+      expect(getState().setupStep).toBe('welcome');
     });
 
     it('should go to specific step', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      act(() => {
-        result.current.goToStep('preferences');
-      });
-      
-      expect(result.current.currentStep).toBe('preferences');
+      act(() => { getState().goToSetupStep('preferences'); });
+      expect(getState().setupStep).toBe('preferences');
     });
   });
 
   describe('step completion', () => {
     it('should mark step as completed', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      act(() => {
-        result.current.markStepCompleted('location');
-      });
-      
-      expect(result.current.completedSteps).toContain('location');
+      act(() => { getState().markSetupStepCompleted('location'); });
+      expect(getState().setupCompletedSteps).toContain('location');
     });
 
     it('should not duplicate completed steps', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
       act(() => {
-        result.current.markStepCompleted('location');
-        result.current.markStepCompleted('location');
+        getState().markSetupStepCompleted('location');
+        getState().markSetupStepCompleted('location');
       });
-      
-      expect(result.current.completedSteps.filter(s => s === 'location')).toHaveLength(1);
+      expect(getState().setupCompletedSteps.filter((s: string) => s === 'location')).toHaveLength(1);
     });
 
     it('should complete setup', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
       act(() => {
-        result.current.openWizard();
-        result.current.completeSetup();
+        getState().openSetup();
+        getState().completeSetup();
       });
-      
-      expect(result.current.hasCompletedSetup).toBe(true);
-      expect(result.current.isOpen).toBe(false);
-      expect(result.current.completedSteps).toEqual(SETUP_WIZARD_STEPS);
+      expect(getState().hasCompletedSetup).toBe(true);
+      expect(getState().isSetupOpen).toBe(false);
+      expect(getState().setupCompletedSteps).toEqual(SETUP_WIZARD_STEPS);
     });
   });
 
   describe('setup data', () => {
     it('should update setup data', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      act(() => {
-        result.current.updateSetupData({ locationConfigured: true });
-      });
-      
-      expect(result.current.setupData.locationConfigured).toBe(true);
+      act(() => { getState().updateSetupData({ locationConfigured: true }); });
+      expect(getState().setupData.locationConfigured).toBe(true);
     });
 
     it('should preserve other setup data when updating', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
       act(() => {
-        result.current.updateSetupData({ locationConfigured: true });
-        result.current.updateSetupData({ equipmentConfigured: true });
+        getState().updateSetupData({ locationConfigured: true });
+        getState().updateSetupData({ equipmentConfigured: true });
       });
-      
-      expect(result.current.setupData.locationConfigured).toBe(true);
-      expect(result.current.setupData.equipmentConfigured).toBe(true);
+      expect(getState().setupData.locationConfigured).toBe(true);
+      expect(getState().setupData.equipmentConfigured).toBe(true);
     });
   });
 
   describe('helper functions', () => {
     it('should return correct step index', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      expect(result.current.getCurrentStepIndex()).toBe(0);
-      
-      act(() => {
-        result.current.nextStep();
-      });
-      
-      expect(result.current.getCurrentStepIndex()).toBe(1);
+      expect(getState().getSetupStepIndex()).toBe(0);
+      act(() => { getState().setupNextStep(); });
+      expect(getState().getSetupStepIndex()).toBe(1);
     });
 
     it('should return total steps count', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      expect(result.current.getTotalSteps()).toBe(5);
+      expect(getState().getSetupTotalSteps()).toBe(5);
     });
 
     it('should identify first step', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      expect(result.current.isFirstStep()).toBe(true);
-      
-      act(() => {
-        result.current.nextStep();
-      });
-      
-      expect(result.current.isFirstStep()).toBe(false);
+      expect(getState().isSetupFirstStep()).toBe(true);
+      act(() => { getState().setupNextStep(); });
+      expect(getState().isSetupFirstStep()).toBe(false);
     });
 
     it('should identify last step', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      expect(result.current.isLastStep()).toBe(false);
-      
-      act(() => {
-        result.current.goToStep('complete');
-      });
-      
-      expect(result.current.isLastStep()).toBe(true);
+      expect(getState().isSetupLastStep()).toBe(false);
+      act(() => { getState().goToSetupStep('complete'); });
+      expect(getState().isSetupLastStep()).toBe(true);
     });
 
     it('should allow proceeding on all steps', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      // All steps should allow proceeding (they are optional)
       SETUP_WIZARD_STEPS.forEach(step => {
-        act(() => {
-          result.current.goToStep(step);
-        });
-        expect(result.current.canProceed()).toBe(true);
+        act(() => { getState().goToSetupStep(step); });
+        expect(getState().canSetupProceed()).toBe(true);
       });
     });
   });
 
   describe('reset functionality', () => {
     it('should reset all state', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      // Modify state
       act(() => {
-        result.current.openWizard();
-        result.current.nextStep();
-        result.current.nextStep();
-        result.current.updateSetupData({ locationConfigured: true });
-        result.current.setShowOnNextVisit(false);
+        getState().openSetup();
+        getState().setupNextStep();
+        getState().setupNextStep();
+        getState().updateSetupData({ locationConfigured: true });
+        getState().setShowOnNextVisit(false);
       });
-      
-      // Reset
+
+      act(() => { getState().resetSetup(); });
+
+      expect(getState().hasCompletedSetup).toBe(false);
+      expect(getState().setupStep).toBe('welcome');
+      expect(getState().isSetupOpen).toBe(false);
+      expect(getState().setupCompletedSteps).toEqual([]);
+      expect(getState().setupData.locationConfigured).toBe(false);
+    });
+  });
+
+  describe('phase transitions', () => {
+    it('should transition from setup to tour via finishSetupAndStartTour', () => {
+      act(() => { getState().finishSetupAndStartTour(); });
+      expect(getState().hasCompletedSetup).toBe(true);
+      expect(getState().isSetupOpen).toBe(false);
+      expect(getState().phase).toBe('tour');
+      expect(getState().isTourActive).toBe(true);
+    });
+
+    it('should skip setup and start tour', () => {
+      act(() => { getState().skipSetupStartTour(); });
+      expect(getState().phase).toBe('tour');
+      expect(getState().isTourActive).toBe(true);
+    });
+
+    it('should reset everything via resetAll', () => {
       act(() => {
-        result.current.resetSetup();
+        getState().finishSetupAndStartTour();
+        getState().completeOnboarding();
+        getState().resetAll();
       });
-      
-      expect(result.current.hasCompletedSetup).toBe(false);
-      expect(result.current.showOnNextVisit).toBe(true);
-      expect(result.current.currentStep).toBe('welcome');
-      expect(result.current.isOpen).toBe(false);
-      expect(result.current.completedSteps).toEqual([]);
-      expect(result.current.setupData.locationConfigured).toBe(false);
+      expect(getState().hasCompletedSetup).toBe(false);
+      expect(getState().hasCompletedOnboarding).toBe(false);
+      expect(getState().phase).toBe('idle');
     });
   });
 
   describe('showOnNextVisit', () => {
     it('should update showOnNextVisit', () => {
-      const { result } = renderHook(() => useSetupWizardStore());
-      
-      act(() => {
-        result.current.setShowOnNextVisit(false);
-      });
-      
-      expect(result.current.showOnNextVisit).toBe(false);
+      act(() => { getState().setShowOnNextVisit(false); });
+      expect(getState().showOnNextVisit).toBe(false);
     });
   });
 });

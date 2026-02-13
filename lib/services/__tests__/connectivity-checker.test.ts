@@ -110,4 +110,29 @@ describe('ConnectivityChecker', () => {
       expect(results).toEqual([]);
     });
   });
+
+  describe('round-robin counter', () => {
+    it('should return consistent provider type across calls with no providers', () => {
+      const result1 = connectivityChecker.getRecommendedProvider();
+      const result2 = connectivityChecker.getRecommendedProvider();
+      // With no providers registered, both should return the same (null or fallback)
+      expect(result1).toEqual(result2);
+    });
+  });
+
+  describe('reset cleanup', () => {
+    it('should not throw when called multiple times', () => {
+      expect(() => {
+        connectivityChecker.reset();
+        connectivityChecker.reset();
+        connectivityChecker.reset();
+      }).not.toThrow();
+    });
+
+    it('should clear all health data after reset', () => {
+      connectivityChecker.reset();
+      expect(connectivityChecker.getAllProviderHealth()).toEqual([]);
+      expect(connectivityChecker.getStatistics().totalTests).toBe(0);
+    });
+  });
 });

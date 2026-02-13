@@ -7,6 +7,22 @@ import { LogPanel, LogPanelTrigger } from '../log-panel';
 import { NextIntlClientProvider } from 'next-intl';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+// Mock @tanstack/react-virtual for JSDOM (no layout engine)
+jest.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        index: i,
+        start: i * 40,
+        size: 40,
+        key: i,
+      })),
+    getTotalSize: () => count * 40,
+    scrollToIndex: jest.fn(),
+    measureElement: jest.fn(),
+  }),
+}));
+
 // Mock log store
 const mockOpen = jest.fn();
 const mockClose = jest.fn();
@@ -41,9 +57,11 @@ jest.mock('@/lib/stores/log-store', () => ({
 
 jest.mock('@/lib/logger', () => ({
   LogLevel: { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 },
-  formatTimestamp: (ts: number) => new Date(ts).toLocaleTimeString(),
+  LOG_LEVEL_NAMES: { 0: 'debug', 1: 'info', 2: 'warn', 3: 'error' },
+  formatTimestamp: (ts: Date) => ts.toLocaleTimeString(),
   serializeData: (data: unknown) => JSON.stringify(data, null, 2),
   formatLogEntryToText: (entry: { message: string }) => entry.message,
+  groupConsecutiveLogs: (logs: unknown[]) => logs.map((e) => ({ entry: e, count: 1, timestamps: [] })),
 }));
 
 const messages = {
@@ -71,6 +89,16 @@ const messages = {
     copy: 'Copy',
     data: 'Data',
     stackTrace: 'Stack Trace',
+    pause: 'Pause',
+    resume: 'Resume',
+    pausedNewLogs: '{count} new logs while paused',
+    scrollToBottom: 'Bottom',
+    timeRange: 'Time Range',
+    last5min: '5 min',
+    last15min: '15 min',
+    last1hr: '1 hour',
+    allTime: 'All',
+    groupDuplicates: 'Group duplicates',
   },
 };
 

@@ -114,6 +114,104 @@ export interface DownloadProgress {
 }
 
 // ============================================================================
+// ASTAP Database Types
+// ============================================================================
+
+export interface AstapDatabaseInfo {
+  name: string;
+  abbreviation: string;
+  installed: boolean;
+  path: string | null;
+  fov_min_deg: number;
+  fov_max_deg: number;
+  description: string;
+  size_mb: number;
+  download_url: string | null;
+}
+
+// ============================================================================
+// Image Analysis Types
+// ============================================================================
+
+export interface StarDetection {
+  x: number;
+  y: number;
+  hfd: number;
+  flux: number;
+  snr: number;
+  ra: number | null;
+  dec: number | null;
+  magnitude: number | null;
+}
+
+export interface ImageAnalysisResult {
+  success: boolean;
+  median_hfd: number | null;
+  star_count: number;
+  background: number | null;
+  noise: number | null;
+  stars: StarDetection[];
+  error_message: string | null;
+}
+
+// ============================================================================
+// Online Astrometry.net Types
+// ============================================================================
+
+export interface OnlineSolveConfig {
+  api_key: string;
+  image_path: string;
+  base_url?: string;
+  ra_hint?: number;
+  dec_hint?: number;
+  radius?: number;
+  scale_units?: string;
+  scale_lower?: number;
+  scale_upper?: number;
+  scale_est?: number;
+  scale_err?: number;
+  downsample_factor?: number;
+  tweak_order?: number;
+  crpix_center?: boolean;
+  parity?: number;
+  timeout_seconds?: number;
+  publicly_visible?: boolean;
+}
+
+export interface OnlineAnnotation {
+  names: string[];
+  annotation_type: string;
+  pixelx: number;
+  pixely: number;
+  radius: number;
+}
+
+export interface OnlineSolveProgress {
+  stage: string;
+  progress: number;
+  message: string;
+  sub_id: number | null;
+  job_id: number | null;
+}
+
+export interface OnlineSolveResult {
+  success: boolean;
+  ra: number | null;
+  dec: number | null;
+  orientation: number | null;
+  pixscale: number | null;
+  radius: number | null;
+  parity: number | null;
+  fov_width: number | null;
+  fov_height: number | null;
+  objects_in_field: string[];
+  annotations: OnlineAnnotation[];
+  job_id: number | null;
+  solve_time_ms: number;
+  error_message: string | null;
+}
+
+// ============================================================================
 // Default Config
 // ============================================================================
 
@@ -248,6 +346,72 @@ export async function saveSolverConfig(config: SolverConfig): Promise<void> {
  */
 export async function loadSolverConfig(): Promise<SolverConfig> {
   return invoke<SolverConfig>('load_solver_config');
+}
+
+// ============================================================================
+// ASTAP Database API
+// ============================================================================
+
+/**
+ * Get all known ASTAP databases with installation status
+ */
+export async function getAstapDatabases(): Promise<AstapDatabaseInfo[]> {
+  return invoke<AstapDatabaseInfo[]>('get_astap_databases');
+}
+
+/**
+ * Get recommended ASTAP databases for a given FOV
+ */
+export async function recommendAstapDatabase(
+  fovDegrees: number
+): Promise<AstapDatabaseInfo[]> {
+  return invoke<AstapDatabaseInfo[]>('recommend_astap_database', { fovDegrees });
+}
+
+// ============================================================================
+// Image Analysis API
+// ============================================================================
+
+/**
+ * Analyse an image using ASTAP to get HFD, star count, and background info
+ */
+export async function analyseImage(
+  imagePath: string,
+  snrMinimum?: number
+): Promise<ImageAnalysisResult> {
+  return invoke<ImageAnalysisResult>('analyse_image', {
+    imagePath,
+    snrMinimum: snrMinimum ?? null,
+  });
+}
+
+/**
+ * Extract star detections from an image using ASTAP
+ */
+export async function extractStars(
+  imagePath: string,
+  snrMinimum?: number,
+  includeCoordinates = false
+): Promise<ImageAnalysisResult> {
+  return invoke<ImageAnalysisResult>('extract_stars', {
+    imagePath,
+    snrMinimum: snrMinimum ?? null,
+    includeCoordinates,
+  });
+}
+
+// ============================================================================
+// Online Astrometry.net API
+// ============================================================================
+
+/**
+ * Solve an image using Astrometry.net online service
+ * Progress is emitted via 'astrometry-progress' Tauri event
+ */
+export async function solveOnline(
+  config: OnlineSolveConfig
+): Promise<OnlineSolveResult> {
+  return invoke<OnlineSolveResult>('solve_online', { config });
 }
 
 // ============================================================================
@@ -427,6 +591,14 @@ export const plateSolverApi = {
   getSolverDisplayName,
   isLocalSolver,
   convertToLegacyResult,
+  // ASTAP Database API
+  getAstapDatabases,
+  recommendAstapDatabase,
+  // Image Analysis API
+  analyseImage,
+  extractStars,
+  // Online Solving API
+  solveOnline,
   // Legacy API
   plateSolve,
   getSolverIndexes,

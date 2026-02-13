@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > [lib](../) > **stores**
 
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-13
 > **Module Type:** TypeScript (Zustand Stores)
 
 ---
@@ -10,6 +10,15 @@
 ## Breadcrumb
 
 `[Root](../../CLAUDE.md) > [lib](../) > **stores**`
+
+---
+
+## Changelog
+
+| Date | Changes |
+|------|---------|
+| 2026-02-13 | Added event-sources-store and updater-store documentation |
+| 2026-02-01 | Initial documentation |
 
 ---
 
@@ -40,6 +49,10 @@ The `stores` module contains Zustand stores for client-side state management. Ea
 | `useThemeStore` | `theme-store.ts` | Theme preference | persisted |
 | `useFavoritesStore` | `favorites-store.ts` | Favorite objects | persisted |
 | `useSetupWizardStore` | `setup-wizard-store.ts` | Setup wizard state | (session only) |
+| `useKeybindingStore` | `keybinding-store.ts` | Keyboard shortcuts | persisted |
+| `useLogStore` | `log-store.ts` | Application logs | (session only) |
+| `useEventSourcesStore` | `event-sources-store.ts` | Astronomical event source config | `starmap-event-sources` |
+| `useUpdaterStore` | `updater-store.ts` | Application update state | (session only) |
 
 ---
 
@@ -142,6 +155,125 @@ interface TargetListStore {
 
 ---
 
+## New Store: useEventSourcesStore
+
+Manages configuration for astronomical event data sources:
+
+```typescript
+interface EventSourceConfig {
+  id: string;
+  name: string;
+  apiUrl: string;
+  apiKey: string;
+  enabled: boolean;
+  priority: number;
+  cacheMinutes: number;
+}
+
+interface EventSourcesState {
+  sources: EventSourceConfig[];
+
+  // Actions
+  updateSource: (id: string, updates: Partial<Omit<EventSourceConfig, 'id'>>) => void;
+  toggleSource: (id: string) => void;
+  addSource: (source: EventSourceConfig) => void;
+  removeSource: (id: string) => void;
+  reorderSources: (sourceIds: string[]) => void;
+  resetToDefaults: () => void;
+}
+```
+
+### Default Sources
+
+- **USNO** - US Naval Observatory API
+- **IMO** - International Meteor Organization
+- **NASA** - NASA Eclipse data
+- **MPC** - Minor Planet Center (comets)
+- **AstronomyAPI** - Astronomy API (disabled by default)
+- **Local** - Local calculations
+
+### Usage
+
+```typescript
+import { useEventSourcesStore } from '@/lib/stores';
+
+function EventSettings() {
+  const sources = useEventSourcesStore((state) => state.sources);
+  const toggleSource = useEventSourcesStore((state) => state.toggleSource);
+
+  return (
+    <div>
+      {sources.map((source) => (
+        <Switch
+          key={source.id}
+          checked={source.enabled}
+          onCheckedChange={() => toggleSource(source.id)}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+## New Store: useUpdaterStore
+
+Manages application update state and progress:
+
+```typescript
+interface UpdaterState {
+  status: UpdateStatus;  // 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
+  currentVersion: string | null;
+  lastChecked: number | null;
+  skippedVersion: string | null;
+  downloadSpeed: number | null;
+  estimatedTimeRemaining: number | null;
+}
+
+interface UpdaterActions {
+  setStatus: (status: UpdateStatus) => void;
+  setCurrentVersion: (version: string) => void;
+  setLastChecked: (timestamp: number) => void;
+  setSkippedVersion: (version: string | null) => void;
+  setDownloadMetrics: (speed: number | null, eta: number | null) => void;
+  reset: () => void;
+}
+```
+
+### Selectors
+
+```typescript
+// Check update states
+selectIsChecking(state)    // status === 'checking'
+selectIsDownloading(state) // status === 'downloading'
+selectIsReady(state)       // status === 'ready'
+selectHasUpdate(state)     // status === 'available' || status === 'ready'
+
+// Get update data
+selectUpdateInfo(state)    // Returns UpdateInfo | null
+selectProgress(state)      // Returns UpdateProgress | null
+selectError(state)         // Returns error string | null
+```
+
+### Usage
+
+```typescript
+import { useUpdaterStore, selectHasUpdate, selectProgress } from '@/lib/stores';
+
+function UpdateIndicator() {
+  const hasUpdate = useUpdaterStore(selectHasUpdate);
+  const progress = useUpdaterStore(selectProgress);
+
+  if (hasUpdate && progress) {
+    return <ProgressBar value={progress.percent} />;
+  }
+  return null;
+}
+```
+
+---
+
 ## Persistence Pattern
 
 All persistent stores follow this pattern:
@@ -202,6 +334,8 @@ pnpm test lib/stores
 
 # Run specific test
 pnpm test lib/stores/__tests__/settings-store.test.ts
+pnpm test lib/stores/__tests__/event-sources-store.test.ts
+pnpm test lib/stores/__tests__/updater-store.test.ts
 ```
 
 ---
@@ -235,11 +369,26 @@ const syncWithBackend = async () => {
 };
 ```
 
+### Using Selectors for Computed State
+
+```typescript
+// Define selector outside component for stability
+const selectEnabledSources = (state: EventSourcesState) =>
+  state.sources.filter(s => s.enabled).sort((a, b) => a.priority - b.priority);
+
+function EventList() {
+  const enabledSources = useEventSourcesStore(selectEnabledSources);
+  // ...
+}
+```
+
 ---
 
 ## Related Files
 
 - [`settings-store.ts`](./settings-store.ts) - Settings store implementation
+- [`event-sources-store.ts`](./event-sources-store.ts) - Event sources configuration
+- [`updater-store.ts`](./updater-store.ts) - Application update state
 - [`index.ts`](./index.ts) - Module exports
 - [lib/tauri/CLAUDE.md](../tauri/CLAUDE.md) - Tauri API wrappers
 - [Root CLAUDE.md](../../CLAUDE.md) - Project documentation

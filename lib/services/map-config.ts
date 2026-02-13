@@ -111,6 +111,20 @@ class MapConfigurationService {
     };
   }
 
+  private obfuscateKey(key: string): string {
+    if (typeof btoa === 'undefined') return key;
+    return btoa(key);
+  }
+
+  private deobfuscateKey(encoded: string): string {
+    if (typeof atob === 'undefined') return encoded;
+    try {
+      return atob(encoded);
+    } catch {
+      return encoded; // Already plain text (legacy data)
+    }
+  }
+
   private loadConfiguration(): void {
     if (typeof window === 'undefined') return;
     
@@ -118,6 +132,13 @@ class MapConfigurationService {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        // Deobfuscate API keys on load
+        if (parsed.apiKeys) {
+          parsed.apiKeys = parsed.apiKeys.map((k: MapApiKey) => ({
+            ...k,
+            apiKey: this.deobfuscateKey(k.apiKey),
+          }));
+        }
         this.config = { ...this.config, ...parsed };
       }
     } catch (error) {
@@ -129,7 +150,15 @@ class MapConfigurationService {
     if (typeof window === 'undefined') return;
     
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.config));
+      // Obfuscate API keys before saving
+      const configToSave = {
+        ...this.config,
+        apiKeys: this.config.apiKeys.map(k => ({
+          ...k,
+          apiKey: this.obfuscateKey(k.apiKey),
+        })),
+      };
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(configToSave));
       this.notifyListeners();
     } catch (error) {
       logger.error('Failed to save map configuration', error);
@@ -419,6 +448,9 @@ class MapConfigurationService {
     try {
       const importedConfig = JSON.parse(configJson);
       
+      // Validate critical fields
+      this.validateImportedConfig(importedConfig);
+      
       if (preserveApiKeys) {
         // Keep existing API keys
         importedConfig.apiKeys = this.config.apiKeys;
@@ -428,6 +460,45 @@ class MapConfigurationService {
       this.saveConfiguration();
     } catch (error) {
       throw new Error(`Invalid configuration format: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private validateImportedConfig(config: unknown): void {
+    if (typeof config !== 'object' || config === null) {
+      throw new Error('Configuration must be an object');
+    }
+
+    const c = config as Record<string, unknown>;
+    const validProviders = ['openstreetmap', 'google', 'mapbox'];
+    const validStrategies = ['priority', 'fastest', 'random', 'round-robin'];
+
+    if (c.defaultProvider !== undefined && !validProviders.includes(c.defaultProvider as string)) {
+      throw new Error(`Invalid defaultProvider: ${c.defaultProvider}`);
+    }
+
+    if (c.fallbackStrategy !== undefined && !validStrategies.includes(c.fallbackStrategy as string)) {
+      throw new Error(`Invalid fallbackStrategy: ${c.fallbackStrategy}`);
+    }
+
+    if (c.healthCheckInterval !== undefined && (typeof c.healthCheckInterval !== 'number' || c.healthCheckInterval < 5000)) {
+      throw new Error('healthCheckInterval must be a number >= 5000ms');
+    }
+
+    if (c.cacheDuration !== undefined && (typeof c.cacheDuration !== 'number' || c.cacheDuration < 0)) {
+      throw new Error('cacheDuration must be a non-negative number');
+    }
+
+    if (c.providers !== undefined) {
+      if (!Array.isArray(c.providers)) {
+        throw new Error('providers must be an array');
+      }
+      for (const p of c.providers) {
+        if (typeof p !== 'object' || p === null) throw new Error('Each provider must be an object');
+        const provider = p as Record<string, unknown>;
+        if (!validProviders.includes(provider.provider as string)) {
+          throw new Error(`Invalid provider type: ${provider.provider}`);
+        }
+      }
     }
   }
 

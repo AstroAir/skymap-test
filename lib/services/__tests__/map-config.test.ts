@@ -339,6 +339,79 @@ describe('mapConfig', () => {
     });
   });
 
+  describe('import validation', () => {
+    it('should reject non-object config', () => {
+      expect(() => mapConfig.importConfiguration('"just a string"')).toThrow('Configuration must be an object');
+    });
+
+    it('should reject invalid defaultProvider', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({ defaultProvider: 'invalid' }))).toThrow('Invalid defaultProvider');
+    });
+
+    it('should reject invalid fallbackStrategy', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({ fallbackStrategy: 'bad' }))).toThrow('Invalid fallbackStrategy');
+    });
+
+    it('should reject healthCheckInterval below minimum', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({ healthCheckInterval: 1000 }))).toThrow('healthCheckInterval must be a number >= 5000ms');
+    });
+
+    it('should reject negative cacheDuration', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({ cacheDuration: -1 }))).toThrow('cacheDuration must be a non-negative number');
+    });
+
+    it('should reject invalid provider type in providers array', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({
+        providers: [{ provider: 'invalid', priority: 1, enabled: true, config: {} }],
+      }))).toThrow('Invalid provider type');
+    });
+
+    it('should reject non-array providers', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({
+        providers: 'not an array',
+      }))).toThrow('providers must be an array');
+    });
+
+    it('should accept valid config with all valid fields', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({
+        defaultProvider: 'google',
+        fallbackStrategy: 'round-robin',
+        healthCheckInterval: 60000,
+        cacheDuration: 7200000,
+      }))).not.toThrow();
+    });
+  });
+
+  describe('API key obfuscation', () => {
+    it('should store API keys obfuscated in localStorage', () => {
+      mapConfig.addApiKey({
+        provider: 'google',
+        apiKey: 'test-secret-key',
+      });
+
+      // Check that localStorage contains obfuscated key (base64)
+      const lastSetCall = localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1];
+      const stored = JSON.parse(lastSetCall[1]);
+      const storedKey = stored.apiKeys[0].apiKey;
+
+      // Should NOT be stored in plain text
+      expect(storedKey).not.toBe('test-secret-key');
+      // Should be valid base64
+      expect(atob(storedKey)).toBe('test-secret-key');
+    });
+
+    it('should deobfuscate API keys when reading config', () => {
+      mapConfig.addApiKey({
+        provider: 'mapbox',
+        apiKey: 'my-mapbox-token',
+      });
+
+      // In-memory config should have plain text key
+      const keys = mapConfig.getApiKeys('mapbox');
+      expect(keys[0].apiKey).toBe('my-mapbox-token');
+    });
+  });
+
   describe('resetConfiguration', () => {
     it('should reset to defaults', () => {
       mapConfig.setDefaultProvider('google');

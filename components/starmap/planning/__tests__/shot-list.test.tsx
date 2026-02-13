@@ -12,6 +12,12 @@ const mockUseTargetListStore = jest.fn((selector) => {
     selectedIds: new Set(),
     groupBy: 'none',
     showArchived: false,
+    searchQuery: '',
+    filterStatus: 'all',
+    filterPriority: 'all',
+    sortBy: 'manual',
+    sortOrder: 'asc',
+    availableTags: ['galaxy', 'nebula', 'cluster'],
     addTarget: jest.fn(),
     removeTarget: jest.fn(),
     updateTarget: jest.fn(),
@@ -24,10 +30,22 @@ const mockUseTargetListStore = jest.fn((selector) => {
     clearSelection: jest.fn(),
     setGroupBy: jest.fn(),
     setShowArchived: jest.fn(),
+    setSearchQuery: jest.fn(),
+    setFilterStatus: jest.fn(),
+    setFilterPriority: jest.fn(),
+    setSortBy: jest.fn(),
+    setSortOrder: jest.fn(),
     removeTargetsBatch: jest.fn(),
     setStatusBatch: jest.fn(),
     setPriorityBatch: jest.fn(),
+    addTargetsBatch: jest.fn(),
     getFilteredTargets: jest.fn(() => []),
+    getGroupedTargets: jest.fn(() => new Map()),
+    toggleFavorite: jest.fn(),
+    toggleArchive: jest.fn(),
+    addTagBatch: jest.fn(),
+    removeTagBatch: jest.fn(),
+    checkDuplicate: jest.fn(() => undefined),
   };
   return selector ? selector(state) : state;
 });
@@ -118,16 +136,43 @@ jest.mock('@/lib/storage/platform', () => ({
 
 // Mock sonner toast
 jest.mock('sonner', () => ({
-  toast: {
+  toast: Object.assign(jest.fn(), {
     success: jest.fn(),
     error: jest.fn(),
     info: jest.fn(),
-  },
+    warning: jest.fn(),
+  }),
 }));
 
 // Mock TranslatedName component
 jest.mock('../../objects/translated-name', () => ({
   TranslatedName: ({ name }: { name: string }) => <span data-testid="translated-name">{name}</span>,
+}));
+
+// Mock TargetDetailDialog
+jest.mock('../target-detail-dialog', () => ({
+  TargetDetailDialog: () => <div data-testid="target-detail-dialog" />,
+}));
+
+// Mock planning-styles
+jest.mock('@/lib/core/constants/planning-styles', () => ({
+  getStatusColor: jest.fn(() => 'bg-blue-500'),
+  getPriorityColor: jest.fn(() => 'text-amber-400'),
+}));
+
+// Mock FeasibilityBadge
+jest.mock('../feasibility-badge', () => ({
+  FeasibilityBadge: () => <div data-testid="feasibility-badge" />,
+}));
+
+// Mock logger
+jest.mock('@/lib/logger', () => ({
+  createLogger: jest.fn(() => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+  })),
 }));
 
 // Mock all UI components
@@ -157,6 +202,16 @@ jest.mock('@/components/ui/checkbox', () => ({
   Checkbox: ({ checked, onCheckedChange }: { checked?: boolean; onCheckedChange?: (checked: boolean) => void }) => (
     <input type="checkbox" data-testid="checkbox" checked={checked} onChange={(e) => onCheckedChange?.(e.target.checked)} />
   ),
+}));
+
+jest.mock('@/components/ui/input', () => ({
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input data-testid="input" {...props} />,
+}));
+
+jest.mock('@/components/ui/collapsible', () => ({
+  Collapsible: ({ children }: { children: React.ReactNode }) => <div data-testid="collapsible">{children}</div>,
+  CollapsibleContent: ({ children }: { children: React.ReactNode }) => <div data-testid="collapsible-content">{children}</div>,
+  CollapsibleTrigger: ({ children }: { children: React.ReactNode }) => <button data-testid="collapsible-trigger">{children}</button>,
 }));
 
 jest.mock('@/components/ui/drawer', () => ({

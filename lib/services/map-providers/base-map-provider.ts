@@ -106,7 +106,7 @@ export abstract class BaseMapProvider {
   abstract getCapabilities(): MapProviderCapabilities;
 
   // Geocoding methods
-  abstract geocode(address: string, options?: { limit?: number; bounds?: BoundingBox }): Promise<GeocodingResult[]>;
+  abstract geocode(address: string, options?: { limit?: number; bounds?: BoundingBox; language?: string }): Promise<GeocodingResult[]>;
   abstract reverseGeocode(coordinates: Coordinates, options?: { language?: string }): Promise<ReverseGeocodingResult>;
 
   // Tile methods
@@ -177,8 +177,20 @@ export abstract class BaseMapProvider {
     options: RequestInit = {},
     attempts: number = this.config.retryAttempts || 3
   ): Promise<Response> {
+    const maxAttempts = this.config.retryAttempts || 3;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+    // If an external signal is provided, abort our controller when it fires
+    if (options.signal) {
+      const externalSignal = options.signal;
+      if (externalSignal.aborted) {
+        clearTimeout(timeoutId);
+        controller.abort();
+      } else {
+        externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+    }
 
     const fetchOptions: RequestInit = {
       ...options,
@@ -194,7 +206,8 @@ export abstract class BaseMapProvider {
       clearTimeout(timeoutId);
 
       if (!response.ok && attempts > 1) {
-        await this.delay(1000); // Wait 1 second before retry
+        const retryDelay = this.getRetryDelay(maxAttempts - attempts);
+        await this.delay(retryDelay);
         return this.fetchWithRetry(url, options, attempts - 1);
       }
 
@@ -203,12 +216,20 @@ export abstract class BaseMapProvider {
       clearTimeout(timeoutId);
 
       if (attempts > 1) {
-        await this.delay(1000);
+        const retryDelay = this.getRetryDelay(maxAttempts - attempts);
+        await this.delay(retryDelay);
         return this.fetchWithRetry(url, options, attempts - 1);
       }
 
       throw error;
     }
+  }
+
+  // Exponential backoff with jitter: 1s, 2s, 4s (capped at 8s)
+  private getRetryDelay(attempt: number): number {
+    const baseDelay = Math.min(1000 * Math.pow(2, attempt), 8000);
+    const jitter = Math.random() * baseDelay * 0.2; // Up to 20% jitter
+    return baseDelay + jitter;
   }
 
   protected delay(ms: number): Promise<void> {

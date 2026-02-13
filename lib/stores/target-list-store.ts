@@ -84,6 +84,11 @@ interface TargetListState {
   filterTags: string[];
   showArchived: boolean;
   groupBy: 'none' | 'priority' | 'status' | 'tag';
+  searchQuery: string;
+  filterStatus: 'all' | TargetItem['status'];
+  filterPriority: 'all' | TargetItem['priority'];
+  sortBy: 'manual' | 'name' | 'priority' | 'status' | 'addedAt';
+  sortOrder: 'asc' | 'desc';
   
   // Single target actions
   addTarget: (target: TargetInput) => void;
@@ -116,6 +121,11 @@ interface TargetListState {
   // View options
   setGroupBy: (groupBy: TargetListState['groupBy']) => void;
   setShowArchived: (show: boolean) => void;
+  setSearchQuery: (query: string) => void;
+  setFilterStatus: (status: TargetListState['filterStatus']) => void;
+  setFilterPriority: (priority: TargetListState['filterPriority']) => void;
+  setSortBy: (sortBy: TargetListState['sortBy']) => void;
+  setSortOrder: (order: TargetListState['sortOrder']) => void;
   
   // Favorite/Archive
   toggleFavorite: (id: string) => void;
@@ -137,10 +147,19 @@ interface TargetListState {
   getFilteredTargets: () => TargetItem[];
   getGroupedTargets: () => Map<string, TargetItem[]>;
   getSelectedTargets: () => TargetItem[];
+  checkDuplicate: (name: string, ra: number, dec: number) => TargetItem | undefined;
 }
 
 // Helper to generate unique ID
 const generateId = () => `target-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+// Helper to check for duplicate targets (same name or coordinates within 0.01°)
+const findDuplicate = (targets: TargetItem[], name: string, ra: number, dec: number): TargetItem | undefined => {
+  return targets.find(t => 
+    t.name.toLowerCase() === name.toLowerCase() ||
+    (Math.abs(t.ra - ra) < 0.01 && Math.abs(t.dec - dec) < 0.01)
+  );
+};
 
 export const useTargetListStore = create<TargetListState>()(
   persist(
@@ -152,6 +171,11 @@ export const useTargetListStore = create<TargetListState>()(
       filterTags: [],
       showArchived: false,
       groupBy: 'none',
+      searchQuery: '',
+      filterStatus: 'all',
+      filterPriority: 'all',
+      sortBy: 'manual',
+      sortOrder: 'asc',
       
       // ========== Single target actions ==========
       addTarget: (target) => {
@@ -243,11 +267,12 @@ export const useTargetListStore = create<TargetListState>()(
       
       // ========== Batch actions ==========
       addTargetsBatch: (targets, defaultSettings = {}) => {
-        const newTargets: TargetItem[] = targets.map((t) => ({
+        const baseTime = Date.now();
+        const newTargets: TargetItem[] = targets.map((t, index) => ({
           ...defaultSettings,
           ...t,
           id: generateId(),
-          addedAt: Date.now(),
+          addedAt: baseTime + index,
           status: 'planned' as const,
           priority: defaultSettings.priority || 'medium',
           tags: defaultSettings.tags || [],
@@ -379,6 +404,11 @@ export const useTargetListStore = create<TargetListState>()(
       // ========== View options ==========
       setGroupBy: (groupBy) => set({ groupBy }),
       setShowArchived: (show) => set({ showArchived: show }),
+      setSearchQuery: (query) => set({ searchQuery: query }),
+      setFilterStatus: (status) => set({ filterStatus: status }),
+      setFilterPriority: (priority) => set({ filterPriority: priority }),
+      setSortBy: (sortBy) => set({ sortBy }),
+      setSortOrder: (order) => set({ sortOrder: order }),
       
       // ========== Favorite/Archive ==========
       toggleFavorite: (id) => {
@@ -501,11 +531,54 @@ export const useTargetListStore = create<TargetListState>()(
           filtered = filtered.filter((t) => !t.isArchived);
         }
         
+        // Filter by search query
+        if (state.searchQuery.trim()) {
+          const q = state.searchQuery.trim().toLowerCase();
+          filtered = filtered.filter((t) =>
+            t.name.toLowerCase().includes(q) ||
+            t.tags.some((tag) => tag.toLowerCase().includes(q)) ||
+            t.notes?.toLowerCase().includes(q)
+          );
+        }
+        
+        // Filter by status
+        if (state.filterStatus !== 'all') {
+          filtered = filtered.filter((t) => t.status === state.filterStatus);
+        }
+        
+        // Filter by priority
+        if (state.filterPriority !== 'all') {
+          filtered = filtered.filter((t) => t.priority === state.filterPriority);
+        }
+        
         // Filter by tags
         if (state.filterTags.length > 0) {
           filtered = filtered.filter((t) =>
             state.filterTags.some((tag) => t.tags.includes(tag))
           );
+        }
+        
+        // Sort
+        if (state.sortBy !== 'manual') {
+          const dir = state.sortOrder === 'asc' ? 1 : -1;
+          filtered = [...filtered].sort((a, b) => {
+            switch (state.sortBy) {
+              case 'name':
+                return dir * a.name.localeCompare(b.name);
+              case 'priority': {
+                const pOrder = { high: 0, medium: 1, low: 2 };
+                return dir * (pOrder[a.priority] - pOrder[b.priority]);
+              }
+              case 'status': {
+                const sOrder = { planned: 0, in_progress: 1, completed: 2 };
+                return dir * (sOrder[a.status] - sOrder[b.status]);
+              }
+              case 'addedAt':
+                return dir * (a.addedAt - b.addedAt);
+              default:
+                return 0;
+            }
+          });
         }
         
         return filtered;
@@ -557,6 +630,10 @@ export const useTargetListStore = create<TargetListState>()(
         const state = get();
         return state.targets.filter((t) => state.selectedIds.has(t.id));
       },
+      
+      checkDuplicate: (name, ra, dec) => {
+        return findDuplicate(get().targets, name, ra, dec);
+      },
     }),
     {
       name: 'starmap-target-list',
@@ -567,6 +644,8 @@ export const useTargetListStore = create<TargetListState>()(
         availableTags: state.availableTags,
         groupBy: state.groupBy,
         showArchived: state.showArchived,
+        sortBy: state.sortBy,
+        sortOrder: state.sortOrder,
       }),
     }
   )

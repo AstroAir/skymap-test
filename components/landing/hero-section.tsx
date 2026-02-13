@@ -11,7 +11,16 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { StarField } from './star-field';
-import { Rocket, BookOpen, ChevronDown, Sparkles } from 'lucide-react';
+import { Rocket, BookOpen, ChevronDown, Sparkles, Monitor } from 'lucide-react';
+
+function PlatformIcon({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 text-muted-foreground/60">
+      {children}
+      <span className="text-xs">{label}</span>
+    </div>
+  );
+}
 
 export function HeroSection() {
   const t = useTranslations('landing');
@@ -99,9 +108,20 @@ export function HeroSection() {
           </div>
         </TooltipProvider>
 
-        {/* Powered by */}
-        <p className="mt-12 text-sm text-muted-foreground/60 animate-fade-in" style={{ animationDelay: '0.8s' }}>
-          {t('hero.poweredBy')}
+        {/* Platform support */}
+        <div className="mt-10 flex items-center justify-center gap-6 animate-fade-in" style={{ animationDelay: '0.8s' }}>
+          <PlatformIcon label="Windows">
+            <Monitor className="h-4 w-4" />
+          </PlatformIcon>
+          <PlatformIcon label="macOS">
+            <Monitor className="h-4 w-4" />
+          </PlatformIcon>
+          <PlatformIcon label="Linux">
+            <Monitor className="h-4 w-4" />
+          </PlatformIcon>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground/40 animate-fade-in" style={{ animationDelay: '0.9s' }}>
+          {t('hero.openSourceFree')}
         </p>
       </div>
 

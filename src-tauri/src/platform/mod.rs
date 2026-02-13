@@ -34,12 +34,17 @@ pub use updater::{
 // Re-export plate solver types and commands
 pub use plate_solver::{
     // Types
-    AstrometryIndex, DownloadableIndex, DownloadableIndexFull, IndexDownloadProgress, IndexInfo,
+    AstapDatabaseInfo, AstrometryIndex, DownloadableIndex, DownloadableIndexFull,
+    ImageAnalysisResult, IndexDownloadProgress, IndexInfo, OnlineAnnotation,
+    OnlineSolveConfig, OnlineSolveProgress, OnlineSolveResult,
     PlateSolveResult, PlateSolverConfig, PlateSolverError, PlateSolverType, ScaleRange,
-    SolveParameters, SolveResult, SolverConfig, SolverInfo,
+    SipCoefficients, SolveParameters, SolveResult, SolverConfig, SolverInfo,
+    StarDetection, WcsResult,
     // Commands
-    delete_index, detect_plate_solvers, download_index, get_available_indexes,
-    get_default_index_path, get_downloadable_indexes, get_installed_indexes,
-    get_recommended_indexes, get_solver_indexes, get_solver_info, load_solver_config,
-    plate_solve, save_solver_config, solve_image_local, validate_solver_path,
+    analyse_image, delete_index, detect_plate_solvers, download_index, extract_stars,
+    get_astap_databases, get_available_indexes, get_default_index_path,
+    get_downloadable_indexes, get_installed_indexes, get_recommended_indexes,
+    get_solver_indexes, get_solver_info, load_solver_config, plate_solve,
+    recommend_astap_database, save_solver_config, solve_image_local, solve_online,
+    validate_solver_path,
 };

@@ -21,6 +21,10 @@ export interface UseMountOverlayReturn {
   toggleAutoSync: () => void;
   syncViewToMount: () => void;
   altAz: { alt: number; az: number } | null;
+  tracking: boolean;
+  slewing: boolean;
+  parked: boolean;
+  pierSide: 'east' | 'west' | 'unknown' | undefined;
 }
 
 /**
@@ -38,6 +42,10 @@ export function useMountOverlay(): UseMountOverlayReturn {
   const connected = useMountStore((state) => state.mountInfo.Connected);
   const coordinates = useMountStore((state) => state.mountInfo.Coordinates);
   const profileInfo = useMountStore((state) => state.profileInfo);
+  const tracking = useMountStore((state) => state.mountInfo.Tracking ?? false);
+  const slewing = useMountStore((state) => state.mountInfo.Slewing ?? false);
+  const parked = useMountStore((state) => state.mountInfo.Parked ?? false);
+  const pierSide = useMountStore((state) => state.mountInfo.PierSide);
 
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
 
@@ -168,5 +176,9 @@ export function useMountOverlay(): UseMountOverlayReturn {
     toggleAutoSync,
     syncViewToMount,
     altAz,
+    tracking,
+    slewing,
+    parked,
+    pierSide,
   };
 }

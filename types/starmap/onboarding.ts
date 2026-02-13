@@ -1,10 +1,35 @@
 /**
- * Type definitions for starmap onboarding components
- * Extracted from components/starmap/onboarding/ for architectural separation
+ * Type definitions for unified onboarding system
+ * Combines setup wizard + feature tour into a single flow
  */
 
+import type { StellariumSettings } from '@/lib/core/types';
+
 // ============================================================================
-// TourStep (core type, used by store + components)
+// Onboarding Phase
+// ============================================================================
+
+export type OnboardingPhase = 'idle' | 'setup' | 'tour';
+
+// ============================================================================
+// Setup Wizard Step (used in setup phase)
+// ============================================================================
+
+export type SetupWizardStep =
+  | 'welcome'
+  | 'location'
+  | 'equipment'
+  | 'preferences'
+  | 'complete';
+
+export interface SetupWizardSetupData {
+  locationConfigured: boolean;
+  equipmentConfigured: boolean;
+  preferencesConfigured: boolean;
+}
+
+// ============================================================================
+// TourStep (used in tour phase)
 // ============================================================================
 
 export interface TourStep {
@@ -88,4 +113,40 @@ export interface WelcomeDialogProps {
 export interface WelcomeFeature {
   icon: React.ElementType;
   key: string;
+}
+
+// ============================================================================
+// ObserverLocation (used by location-step)
+// ============================================================================
+
+export interface ObserverLocation {
+  latitude: number;
+  longitude: number;
+  altitude: number;
+}
+
+// ============================================================================
+// PreferenceOption (used by preferences-step)
+// ============================================================================
+
+export interface PreferenceOption {
+  id: string;
+  icon: React.ElementType;
+  titleKey: string;
+  descKey: string;
+  settingKey: keyof StellariumSettings;
+}
+
+// ============================================================================
+// Unified Onboarding Props
+// ============================================================================
+
+export interface UnifiedOnboardingProps {
+  onComplete?: () => void;
+}
+
+export interface OnboardingRestartButtonProps {
+  variant?: 'default' | 'outline' | 'ghost';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
+  className?: string;
 }
