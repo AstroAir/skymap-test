@@ -4,13 +4,15 @@ import { useTranslations } from 'next-intl';
 import { useInView } from '@/lib/hooks/use-in-view';
 import { Card, CardContent } from '@/components/ui/card';
 import { Star, Quote } from 'lucide-react';
+import { SectionHeader } from './section-header';
 import { cn } from '@/lib/utils';
+import { getScrollAnimationProps } from '@/lib/utils/scroll-animation';
 
 const TESTIMONIAL_KEYS = ['astronomer', 'photographer', 'beginner'] as const;
 
 function StarRating({ rating }: { rating: number }) {
   return (
-    <div className="flex gap-0.5">
+    <div className="flex gap-0.5" role="img" aria-label={`${rating} out of 5 stars`}>
       {Array.from({ length: 5 }, (_, i) => (
         <Star
           key={i}
@@ -31,14 +33,7 @@ export function TestimonialsSection() {
   return (
     <section className="py-24 bg-muted/30 relative" aria-labelledby="testimonials-title">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 id="testimonials-title" className="text-3xl sm:text-4xl font-serif font-bold text-foreground mb-4">
-            {t('title')}
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {t('subtitle')}
-          </p>
-        </div>
+        <SectionHeader id="testimonials-title" title={t('title')} subtitle={t('subtitle')} />
 
         <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {TESTIMONIAL_KEYS.map((key, index) => (
@@ -46,9 +41,9 @@ export function TestimonialsSection() {
               key={key}
               className={cn(
                 'glass-light border-border/50 transition-all duration-300 card-hover',
-                isInView ? 'opacity-0 animate-fade-in' : 'opacity-0'
+                getScrollAnimationProps(isInView, index, 0.15).className
               )}
-              style={isInView ? { animationDelay: `${index * 0.15}s`, animationFillMode: 'forwards' } : undefined}
+              style={getScrollAnimationProps(isInView, index, 0.15).style}
             >
               <CardContent className="pt-6">
                 <Quote className="h-8 w-8 text-primary/30 mb-4" />

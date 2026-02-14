@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useInView } from '@/lib/hooks/use-in-view';
+import { getScrollAnimationProps } from '@/lib/utils/scroll-animation';
 import { SectionHeader } from './section-header';
 import type { LandingFeatureItem } from '@/types/landing';
 
@@ -50,9 +51,9 @@ export function FeaturesSection() {
                 key={feature.key}
                 className={cn(
                   'group glass-light border-border/50 hover:border-primary/50 transition-all duration-300 card-hover',
-                  isInView ? 'opacity-0 animate-fade-in' : 'opacity-0'
+                  getScrollAnimationProps(isInView, index).className
                 )}
-                style={isInView ? { animationDelay: `${index * 0.1}s`, animationFillMode: 'forwards' } : undefined}
+                style={getScrollAnimationProps(isInView, index).style}
               >
                 <CardHeader>
                   <div className="mb-2 p-3 rounded-lg bg-primary/10 w-fit group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
@@ -60,7 +61,7 @@ export function FeaturesSection() {
                   </div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     {t(`${feature.key}.title`)}
-                    <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/0 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" aria-hidden="true" />
                   </CardTitle>
                   <CardDescription className="leading-relaxed">
                     {t(`${feature.key}.description`)}

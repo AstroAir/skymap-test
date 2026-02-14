@@ -24,6 +24,8 @@ const mockSettingsState = {
     skyCultureLanguage: 'native' as const,
     nightMode: false,
     sensorControl: false,
+    crosshairVisible: true,
+    crosshairColor: 'rgba(255, 255, 255, 0.3)',
   },
   toggleStellariumSetting: jest.fn(),
   setStellariumSetting: jest.fn(),
@@ -85,9 +87,6 @@ jest.mock('@/components/starmap/objects/object-info-sources-config', () => ({
   ObjectInfoSourcesConfig: () => <div data-testid="object-info-sources-config">ObjectInfoSourcesConfig</div>,
 }));
 
-jest.mock('@/components/starmap/onboarding/welcome-dialog', () => ({
-  OnboardingRestartButton: () => <button data-testid="tour-restart-button">Restart Tour</button>,
-}));
 
 import { DisplaySettings } from '../display-settings';
 
@@ -116,11 +115,6 @@ describe('DisplaySettings', () => {
     expect(screen.getByTestId('object-info-sources-config')).toBeInTheDocument();
   });
 
-  it('renders tour restart button', () => {
-    render(<DisplaySettings />);
-    expect(screen.getByTestId('tour-restart-button')).toBeInTheDocument();
-  });
-
   it('renders sky culture language select', () => {
     render(<DisplaySettings />);
     expect(screen.getAllByTestId('select').length).toBeGreaterThan(0);
@@ -139,7 +133,7 @@ describe('DisplaySettings state rendering', () => {
 
   it('renders all collapsible sections', () => {
     render(<DisplaySettings />);
-    expect(screen.getAllByTestId('collapsible').length).toBeGreaterThanOrEqual(5);
+    expect(screen.getAllByTestId('collapsible').length).toBeGreaterThanOrEqual(4);
   });
 
   it('renders stellarium survey selector component', () => {

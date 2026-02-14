@@ -13,7 +13,7 @@ import {
 import { LanguageSwitcher } from '@/components/common/language-switcher';
 import { ThemeToggle } from '@/components/common/theme-toggle';
 import { Star, Github, Menu } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -55,6 +55,31 @@ function NavLink({ item, label, className, activeHref, onClick }: NavLinkProps) 
     );
   }
 
+  // Hash links use <a> with smooth scroll to avoid Next.js router interference
+  if (item.href.startsWith('#')) {
+    const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      const id = item.href.slice(1);
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      onClick?.();
+    };
+    return (
+      <a
+        href={item.href}
+        className={cn(
+          'text-sm transition-colors',
+          activeHref === item.href
+            ? 'text-foreground font-medium'
+            : 'text-muted-foreground hover:text-foreground',
+          className
+        )}
+        onClick={handleClick}
+      >
+        {label}
+      </a>
+    );
+  }
+
   return (
     <Link
       href={item.href}
@@ -78,28 +103,47 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
 
-  useEffect(() => {
-    const onScroll = () => {
-      setScrolled(window.scrollY > 50);
+  const rafRef = useRef<number>(0);
+  const scrolledRef = useRef(false);
+  const activeSectionRef = useRef('');
 
-      // Find active section based on scroll position
-      let current = '';
-      for (const id of SECTION_IDS) {
-        const el = document.getElementById(id);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.top <= 120 && rect.bottom > 120) {
-            current = `#${id}`;
-            break;
-          }
+  const updateScrollState = useCallback(() => {
+    const nowScrolled = window.scrollY > 50;
+    let current = '';
+    for (const id of SECTION_IDS) {
+      const el = document.getElementById(id);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= 120 && rect.bottom > 120) {
+          current = `#${id}`;
+          break;
         }
       }
+    }
+
+    // Only trigger re-render if values actually changed
+    if (nowScrolled !== scrolledRef.current) {
+      scrolledRef.current = nowScrolled;
+      setScrolled(nowScrolled);
+    }
+    if (current !== activeSectionRef.current) {
+      activeSectionRef.current = current;
       setActiveSection(current);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(updateScrollState);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [updateScrollState]);
 
   return (
     <nav

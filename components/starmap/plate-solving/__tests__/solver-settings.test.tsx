@@ -6,42 +6,11 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SolverSettings } from '../solver-settings';
 import { usePlateSolverStore } from '@/lib/stores/plate-solver-store';
-import { NextIntlClientProvider } from 'next-intl';
 
-// Mock next-intl
-const messages = {
-  plateSolving: {
-    solverSelection: 'Solver Selection',
-    solverSelectionDesc: 'Choose which plate solver to use',
-    detectSolvers: 'Detect Solvers',
-    installed: 'Installed',
-    notInstalled: 'Not Installed',
-    online: 'Online',
-    customPath: 'Custom Executable Path',
-    pathPlaceholder: 'Path to solver executable',
-    validate: 'Validate',
-    invalidPath: 'Invalid solver path',
-    solverOptions: 'Solver Options',
-    timeout: 'Timeout',
-    auto: 'Auto',
-    useSip: 'Use SIP Coefficients',
-    useSipDesc: 'Add polynomial distortion correction',
-    indexStatus: 'Index Files',
-    indexesInstalled: 'index files installed',
-    totalSize: 'Total size',
-    noIndexes: 'No index files found.',
-    needApiKey: 'API key required',
-    solverNotReady: 'Solver not ready',
-    ready: 'Ready',
-    apiKey: 'API Key',
-    apiKeyPlaceholder: 'Enter API key',
-    apiKeyHint: 'Get your API key',
-  },
-  common: {
-    cancel: 'Cancel',
-    save: 'Save',
-  },
-};
+// Mock next-intl — return key as text (matches pattern in other plate-solving tests)
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
 
 // Mock Tauri API
 jest.mock('@tauri-apps/api/core', () => ({
@@ -71,13 +40,6 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
 
 const mockValidateSolverPath = jest.requireMock('@/lib/tauri/plate-solver-api').validateSolverPath;
 
-const renderWithProviders = (ui: React.ReactElement) => {
-  return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      {ui}
-    </NextIntlClientProvider>
-  );
-};
 
 describe('SolverSettings', () => {
   beforeEach(() => {
@@ -155,14 +117,14 @@ describe('SolverSettings', () => {
   });
 
   it('should render solver selection section', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    expect(screen.getByText('Solver Selection')).toBeInTheDocument();
-    expect(screen.getByText('Choose which plate solver to use')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.solverSelection')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.solverSelectionDesc')).toBeInTheDocument();
   });
 
   it('should display detected solvers', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
     expect(screen.getByText('ASTAP')).toBeInTheDocument();
     expect(screen.getByText('Astrometry.net (Local)')).toBeInTheDocument();
@@ -170,21 +132,21 @@ describe('SolverSettings', () => {
   });
 
   it('should show installed badge for available solvers', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
     // ASTAP should show as installed
-    const installedBadges = screen.getAllByText('Installed');
+    const installedBadges = screen.getAllByText('plateSolving.installed');
     expect(installedBadges.length).toBeGreaterThan(0);
   });
 
   it('should show not installed badge for unavailable solvers', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    expect(screen.getByText('Not Installed')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.notInstalled')).toBeInTheDocument();
   });
 
   it('should allow selecting a different solver', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
     // Find and click on Astrometry.net (Online)
     const onlineSolver = screen.getByText('Astrometry.net (Online)').closest('div[class*="cursor-pointer"]');
@@ -206,30 +168,31 @@ describe('SolverSettings', () => {
       },
     });
 
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    expect(screen.getByText('API Key')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.apiKey')).toBeInTheDocument();
   });
 
   it('should render solver options section', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    expect(screen.getByText('Solver Options')).toBeInTheDocument();
-    expect(screen.getByText('Timeout')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.solverOptions')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.timeout')).toBeInTheDocument();
   });
 
   it('should show index status for local solvers', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    expect(screen.getByText('Index Files')).toBeInTheDocument();
-    expect(screen.getByText(/1.*index files installed/)).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.indexStatus')).toBeInTheDocument();
+    // Count and label are separate text nodes
+    expect(screen.getByText(/plateSolving\.indexesInstalled/)).toBeInTheDocument();
   });
 
   it('should call onClose and save when save button clicked', async () => {
     const onClose = jest.fn();
-    renderWithProviders(<SolverSettings onClose={onClose} />);
+    render(<SolverSettings onClose={onClose} />);
 
-    const saveButton = screen.getByText('Save');
+    const saveButton = screen.getByText('common.save');
     fireEvent.click(saveButton);
 
     await waitFor(() => {
@@ -239,9 +202,9 @@ describe('SolverSettings', () => {
 
   it('should call onClose when cancel button clicked', () => {
     const onClose = jest.fn();
-    renderWithProviders(<SolverSettings onClose={onClose} />);
+    render(<SolverSettings onClose={onClose} />);
 
-    const cancelButton = screen.getByText('Cancel');
+    const cancelButton = screen.getByText('common.cancel');
     fireEvent.click(cancelButton);
 
     expect(onClose).toHaveBeenCalled();
@@ -250,14 +213,14 @@ describe('SolverSettings', () => {
   it('should validate custom path when validate button clicked', async () => {
     mockValidateSolverPath.mockResolvedValueOnce(true);
 
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    // Find the custom path input and enter a value
-    const pathInput = screen.getByPlaceholderText(/path/i);
+    // Placeholder uses executable_path from detected solver as default
+    const pathInput = screen.getByPlaceholderText('/path/to/astap');
     fireEvent.change(pathInput, { target: { value: '/custom/path/astap' } });
 
     // Find and click validate button
-    const validateButton = screen.getByText('Validate');
+    const validateButton = screen.getByText('plateSolving.validate');
     fireEvent.click(validateButton);
 
     await waitFor(() => {
@@ -266,9 +229,9 @@ describe('SolverSettings', () => {
   });
 
   it('should show detect solvers button', () => {
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    expect(screen.getByText('Detect Solvers')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.detectSolvers')).toBeInTheDocument();
   });
 
   it('should trigger solver detection when detect button clicked', async () => {
@@ -278,9 +241,9 @@ describe('SolverSettings', () => {
       detectSolvers,
     });
 
-    renderWithProviders(<SolverSettings />);
+    render(<SolverSettings />);
 
-    const detectButton = screen.getByText('Detect Solvers');
+    const detectButton = screen.getByText('plateSolving.detectSolvers');
     fireEvent.click(detectButton);
 
     // The actual detectSolvers function from the store will be called

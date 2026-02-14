@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Square } from 'lucide-react';
 
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 import { mountApi, SLEW_RATE_PRESETS } from '@/lib/tauri/mount-api';
 import { useMountStore } from '@/lib/stores';
@@ -20,6 +21,10 @@ import { isTauri } from '@/lib/tauri/app-control-api';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('mount-direction-pad');
+
+function errorMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 /**
  * NSEW direction pad for manual mount motion.
@@ -43,7 +48,9 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
     try {
       await mountApi.moveAxis(axis, rate * direction);
     } catch (e) {
-      logger.error('Move axis failed', { error: e });
+      const msg = errorMsg(e);
+      logger.error('Move axis failed', { error: msg });
+      toast.error(msg);
     }
   }, [disabled, slewRateIndex]);
 
@@ -54,7 +61,7 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
     try {
       await mountApi.stopAxis(axis);
     } catch (e) {
-      logger.error('Stop axis failed', { error: e });
+      logger.error('Stop axis failed', { error: errorMsg(e) });
     }
   }, []);
 
@@ -67,9 +74,32 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
         mountApi.stopAxis('secondary'),
       ]);
     } catch (e) {
-      logger.error('Stop all failed', { error: e });
+      logger.error('Stop all failed', { error: errorMsg(e) });
     }
   }, []);
+
+  // Safety net: stop all motion on global pointer-up/cancel, window blur, or unmount
+  useEffect(() => {
+    const safeStop = () => {
+      if (movingRef.current) stopMove();
+    };
+    window.addEventListener('pointerup', safeStop);
+    window.addEventListener('pointercancel', safeStop);
+    window.addEventListener('blur', safeStop);
+    return () => {
+      window.removeEventListener('pointerup', safeStop);
+      window.removeEventListener('pointercancel', safeStop);
+      window.removeEventListener('blur', safeStop);
+      // Force stop on unmount
+      if (movingRef.current && isTauri()) {
+        movingRef.current = null;
+        Promise.all([
+          mountApi.stopAxis('primary'),
+          mountApi.stopAxis('secondary'),
+        ]).catch(() => {});
+      }
+    };
+  }, [stopMove]);
 
   const handleRateChange = useCallback(async (value: string) => {
     const idx = parseInt(value, 10);
@@ -78,7 +108,9 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
       await mountApi.setSlewRate(idx);
       useMountStore.getState().setMountInfo({ SlewRateIndex: idx });
     } catch (e) {
-      logger.error('Set slew rate failed', { error: e });
+      const msg = errorMsg(e);
+      logger.error('Set slew rate failed', { error: msg });
+      toast.error(msg);
     }
   }, []);
 
@@ -114,6 +146,7 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
           onPointerDown={() => startMove('secondary', 1)}
           onPointerUp={stopMove}
           onPointerLeave={stopMove}
+          onPointerCancel={stopMove}
           aria-label={t('north')}
         >
           <ChevronUp className="h-4 w-4" />
@@ -128,6 +161,7 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
           onPointerDown={() => startMove('primary', -1)}
           onPointerUp={stopMove}
           onPointerLeave={stopMove}
+          onPointerCancel={stopMove}
           aria-label={t('west')}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -148,6 +182,7 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
           onPointerDown={() => startMove('primary', 1)}
           onPointerUp={stopMove}
           onPointerLeave={stopMove}
+          onPointerCancel={stopMove}
           aria-label={t('east')}
         >
           <ChevronRight className="h-4 w-4" />
@@ -162,6 +197,7 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
           onPointerDown={() => startMove('secondary', -1)}
           onPointerUp={stopMove}
           onPointerLeave={stopMove}
+          onPointerCancel={stopMove}
           aria-label={t('south')}
         >
           <ChevronDown className="h-4 w-4" />

@@ -6,6 +6,7 @@ import { SkyMarkers } from '../overlays/sky-markers';
 import { SatelliteOverlay } from '../overlays/satellite-overlay';
 
 import { useEquipmentStore } from '@/lib/stores';
+import { useEquipmentFOVRead } from '@/lib/hooks/use-equipment-fov-props';
 import type { SkyMarker } from '@/lib/stores/marker-store';
 
 /**
@@ -46,14 +47,9 @@ export const OverlaysContainer = memo(function OverlaysContainer({
   onMarkerEdit,
   onMarkerNavigate,
 }: OverlaysContainerProps) {
-  // Subscribe directly to equipment store — avoids prop drilling through orchestrator
-  const fovEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
-  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
-  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
-  const focalLength = useEquipmentStore((s) => s.focalLength);
+  // Equipment FOV read props — shared hook avoids duplicating selectors
+  const { fovSimEnabled: fovEnabled, sensorWidth, sensorHeight, focalLength, mosaic, gridType } = useEquipmentFOVRead();
   const rotationAngle = useEquipmentStore((s) => s.rotationAngle);
-  const mosaic = useEquipmentStore((s) => s.mosaic);
-  const gridType = useEquipmentStore((s) => s.fovDisplay.gridType);
 
   return (
     <>

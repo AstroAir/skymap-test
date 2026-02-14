@@ -52,6 +52,8 @@ jest.mock('@/lib/stores', () => ({
           skyCultureLanguage: 'native',
           nightMode: false,
           sensorControl: false,
+          crosshairVisible: true,
+          crosshairColor: 'rgba(255, 255, 255, 0.3)',
         },
       };
       return selector(state);

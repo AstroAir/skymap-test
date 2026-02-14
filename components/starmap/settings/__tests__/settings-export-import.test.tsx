@@ -80,6 +80,7 @@ describe('SettingsExportImport', () => {
         distanceUnit: 'metric',
         temperatureUnit: 'celsius',
         skipCloseConfirmation: false,
+        rightPanelCollapsed: false,
         startupView: 'last' as const,
         showSplash: true,
         autoConnectBackend: true,

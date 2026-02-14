@@ -583,6 +583,72 @@ describe('DataManager', () => {
     });
   });
 
+  describe('Reload Prompt (replaces auto-reload)', () => {
+    it('shows reload prompt after successful web import', async () => {
+      mockIsTauri.mockReturnValue(false);
+      mockReadFileAsText.mockResolvedValue('{"test": "data"}');
+      mockStorage.importAllData.mockResolvedValue({
+        imported_count: 5,
+        skipped_count: 0,
+        errors: [],
+        metadata: { version: '1.0', exported_at: '2024-01-01', app_version: '1.0.0', store_count: 5 },
+      });
+
+      render(<DataManager />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const file = new File(['{"test": "data"}'], 'backup.json', { type: 'application/json' });
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+
+      await waitFor(() => {
+        expect(mockToast.info).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            duration: Infinity,
+            action: expect.objectContaining({
+              label: expect.any(String),
+              onClick: expect.any(Function),
+            }),
+          })
+        );
+      });
+    });
+
+    it('shows reload prompt after successful clear', async () => {
+      render(<DataManager />);
+
+      const openBtn = screen.getByTestId('dialog-open-btn');
+      await act(async () => {
+        fireEvent.click(openBtn);
+      });
+
+      await waitFor(() => {
+        expect(mockStorage.getStorageStats).toHaveBeenCalled();
+      });
+
+      const confirmButton = screen.getByTestId('alert-dialog-action');
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      await waitFor(() => {
+        expect(mockToast.info).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            duration: Infinity,
+            action: expect.objectContaining({
+              label: expect.any(String),
+              onClick: expect.any(Function),
+            }),
+          })
+        );
+      });
+    });
+  });
+
   describe('Clear All Data', () => {
     it('renders clear confirmation dialog', () => {
       render(<DataManager />);

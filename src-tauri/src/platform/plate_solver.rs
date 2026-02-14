@@ -3,8 +3,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
+
+static ACTIVE_SOLVE_PID: Mutex<Option<u32>> = Mutex::new(None);
 
 #[derive(Debug, thiserror::Error)]
 pub enum PlateSolverError {
@@ -91,6 +94,13 @@ pub struct DownloadableIndex {
     pub scale_high: f64,
     pub size_mb: u64,
     pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolveProgressEvent {
+    pub stage: String,
+    pub progress: f64,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -293,6 +303,28 @@ pub async fn detect_plate_solvers() -> Result<Vec<SolverInfo>, PlateSolverError>
     });
 
     Ok(solvers)
+}
+
+#[tauri::command]
+pub async fn cancel_plate_solve() -> Result<(), PlateSolverError> {
+    let pid = {
+        let mut guard = ACTIVE_SOLVE_PID.lock().unwrap();
+        guard.take()
+    };
+    if let Some(pid) = pid {
+        log::info!("Cancelling plate solve process with PID {}", pid);
+        #[cfg(target_os = "windows")]
+        {
+            let _ = Command::new("taskkill")
+                .args(["/F", "/T", "/PID", &pid.to_string()])
+                .output();
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -598,13 +630,38 @@ async fn solve_with_astap_enhanced(config: &PlateSolverConfig, solver_config: Op
         }
     }
 
-    // Execute with timeout
+    // Execute with timeout and cancellation support
     let timeout_secs = config.timeout_seconds.unwrap_or(120);
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs as u64),
-        tokio::task::spawn_blocking(move || cmd.output())
+        tokio::task::spawn_blocking(move || {
+            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            let child = cmd.spawn()?;
+            // Store PID for cancel support
+            {
+                let mut guard = ACTIVE_SOLVE_PID.lock().unwrap();
+                *guard = Some(child.id());
+            }
+            let result = child.wait_with_output();
+            // Clear PID after completion
+            {
+                let mut guard = ACTIVE_SOLVE_PID.lock().unwrap();
+                *guard = None;
+            }
+            result
+        })
     ).await
-    .map_err(|_| PlateSolverError::SolveFailed(format!("ASTAP solve timed out after {}s", timeout_secs)))?
+    .map_err(|_| {
+        // On timeout, also kill the process
+        let pid = ACTIVE_SOLVE_PID.lock().unwrap().take();
+        if let Some(pid) = pid {
+            #[cfg(target_os = "windows")]
+            { let _ = Command::new("taskkill").args(["/F", "/T", "/PID", &pid.to_string()]).output(); }
+            #[cfg(not(target_os = "windows"))]
+            { unsafe { libc::kill(pid as i32, libc::SIGTERM); } }
+        }
+        PlateSolverError::SolveFailed(format!("ASTAP solve timed out after {}s", timeout_secs))
+    })?
     .map_err(|e| PlateSolverError::SolveFailed(format!("Task join error: {}", e)))?
     .map_err(PlateSolverError::Io)?;
 
@@ -746,9 +803,21 @@ async fn solve_with_local_astrometry(config: &PlateSolverConfig) -> Result<Plate
     if let Some(dec) = config.dec_hint { cmd.arg("--dec").arg(format!("{}", dec)); }
     if let Some(r) = config.radius_hint { cmd.arg("--radius").arg(format!("{}", r)); }
 
-    let output = cmd.output()?;
+    let timeout_secs = config.timeout_seconds.unwrap_or(120);
+    let image_path = config.image_path.clone();
+
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs as u64),
+        tokio::task::spawn_blocking(move || {
+            cmd.output()
+        })
+    ).await
+    .map_err(|_| PlateSolverError::SolveFailed(format!("Astrometry.net solve timed out after {}s", timeout_secs)))?
+    .map_err(|e| PlateSolverError::SolveFailed(format!("Task join error: {}", e)))?
+    .map_err(PlateSolverError::Io)?;
+
     if output.status.success() {
-        parse_astrometry_result(&config.image_path)
+        parse_astrometry_result(&image_path)
     } else {
         Err(PlateSolverError::SolveFailed(String::from_utf8_lossy(&output.stderr).to_string()))
     }
@@ -804,7 +873,7 @@ fn parse_astap_result(output: &str) -> Result<PlateSolveResult, PlateSolverError
         result.scale = Some(cd1.abs() * 3600.0);
         // Detect flipped from CDELT signs: normally CDELT1 < 0 and CDELT2 > 0
         if let Some(cd2) = cdelt2 {
-            result.flipped = Some(cd1 > 0.0 && cd2 > 0.0 || cd1 < 0.0 && cd2 < 0.0);
+            result.flipped = Some((cd1 > 0.0 && cd2 > 0.0) || (cd1 < 0.0 && cd2 < 0.0));
         }
     }
 
@@ -884,7 +953,7 @@ fn parse_astrometry_result(image_path: &str) -> Result<PlateSolveResult, PlateSo
         result.scale = Some(cd1.abs() * 3600.0);
         result.rotation = crota2;
         if let Some(cd2) = cdelt2 {
-            result.flipped = Some(cd1 > 0.0 && cd2 > 0.0 || cd1 < 0.0 && cd2 < 0.0);
+            result.flipped = Some((cd1 > 0.0 && cd2 > 0.0) || (cd1 < 0.0 && cd2 < 0.0));
             if let (Some(n1), Some(n2)) = (naxis1, naxis2) {
                 result.width_deg = Some(cd1.abs() * n1);
                 result.height_deg = Some(cd2.abs() * n2);
@@ -1089,12 +1158,19 @@ pub async fn validate_solver_path(solver_type: String, path: String) -> Result<b
 }
 
 #[tauri::command]
-pub async fn solve_image_local(config: SolverConfig, params: SolveParameters) -> Result<SolveResult, PlateSolverError> {
+pub async fn solve_image_local(app: AppHandle, config: SolverConfig, params: SolveParameters) -> Result<SolveResult, PlateSolverError> {
     let start = std::time::Instant::now();
     
     if !PathBuf::from(&params.image_path).exists() {
         return Err(PlateSolverError::InvalidImage(format!("Image not found: {}", params.image_path)));
     }
+
+    // Emit: preparing
+    let _ = app.emit("solve-progress", SolveProgressEvent {
+        stage: "preparing".to_string(),
+        progress: 5.0,
+        message: "Validating image and building solver arguments...".to_string(),
+    });
 
     let solver_config = PlateSolverConfig {
         solver_type: match config.solver_type.as_str() {
@@ -1112,11 +1188,25 @@ pub async fn solve_image_local(config: SolverConfig, params: SolveParameters) ->
         timeout_seconds: Some(config.timeout_seconds),
     };
 
+    // Emit: solving
+    let _ = app.emit("solve-progress", SolveProgressEvent {
+        stage: "solving".to_string(),
+        progress: 15.0,
+        message: "Running plate solver...".to_string(),
+    });
+
     let result = match solver_config.solver_type {
         PlateSolverType::Astap => solve_with_astap_enhanced(&solver_config, Some(&config)).await,
         PlateSolverType::LocalAstrometry => solve_with_local_astrometry(&solver_config).await,
         PlateSolverType::AstrometryNet => solve_with_online_astrometry(&solver_config).await,
     };
+
+    // Emit: parsing results
+    let _ = app.emit("solve-progress", SolveProgressEvent {
+        stage: "parsing".to_string(),
+        progress: 85.0,
+        message: "Parsing solve results...".to_string(),
+    });
 
     let solve_time_ms = start.elapsed().as_millis() as u64;
 

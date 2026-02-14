@@ -130,10 +130,14 @@ export function DataManager({ trigger }: DataManagerProps) {
         });
       }
 
-      // Reload page to apply imported data
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Prompt user to reload to apply imported data
+      toast.info(t('dataManager.reloadRequired') || 'Reload required to apply changes', {
+        duration: Infinity,
+        action: {
+          label: t('dataManager.reloadNow') || 'Reload now',
+          onClick: () => window.location.reload(),
+        },
+      });
     } catch (error) {
       toast.error(t('dataManager.importError') || 'Failed to import data');
       logger.error('Import error', error);
@@ -184,10 +188,14 @@ export function DataManager({ trigger }: DataManagerProps) {
         });
       }
 
-      // Reload page to apply imported data
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Prompt user to reload to apply imported data
+      toast.info(t('dataManager.reloadRequired') || 'Reload required to apply changes', {
+        duration: Infinity,
+        action: {
+          label: t('dataManager.reloadNow') || 'Reload now',
+          onClick: () => window.location.reload(),
+        },
+      });
     } catch (error) {
       if ((error as Error).message === 'Import cancelled') {
         return;
@@ -210,10 +218,14 @@ export function DataManager({ trigger }: DataManagerProps) {
         description: `${count} stores deleted`,
       });
 
-      // Reload page
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Prompt user to reload to apply cleared state
+      toast.info(t('dataManager.reloadRequired') || 'Reload required to apply changes', {
+        duration: Infinity,
+        action: {
+          label: t('dataManager.reloadNow') || 'Reload now',
+          onClick: () => window.location.reload(),
+        },
+      });
     } catch (error) {
       toast.error(t('dataManager.clearError') || 'Failed to clear data');
       logger.error('Clear error', error);

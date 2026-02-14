@@ -864,7 +864,9 @@
       "cable_wrap": "检测到缠线风险",
       "pier_collision": "存在撞柱风险",
       "slew_through_pole": "指向路径经过天极"
-    }
+    },
+    "operationFailed": "赤道仪操作失败",
+    "connectionLost": "赤道仪连接已断开"
   },
   "cache": {
     "offlineCache": "离线缓存",
@@ -1790,6 +1792,7 @@
     "searchRadius": "搜索半径 (°)",
     "selectImage": "选择图像进行解析",
     "solving": "解析中...",
+    "parsing": "解析结果中...",
     "uploading": "上传中",
     "queued": "排队中",
     "processing": "处理中",
@@ -1819,6 +1822,18 @@
     "cameraError": "无法访问摄像头",
     "cameraPreview": "摄像头预览",
     "capturedImage": "已捕获的图像",
+    "switchCamera": "切换摄像头",
+    "frontCamera": "前置摄像头",
+    "backCamera": "后置摄像头",
+    "nativeCapture": "原生拍照",
+    "browserCamera": "浏览器摄像头",
+    "nativeCaptureHint": "打开设备内置相机应用",
+    "noCamera": "未检测到摄像头",
+    "permissionDenied": "摄像头权限被拒绝，请在浏览器设置中开启。",
+    "cameraInUse": "摄像头正被其他应用使用",
+    "torch": "手电筒",
+    "zoom": "缩放",
+    "resolution": "分辨率",
     "fileTooLarge": "文件过大，最大支持 50MB",
     "unsupportedFormat": "不支持的文件格式",
     "readError": "读取文件失败",
@@ -1973,7 +1988,9 @@
     "worldToPixel": "天球 → 像素",
     "fieldOfView": "视场",
     "sipDistortion": "SIP 畸变",
-    "sipOrder": "SIP 阶数"
+    "sipOrder": "SIP 阶数",
+    "solveHistory": "解算历史",
+    "clearHistory": "清除历史"
   },
   "geolocation": {
     "title": "设备定位",
@@ -2888,7 +2905,9 @@
       "stellariumTooltip": "访问 Stellarium 官方网站",
       "community": "社区",
       "discussions": "讨论区",
+      "discussionsTooltip": "加入 GitHub 社区讨论",
       "reportIssue": "反馈问题",
+      "reportIssueTooltip": "报告 Bug 或提交功能建议",
       "credits": "数据来源",
       "stellariumEngine": "Stellarium Web Engine",
       "gaiaData": "ESA 盖亚任务",

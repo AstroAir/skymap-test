@@ -31,6 +31,11 @@ interface UpdateDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Escape HTML entities to prevent XSS.
+ * SECURITY: This MUST run before any regex-based markdown substitution
+ * so that user-supplied content cannot inject HTML/JS.
+ */
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -40,6 +45,20 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Minimal markdown-to-HTML renderer for release notes.
+ *
+ * SECURITY ANALYSIS:
+ * 1. `escapeHtml` runs first — all `<`, `>`, `&`, `"`, `'` are entity-encoded.
+ * 2. Regex substitutions only produce a fixed set of safe HTML tags
+ *    (h3, strong, em, code, li, br) with static class attributes.
+ * 3. Capture groups ($1) contain only escaped content — no raw HTML can survive.
+ * 4. Input source is the Tauri updater's `body` field (GitHub release notes),
+ *    which is author-controlled, not user-supplied.
+ *
+ * If a full markdown library is ever added to the project (e.g. react-markdown),
+ * this function should be replaced with it.
+ */
 function renderMarkdown(text: string): string {
   const escaped = escapeHtml(text);
   return escaped

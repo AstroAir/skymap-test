@@ -51,13 +51,7 @@ import { FOVSettings } from './fov-settings';
 import { ExposureSettings } from './exposure-settings';
 import { LocationSettings } from './location-settings';
 import { ConnectionSettings } from './connection-settings';
-import { AppearanceSettings } from './appearance-settings';
-import { GeneralSettings } from './general-settings';
-import { PerformanceSettings } from './performance-settings';
-import { AccessibilitySettings } from './accessibility-settings';
-import { NotificationSettings } from './notification-settings';
-import { SearchBehaviorSettings } from './search-settings';
-import { KeyboardSettings } from './keyboard-settings';
+import { PreferencesTabContent } from './preferences-tab-content';
 import { AboutSettings } from './about-settings';
 import { DataManager } from '../management/data-manager';
 import { OnboardingRestartButton } from '../onboarding/welcome-dialog';
@@ -71,15 +65,11 @@ export function UnifiedSettings() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('display');
   
-  const resetSettings = useSettingsStore((state) => state.resetToDefaults);
-  const resetEquipment = useEquipmentStore((state) => state.resetToDefaults);
-  const resetTheme = useThemeStore((state) => state.resetCustomization);
-
   const handleResetAll = useCallback(() => {
-    resetSettings();
-    resetEquipment();
-    resetTheme();
-  }, [resetSettings, resetEquipment, resetTheme]);
+    useSettingsStore.getState().resetToDefaults();
+    useEquipmentStore.getState().resetToDefaults();
+    useThemeStore.getState().resetCustomization();
+  }, []);
 
   return (
     <Drawer open={open} onOpenChange={setOpen} direction="right">
@@ -198,31 +188,7 @@ export function UnifiedSettings() {
 
           {/* Preferences Tab — includes general, appearance, performance, accessibility, notifications, search, keyboard */}
           <TabsContent value="preferences" className="flex-1 mt-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-4 space-y-4">
-                <GeneralSettings />
-                <Separator />
-                <AppearanceSettings />
-                <Separator />
-                <PerformanceSettings />
-                <Separator />
-                <NotificationSettings />
-                <Separator />
-                <SearchBehaviorSettings />
-                <Separator />
-                <AccessibilitySettings />
-                <Separator />
-                <KeyboardSettings />
-                <Separator />
-                <EventSourcesSettings />
-                {isTauri() && (
-                  <>
-                    <Separator />
-                    <UpdateSettings />
-                  </>
-                )}
-              </div>
-            </ScrollArea>
+            <PreferencesTabContent />
           </TabsContent>
 
           {/* Data Management Tab */}
@@ -231,6 +197,8 @@ export function UnifiedSettings() {
               <div className="p-4 space-y-4">
                 <MapHealthMonitor className="mb-4" />
                 <MapProviderSettings />
+                <Separator className="my-4" />
+                <EventSourcesSettings />
                 <Separator className="my-4" />
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">{t('dataManager.title')}</h3>
@@ -248,6 +216,12 @@ export function UnifiedSettings() {
                 />
                 <Separator className="my-4" />
                 <SettingsExportImport />
+                {isTauri() && (
+                  <>
+                    <Separator className="my-4" />
+                    <UpdateSettings />
+                  </>
+                )}
                 <Separator className="my-4" />
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">{t('setupWizard.steps.welcome.title')}</h3>

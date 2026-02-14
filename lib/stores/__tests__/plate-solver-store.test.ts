@@ -89,6 +89,7 @@ describe('usePlateSolverStore', () => {
       imageAnalysis: null,
       isAnalysingImage: false,
       onlineSolveProgress: null,
+      solveHistory: [],
     });
     jest.clearAllMocks();
   });
@@ -424,6 +425,97 @@ describe('usePlateSolverStore', () => {
       });
 
       expect(result.current.imageAnalysis).toBeNull();
+    });
+  });
+
+  describe('addToHistory', () => {
+    it('should add entry to solve history', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      act(() => {
+        result.current.addToHistory({
+          imageName: 'test.fits',
+          solveMode: 'local',
+          result: {
+            success: true,
+            coordinates: { ra: 180, dec: 45, raHMS: '12h00m00s', decDMS: '+45°00\'00"' },
+            positionAngle: 0,
+            pixelScale: 1,
+            fov: { width: 2, height: 1.5 },
+            flipped: false,
+            solverName: 'ASTAP',
+            solveTime: 5000,
+          },
+        });
+      });
+
+      expect(result.current.solveHistory).toHaveLength(1);
+      expect(result.current.solveHistory[0].imageName).toBe('test.fits');
+      expect(result.current.solveHistory[0].solveMode).toBe('local');
+      expect(result.current.solveHistory[0].id).toBeDefined();
+      expect(result.current.solveHistory[0].timestamp).toBeGreaterThan(0);
+    });
+
+    it('should prepend new entries (newest first)', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      act(() => {
+        result.current.addToHistory({
+          imageName: 'first.fits',
+          solveMode: 'local',
+          result: { success: true, coordinates: null, positionAngle: 0, pixelScale: 0, fov: { width: 0, height: 0 }, flipped: false, solverName: 'ASTAP', solveTime: 1000 },
+        });
+      });
+
+      act(() => {
+        result.current.addToHistory({
+          imageName: 'second.fits',
+          solveMode: 'online',
+          result: { success: false, coordinates: null, positionAngle: 0, pixelScale: 0, fov: { width: 0, height: 0 }, flipped: false, solverName: 'astrometry.net', solveTime: 2000, errorMessage: 'fail' },
+        });
+      });
+
+      expect(result.current.solveHistory).toHaveLength(2);
+      expect(result.current.solveHistory[0].imageName).toBe('second.fits');
+      expect(result.current.solveHistory[1].imageName).toBe('first.fits');
+    });
+
+    it('should limit history to MAX_HISTORY_ENTRIES', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      act(() => {
+        for (let i = 0; i < 55; i++) {
+          result.current.addToHistory({
+            imageName: `image-${i}.fits`,
+            solveMode: 'local',
+            result: { success: true, coordinates: null, positionAngle: 0, pixelScale: 0, fov: { width: 0, height: 0 }, flipped: false, solverName: 'ASTAP', solveTime: 100 },
+          });
+        }
+      });
+
+      expect(result.current.solveHistory.length).toBeLessThanOrEqual(50);
+    });
+  });
+
+  describe('clearHistory', () => {
+    it('should clear all history entries', () => {
+      const { result } = renderHook(() => usePlateSolverStore());
+
+      act(() => {
+        result.current.addToHistory({
+          imageName: 'test.fits',
+          solveMode: 'local',
+          result: { success: true, coordinates: null, positionAngle: 0, pixelScale: 0, fov: { width: 0, height: 0 }, flipped: false, solverName: 'ASTAP', solveTime: 100 },
+        });
+      });
+
+      expect(result.current.solveHistory).toHaveLength(1);
+
+      act(() => {
+        result.current.clearHistory();
+      });
+
+      expect(result.current.solveHistory).toHaveLength(0);
     });
   });
 

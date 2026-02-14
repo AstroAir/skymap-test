@@ -35,6 +35,7 @@ import { StarField } from '../star-field';
 import { Footer } from '../footer';
 import { TechStack } from '../tech-stack';
 import { TestimonialsSection } from '../testimonials-section';
+import { ScreenshotCarousel } from '../screenshot-carousel';
 
 // ============================================================================
 // SectionHeader
@@ -354,5 +355,36 @@ describe('TestimonialsSection', () => {
     render(<TestimonialsSection />);
     expect(screen.getByText('astronomer.name')).toBeInTheDocument();
     expect(screen.getByText('astronomer.role')).toBeInTheDocument();
+  });
+
+  it('renders star ratings with aria-label', () => {
+    render(<TestimonialsSection />);
+    const ratings = screen.getAllByRole('img', { name: /out of 5 stars/ });
+    expect(ratings).toHaveLength(3);
+  });
+});
+
+// ============================================================================
+// ScreenshotCarousel
+// ============================================================================
+describe('ScreenshotCarousel', () => {
+  it('renders section with aria-labelledby', () => {
+    const { container } = render(<ScreenshotCarousel />);
+    const section = container.querySelector('section');
+    expect(section).toHaveAttribute('aria-labelledby', 'screenshots-title');
+  });
+
+  it('renders tab buttons for screenshot categories', () => {
+    render(<ScreenshotCarousel />);
+    const tablist = screen.getByRole('tablist');
+    expect(tablist).toBeInTheDocument();
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(4);
+  });
+
+  it('renders section header', () => {
+    render(<ScreenshotCarousel />);
+    const heading = document.getElementById('screenshots-title');
+    expect(heading).toBeInTheDocument();
   });
 });

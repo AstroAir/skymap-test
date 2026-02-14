@@ -156,6 +156,7 @@ describe('Settings Components', () => {
         distanceUnit: 'metric',
         temperatureUnit: 'celsius',
         skipCloseConfirmation: false,
+        rightPanelCollapsed: false,
         startupView: 'last',
         showSplash: true,
         autoConnectBackend: true,

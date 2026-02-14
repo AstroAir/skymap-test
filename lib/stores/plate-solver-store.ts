@@ -17,6 +17,7 @@ import type {
   ImageAnalysisResult,
   OnlineSolveProgress,
 } from '@/lib/tauri/plate-solver-api';
+import type { SolveHistoryEntry } from '@/types/starmap/plate-solving';
 import {
   detectPlateSolvers,
   loadSolverConfig,
@@ -28,6 +29,7 @@ import {
   DEFAULT_SOLVER_CONFIG,
 } from '@/lib/tauri/plate-solver-api';
 
+const MAX_HISTORY_ENTRIES = 50;
 const logger = createLogger('plate-solver-store');
 
 // ============================================================================
@@ -73,6 +75,9 @@ export interface PlateSolverState {
   // Online solve progress
   onlineSolveProgress: OnlineSolveProgress | null;
   
+  // Solve history
+  solveHistory: SolveHistoryEntry[];
+  
   // Actions
   detectSolvers: () => Promise<void>;
   setConfig: (config: Partial<SolverConfig>) => void;
@@ -89,6 +94,8 @@ export interface PlateSolverState {
   analyseImage: (imagePath: string, snrMinimum?: number) => Promise<void>;
   setOnlineSolveProgress: (progress: OnlineSolveProgress | null) => void;
   clearImageAnalysis: () => void;
+  addToHistory: (entry: Omit<SolveHistoryEntry, 'id' | 'timestamp'>) => void;
+  clearHistory: () => void;
   reset: () => void;
 }
 
@@ -115,6 +122,7 @@ const initialState = {
   imageAnalysis: null as ImageAnalysisResult | null,
   isAnalysingImage: false,
   onlineSolveProgress: null as OnlineSolveProgress | null,
+  solveHistory: [] as SolveHistoryEntry[],
 };
 
 // ============================================================================
@@ -254,6 +262,22 @@ export const usePlateSolverStore = create<PlateSolverState>()(
         set({ imageAnalysis: null });
       },
 
+      addToHistory: (entry) => {
+        set((state) => {
+          const newEntry: SolveHistoryEntry = {
+            ...entry,
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            timestamp: Date.now(),
+          };
+          const history = [newEntry, ...state.solveHistory].slice(0, MAX_HISTORY_ENTRIES);
+          return { solveHistory: history };
+        });
+      },
+
+      clearHistory: () => {
+        set({ solveHistory: [] });
+      },
+
       reset: () => {
         set({
           solveStatus: 'idle',
@@ -269,6 +293,8 @@ export const usePlateSolverStore = create<PlateSolverState>()(
       name: 'plate-solver-storage',
       partialize: (state) => ({
         config: state.config,
+        onlineApiKey: state.onlineApiKey,
+        solveHistory: state.solveHistory,
       }),
     }
   )

@@ -49,11 +49,13 @@ import {
 import { toast } from 'sonner';
 import { useEquipment, tauriApi } from '@/lib/tauri';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
+import { createLogger } from '@/lib/logger';
 import type { EquipmentManagerProps } from '@/types/starmap/management';
-
 import { EquipmentListItem } from './equipment-list-item';
 import { TelescopeTab } from './equipment-telescope-tab';
 import { CameraTab } from './equipment-camera-tab';
+
+const logger = createLogger('equipment-manager');
 
 export function EquipmentManager({ trigger }: EquipmentManagerProps) {
   const t = useTranslations();
@@ -69,6 +71,8 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
       setAddingBarlow(false);
       setAddingFilter(false);
       setDeleteTarget(null);
+      setBarlowForm({ name: '', factor: '' });
+      setFilterForm({ name: '', filter_type: 'luminance', bandwidth: '' });
     }
   }, []);
   
@@ -99,6 +103,13 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
         removeCustomTelescope(id);
       } else if (type === 'camera') {
         removeCustomCamera(id);
+      } else {
+        // barlow/filter types are only available in Tauri mode;
+        // this branch should not be reachable but guard against it
+        logger.warn(`Cannot delete ${type} in web mode`);
+        toast.error(t('equipment.deleteNotSupported') || 'This equipment type cannot be deleted in web mode');
+        setDeleteTarget(null);
+        return;
       }
       toast.success(t('equipment.deleted') || 'Equipment deleted');
     } catch (e) {

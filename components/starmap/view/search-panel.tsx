@@ -22,8 +22,10 @@ export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps
 
     return (
       <Card className={cn(
-        "absolute top-14 sm:top-16 left-2 sm:left-3 w-[calc(100vw-16px)] sm:w-96 md:w-[420px] sm:max-w-[calc(100vw-24px)] bg-card/95 backdrop-blur-sm border-border z-50 shadow-xl",
-        isOpen ? "animate-scale-in" : "hidden"
+        "absolute top-14 sm:top-16 left-2 sm:left-3 w-[calc(100vw-16px)] sm:w-96 md:w-[420px] sm:max-w-[calc(100vw-24px)] bg-card/95 backdrop-blur-sm border-border z-50 shadow-xl transition-all duration-200",
+        isOpen
+          ? "animate-scale-in opacity-100 scale-100"
+          : "opacity-0 scale-95 pointer-events-none"
       )}>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-lg text-foreground">{t('starmap.searchObjects')}</CardTitle>

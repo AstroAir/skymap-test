@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   CheckCircle,
@@ -8,6 +9,8 @@ import {
   RotateCw,
   Ruler,
   Eye,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,6 +26,19 @@ export type { SolveResultCardProps } from '@/types/starmap/plate-solving';
 
 export function SolveResultCard({ result, onGoTo }: SolveResultCardProps) {
   const t = useTranslations();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyCoordinates = useCallback(async () => {
+    if (!result.success || !result.coordinates) return;
+    const text = `RA: ${result.coordinates.raHMS}  Dec: ${result.coordinates.decDMS}  PA: ${result.positionAngle.toFixed(2)}°  Scale: ${result.pixelScale.toFixed(2)}"/px  FOV: ${result.fov.width.toFixed(2)}° × ${result.fov.height.toFixed(2)}°`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API not available
+    }
+  }, [result]);
 
   return (
     <Card className={result.success ? 'border-green-500/20 bg-green-500/5' : 'border-red-500/20 bg-red-500/5'}>
@@ -64,12 +80,31 @@ export function SolveResultCard({ result, onGoTo }: SolveResultCardProps) {
               <span>{t('plateSolving.fov') || 'FOV'}: {result.fov.width.toFixed(2)}° × {result.fov.height.toFixed(2)}°</span>
             </div>
 
-            {onGoTo && (
-              <Button onClick={onGoTo} className="w-full mt-3">
-                <MapPin className="h-4 w-4 mr-2" />
-                {t('plateSolving.goToPosition') || 'Go to Position'}
+            <div className="flex gap-2 mt-3">
+              {onGoTo && (
+                <Button onClick={onGoTo} className="flex-1">
+                  <MapPin className="h-4 w-4 mr-2" />
+                  {t('plateSolving.goToPosition') || 'Go to Position'}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size={onGoTo ? 'icon' : 'default'}
+                className={onGoTo ? '' : 'flex-1'}
+                onClick={handleCopyCoordinates}
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+                {!onGoTo && (
+                  <span className="ml-2">
+                    {copied ? (t('common.copied') || 'Copied!') : (t('common.copy') || 'Copy')}
+                  </span>
+                )}
               </Button>
-            )}
+            </div>
           </div>
         )}
 

@@ -384,6 +384,7 @@ export function EventSourcesSettings() {
 
       {/* Edit Dialog */}
       <EditSourceDialog
+        key={editingSource?.id ?? 'none'}
         source={editingSource}
         open={editingSource !== null}
         onOpenChange={(isOpen) => {

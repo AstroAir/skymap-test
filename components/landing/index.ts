@@ -10,3 +10,4 @@ export { TestimonialsSection } from './testimonials-section';
 export { CTASection } from './cta-section';
 export { Footer } from './footer';
 export { SectionHeader } from './section-header';
+export { SectionSkeleton } from './section-skeleton';

@@ -2,6 +2,11 @@
 
 import { Check, Star, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { LucideIcon } from 'lucide-react';
 
 export interface EquipmentListItemProps {
@@ -47,23 +52,33 @@ export function EquipmentListItem({
       </div>
       <div className="flex items-center gap-0.5">
         {onEdit && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={editLabel}
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={editLabel}
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{editLabel}</TooltipContent>
+          </Tooltip>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={deleteLabel}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={deleteLabel}
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{deleteLabel}</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

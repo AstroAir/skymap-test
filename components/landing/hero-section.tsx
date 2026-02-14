@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { StarField } from './star-field';
-import { Rocket, BookOpen, ChevronDown, Sparkles, Monitor } from 'lucide-react';
+import { Rocket, BookOpen, ChevronDown, Sparkles, Monitor, Apple, Terminal } from 'lucide-react';
 
 function PlatformIcon({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -114,10 +114,10 @@ export function HeroSection() {
             <Monitor className="h-4 w-4" />
           </PlatformIcon>
           <PlatformIcon label="macOS">
-            <Monitor className="h-4 w-4" />
+            <Apple className="h-4 w-4" />
           </PlatformIcon>
           <PlatformIcon label="Linux">
-            <Monitor className="h-4 w-4" />
+            <Terminal className="h-4 w-4" />
           </PlatformIcon>
         </div>
         <p className="mt-3 text-xs text-muted-foreground/40 animate-fade-in" style={{ animationDelay: '0.9s' }}>

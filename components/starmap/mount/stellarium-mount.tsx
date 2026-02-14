@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import { useMountOverlay } from '@/lib/hooks/use-mount-overlay';
+import { useMountPolling } from '@/lib/hooks/use-mount-polling';
 import {
   Telescope,
   RefreshCw,
@@ -15,6 +16,7 @@ import {
   ParkingSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -29,6 +31,13 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import type { TrackingRate } from '@/lib/tauri/mount-api';
 
 import { MountConnectionDialog } from './mount-connection-dialog';
 import { MountDirectionPad } from './mount-direction-pad';
@@ -42,6 +51,9 @@ const logger = createLogger('stellarium-mount');
 
 function MountPanel({ compact }: StellariumMountProps) {
   const t = useTranslations('mount');
+  // Poll mount state at ~1.5s interval while connected
+  useMountPolling();
+
   const {
     connected,
     raDegree,
@@ -64,34 +76,53 @@ function MountPanel({ compact }: StellariumMountProps) {
 
   const handleToggleTracking = useCallback(async () => {
     if (!isTauri()) return;
+    const isTracking = useMountStore.getState().mountInfo.Tracking;
     try {
-      await mountApi.setTracking(!tracking);
+      await mountApi.setTracking(!isTracking);
     } catch (e) {
-      logger.error('Toggle tracking failed', { error: e });
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('Toggle tracking failed', { error: msg });
+      toast.error(t('operationFailed'), { description: msg });
     }
-  }, [tracking]);
+  }, [t]);
 
   const handlePark = useCallback(async () => {
     if (!isTauri()) return;
+    const isParked = useMountStore.getState().mountInfo.Parked;
     try {
-      if (parked) {
+      if (isParked) {
         await mountApi.unpark();
       } else {
         await mountApi.park();
       }
     } catch (e) {
-      logger.error('Park/Unpark failed', { error: e });
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('Park/Unpark failed', { error: msg });
+      toast.error(t('operationFailed'), { description: msg });
     }
-  }, [parked]);
+  }, [t]);
 
   const handleAbort = useCallback(async () => {
     if (!isTauri()) return;
     try {
       await mountApi.abortSlew();
     } catch (e) {
-      logger.error('Abort slew failed', { error: e });
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('Abort slew failed', { error: msg });
+      toast.error(t('operationFailed'), { description: msg });
     }
-  }, []);
+  }, [t]);
+
+  const handleTrackingRate = useCallback(async (rate: TrackingRate) => {
+    if (!isTauri()) return;
+    try {
+      await mountApi.setTrackingRate(rate);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('Set tracking rate failed', { error: msg });
+      toast.error(t('operationFailed'), { description: msg });
+    }
+  }, [t]);
 
   // ----- Disconnected state -----
   if (!connected) {
@@ -154,9 +185,24 @@ function MountPanel({ compact }: StellariumMountProps) {
       {/* Status badges */}
       <div className="flex flex-wrap items-center justify-center gap-0.5">
         {tracking && (
-          <Badge variant="outline" className="text-[8px] px-1 py-0 h-4 text-green-400 border-green-400/30">
-            {trackMode === 'sidereal' ? '☆' : trackMode === 'lunar' ? '☽' : trackMode === 'solar' ? '☀' : '⏸'} {t(`rate.${trackMode ?? 'sidereal'}`)}
-          </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Badge variant="outline" className="text-[8px] px-1 py-0 h-4 text-green-400 border-green-400/30 cursor-pointer hover:bg-green-400/10">
+                {trackMode === 'sidereal' ? '☆' : trackMode === 'lunar' ? '☽' : trackMode === 'solar' ? '☀' : '⏸'} {t(`rate.${trackMode ?? 'sidereal'}`)}
+              </Badge>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="min-w-[100px]">
+              {(['sidereal', 'lunar', 'solar'] as const).map((rate) => (
+                <DropdownMenuItem
+                  key={rate}
+                  className={cn('text-xs', trackMode === rate && 'font-bold')}
+                  onClick={() => handleTrackingRate(rate)}
+                >
+                  {rate === 'sidereal' ? '☆' : rate === 'lunar' ? '☽' : '☀'} {t(`rate.${rate}`)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         {slewing && (
           <Badge variant="outline" className="text-[8px] px-1 py-0 h-4 text-blue-400 border-blue-400/30 animate-pulse">

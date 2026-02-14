@@ -25,6 +25,7 @@ export interface AppPreferences {
   distanceUnit: DistanceUnit;
   temperatureUnit: TemperatureUnit;
   skipCloseConfirmation: boolean;
+  rightPanelCollapsed: boolean;
   startupView: StartupView;
   showSplash: boolean;
   autoConnectBackend: boolean;
@@ -135,6 +136,7 @@ const DEFAULT_PREFERENCES: AppPreferences = {
   distanceUnit: 'metric',
   temperatureUnit: 'celsius',
   skipCloseConfirmation: false,
+  rightPanelCollapsed: false,
   startupView: 'last',
   showSplash: true,
   autoConnectBackend: true,

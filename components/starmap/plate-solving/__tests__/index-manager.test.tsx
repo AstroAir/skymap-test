@@ -6,36 +6,11 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { IndexManager } from '../index-manager';
 import { usePlateSolverStore } from '@/lib/stores/plate-solver-store';
-import { NextIntlClientProvider } from 'next-intl';
 
-// Mock next-intl messages
-const messages = {
-  plateSolving: {
-    manageIndexes: 'Manage Indexes',
-    indexManager: 'Index Manager',
-    indexManagerDesc: 'Manage star database index files',
-    installed: 'Installed',
-    available: 'Available',
-    noIndexesInstalled: 'No index files installed',
-    downloadIndexes: 'Download Indexes',
-    totalSize: 'Total size',
-    files: 'files',
-    astapIndexHint: 'ASTAP uses star databases. D50 is recommended.',
-    astrometryIndexHint: 'Download indexes matching your image scale.',
-    astapWebsite: 'ASTAP Website',
-    astrometryIndexes: 'Astrometry.net Index Files',
-    deleteIndex: 'Delete Index',
-    deleteIndexConfirm: 'Are you sure you want to delete this index?',
-    recommended: 'Recommended',
-    complete: 'Complete',
-    error: 'Error',
-  },
-  common: {
-    cancel: 'Cancel',
-    delete: 'Delete',
-    download: 'Download',
-  },
-};
+// Mock next-intl — return key as text
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
 
 // Mock Tauri API
 jest.mock('@tauri-apps/api/core', () => ({
@@ -92,14 +67,81 @@ const mockGetAvailableIndexes = jest.requireMock('@/lib/tauri/plate-solver-api')
 const mockGetInstalledIndexes = jest.requireMock('@/lib/tauri/plate-solver-api').getInstalledIndexes;
 const _mockDeleteIndex = jest.requireMock('@/lib/tauri/plate-solver-api').deleteIndex;
 
-const renderWithProviders = (ui: React.ReactElement) => {
-  return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      {ui}
-    </NextIntlClientProvider>
-  );
-};
+// Mock Tauri event listener and path
+jest.mock('@tauri-apps/api/event', () => ({
+  listen: jest.fn(() => Promise.resolve(jest.fn())),
+}));
 
+jest.mock('@tauri-apps/api/path', () => ({
+  join: jest.fn((...args: string[]) => args.join('/')),
+}));
+
+// Mock isTauri
+jest.mock('@/lib/tauri/app-control-api', () => ({
+  isTauri: jest.fn(() => false),
+}));
+
+// Mock Dialog — simulate open/close behavior so useEffect(open) fires
+let dialogOnOpenChange: ((open: boolean) => void) | undefined;
+
+jest.mock('@/components/ui/dialog', () => ({
+  Dialog: ({ children, onOpenChange }: { children: React.ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) => {
+    dialogOnOpenChange = onOpenChange;
+    return <div data-testid="dialog">{children}</div>;
+  },
+  DialogContent: ({ children }: { children: React.ReactNode; className?: string }) => <div data-testid="dialog-content">{children}</div>,
+  DialogHeader: ({ children }: { children: React.ReactNode; className?: string }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode; className?: string; id?: string }) => <h2>{children}</h2>,
+  DialogTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => (
+    <div data-testid="dialog-trigger" onClick={() => dialogOnOpenChange?.(true)}>{children}</div>
+  ),
+  DialogDescription: ({ children }: { children: React.ReactNode; className?: string }) => <p>{children}</p>,
+}));
+
+// Mock AlertDialog
+jest.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => <div>{children}</div>,
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h3>{children}</h3>,
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogCancel: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  AlertDialogAction: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <button onClick={onClick}>{children}</button>,
+}));
+
+// Track active tab for mock Tabs
+let activeTab = 'installed';
+let tabsOnValueChange: ((v: string) => void) | undefined;
+
+jest.mock('@/components/ui/tabs', () => ({
+  Tabs: ({ children, value, onValueChange, defaultValue }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void; defaultValue?: string; className?: string }) => {
+    activeTab = value ?? defaultValue ?? 'installed';
+    tabsOnValueChange = onValueChange;
+    return <div data-testid="tabs">{children}</div>;
+  },
+  TabsList: ({ children }: { children: React.ReactNode; className?: string }) => <div data-testid="tabs-list" role="tablist">{children}</div>,
+  TabsTrigger: ({ children, value }: { children: React.ReactNode; value: string }) => (
+    <button role="tab" data-testid={`tab-${value}`} onClick={() => tabsOnValueChange?.(value)}>{children}</button>
+  ),
+  TabsContent: ({ children, value }: { children: React.ReactNode; value: string; className?: string }) => (
+    activeTab === value ? <div data-testid={`tab-content-${value}`}>{children}</div> : null
+  ),
+}));
+
+// Mock ScrollArea (just renders children)
+jest.mock('@/components/ui/scroll-area', () => ({
+  ScrollArea: ({ children }: { children: React.ReactNode; className?: string }) => <div>{children}</div>,
+}));
+
+// Mock Tooltip (just renders children)
+jest.mock('@/components/ui/tooltip', () => ({
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => <>{children}</>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
 
 describe('IndexManager', () => {
   beforeEach(() => {
@@ -144,7 +186,9 @@ describe('IndexManager', () => {
       },
     });
 
-    // Setup default mocks
+    jest.clearAllMocks();
+
+    // Setup default mocks (after clearAllMocks so they persist)
     mockGetInstalledIndexes.mockResolvedValue([]);
     mockGetAvailableIndexes.mockResolvedValue([
       {
@@ -157,8 +201,10 @@ describe('IndexManager', () => {
         solver_type: 'astap',
       },
     ]);
+  });
 
-    jest.clearAllMocks();
+  beforeEach(() => {
+    activeTab = 'installed';
   });
 
   it('should not render for online solver', () => {
@@ -170,50 +216,35 @@ describe('IndexManager', () => {
       },
     });
 
-    const { container } = renderWithProviders(<IndexManager />);
+    const { container } = render(<IndexManager />);
     expect(container.firstChild).toBeNull();
   });
 
   it('should render trigger button', () => {
-    renderWithProviders(<IndexManager />);
-    expect(screen.getByRole('button')).toBeInTheDocument();
+    render(<IndexManager />);
+    expect(screen.getByText('plateSolving.manageIndexes')).toBeInTheDocument();
   });
 
   it('should render custom trigger', () => {
-    renderWithProviders(
+    render(
       <IndexManager trigger={<button>Custom Trigger</button>} />
     );
     expect(screen.getByText('Custom Trigger')).toBeInTheDocument();
   });
 
-  it('should open dialog when trigger clicked', async () => {
-    renderWithProviders(<IndexManager />);
+  it('should show installed and available tabs', () => {
+    render(<IndexManager />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
-
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-  });
-
-  it('should show installed and available tabs', async () => {
-    renderWithProviders(<IndexManager />);
-
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
-
-    await waitFor(() => {
-      const tabs = screen.getAllByRole('tab');
-      expect(tabs.length).toBeGreaterThanOrEqual(2);
-    });
+    expect(screen.getByTestId('tab-installed')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-available')).toBeInTheDocument();
   });
 
   it('should load indexes when dialog opens', async () => {
-    renderWithProviders(<IndexManager />);
+    render(<IndexManager />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    // Click trigger to open dialog and fire loadIndexes
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
       expect(mockGetInstalledIndexes).toHaveBeenCalledWith('astap', undefined);
@@ -222,21 +253,19 @@ describe('IndexManager', () => {
   });
 
   it('should show empty state when no indexes installed', async () => {
-    mockGetInstalledIndexes.mockResolvedValueOnce([]);
 
-    renderWithProviders(<IndexManager />);
+    render(<IndexManager />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
-      // Look for empty state indicator
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('plateSolving.noIndexesInstalled')).toBeInTheDocument();
     });
   });
 
   it('should display installed indexes', async () => {
-    mockGetInstalledIndexes.mockResolvedValueOnce([
+    mockGetInstalledIndexes.mockResolvedValue([
       {
         name: 'D50',
         file_name: 'D50',
@@ -247,10 +276,10 @@ describe('IndexManager', () => {
       },
     ]);
 
-    renderWithProviders(<IndexManager />);
+    render(<IndexManager />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
       expect(screen.getByText('D50')).toBeInTheDocument();
@@ -258,69 +287,63 @@ describe('IndexManager', () => {
   });
 
   it('should show available indexes in available tab', async () => {
-    renderWithProviders(<IndexManager />);
+    render(<IndexManager />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
-      const tabs = screen.getAllByRole('tab');
-      expect(tabs.length).toBeGreaterThanOrEqual(2);
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
     });
 
-    const tabs = screen.getAllByRole('tab');
-    fireEvent.click(tabs[1]); // Available tab
+    // Switch to available tab
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
 
     await waitFor(() => {
       expect(screen.getByText('D50')).toBeInTheDocument();
     });
   });
 
-  it('should show download link for available indexes', async () => {
-    renderWithProviders(<IndexManager />);
+  it('should show ASTAP hint in available tab', async () => {
+    render(<IndexManager solverType="astap" />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
-      const tabs = screen.getAllByRole('tab');
-      expect(tabs.length).toBeGreaterThanOrEqual(2);
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
     });
 
-    const tabs = screen.getAllByRole('tab');
-    fireEvent.click(tabs[1]);
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
 
     await waitFor(() => {
-      const links = screen.getAllByRole('link');
-      const downloadLink = links.find(link => link.getAttribute('href')?.includes('example.com'));
-      expect(downloadLink).toBeDefined();
+      expect(screen.getByText('plateSolving.astapIndexHint')).toBeInTheDocument();
     });
   });
 
-  it('should show delete confirmation dialog', async () => {
-    mockGetInstalledIndexes.mockResolvedValueOnce([
-      {
-        name: 'D50',
-        file_name: 'D50',
-        path: '/path/to/D50',
-        size_bytes: 500 * 1024 * 1024,
-        scale_range: null,
-        description: null,
-      },
-    ]);
+  it('should show external link to ASTAP website in available tab', async () => {
+    render(<IndexManager solverType="astap" />);
 
-    renderWithProviders(<IndexManager />);
-
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
-      expect(screen.getByText('D50')).toBeInTheDocument();
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
+    });
+
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
+
+    await waitFor(() => {
+      const link = screen.getByRole('link');
+      expect(link).toHaveAttribute('href', 'https://www.hnsky.org/astap.htm');
     });
   });
 
   it('should show total size for installed indexes', async () => {
-    mockGetInstalledIndexes.mockResolvedValueOnce([
+    mockGetInstalledIndexes.mockResolvedValue([
       {
         name: 'D50',
         file_name: 'D50',
@@ -339,10 +362,10 @@ describe('IndexManager', () => {
       },
     ]);
 
-    renderWithProviders(<IndexManager />);
+    render(<IndexManager />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
       expect(screen.getByText('D50')).toBeInTheDocument();
@@ -350,51 +373,11 @@ describe('IndexManager', () => {
     });
   });
 
-  it('should show hint for ASTAP indexes', async () => {
-    renderWithProviders(<IndexManager solverType="astap" />);
-
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
-
-    await waitFor(() => {
-      const tabs = screen.getAllByRole('tab');
-      expect(tabs.length).toBeGreaterThanOrEqual(2);
-    });
-
-    const tabs = screen.getAllByRole('tab');
-    fireEvent.click(tabs[1]);
-
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-  });
-
-  it('should show external link to ASTAP website', async () => {
-    renderWithProviders(<IndexManager solverType="astap" />);
-
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
-
-    await waitFor(() => {
-      const tabs = screen.getAllByRole('tab');
-      expect(tabs.length).toBeGreaterThanOrEqual(2);
-    });
-
-    const tabs = screen.getAllByRole('tab');
-    fireEvent.click(tabs[1]);
-
-    await waitFor(() => {
-      const links = screen.getAllByRole('link');
-      const astapLink = links.find(link => link.getAttribute('href')?.includes('hnsky.org'));
-      expect(astapLink).toBeDefined();
-    });
-  });
-
   it('should use provided solverType prop', async () => {
-    renderWithProviders(<IndexManager solverType="astrometry_net" />);
+    render(<IndexManager solverType="astrometry_net" />);
 
-    const triggerButton = screen.getByRole('button');
-    fireEvent.click(triggerButton);
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
 
     await waitFor(() => {
       expect(mockGetInstalledIndexes).toHaveBeenCalledWith('astrometry_net', undefined);

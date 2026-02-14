@@ -274,6 +274,13 @@ export async function validateSolverPath(
 }
 
 /**
+ * Cancel an active local plate solve operation
+ */
+export async function cancelPlateSolve(): Promise<void> {
+  return invoke<void>('cancel_plate_solve');
+}
+
+/**
  * Solve an image using a local solver
  */
 export async function solveImageLocal(
@@ -579,6 +586,7 @@ export const plateSolverApi = {
   detectPlateSolvers,
   getSolverInfo,
   validateSolverPath,
+  cancelPlateSolve,
   solveImageLocal,
   getAvailableIndexes,
   getInstalledIndexes,

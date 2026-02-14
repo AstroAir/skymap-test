@@ -9,10 +9,67 @@ jest.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+// Mock platform detection
+jest.mock('@/lib/storage/platform', () => ({
+  isMobile: jest.fn(() => false),
+}));
+
+// Mock useCamera hook
+const mockStart = jest.fn();
+const mockStop = jest.fn();
+const mockSwitchCamera = jest.fn();
+const mockCapture = jest.fn();
+const mockToggleTorch = jest.fn();
+const mockSetZoom = jest.fn();
+const mockEnumerateDevices = jest.fn();
+const mockSetFacingMode = jest.fn();
+
+const defaultCameraState = {
+  stream: null as MediaStream | null,
+  isLoading: false,
+  error: null as string | null,
+  errorType: null as string | null,
+  facingMode: 'environment' as const,
+  devices: [] as Array<{ deviceId: string; label: string; groupId: string }>,
+  capabilities: {} as Record<string, unknown>,
+  isSupported: true,
+  hasMultipleCameras: false,
+  zoomLevel: 1,
+  torchOn: false,
+  start: mockStart,
+  stop: mockStop,
+  switchCamera: mockSwitchCamera,
+  setFacingMode: mockSetFacingMode,
+  capture: mockCapture,
+  setZoom: mockSetZoom,
+  toggleTorch: mockToggleTorch,
+  enumerateDevices: mockEnumerateDevices,
+};
+
+let cameraState = { ...defaultCameraState };
+
+jest.mock('@/lib/hooks/use-camera', () => ({
+  useCamera: () => cameraState,
+}));
+
 // Mock UI components
 jest.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, disabled, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => (
     <button onClick={onClick} disabled={disabled} {...props}>{children}</button>
+  ),
+}));
+
+// Store the onValueChange callback so tests can trigger tab switches
+let tabsOnValueChange: ((v: string) => void) | undefined;
+
+jest.mock('@/components/ui/tabs', () => ({
+  Tabs: ({ children, value, onValueChange }: { children: React.ReactNode; value: string; onValueChange?: (v: string) => void; className?: string }) => {
+    tabsOnValueChange = onValueChange;
+    return <div data-testid="tabs" data-value={value}>{children}</div>;
+  },
+  TabsList: ({ children }: { children: React.ReactNode; className?: string }) => <div data-testid="tabs-list">{children}</div>,
+  TabsTrigger: ({ children, value, disabled }: { children: React.ReactNode; value: string; disabled?: boolean }) => (
+    <button data-testid={`tab-${value}`} disabled={disabled} onClick={() => tabsOnValueChange?.(value)}>{children}</button>
   ),
 }));
 
@@ -122,15 +179,6 @@ Object.defineProperty(MockImage.prototype, 'src', {
 
 global.Image = MockImage as unknown as typeof Image;
 
-// Mock navigator.mediaDevices
-const mockGetUserMedia = jest.fn();
-Object.defineProperty(global.navigator, 'mediaDevices', {
-  value: {
-    getUserMedia: mockGetUserMedia,
-  },
-  writable: true,
-});
-
 import { ImageCapture } from '../image-capture';
 
 describe('ImageCapture', () => {
@@ -142,7 +190,7 @@ describe('ImageCapture', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetUserMedia.mockReset();
+    cameraState = { ...defaultCameraState };
   });
 
   describe('Rendering', () => {
@@ -268,52 +316,120 @@ describe('ImageCapture', () => {
   });
 
   describe('Camera Mode', () => {
-    it('switches to camera mode when button clicked', async () => {
-      const mockStream = {
-        getTracks: () => [{ stop: jest.fn() }],
+    it('calls camera.start when switching to camera mode', () => {
+      render(<ImageCapture {...defaultProps} />);
+      
+      const cameraTab = screen.getByTestId('tab-camera');
+      fireEvent.click(cameraTab);
+      
+      expect(mockStart).toHaveBeenCalled();
+    });
+
+    it('shows error message when camera has permission error', () => {
+      cameraState = {
+        ...defaultCameraState,
+        error: 'Camera access denied',
+        errorType: 'permission-denied',
       };
-      mockGetUserMedia.mockResolvedValue(mockStream);
       
       render(<ImageCapture {...defaultProps} />);
       
-      const cameraButton = screen.getByText('plateSolving.useCamera');
-      fireEvent.click(cameraButton);
+      const cameraTab = screen.getByTestId('tab-camera');
+      fireEvent.click(cameraTab);
       
-      await waitFor(() => {
-        expect(mockGetUserMedia).toHaveBeenCalledWith({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-        });
-      });
+      expect(screen.getByText('plateSolving.permissionDenied')).toBeInTheDocument();
     });
 
-    it('shows error when camera access fails', async () => {
-      mockGetUserMedia.mockRejectedValue(new Error('Camera access denied'));
+    it('shows retry button on permission-denied error', () => {
+      cameraState = {
+        ...defaultCameraState,
+        error: 'Permission denied',
+        errorType: 'permission-denied',
+      };
       
       render(<ImageCapture {...defaultProps} />);
       
-      const cameraButton = screen.getByText('plateSolving.useCamera');
-      fireEvent.click(cameraButton);
+      const cameraTab = screen.getByTestId('tab-camera');
+      fireEvent.click(cameraTab);
       
-      await waitFor(() => {
-        expect(screen.getByText('Camera access denied')).toBeInTheDocument();
-      });
+      expect(screen.getByText('common.retry')).toBeInTheDocument();
     });
 
-    it('shows retry button on camera error', async () => {
-      mockGetUserMedia.mockRejectedValue(new Error('Camera error'));
+    it('shows upload fallback when no camera found', () => {
+      cameraState = {
+        ...defaultCameraState,
+        error: 'No camera',
+        errorType: 'not-found',
+      };
       
       render(<ImageCapture {...defaultProps} />);
       
-      const cameraButton = screen.getByText('plateSolving.useCamera');
-      fireEvent.click(cameraButton);
+      const cameraTab = screen.getByTestId('tab-camera');
+      fireEvent.click(cameraTab);
       
-      await waitFor(() => {
-        expect(screen.getByText('common.retry')).toBeInTheDocument();
-      });
+      // Should show upload button as fallback instead of retry
+      const uploadButtons = screen.getAllByText('plateSolving.uploadFile');
+      expect(uploadButtons.length).toBeGreaterThan(0);
+    });
+
+    it('shows switch camera button when multiple cameras available', () => {
+      const mockStream = { getTracks: () => [{ stop: jest.fn() }] } as unknown as MediaStream;
+      cameraState = {
+        ...defaultCameraState,
+        stream: mockStream,
+        hasMultipleCameras: true,
+        devices: [
+          { deviceId: 'cam1', label: 'Front', groupId: 'g1' },
+          { deviceId: 'cam2', label: 'Back', groupId: 'g2' },
+        ],
+      };
+      
+      render(<ImageCapture {...defaultProps} />);
+      
+      const cameraTab = screen.getByTestId('tab-camera');
+      fireEvent.click(cameraTab);
+      
+      const switchBtn = screen.getByRole('button', { name: 'plateSolving.switchCamera' });
+      expect(switchBtn).toBeInTheDocument();
+      
+      fireEvent.click(switchBtn);
+      expect(mockSwitchCamera).toHaveBeenCalled();
+    });
+
+    it('shows torch button when torch capability available', () => {
+      const mockStream = { getTracks: () => [{ stop: jest.fn() }] } as unknown as MediaStream;
+      cameraState = {
+        ...defaultCameraState,
+        stream: mockStream,
+        capabilities: { torch: true },
+      };
+      
+      render(<ImageCapture {...defaultProps} />);
+      
+      const cameraTab = screen.getByTestId('tab-camera');
+      fireEvent.click(cameraTab);
+      
+      const torchBtn = screen.getByRole('button', { name: 'plateSolving.torch' });
+      expect(torchBtn).toBeInTheDocument();
+      
+      fireEvent.click(torchBtn);
+      expect(mockToggleTorch).toHaveBeenCalled();
+    });
+
+    it('calls camera.stop when switching back to upload', () => {
+      render(<ImageCapture {...defaultProps} />);
+      
+      // Switch to camera
+      const cameraTab = screen.getByTestId('tab-camera');
+      fireEvent.click(cameraTab);
+      
+      mockStop.mockClear();
+      
+      // Switch back to upload
+      const uploadTab = screen.getByTestId('tab-upload');
+      fireEvent.click(uploadTab);
+      
+      expect(mockStop).toHaveBeenCalled();
     });
   });
 

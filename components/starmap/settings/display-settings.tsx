@@ -10,7 +10,6 @@ import {
   Moon,
   Smartphone,
   Database,
-  AlertCircle,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -26,7 +25,6 @@ import { useSatelliteStore, useSettingsStore } from '@/lib/stores';
 import type { SkyCultureLanguage } from '@/lib/core/types';
 import { StellariumSurveySelector } from './stellarium-survey-selector';
 import { ObjectInfoSourcesConfig } from '../objects/object-info-sources-config';
-import { OnboardingRestartButton } from '../onboarding/welcome-dialog';
 import { SettingsSection, ToggleItem } from './settings-shared';
 import { DISPLAY_SETTINGS, GRID_SETTINGS } from './settings-constants';
 
@@ -201,25 +199,6 @@ export function DisplaySettings() {
         <ObjectInfoSourcesConfig />
       </SettingsSection>
 
-      <Separator />
-
-      <SettingsSection
-        title={t('settings.help')}
-        icon={<AlertCircle className="h-4 w-4" />}
-        defaultOpen={false}
-      >
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-sm">{t('onboarding.restartTour')}</Label>
-              <p className="text-xs text-muted-foreground">
-                {t('settings.restartTourDescription')}
-              </p>
-            </div>
-            <OnboardingRestartButton />
-          </div>
-        </div>
-      </SettingsSection>
     </div>
   );
 }

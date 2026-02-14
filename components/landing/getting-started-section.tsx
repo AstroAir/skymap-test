@@ -5,6 +5,7 @@ import { useInView } from '@/lib/hooks/use-in-view';
 import { Rocket, MapPin, Telescope } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getScrollAnimationProps } from '@/lib/utils/scroll-animation';
 import { SectionHeader } from './section-header';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -42,9 +43,9 @@ export function GettingStartedSection() {
                   key={step.key}
                   className={cn(
                     'flex flex-col items-center text-center gap-4 relative',
-                    isInView ? 'opacity-0 animate-fade-in' : 'opacity-0'
+                    getScrollAnimationProps(isInView, index, 0.2).className
                   )}
-                  style={isInView ? { animationDelay: `${index * 0.2}s`, animationFillMode: 'forwards' } : undefined}
+                  style={getScrollAnimationProps(isInView, index, 0.2).style}
                 >
                   {/* Step number + icon */}
                   <div className="relative">

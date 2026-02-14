@@ -53,16 +53,14 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
   const t = useTranslations();
   const profileInfo = useMountStore((state) => state.profileInfo);
   const stel = useStellariumStore((state) => state.stel);
-  const [currentTime, setCurrentTime] = useState<string>('');
-  const [lst, setLst] = useState<string>('');
+  const [timeInfo, setTimeInfo] = useState<{ currentTime: string; lst: string }>({ currentTime: '', lst: '' });
 
   useEffect(() => {
     const updateTime = () => {
-      // Current UTC time
       const now = new Date();
-      setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       
-      // Calculate LST if we have observer info
+      let lst = '';
       if (stel?.core?.observer) {
         try {
           const observer = stel.core.observer;
@@ -72,12 +70,13 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
             const h = Math.floor(lstHours);
             const m = Math.floor((lstHours - h) * 60);
             const s = Math.floor(((lstHours - h) * 60 - m) * 60);
-            setLst(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+            lst = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
           }
         } catch {
           // Ignore LST calculation errors
         }
       }
+      setTimeInfo({ currentTime, lst });
     };
 
     updateTime();
@@ -93,13 +92,13 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
       <span className="hidden md:inline">
         {t('session.location')}: <span className="text-foreground font-mono">{lat.toFixed(2)}°, {lon.toFixed(2)}°</span>
       </span>
-      {lst && (
+      {timeInfo.lst && (
         <span className="hidden sm:inline">
-          {t('session.lst')}: <span className="text-foreground font-mono">{lst}</span>
+          {t('session.lst')}: <span className="text-foreground font-mono">{timeInfo.lst}</span>
         </span>
       )}
       <span>
-        <span className="text-foreground font-mono">{currentTime}</span>
+        <span className="text-foreground font-mono">{timeInfo.currentTime}</span>
       </span>
     </div>
   );

@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/tooltip';
 import { Star, Zap, Atom, Code, Palette, Monitor, Database, Component } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { getScrollAnimationProps } from '@/lib/utils/scroll-animation';
 import { useInView } from '@/lib/hooks/use-in-view';
 import { SectionHeader } from './section-header';
 import { TECHNOLOGIES, TECH_CATEGORY_COLORS } from '@/lib/constants/landing';
@@ -53,8 +55,12 @@ export function TechStack() {
                   <TooltipTrigger asChild>
                     <Badge
                       variant="outline"
-                      className={`px-4 py-2 text-sm font-medium cursor-default transition-colors ${isInView ? 'opacity-0 animate-fade-in' : 'opacity-0'} ${TECH_CATEGORY_COLORS[tech.category]}`}
-                      style={isInView ? { animationDelay: `${index * 0.05}s`, animationFillMode: 'forwards' } : undefined}
+                      className={cn(
+                        'px-4 py-2 text-sm font-medium cursor-default transition-colors',
+                        getScrollAnimationProps(isInView, index, 0.05).className,
+                        TECH_CATEGORY_COLORS[tech.category]
+                      )}
+                      style={getScrollAnimationProps(isInView, index, 0.05).style}
                     >
                       <Icon className="h-3.5 w-3.5 mr-1.5" />
                       {tech.name}

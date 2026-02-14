@@ -134,32 +134,8 @@ jest.mock('@/components/starmap/settings/connection-settings', () => ({
   ConnectionSettings: () => <div data-testid="connection-settings">ConnectionSettings</div>,
 }));
 
-jest.mock('@/components/starmap/settings/general-settings', () => ({
-  GeneralSettings: () => <div data-testid="general-settings">GeneralSettings</div>,
-}));
-
-jest.mock('@/components/starmap/settings/appearance-settings', () => ({
-  AppearanceSettings: () => <div data-testid="appearance-settings">AppearanceSettings</div>,
-}));
-
-jest.mock('@/components/starmap/settings/performance-settings', () => ({
-  PerformanceSettings: () => <div data-testid="performance-settings">PerformanceSettings</div>,
-}));
-
-jest.mock('@/components/starmap/settings/accessibility-settings', () => ({
-  AccessibilitySettings: () => <div data-testid="accessibility-settings">AccessibilitySettings</div>,
-}));
-
-jest.mock('@/components/starmap/settings/notification-settings', () => ({
-  NotificationSettings: () => <div data-testid="notification-settings">NotificationSettings</div>,
-}));
-
-jest.mock('@/components/starmap/settings/search-settings', () => ({
-  SearchBehaviorSettings: () => <div data-testid="search-settings">SearchBehaviorSettings</div>,
-}));
-
-jest.mock('@/components/starmap/settings/keyboard-settings', () => ({
-  KeyboardSettings: () => <div data-testid="keyboard-settings">KeyboardSettings</div>,
+jest.mock('@/components/starmap/settings/preferences-tab-content', () => ({
+  PreferencesTabContent: () => <div data-testid="preferences-tab-content">PreferencesTabContent</div>,
 }));
 
 jest.mock('@/components/starmap/settings/about-settings', () => ({
@@ -185,6 +161,14 @@ jest.mock('@/components/starmap/management/data-manager', () => ({
 
 jest.mock('@/components/starmap/onboarding/welcome-dialog', () => ({
   OnboardingRestartButton: () => <button data-testid="onboarding-restart-button">Restart Onboarding</button>,
+}));
+
+jest.mock('@/components/starmap/management/updater/update-settings', () => ({
+  UpdateSettings: () => <div data-testid="update-settings">UpdateSettings</div>,
+}));
+
+jest.mock('@/lib/tauri/app-control-api', () => ({
+  isTauri: () => false,
 }));
 
 import { UnifiedSettings } from '../unified-settings';
@@ -236,22 +220,16 @@ describe('UnifiedSettings Integration', () => {
       expect(screen.getByTestId('exposure-settings')).toBeInTheDocument();
     });
 
-    it('renders GeneralSettings, AppearanceSettings, PerformanceSettings, NotificationSettings, SearchBehaviorSettings, AccessibilitySettings, KeyboardSettings, EventSourcesSettings in preferences tab', () => {
+    it('renders PreferencesTabContent in preferences tab', () => {
       render(<UnifiedSettings />);
-      expect(screen.getByTestId('general-settings')).toBeInTheDocument();
-      expect(screen.getByTestId('appearance-settings')).toBeInTheDocument();
-      expect(screen.getByTestId('performance-settings')).toBeInTheDocument();
-      expect(screen.getByTestId('notification-settings')).toBeInTheDocument();
-      expect(screen.getByTestId('search-settings')).toBeInTheDocument();
-      expect(screen.getByTestId('accessibility-settings')).toBeInTheDocument();
-      expect(screen.getByTestId('keyboard-settings')).toBeInTheDocument();
-      expect(screen.getByTestId('event-sources-settings')).toBeInTheDocument();
+      expect(screen.getByTestId('preferences-tab-content')).toBeInTheDocument();
     });
 
     it('renders data management components in data tab', () => {
       render(<UnifiedSettings />);
       expect(screen.getByTestId('map-provider-settings')).toBeInTheDocument();
       expect(screen.getByTestId('map-health-monitor')).toBeInTheDocument();
+      expect(screen.getByTestId('event-sources-settings')).toBeInTheDocument();
       expect(screen.getByTestId('data-manager')).toBeInTheDocument();
       expect(screen.getByTestId('settings-export-import')).toBeInTheDocument();
       expect(screen.getByTestId('onboarding-restart-button')).toBeInTheDocument();
@@ -273,7 +251,7 @@ describe('UnifiedSettings Integration', () => {
     it('renders scroll areas for tab content', () => {
       render(<UnifiedSettings />);
       const scrollAreas = screen.getAllByTestId('scroll-area');
-      expect(scrollAreas.length).toBeGreaterThanOrEqual(5);
+      expect(scrollAreas.length).toBeGreaterThanOrEqual(4);
     });
 
     it('renders separators between sections', () => {
@@ -316,10 +294,11 @@ describe('UnifiedSettings Store Integration', () => {
     jest.clearAllMocks();
   });
 
-  it('should read settings and equipment stores', () => {
+  it('should render without store hook subscriptions for reset (uses getState)', () => {
     render(<UnifiedSettings />);
-    expect(mockUseSettingsStore).toHaveBeenCalled();
-    expect(mockUseEquipmentStore).toHaveBeenCalled();
+    // UnifiedSettings now uses getState() for reset instead of hook subscriptions
+    // so the mock store hooks may not be called directly
+    expect(screen.getByTestId('drawer')).toBeInTheDocument();
   });
 });
 

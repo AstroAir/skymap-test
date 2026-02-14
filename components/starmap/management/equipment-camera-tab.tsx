@@ -20,7 +20,7 @@ import { tauriApi } from '@/lib/tauri';
 import type { CameraType as TCamType } from '@/lib/tauri';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
 import { useShallow } from 'zustand/react/shallow';
-import { validateCameraForm } from '@/lib/core/management-validators';
+import { validateCameraForm, validateCameraFields, type FieldErrors } from '@/lib/core/management-validators';
 import { normalizeCameras } from '@/lib/core/equipment-normalize';
 import type { NormalizedCamera } from '@/types/starmap/management';
 import { EquipmentListItem } from './equipment-list-item';
@@ -45,6 +45,7 @@ export function CameraTab({ isTauriAvailable, rawCameras, onDeleteRequest, onRef
     resolution_y: '',
     camera_type: 'cmos' as TCamType,
   });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<'name' | 'sensor_width' | 'sensor_height'>>({});
 
   const {
     addCustomCamera,
@@ -64,6 +65,7 @@ export function CameraTab({ isTauriAvailable, rawCameras, onDeleteRequest, onRef
 
   const resetForm = () => {
     setForm({ name: '', sensor_width: '', sensor_height: '', pixel_size: '', resolution_x: '', resolution_y: '', camera_type: 'cmos' });
+    setFieldErrors({});
     setAdding(false);
     setEditingId(null);
   };
@@ -102,8 +104,14 @@ export function CameraTab({ isTauriAvailable, rawCameras, onDeleteRequest, onRef
   };
 
   const handleSave = async () => {
-    const errorKey = validateCameraForm(form);
-    if (errorKey) { toast.error(t(errorKey) || errorKey); return; }
+    const errors = validateCameraFields(form);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const errorKey = validateCameraForm(form);
+      if (errorKey) toast.error(t(errorKey) || errorKey);
+      return;
+    }
+    setFieldErrors({});
 
     if (editingId) {
       // Update existing
@@ -228,10 +236,12 @@ export function CameraTab({ isTauriAvailable, rawCameras, onDeleteRequest, onRef
                 <Label>{t('equipment.name') || 'Name'}</Label>
                 <Input
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors((prev) => ({ ...prev, name: undefined })); }}
                   placeholder={t('equipment.cameraNamePlaceholder')}
+                  className={fieldErrors.name ? 'border-destructive' : ''}
                   autoFocus
                 />
+                {fieldErrors.name && <p className="text-xs text-destructive mt-0.5">{t(fieldErrors.name)}</p>}
               </div>
               <div>
                 <Label>{t('equipment.type') || 'Type'}</Label>
@@ -259,9 +269,11 @@ export function CameraTab({ isTauriAvailable, rawCameras, onDeleteRequest, onRef
                   type="number"
                   step="0.1"
                   value={form.sensor_width}
-                  onChange={(e) => setForm({ ...form, sensor_width: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, sensor_width: e.target.value }); setFieldErrors((prev) => ({ ...prev, sensor_width: undefined })); }}
                   placeholder="23.2"
+                  className={fieldErrors.sensor_width ? 'border-destructive' : ''}
                 />
+                {fieldErrors.sensor_width && <p className="text-xs text-destructive mt-0.5">{t(fieldErrors.sensor_width)}</p>}
               </div>
               <div>
                 <Label>{t('equipment.sensorHeight') || 'Sensor Height (mm)'}</Label>
@@ -269,9 +281,11 @@ export function CameraTab({ isTauriAvailable, rawCameras, onDeleteRequest, onRef
                   type="number"
                   step="0.1"
                   value={form.sensor_height}
-                  onChange={(e) => setForm({ ...form, sensor_height: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, sensor_height: e.target.value }); setFieldErrors((prev) => ({ ...prev, sensor_height: undefined })); }}
                   placeholder="15.5"
+                  className={fieldErrors.sensor_height ? 'border-destructive' : ''}
                 />
+                {fieldErrors.sensor_height && <p className="text-xs text-destructive mt-0.5">{t(fieldErrors.sensor_height)}</p>}
               </div>
             </div>
             <div className="flex gap-2">

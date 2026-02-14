@@ -1,14 +1,15 @@
 import dynamic from 'next/dynamic';
 import { Navbar, HeroSection } from '@/components/landing';
+import { SectionSkeleton } from '@/components/landing/section-skeleton';
 
-const StatsSection = dynamic(() => import('@/components/landing/stats-section').then(m => ({ default: m.StatsSection })));
-const FeaturesSection = dynamic(() => import('@/components/landing/features-section').then(m => ({ default: m.FeaturesSection })));
-const GettingStartedSection = dynamic(() => import('@/components/landing/getting-started-section').then(m => ({ default: m.GettingStartedSection })));
-const ScreenshotCarousel = dynamic(() => import('@/components/landing/screenshot-carousel').then(m => ({ default: m.ScreenshotCarousel })));
-const TechStack = dynamic(() => import('@/components/landing/tech-stack').then(m => ({ default: m.TechStack })));
-const TestimonialsSection = dynamic(() => import('@/components/landing/testimonials-section').then(m => ({ default: m.TestimonialsSection })));
-const CTASection = dynamic(() => import('@/components/landing/cta-section').then(m => ({ default: m.CTASection })));
-const Footer = dynamic(() => import('@/components/landing/footer').then(m => ({ default: m.Footer })));
+const StatsSection = dynamic(() => import('@/components/landing/stats-section').then(m => ({ default: m.StatsSection })), { loading: () => <SectionSkeleton /> });
+const FeaturesSection = dynamic(() => import('@/components/landing/features-section').then(m => ({ default: m.FeaturesSection })), { loading: () => <SectionSkeleton /> });
+const GettingStartedSection = dynamic(() => import('@/components/landing/getting-started-section').then(m => ({ default: m.GettingStartedSection })), { loading: () => <SectionSkeleton /> });
+const ScreenshotCarousel = dynamic(() => import('@/components/landing/screenshot-carousel').then(m => ({ default: m.ScreenshotCarousel })), { loading: () => <SectionSkeleton /> });
+const TechStack = dynamic(() => import('@/components/landing/tech-stack').then(m => ({ default: m.TechStack })), { loading: () => <SectionSkeleton /> });
+const TestimonialsSection = dynamic(() => import('@/components/landing/testimonials-section').then(m => ({ default: m.TestimonialsSection })), { loading: () => <SectionSkeleton /> });
+const CTASection = dynamic(() => import('@/components/landing/cta-section').then(m => ({ default: m.CTASection })), { loading: () => <SectionSkeleton /> });
+const Footer = dynamic(() => import('@/components/landing/footer').then(m => ({ default: m.Footer })), { loading: () => <SectionSkeleton /> });
 
 const jsonLd = {
   '@context': 'https://schema.org',

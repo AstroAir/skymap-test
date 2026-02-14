@@ -13,6 +13,9 @@ import {
   Globe,
   Cpu,
   ChevronDown,
+  History,
+  MapPin,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,6 +75,7 @@ import {
   solveImageLocal,
   convertToLegacyResult,
   isLocalSolver,
+  cancelPlateSolve,
   DEFAULT_SOLVER_CONFIG,
 } from '@/lib/tauri/plate-solver-api';
 
@@ -102,6 +106,9 @@ export function PlateSolverUnified({
     detectSolvers,
     setOnlineApiKey,
     loadConfig,
+    addToHistory,
+    solveHistory,
+    clearHistory,
   } = usePlateSolverStore();
   const config = storeConfig ?? DEFAULT_SOLVER_CONFIG;
   const activeSolver = usePlateSolverStore(selectActiveSolver);
@@ -114,6 +121,9 @@ export function PlateSolverUnified({
 
   // Cancel ref for online solve
   const cancelClientRef = useRef<AstrometryApiClient | null>(null);
+
+  // Ref to hold latest handleImageCapture for use in effects without stale closures
+  const handleImageCaptureRef = useRef<((file: File, metadata?: ImageMetadata) => Promise<void>) | undefined>(undefined);
 
   // Local state
   const [open, setOpen] = useState(false);
@@ -147,14 +157,13 @@ export function PlateSolverUnified({
           const data = await readFile(defaultImagePath);
           const fileName = defaultImagePath.split(/[/\\]/).pop() || 'image';
           const file = new File([data], fileName);
-          handleImageCapture(file);
+          handleImageCaptureRef.current?.(file);
         } catch {
           // Silently ignore if the file cannot be read
         }
       })();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, defaultImagePath]);
+  }, [open, defaultImagePath, isDesktop, solving]);
 
   // Handle local solve
   const handleLocalSolve = useCallback(async (file: File, effectiveRaHint?: number, effectiveDecHint?: number) => {
@@ -169,8 +178,26 @@ export function PlateSolverUnified({
 
     setSolving(true);
     setResult(null);
-    setLocalProgress(10);
+    setLocalProgress(5);
     setLocalMessage(t('plateSolving.preparing') || 'Preparing...');
+
+    // Listen for solve-progress events from Rust backend
+    let unlistenProgress: (() => void) | null = null;
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlistenProgress = await listen<{ stage: string; progress: number; message: string }>(
+        'solve-progress',
+        (event) => {
+          const { stage, progress: pct, message } = event.payload;
+          setLocalProgress(pct);
+          // Use i18n keys when available, fall back to backend message
+          const stageKey = `plateSolving.${stage}` as const;
+          setLocalMessage(t(stageKey) || message);
+        }
+      );
+    } catch {
+      // listen not available (web mode) — continue with static progress
+    }
 
     let cleanup: undefined | (() => Promise<void>);
 
@@ -178,7 +205,7 @@ export function PlateSolverUnified({
       const persisted = await persistFileForLocalSolve(file);
       cleanup = persisted.cleanup;
 
-      setLocalProgress(30);
+      setLocalProgress(10);
       setLocalMessage(t('plateSolving.solving') || 'Solving...');
 
       const solveResult = await solveImageLocal(
@@ -201,21 +228,25 @@ export function PlateSolverUnified({
 
       const legacyResult = convertToLegacyResult(solveResult);
       setResult(legacyResult);
+      addToHistory({ imageName: file.name, solveMode: 'local', result: legacyResult });
       onSolveComplete?.(legacyResult);
     } catch (error) {
       setLocalProgress(100);
       setLocalMessage(t('plateSolving.failed') || 'Failed');
-      setResult(createErrorResult(
+      const errorResult = createErrorResult(
         activeSolver?.name || t('plateSolving.localSolverFallback'),
         error instanceof Error ? error.message : t('plateSolving.unknownError'),
-      ));
+      );
+      setResult(errorResult);
+      addToHistory({ imageName: file.name, solveMode: 'local', result: errorResult });
     } finally {
+      unlistenProgress?.();
       if (cleanup) {
         cleanup().catch(() => {});
       }
       setSolving(false);
     }
-  }, [isDesktop, canSolveLocal, config, raHint, decHint, fovHint, activeSolver, onSolveComplete, t]);
+  }, [isDesktop, canSolveLocal, config, raHint, decHint, fovHint, activeSolver, onSolveComplete, addToHistory, t]);
 
   // Handle online solve with optional retry logic
   const handleOnlineSolve = useCallback(async (file: File, effectiveRaHint?: number, effectiveDecHint?: number) => {
@@ -244,6 +275,7 @@ export function PlateSolverUnified({
         const solveResult = await client.solve(file, effectiveOptions, setProgress);
         if (solveResult.success || attempt >= maxAttempts - 1) {
           setResult(solveResult);
+          addToHistory({ imageName: file.name, solveMode: 'online', result: solveResult });
           onSolveComplete?.(solveResult);
           break;
         }
@@ -252,10 +284,12 @@ export function PlateSolverUnified({
         setProgress({ stage: 'uploading', progress: 0 });
       } catch (error) {
         if (attempt >= maxAttempts - 1) {
-          setResult(createErrorResult(
+          const errorResult = createErrorResult(
             'astrometry.net',
             error instanceof Error ? error.message : t('plateSolving.unknownError'),
-          ));
+          );
+          setResult(errorResult);
+          addToHistory({ imageName: file.name, solveMode: 'online', result: errorResult });
         } else {
           await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
           setProgress({ stage: 'uploading', progress: 0 });
@@ -263,8 +297,9 @@ export function PlateSolverUnified({
       }
     }
 
+    cancelClientRef.current = null;
     setSolving(false);
-  }, [onlineApiKey, options, onSolveComplete, config, t]);
+  }, [onlineApiKey, options, onSolveComplete, config, addToHistory, t]);
 
   // Handle image capture with optional FITS WCS hints
   const handleImageCapture = useCallback(async (file: File, metadata?: ImageMetadata) => {
@@ -284,16 +319,23 @@ export function PlateSolverUnified({
     }
   }, [solveMode, isDesktop, handleLocalSolve, handleOnlineSolve, config, raHint, decHint]);
 
+  // Keep ref in sync with latest handleImageCapture
+  handleImageCaptureRef.current = handleImageCapture;
+
   // Handle cancel solve
-  const handleCancelSolve = useCallback(() => {
-    cancelClientRef.current?.cancel();
-    cancelClientRef.current = null;
+  const handleCancelSolve = useCallback(async () => {
+    if (solveMode === 'local' && isDesktop) {
+      try { await cancelPlateSolve(); } catch { /* ignore */ }
+    } else {
+      cancelClientRef.current?.cancel();
+      cancelClientRef.current = null;
+    }
     setSolving(false);
     setResult(createErrorResult(
       solveMode === 'local' ? (activeSolver?.name || t('plateSolving.localSolverFallback')) : 'astrometry.net',
       t('plateSolving.cancelled') || 'Solve cancelled by user',
     ));
-  }, [solveMode, activeSolver, t]);
+  }, [solveMode, isDesktop, activeSolver, t]);
 
   // Handle go to coordinates
   const handleGoTo = useCallback(() => {
@@ -552,6 +594,72 @@ export function PlateSolverUnified({
               result={result}
               onGoTo={onGoToCoordinates ? handleGoTo : undefined}
             />
+          )}
+
+          {/* Solve History */}
+          {solveHistory.length > 0 && !solving && (
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between">
+                  <span className="flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    {t('plateSolving.solveHistory') || 'Solve History'} ({solveHistory.length})
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-1 mt-2 max-h-48 overflow-y-auto">
+                  {solveHistory.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between text-xs p-2 rounded border bg-muted/30"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {entry.result.success ? (
+                          <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{entry.imageName}</div>
+                          <div className="text-muted-foreground">
+                            {new Date(entry.timestamp).toLocaleString()} · {entry.solveMode}
+                            {entry.result.success && entry.result.coordinates && (
+                              <span className="ml-1">
+                                · {entry.result.coordinates.raHMS}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {entry.result.success && entry.result.coordinates && onGoToCoordinates && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 flex-shrink-0"
+                          onClick={() => {
+                            onGoToCoordinates(entry.result.coordinates!.ra, entry.result.coordinates!.dec);
+                            setOpen(false);
+                          }}
+                        >
+                          <MapPin className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-2 text-destructive hover:text-destructive"
+                  onClick={clearHistory}
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  {t('plateSolving.clearHistory') || 'Clear History'}
+                </Button>
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </div>
 

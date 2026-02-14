@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Wifi, WifiOff, Radio, Loader2, Search } from 'lucide-react';
 
@@ -53,6 +53,28 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
   const [discovering, setDiscovering] = useState(false);
   const [devices, setDevices] = useState<DiscoveredDevice[]>([]);
   const [error, setError] = useState('');
+
+  // Reset local state to store values when dialog opens
+  useEffect(() => {
+    if (open && !connected) {
+      setProtocol(connectionConfig.protocol);
+      setHost(connectionConfig.host);
+      setPort(String(connectionConfig.port));
+      setDeviceId(String(connectionConfig.deviceId));
+      setError('');
+      setDevices([]);
+    }
+  }, [open, connected, connectionConfig]);
+
+  const parsedPort = parseInt(port, 10);
+  const parsedDeviceId = parseInt(deviceId, 10);
+  const isValid = useMemo(() => {
+    if (protocol === 'simulator') return true;
+    if (!host.trim()) return false;
+    if (isNaN(parsedPort) || parsedPort < 1 || parsedPort > 65535) return false;
+    if (isNaN(parsedDeviceId) || parsedDeviceId < 0) return false;
+    return true;
+  }, [protocol, host, parsedPort, parsedDeviceId]);
 
   const handleConnect = useCallback(async () => {
     if (!isTauri()) {
@@ -253,7 +275,7 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               {t('cancel')}
             </Button>
-            <Button onClick={handleConnect} disabled={connecting}>
+            <Button onClick={handleConnect} disabled={connecting || !isValid}>
               {connecting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               <Wifi className="h-4 w-4 mr-2" />
               {t('connect')}

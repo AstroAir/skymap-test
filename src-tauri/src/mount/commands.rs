@@ -20,6 +20,9 @@ enum MountDriver {
 
 static MOUNT: Lazy<Mutex<Option<MountDriver>>> = Lazy::new(|| Mutex::new(None));
 
+/// Tracks the user-selected slew rate index (shared across drivers)
+static SLEW_RATE_INDEX: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(3);
+
 // ============================================================================
 // Connection commands
 // ============================================================================
@@ -85,7 +88,11 @@ pub async fn mount_get_state() -> Result<MountState, MountError> {
     let mut guard = MOUNT.lock().await;
     match guard.as_mut() {
         Some(MountDriver::Simulator(sim)) => Ok(sim.get_state()),
-        Some(MountDriver::Alpaca(client)) => client.get_state().await,
+        Some(MountDriver::Alpaca(client)) => {
+            let mut state = client.get_state().await?;
+            state.slew_rate_index = SLEW_RATE_INDEX.load(std::sync::atomic::Ordering::Relaxed);
+            Ok(state)
+        }
         None => Ok(MountState::default()),
     }
 }
@@ -227,10 +234,11 @@ pub async fn mount_set_slew_rate(index: usize) -> Result<(), MountError> {
     match guard.as_mut() {
         Some(MountDriver::Simulator(sim)) => {
             sim.set_slew_rate_index(index);
+            SLEW_RATE_INDEX.store(index, std::sync::atomic::Ordering::Relaxed);
             Ok(())
         }
         Some(MountDriver::Alpaca(_)) => {
-            // Alpaca doesn't have a slew rate concept — rate is passed per MoveAxis call
+            SLEW_RATE_INDEX.store(index, std::sync::atomic::Ordering::Relaxed);
             Ok(())
         }
         None => Err(MountError::NotConnected),

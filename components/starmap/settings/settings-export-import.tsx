@@ -20,7 +20,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useSettingsStore } from '@/lib/stores';
+import { useSettingsStore, useEquipmentStore, useMountStore, useEventSourcesStore } from '@/lib/stores';
+import type { EventSourceConfig } from '@/lib/stores';
 import { useThemeStore } from '@/lib/stores/theme-store';
 import { useKeybindingStore } from '@/lib/stores/keybinding-store';
 import { SettingsSection } from './settings-shared';
@@ -40,6 +41,28 @@ interface ExportData {
   };
   theme: ReturnType<typeof useThemeStore.getState>['customization'];
   keybindings: ReturnType<typeof useKeybindingStore.getState>['customBindings'];
+  equipment?: {
+    sensorWidth: number;
+    sensorHeight: number;
+    focalLength: number;
+    pixelSize: number;
+    aperture: number;
+    rotationAngle: number;
+    mosaic: ReturnType<typeof useEquipmentStore.getState>['mosaic'];
+    fovDisplay: ReturnType<typeof useEquipmentStore.getState>['fovDisplay'];
+    exposureDefaults: ReturnType<typeof useEquipmentStore.getState>['exposureDefaults'];
+    customCameras: ReturnType<typeof useEquipmentStore.getState>['customCameras'];
+    customTelescopes: ReturnType<typeof useEquipmentStore.getState>['customTelescopes'];
+    customEyepieces: ReturnType<typeof useEquipmentStore.getState>['customEyepieces'];
+    customBarlows: ReturnType<typeof useEquipmentStore.getState>['customBarlows'];
+    customOcularTelescopes: ReturnType<typeof useEquipmentStore.getState>['customOcularTelescopes'];
+  };
+  location?: {
+    latitude: number;
+    longitude: number;
+    elevation: number;
+  };
+  eventSources?: EventSourceConfig[];
 }
 
 export function SettingsExportImport() {
@@ -54,9 +77,12 @@ export function SettingsExportImport() {
     const settingsState = useSettingsStore.getState();
     const themeState = useThemeStore.getState();
     const keybindingState = useKeybindingStore.getState();
+    const equipmentState = useEquipmentStore.getState();
+    const mountState = useMountStore.getState();
+    const eventSourcesState = useEventSourcesStore.getState();
 
     const exportData: ExportData = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       settings: {
         connection: settingsState.connection,
@@ -70,6 +96,28 @@ export function SettingsExportImport() {
       },
       theme: themeState.customization,
       keybindings: keybindingState.customBindings,
+      equipment: {
+        sensorWidth: equipmentState.sensorWidth,
+        sensorHeight: equipmentState.sensorHeight,
+        focalLength: equipmentState.focalLength,
+        pixelSize: equipmentState.pixelSize,
+        aperture: equipmentState.aperture,
+        rotationAngle: equipmentState.rotationAngle,
+        mosaic: equipmentState.mosaic,
+        fovDisplay: equipmentState.fovDisplay,
+        exposureDefaults: equipmentState.exposureDefaults,
+        customCameras: equipmentState.customCameras,
+        customTelescopes: equipmentState.customTelescopes,
+        customEyepieces: equipmentState.customEyepieces,
+        customBarlows: equipmentState.customBarlows,
+        customOcularTelescopes: equipmentState.customOcularTelescopes,
+      },
+      location: {
+        latitude: mountState.profileInfo.AstrometrySettings.Latitude,
+        longitude: mountState.profileInfo.AstrometrySettings.Longitude,
+        elevation: mountState.profileInfo.AstrometrySettings.Elevation,
+      },
+      eventSources: eventSourcesState.sources,
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -142,6 +190,58 @@ export function SettingsExportImport() {
         kbStore.resetAllBindings();
         for (const [actionId, binding] of Object.entries(keybindings)) {
           kbStore.setBinding(actionId as keyof typeof keybindings, binding);
+        }
+      }
+
+      // Apply equipment (v2+)
+      const { equipment, location, eventSources } = pendingImport;
+      if (equipment) {
+        const eqStore = useEquipmentStore.getState();
+        if (equipment.sensorWidth) eqStore.setSensorWidth(equipment.sensorWidth);
+        if (equipment.sensorHeight) eqStore.setSensorHeight(equipment.sensorHeight);
+        if (equipment.focalLength) eqStore.setFocalLength(equipment.focalLength);
+        if (equipment.pixelSize) eqStore.setPixelSize(equipment.pixelSize);
+        if (equipment.aperture) eqStore.setAperture(equipment.aperture);
+        if (equipment.rotationAngle !== undefined) eqStore.setRotationAngle(equipment.rotationAngle);
+        if (equipment.mosaic) eqStore.setMosaic(equipment.mosaic);
+        if (equipment.fovDisplay) eqStore.setFOVDisplay(equipment.fovDisplay);
+        if (equipment.exposureDefaults) eqStore.setExposureDefaults(equipment.exposureDefaults);
+        // Restore custom presets (clear existing first to avoid duplicates)
+        if (equipment.customCameras) {
+          const existingCameras = eqStore.customCameras;
+          for (const c of existingCameras) { eqStore.removeCustomCamera(c.id); }
+          for (const cam of equipment.customCameras) {
+            eqStore.addCustomCamera({ name: cam.name, sensorWidth: cam.sensorWidth, sensorHeight: cam.sensorHeight, pixelSize: cam.pixelSize });
+          }
+        }
+        if (equipment.customTelescopes) {
+          const existingTelescopes = eqStore.customTelescopes;
+          for (const t of existingTelescopes) { eqStore.removeCustomTelescope(t.id); }
+          for (const tel of equipment.customTelescopes) {
+            eqStore.addCustomTelescope({ name: tel.name, focalLength: tel.focalLength, aperture: tel.aperture, type: tel.type });
+          }
+        }
+      }
+
+      // Apply location (v2+)
+      if (location) {
+        const mountStore = useMountStore.getState();
+        mountStore.setProfileInfo({
+          ...mountStore.profileInfo,
+          AstrometrySettings: {
+            Latitude: location.latitude,
+            Longitude: location.longitude,
+            Elevation: location.elevation,
+          },
+        });
+      }
+
+      // Apply event sources (v2+)
+      if (eventSources) {
+        const esStore = useEventSourcesStore.getState();
+        esStore.resetToDefaults();
+        for (const source of eventSources) {
+          esStore.updateSource(source.id, source);
         }
       }
 

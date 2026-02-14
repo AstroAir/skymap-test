@@ -17,8 +17,8 @@ import { PlateSolverUnified } from '../plate-solving/plate-solver-unified';
 import { SkyAtlasPanel } from '../planning/sky-atlas-panel';
 import { EquipmentManager } from '../management/equipment-manager';
 
-import { useEquipmentStore } from '@/lib/stores';
 import { buildSelectionData } from '@/lib/core/selection-utils';
+import { useEquipmentFOVProps } from '@/lib/hooks/use-equipment-fov-props';
 import type { MobileLayoutProps } from '@/types/starmap/view';
 
 export const MobileLayout = memo(function MobileLayout({
@@ -34,19 +34,15 @@ export const MobileLayout = memo(function MobileLayout({
 }: MobileLayoutProps) {
   const { currentSelection, observationSelection } = buildSelectionData(selectedObject);
 
-  // Subscribe to equipment store directly — avoids prop drilling
-  const fovSimEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
-  const setFovSimEnabled = useEquipmentStore((s) => s.setFOVEnabled);
-  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
-  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
-  const focalLength = useEquipmentStore((s) => s.focalLength);
-  const mosaic = useEquipmentStore((s) => s.mosaic);
-  const gridType = useEquipmentStore((s) => s.fovDisplay.gridType);
-  const setSensorWidth = useEquipmentStore((s) => s.setSensorWidth);
-  const setSensorHeight = useEquipmentStore((s) => s.setSensorHeight);
-  const setFocalLength = useEquipmentStore((s) => s.setFocalLength);
-  const setMosaic = useEquipmentStore((s) => s.setMosaic);
-  const setGridType = useEquipmentStore((s) => s.setGridType);
+  // Equipment FOV props — shared hook avoids duplicating 12+ selectors
+  const {
+    fovSimEnabled, setFovSimEnabled,
+    sensorWidth, setSensorWidth,
+    sensorHeight, setSensorHeight,
+    focalLength, setFocalLength,
+    mosaic, setMosaic,
+    gridType, setGridType,
+  } = useEquipmentFOVProps();
 
   return (
     <>

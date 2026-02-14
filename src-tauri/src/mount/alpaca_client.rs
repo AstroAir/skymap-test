@@ -315,32 +315,34 @@ impl AlpacaClient {
     // Aggregate state query
     // ========================================================================
 
-    /// Fetch full mount state in one call (multiple HTTP requests)
+    /// Fetch full mount state in one call (parallel HTTP requests via tokio::join!)
     pub async fn get_state(&self) -> Result<MountState, MountError> {
         let connected = self.is_connected().await.unwrap_or(false);
         if !connected {
             return Ok(MountState::default());
         }
 
-        let ra_hours = self.get_ra_hours().await.unwrap_or(0.0);
-        let dec = self.get_dec().await.unwrap_or(0.0);
-        let tracking = self.is_tracking().await.unwrap_or(false);
-        let tracking_rate = self.get_tracking_rate().await.unwrap_or(TrackingRate::Sidereal);
-        let slewing = self.is_slewing().await.unwrap_or(false);
-        let parked = self.is_at_park().await.unwrap_or(false);
-        let at_home = self.is_at_home().await.unwrap_or(false);
-        let pier_side = self.get_side_of_pier().await.unwrap_or(PierSide::Unknown);
+        let (ra_hours, dec, tracking, tracking_rate, slewing, parked, at_home, pier_side) = tokio::join!(
+            self.get_ra_hours(),
+            self.get_dec(),
+            self.is_tracking(),
+            self.get_tracking_rate(),
+            self.is_slewing(),
+            self.is_at_park(),
+            self.is_at_home(),
+            self.get_side_of_pier(),
+        );
 
         Ok(MountState {
             connected: true,
-            ra: ra_hours * 15.0, // Convert hours to degrees
-            dec,
-            tracking,
-            tracking_rate,
-            slewing,
-            parked,
-            at_home,
-            pier_side,
+            ra: ra_hours.unwrap_or(0.0) * 15.0, // Convert hours to degrees
+            dec: dec.unwrap_or(0.0),
+            tracking: tracking.unwrap_or(false),
+            tracking_rate: tracking_rate.unwrap_or(TrackingRate::Sidereal),
+            slewing: slewing.unwrap_or(false),
+            parked: parked.unwrap_or(false),
+            at_home: at_home.unwrap_or(false),
+            pier_side: pier_side.unwrap_or(PierSide::Unknown),
             slew_rate_index: 3,
         })
     }

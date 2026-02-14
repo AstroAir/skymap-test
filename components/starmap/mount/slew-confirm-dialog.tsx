@@ -172,7 +172,7 @@ export function SlewConfirmDialog({
           </Button>
           <Button
             onClick={handleSlew}
-            disabled={slewing || !connected}
+            disabled={slewing || !connected || !!parked}
             variant={hasDanger ? 'destructive' : 'default'}
           >
             {slewing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

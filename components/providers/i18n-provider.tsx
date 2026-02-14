@@ -26,6 +26,13 @@ export function I18nProvider({ children }: I18nProviderProps) {
     setMounted(true);
   }, []);
 
+  // Keep <html lang> in sync with current locale
+  useEffect(() => {
+    if (mounted) {
+      document.documentElement.lang = locale;
+    }
+  }, [mounted, locale]);
+
   // Use default locale during SSR/initial render
   const currentLocale = mounted ? locale : 'en';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore, useCallback } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   MapPin,
@@ -51,15 +51,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { useLocations, tauriApi } from '@/lib/tauri';
 import { MapLocationPicker } from '@/components/starmap/map';
-import { createLogger } from '@/lib/logger';
 import { validateLocationForm } from '@/lib/core/management-validators';
 import { fetchElevation } from '@/lib/utils/map-utils';
+import { useWebLocationStore } from '@/lib/stores/web-location-store';
+import { useShallow } from 'zustand/react/shallow';
 import type { WebLocation, LocationManagerProps } from '@/types/starmap/management';
-
-const logger = createLogger('location-manager');
-
-// Web location storage key
-const WEB_LOCATIONS_KEY = 'starmap-web-locations';
 
 function BortleClassSelect({ value, onChange, t }: { value: string; onChange: (v: string) => void; t: (key: string) => string }) {
   return (
@@ -97,29 +93,17 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
     () => false
   );
   
-  // Web locations state with lazy initialization
-  const [webLocations, setWebLocations] = useState<WebLocation[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const stored = localStorage.getItem(WEB_LOCATIONS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Web locations from Zustand persist store (replaces raw localStorage)
+  const webLocations = useWebLocationStore(useShallow((s) => s.locations));
+  const {
+    addLocation: addWebLocation,
+    updateLocation: updateWebLocation,
+    removeLocation: removeWebLocation,
+    setCurrent: setWebCurrent,
+  } = useWebLocationStore.getState();
 
   // Computed current location for web
   const webCurrentLocation = webLocations.find(l => l.is_current) || null;
-
-  // Save web locations to localStorage
-  const saveWebLocations = useCallback((locs: WebLocation[]) => {
-    try {
-      localStorage.setItem(WEB_LOCATIONS_KEY, JSON.stringify(locs));
-      setWebLocations(locs);
-    } catch (e) {
-      logger.error('Failed to save web locations', e);
-    }
-  }, []);
 
   // Form state
   const [form, setForm] = useState({
@@ -207,31 +191,29 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
     } else {
       if (editingId) {
         // Web environment - update existing
-        const updated = webLocations.map(l => l.id === editingId ? {
-          ...l, name: form.name, latitude: lat, longitude: lon, altitude: alt, bortle_class: bortle,
-        } : l);
-        saveWebLocations(updated);
+        updateWebLocation(editingId, {
+          name: form.name, latitude: lat, longitude: lon, altitude: alt, bortle_class: bortle,
+        });
         toast.success(t('locations.updated') || 'Location updated');
-        const loc = updated.find(l => l.id === editingId);
+        const loc = webLocations.find(l => l.id === editingId);
         if (loc?.is_current && onLocationChange) {
-          onLocationChange(loc.latitude, loc.longitude, loc.altitude);
+          onLocationChange(lat, lon, alt);
         }
       } else {
         // Web environment - add new
-        const newLocation: WebLocation = {
-          id: `loc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        const isFirst = webLocations.length === 0;
+        addWebLocation({
           name: form.name,
           latitude: lat,
           longitude: lon,
           altitude: alt,
           bortle_class: bortle,
-          is_default: webLocations.length === 0,
-          is_current: webLocations.length === 0,
-        };
-        saveWebLocations([...webLocations, newLocation]);
+          is_default: isFirst,
+          is_current: isFirst,
+        });
         toast.success(t('locations.added') || 'Location added');
-        if (newLocation.is_current && onLocationChange) {
-          onLocationChange(newLocation.latitude, newLocation.longitude, newLocation.altitude);
+        if (isFirst && onLocationChange) {
+          onLocationChange(lat, lon, alt);
         }
       }
       setForm({ name: '', latitude: '', longitude: '', altitude: '', bortle_class: '' });
@@ -250,8 +232,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
         toast.error((e as Error).message);
       }
     } else {
-      const updated = webLocations.filter(l => l.id !== id);
-      saveWebLocations(updated);
+      removeWebLocation(id);
       toast.success(t('locations.deleted') || 'Location deleted');
     }
   };
@@ -269,9 +250,8 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
         toast.error((e as Error).message);
       }
     } else {
-      const updated = webLocations.map(l => ({ ...l, is_current: l.id === id }));
-      saveWebLocations(updated);
-      const loc = updated.find(l => l.id === id);
+      setWebCurrent(id);
+      const loc = webLocations.find(l => l.id === id);
       if (loc && onLocationChange) {
         onLocationChange(loc.latitude, loc.longitude, loc.altitude);
       }

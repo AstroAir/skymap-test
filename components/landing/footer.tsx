@@ -93,33 +93,15 @@ export function Footer() {
           </nav>
 
           {/* Community */}
-          <div>
+          <nav aria-label="Community links">
             <h4 className="font-semibold text-foreground mb-4">{t('community')}</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>
-                <a
-                  href="https://github.com/AstroAir/skymap/discussions"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
-                >
-                  <Github className="h-3.5 w-3.5" />
-                  {t('discussions')}
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://github.com/AstroAir/skymap/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  {t('reportIssue')}
-                </a>
-              </li>
-            </ul>
-          </div>
+            <TooltipProvider>
+              <ul className="space-y-2">
+                <FooterLink href="https://github.com/AstroAir/skymap/discussions" icon={Github} label={t('discussions')} tooltip={t('discussionsTooltip')} external />
+                <FooterLink href="https://github.com/AstroAir/skymap/issues" icon={Mail} label={t('reportIssue')} tooltip={t('reportIssueTooltip')} external />
+              </ul>
+            </TooltipProvider>
+          </nav>
 
           {/* Credits */}
           <div>

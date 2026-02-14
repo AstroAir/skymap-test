@@ -41,6 +41,10 @@ const messages: Record<string, Record<string, string>> = {
     solverSettings: 'Solver Settings',
     manageIndexes: 'Manage Indexes',
     preparing: 'Preparing...',
+    parsing: 'Parsing results...',
+    solveHistory: 'Solve History',
+    clearHistory: 'Clear History',
+    cancelled: 'Solve cancelled by user',
   },
   common: {
     cancel: 'Cancel',
@@ -87,6 +91,7 @@ const mockIsTauri = jest.requireMock('@/lib/tauri/app-control-api').isTauri;
 // Mock plate-solver-api
 jest.mock('@/lib/tauri/plate-solver-api', () => ({
   solveImageLocal: jest.fn(),
+  cancelPlateSolve: jest.fn().mockResolvedValue(undefined),
   convertToLegacyResult: jest.fn((result) => ({
     success: result.success,
     coordinates: result.success ? {
@@ -289,6 +294,7 @@ describe('PlateSolverUnified', () => {
       imageAnalysis: null,
       isAnalysingImage: false,
       onlineSolveProgress: null,
+      solveHistory: [],
     });
     mockIsTauri.mockReturnValue(true);
     jest.clearAllMocks();

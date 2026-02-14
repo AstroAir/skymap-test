@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useReducer, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useStellariumStore, useFramingStore, useMountStore, useEquipmentStore, useMarkerStore } from '@/lib/stores';
@@ -11,6 +11,48 @@ import { rad2deg } from '@/lib/astronomy/starmap-utils';
 import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
 import type { StellariumCanvasRef } from '../canvas/stellarium-canvas';
 import type { StellariumSearchRef } from '../search/stellarium-search';
+
+// Dialog state consolidated into reducer to avoid 5 individual useState hooks.
+// Changes to dialog open/close states won't cause FOV/selection state to re-reference.
+export interface DialogState {
+  contextMenuOpen: boolean;
+  contextMenuPosition: { x: number; y: number };
+  goToDialogOpen: boolean;
+  detailDrawerOpen: boolean;
+  closeConfirmDialogOpen: boolean;
+}
+
+export type DialogAction =
+  | { type: 'SET_CONTEXT_MENU'; open: boolean }
+  | { type: 'OPEN_CONTEXT_MENU'; position: { x: number; y: number } }
+  | { type: 'SET_GO_TO_DIALOG'; open: boolean }
+  | { type: 'SET_DETAIL_DRAWER'; open: boolean }
+  | { type: 'SET_CLOSE_CONFIRM'; open: boolean };
+
+export const initialDialogState: DialogState = {
+  contextMenuOpen: false,
+  contextMenuPosition: { x: 0, y: 0 },
+  goToDialogOpen: false,
+  detailDrawerOpen: false,
+  closeConfirmDialogOpen: false,
+};
+
+export function dialogReducer(state: DialogState, action: DialogAction): DialogState {
+  switch (action.type) {
+    case 'SET_CONTEXT_MENU':
+      return { ...state, contextMenuOpen: action.open };
+    case 'OPEN_CONTEXT_MENU':
+      return { ...state, contextMenuOpen: true, contextMenuPosition: action.position };
+    case 'SET_GO_TO_DIALOG':
+      return { ...state, goToDialogOpen: action.open };
+    case 'SET_DETAIL_DRAWER':
+      return { ...state, detailDrawerOpen: action.open };
+    case 'SET_CLOSE_CONFIRM':
+      return { ...state, closeConfirmDialogOpen: action.open };
+    default:
+      return state;
+  }
+}
 
 export function useStellariumViewState() {
   const router = useRouter();
@@ -25,18 +67,9 @@ export function useStellariumViewState() {
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | undefined>();
   const [containerBounds, setContainerBounds] = useState<{ width: number; height: number } | undefined>();
 
-  // Context menu state
-  const [contextMenuOpen, setContextMenuOpen] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  // Go to coordinates dialog state
-  const [goToDialogOpen, setGoToDialogOpen] = useState(false);
-
-  // Object detail drawer state
-  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
-
-  // Close confirmation dialog state
-  const [closeConfirmDialogOpen, setCloseConfirmDialogOpen] = useState(false);
+  // Dialog & overlay states — consolidated into reducer to batch updates
+  // and prevent high-frequency state (FOV) from recreating dialog setters
+  const [dialogs, dispatchDialog] = useReducer(dialogReducer, initialDialogState);
 
   // Refs
   const canvasRef = useRef<StellariumCanvasRef>(null);
@@ -236,11 +269,7 @@ export function useStellariumViewState() {
   const handleContextMenuCapture = useCallback((e: React.MouseEvent, coords: { ra: number; dec: number; raStr: string; decStr: string } | null) => {
     e.preventDefault();
     setContextMenuCoords(coords);
-    setContextMenuPosition({
-      x: e.clientX,
-      y: e.clientY,
-    });
-    setContextMenuOpen(true);
+    dispatchDialog({ type: 'OPEN_CONTEXT_MENU', position: { x: e.clientX, y: e.clientY } });
   }, []);
 
   // Add to target list
@@ -282,7 +311,7 @@ export function useStellariumViewState() {
     if (contextMenuCoords) {
       safeSetViewDirection(contextMenuCoords.ra, contextMenuCoords.dec);
     }
-    setContextMenuOpen(false);
+    dispatchDialog({ type: 'SET_CONTEXT_MENU', open: false });
   }, [contextMenuCoords, safeSetViewDirection]);
 
   // Go to coordinates
@@ -292,8 +321,8 @@ export function useStellariumViewState() {
 
   // Open go to dialog
   const openGoToDialog = useCallback(() => {
-    setContextMenuOpen(false);
-    setGoToDialogOpen(true);
+    dispatchDialog({ type: 'SET_CONTEXT_MENU', open: false });
+    dispatchDialog({ type: 'SET_GO_TO_DIALOG', open: true });
   }, []);
 
   // Close starmap
@@ -301,7 +330,7 @@ export function useStellariumViewState() {
     if (skipCloseConfirmation) {
       router.push('/');
     } else {
-      setCloseConfirmDialogOpen(true);
+      dispatchDialog({ type: 'SET_CLOSE_CONFIRM', open: true });
     }
   }, [skipCloseConfirmation, router]);
 
@@ -310,7 +339,7 @@ export function useStellariumViewState() {
     if (dontShowAgain) {
       setPreference('skipCloseConfirmation', true);
     }
-    setCloseConfirmDialogOpen(false);
+    dispatchDialog({ type: 'SET_CLOSE_CONFIRM', open: false });
     router.push('/');
   }, [setPreference, router]);
 
@@ -319,7 +348,10 @@ export function useStellariumViewState() {
     setIsSearchOpen(prev => {
       if (!prev) {
         setSelectedObject(null);
-        setTimeout(() => searchRef.current?.focusSearchInput(), 100);
+        // Use rAF to focus after DOM update + CSS transition start
+        requestAnimationFrame(() => {
+          searchRef.current?.focusSearchInput();
+        });
       }
       return !prev;
     });
@@ -340,6 +372,23 @@ export function useStellariumViewState() {
     setEditingMarkerId(marker.id);
   }, [setEditingMarkerId]);
 
+  // Stable setter callbacks wrapping dispatchDialog — avoids inline closures in JSX
+  const setContextMenuOpen = useCallback((open: boolean) => {
+    dispatchDialog({ type: 'SET_CONTEXT_MENU', open });
+  }, []);
+
+  const setGoToDialogOpen = useCallback((open: boolean) => {
+    dispatchDialog({ type: 'SET_GO_TO_DIALOG', open });
+  }, []);
+
+  const setDetailDrawerOpen = useCallback((open: boolean) => {
+    dispatchDialog({ type: 'SET_DETAIL_DRAWER', open });
+  }, []);
+
+  const setCloseConfirmDialogOpen = useCallback((open: boolean) => {
+    dispatchDialog({ type: 'SET_CLOSE_CONFIRM', open });
+  }, []);
+
   return {
     // UI state
     isSearchOpen,
@@ -354,16 +403,16 @@ export function useStellariumViewState() {
     containerBounds,
 
     // Context menu state
-    contextMenuOpen,
+    contextMenuOpen: dialogs.contextMenuOpen,
     setContextMenuOpen,
-    contextMenuPosition,
+    contextMenuPosition: dialogs.contextMenuPosition,
 
     // Dialog states
-    goToDialogOpen,
+    goToDialogOpen: dialogs.goToDialogOpen,
     setGoToDialogOpen,
-    detailDrawerOpen,
+    detailDrawerOpen: dialogs.detailDrawerOpen,
     setDetailDrawerOpen,
-    closeConfirmDialogOpen,
+    closeConfirmDialogOpen: dialogs.closeConfirmDialogOpen,
     setCloseConfirmDialogOpen,
 
     // View center

@@ -96,4 +96,6 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   skyCultureLanguage: 'native' as const,
   nightMode: false,
   sensorControl: false,
+  crosshairVisible: true,
+  crosshairColor: 'rgba(255, 255, 255, 0.3)',
 };

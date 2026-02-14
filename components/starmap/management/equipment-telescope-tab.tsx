@@ -20,7 +20,7 @@ import { tauriApi } from '@/lib/tauri';
 import type { TelescopeType as TScopeType } from '@/lib/tauri';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
 import { useShallow } from 'zustand/react/shallow';
-import { validateTelescopeForm } from '@/lib/core/management-validators';
+import { validateTelescopeForm, validateTelescopeFields, type FieldErrors } from '@/lib/core/management-validators';
 import { normalizeTelescopes } from '@/lib/core/equipment-normalize';
 import type { NormalizedTelescope } from '@/types/starmap/management';
 import { EquipmentListItem } from './equipment-list-item';
@@ -42,6 +42,7 @@ export function TelescopeTab({ isTauriAvailable, rawTelescopes, onDeleteRequest,
     focal_length: '',
     telescope_type: 'reflector' as TScopeType,
   });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<'name' | 'aperture' | 'focal_length'>>({});
 
   const {
     addCustomTelescope,
@@ -61,6 +62,7 @@ export function TelescopeTab({ isTauriAvailable, rawTelescopes, onDeleteRequest,
 
   const resetForm = () => {
     setForm({ name: '', aperture: '', focal_length: '', telescope_type: 'reflector' });
+    setFieldErrors({});
     setAdding(false);
     setEditingId(null);
   };
@@ -89,8 +91,14 @@ export function TelescopeTab({ isTauriAvailable, rawTelescopes, onDeleteRequest,
   };
 
   const handleSave = async () => {
-    const errorKey = validateTelescopeForm(form);
-    if (errorKey) { toast.error(t(errorKey) || errorKey); return; }
+    const errors = validateTelescopeFields(form);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const errorKey = validateTelescopeForm(form);
+      if (errorKey) toast.error(t(errorKey) || errorKey);
+      return;
+    }
+    setFieldErrors({});
 
     const aperture = parseFloat(form.aperture);
     const focal_length = parseFloat(form.focal_length);
@@ -208,10 +216,12 @@ export function TelescopeTab({ isTauriAvailable, rawTelescopes, onDeleteRequest,
                 <Label>{t('equipment.name') || 'Name'}</Label>
                 <Input
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors((prev) => ({ ...prev, name: undefined })); }}
                   placeholder={t('equipment.telescopeNamePlaceholder')}
+                  className={fieldErrors.name ? 'border-destructive' : ''}
                   autoFocus
                 />
+                {fieldErrors.name && <p className="text-xs text-destructive mt-0.5">{t(fieldErrors.name)}</p>}
               </div>
               <div>
                 <Label>{t('equipment.type') || 'Type'}</Label>
@@ -237,18 +247,22 @@ export function TelescopeTab({ isTauriAvailable, rawTelescopes, onDeleteRequest,
                 <Input
                   type="number"
                   value={form.aperture}
-                  onChange={(e) => setForm({ ...form, aperture: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, aperture: e.target.value }); setFieldErrors((prev) => ({ ...prev, aperture: undefined })); }}
                   placeholder="200"
+                  className={fieldErrors.aperture ? 'border-destructive' : ''}
                 />
+                {fieldErrors.aperture && <p className="text-xs text-destructive mt-0.5">{t(fieldErrors.aperture)}</p>}
               </div>
               <div>
                 <Label>{t('equipment.focalLength') || 'Focal Length (mm)'}</Label>
                 <Input
                   type="number"
                   value={form.focal_length}
-                  onChange={(e) => setForm({ ...form, focal_length: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, focal_length: e.target.value }); setFieldErrors((prev) => ({ ...prev, focal_length: undefined })); }}
                   placeholder="1000"
+                  className={fieldErrors.focal_length ? 'border-destructive' : ''}
                 />
+                {fieldErrors.focal_length && <p className="text-xs text-destructive mt-0.5">{t(fieldErrors.focal_length)}</p>}
               </div>
             </div>
             <div className="flex gap-2">

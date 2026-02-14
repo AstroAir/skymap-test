@@ -134,8 +134,11 @@ impl MountSimulator {
     }
 
     fn update_pier_side(&mut self) {
-        // Simplified: RA 0-180 = West, 180-360 = East
-        // In reality this depends on hour angle
+        // Simplified heuristic: RA 0-180 → West, 180-360 → East.
+        // A real GEM determines pier side from hour angle (HA = LST − RA),
+        // which requires the observer's longitude and current sidereal time.
+        // This approximation is sufficient for the simulator's UI testing
+        // purposes but will not match real hardware behaviour.
         if self.ra >= 0.0 && self.ra < 180.0 {
             self.pier_side = PierSide::West;
         } else {

@@ -864,7 +864,9 @@
       "cable_wrap": "Cable wrap risk detected",
       "pier_collision": "Pier collision risk",
       "slew_through_pole": "Slew path crosses celestial pole"
-    }
+    },
+    "operationFailed": "Mount operation failed",
+    "connectionLost": "Mount connection lost"
   },
   "cache": {
     "offlineCache": "Offline Cache",
@@ -1790,6 +1792,7 @@
     "searchRadius": "Search Radius (°)",
     "selectImage": "Select Image to Solve",
     "solving": "Solving...",
+    "parsing": "Parsing results...",
     "uploading": "Uploading",
     "queued": "Queued",
     "processing": "Processing",
@@ -1819,6 +1822,18 @@
     "cameraError": "Failed to access camera",
     "cameraPreview": "Camera preview",
     "capturedImage": "Captured image",
+    "switchCamera": "Switch Camera",
+    "frontCamera": "Front Camera",
+    "backCamera": "Back Camera",
+    "nativeCapture": "Native Camera",
+    "browserCamera": "Browser Camera",
+    "nativeCaptureHint": "Opens your device's built-in camera app",
+    "noCamera": "No camera detected",
+    "permissionDenied": "Camera permission denied. Please enable in browser settings.",
+    "cameraInUse": "Camera is in use by another application",
+    "torch": "Flashlight",
+    "zoom": "Zoom",
+    "resolution": "Resolution",
     "fileTooLarge": "File too large. Maximum size is 50MB",
     "unsupportedFormat": "Unsupported file format",
     "readError": "Failed to read file",
@@ -1973,7 +1988,9 @@
     "worldToPixel": "World → Pixel",
     "fieldOfView": "Field of View",
     "sipDistortion": "SIP Distortion",
-    "sipOrder": "SIP Order"
+    "sipOrder": "SIP Order",
+    "solveHistory": "Solve History",
+    "clearHistory": "Clear History"
   },
   "geolocation": {
     "title": "Device Location",
@@ -2888,7 +2905,9 @@
       "stellariumTooltip": "Visit Stellarium official website",
       "community": "Community",
       "discussions": "Discussions",
+      "discussionsTooltip": "Join community discussions on GitHub",
       "reportIssue": "Report Issue",
+      "reportIssueTooltip": "Report a bug or request a feature",
       "credits": "Data Credits",
       "stellariumEngine": "Stellarium Web Engine",
       "gaiaData": "ESA Gaia Mission",

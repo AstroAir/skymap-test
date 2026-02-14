@@ -101,6 +101,18 @@ jest.mock('@/lib/stores', () => ({
 }));
 
 // Mock utils
+// Mock new dependencies added during optimization
+jest.mock('@/lib/hooks/use-mount-polling', () => ({
+  useMountPolling: jest.fn(),
+}));
+
+jest.mock('sonner', () => ({
+  toast: {
+    error: jest.fn(),
+    success: jest.fn(),
+  },
+}));
+
 jest.mock('@/lib/astronomy/starmap-utils', () => ({
   degreesToHMS: jest.fn(() => '00h 00m 00s'),
   degreesToDMS: jest.fn(() => '+00° 00\' 00"'),
@@ -136,6 +148,13 @@ jest.mock('@/components/ui/separator', () => ({
 
 jest.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+jest.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <div onClick={onClick}>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 jest.mock('@/components/ui/select', () => ({

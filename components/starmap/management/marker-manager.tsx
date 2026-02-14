@@ -10,7 +10,6 @@ import {
   type SkyMarker,
   type MarkerSortBy,
   MARKER_COLORS,
-  MARKER_ICONS,
   MAX_MARKERS,
 } from '@/lib/stores';
 import { readFileAsText } from '@/lib/storage';
@@ -21,13 +20,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,11 +43,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Slider } from '@/components/ui/slider';
 import {
   Select,
@@ -68,10 +58,8 @@ import {
   MapPinned,
   Plus,
   Trash2,
-  Edit,
   Eye,
   EyeOff,
-  Navigation,
   Trash,
   Search,
   Tag,
@@ -80,10 +68,11 @@ import {
   Pencil,
   ArrowUpDown,
 } from 'lucide-react';
+// Note: Dialog, Textarea, ToggleGroup, Navigation, Edit moved to marker-edit-dialog.tsx & marker-list-item.tsx
 import { cn } from '@/lib/utils';
-import { MarkerIconDisplay } from '@/lib/constants/marker-icons';
-import type { MarkerIcon } from '@/lib/stores';
 import type { MarkerFormData, MarkerManagerProps } from '@/types/starmap/management';
+import { MarkerListItem } from './marker-list-item';
+import { MarkerEditDialog } from './marker-edit-dialog';
 
 const defaultFormData: MarkerFormData = {
   name: '',
@@ -111,13 +100,10 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Subscribe only to reactive state values (triggers re-render on change)
   const {
     markers, groups, showMarkers, showLabels, globalMarkerSize, sortBy,
     pendingCoords, editingMarkerId,
-    addMarker, removeMarker, updateMarker, toggleMarkerVisibility,
-    setShowMarkers, setShowLabels, setGlobalMarkerSize, setSortBy,
-    clearAllMarkers, setPendingCoords, setEditingMarkerId,
-    renameGroup, removeGroup, exportMarkers, importMarkers,
   } = useMarkerStore(useShallow((state) => ({
     markers: state.markers,
     groups: state.groups,
@@ -127,22 +113,15 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     sortBy: state.sortBy,
     pendingCoords: state.pendingCoords,
     editingMarkerId: state.editingMarkerId,
-    addMarker: state.addMarker,
-    removeMarker: state.removeMarker,
-    updateMarker: state.updateMarker,
-    toggleMarkerVisibility: state.toggleMarkerVisibility,
-    setShowMarkers: state.setShowMarkers,
-    setShowLabels: state.setShowLabels,
-    setGlobalMarkerSize: state.setGlobalMarkerSize,
-    setSortBy: state.setSortBy,
-    clearAllMarkers: state.clearAllMarkers,
-    setPendingCoords: state.setPendingCoords,
-    setEditingMarkerId: state.setEditingMarkerId,
-    renameGroup: state.renameGroup,
-    removeGroup: state.removeGroup,
-    exportMarkers: state.exportMarkers,
-    importMarkers: state.importMarkers,
   })));
+
+  // Actions are referentially stable — access via getState() to avoid re-render overhead
+  const {
+    addMarker, removeMarker, updateMarker, toggleMarkerVisibility,
+    setShowMarkers, setShowLabels, setGlobalMarkerSize, setSortBy,
+    clearAllMarkers, setPendingCoords, setEditingMarkerId,
+    renameGroup, removeGroup, exportMarkers, importMarkers,
+  } = useMarkerStore.getState();
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
 
   // Listen for pending coords from context menu and open add dialog
@@ -549,102 +528,20 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
               </div>
             ) : (
               <div className="p-2 space-y-1">
-                {filteredMarkers.map((marker) => {
-                  const IconComponent = MarkerIconDisplay[marker.icon];
-                  return (
-                    <div
-                      key={marker.id}
-                      className={cn(
-                        'flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 group',
-                        !marker.visible && 'opacity-50'
-                      )}
-                    >
-                      <IconComponent
-                        className="h-5 w-5 shrink-0"
-                        style={{ color: marker.color }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{marker.name}</div>
-                        <div className="text-xs text-muted-foreground font-mono truncate">
-                          {marker.raString} / {marker.decString}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleNavigate(marker);
-                              }}
-                            >
-                              <Navigation className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">{t('markers.goTo')}</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleMarkerVisibility(marker.id);
-                              }}
-                            >
-                              {marker.visible ? (
-                                <Eye className="h-3.5 w-3.5" />
-                              ) : (
-                                <EyeOff className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            {marker.visible ? t('markers.hide') : t('markers.show')}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditMarker(marker);
-                              }}
-                            >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">{t('common.edit')}</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingMarker(marker);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">{t('common.delete')}</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                  );
-                })}
+                {filteredMarkers.map((marker) => (
+                  <MarkerListItem
+                    key={marker.id}
+                    marker={marker}
+                    t={t}
+                    onNavigate={handleNavigate}
+                    onToggleVisibility={toggleMarkerVisibility}
+                    onEdit={handleEditMarker}
+                    onDelete={(m) => {
+                      setEditingMarker(m);
+                      setDeleteDialogOpen(true);
+                    }}
+                  />
+                ))}
               </div>
             )}
           </ScrollArea>
@@ -699,135 +596,16 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
       </Drawer>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editingMarker ? t('markers.editMarker') : t('markers.addMarker')}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">{t('markers.name')}</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder={t('markers.namePlaceholder')}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="description">{t('markers.description')}</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder={t('markers.descriptionPlaceholder')}
-                rows={2}
-              />
-            </div>
-
-            {!editingMarker && formData.raString && (
-              <div className="grid gap-2">
-                <Label>{t('coordinates.coordinates')}</Label>
-                <div className="text-sm font-mono bg-muted p-2 rounded">
-                  RA: {formData.raString} / Dec: {formData.decString}
-                </div>
-              </div>
-            )}
-
-            <div className="grid gap-2">
-              <Label>{t('markers.icon')}</Label>
-              <ToggleGroup
-                type="single"
-                value={formData.icon}
-                onValueChange={(value) => value && setFormData({ ...formData, icon: value as MarkerIcon })}
-                className="flex-wrap justify-start"
-              >
-                {MARKER_ICONS.map((icon) => {
-                  const IconComponent = MarkerIconDisplay[icon];
-                  return (
-                    <ToggleGroupItem
-                      key={icon}
-                      value={icon}
-                      aria-label={icon}
-                      className="h-9 w-9"
-                    >
-                      <IconComponent className="h-4 w-4" />
-                    </ToggleGroupItem>
-                  );
-                })}
-              </ToggleGroup>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>{t('markers.color')}</Label>
-              <div className="flex gap-1 flex-wrap">
-                {MARKER_COLORS.map((color) => (
-                  <Button
-                    key={color}
-                    variant="ghost"
-                    size="icon"
-                    aria-label={color}
-                    className={cn(
-                      'h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 p-0',
-                      formData.color === color ? 'border-primary scale-110' : 'border-transparent'
-                    )}
-                    style={{ backgroundColor: color }}
-                    onClick={() => setFormData({ ...formData, color })}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="group">{t('markers.group')}</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Input
-                    id="group"
-                    value={formData.group}
-                    onChange={(e) => setFormData({ ...formData, group: e.target.value })}
-                    placeholder={t('markers.groupPlaceholder')}
-                    autoComplete="off"
-                  />
-                </PopoverTrigger>
-                {groups.length > 0 && (
-                  <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] p-1"
-                    align="start"
-                    onOpenAutoFocus={(e) => e.preventDefault()}
-                  >
-                    <div className="max-h-[120px] overflow-y-auto space-y-0.5">
-                      {groups
-                        .filter((g) => !formData.group || g.toLowerCase().includes(formData.group.toLowerCase()))
-                        .map((group) => (
-                          <button
-                            key={group}
-                            type="button"
-                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
-                            onClick={() => setFormData({ ...formData, group })}
-                          >
-                            {group}
-                          </button>
-                        ))}
-                    </div>
-                  </PopoverContent>
-                )}
-              </Popover>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button onClick={handleSaveMarker} disabled={!formData.name.trim()}>
-              {t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <MarkerEditDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        formData={formData}
+        onFormDataChange={setFormData}
+        editingMarker={editingMarker}
+        groups={groups}
+        onSave={handleSaveMarker}
+        t={t}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

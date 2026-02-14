@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { useStellariumStore, useEquipmentStore } from '@/lib/stores';
+import { useEquipmentFOVRead } from '@/lib/hooks/use-equipment-fov-props';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import type { ClickCoords, SelectedObjectData } from '@/lib/core/types';
 import type { ContextMenuStellariumSettings } from '@/types/starmap/view';
@@ -81,10 +82,9 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
 }: CanvasContextMenuProps) {
   const t = useTranslations();
 
-  // Subscribe directly to equipment store — avoids prop drilling through orchestrator
-  const fovSimEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
+  // Equipment FOV read props — shared hook avoids duplicating selectors
+  const { fovSimEnabled, mosaic } = useEquipmentFOVRead();
   const setFovSimEnabled = useEquipmentStore((s) => s.setFOVEnabled);
-  const mosaic = useEquipmentStore((s) => s.mosaic);
   const setRotationAngle = useEquipmentStore((s) => s.setRotationAngle);
   const setMosaic = useEquipmentStore((s) => s.setMosaic);
 
@@ -158,8 +158,9 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-64 bg-card border-border"
+        className="w-64 bg-card border-border max-h-[80vh] overflow-y-auto"
         align="start"
+        collisionPadding={8}
       >
         {/* Click Position Info */}
         {coords && (

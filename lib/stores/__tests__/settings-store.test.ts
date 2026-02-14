@@ -36,6 +36,8 @@ const DEFAULT_STELLARIUM = {
   skyCultureLanguage: 'native' as const,
   nightMode: false,
   sensorControl: false,
+  crosshairVisible: true,
+  crosshairColor: 'rgba(255, 255, 255, 0.3)',
 };
 
 const DEFAULT_PREFERENCES = {
@@ -46,6 +48,7 @@ const DEFAULT_PREFERENCES = {
   distanceUnit: 'metric' as const,
   temperatureUnit: 'celsius' as const,
   skipCloseConfirmation: false,
+  rightPanelCollapsed: false,
   startupView: 'last' as const,
   showSplash: true,
   autoConnectBackend: true,
@@ -229,6 +232,8 @@ describe('Settings Store', () => {
         skyCultureLanguage: 'en' as const,
         nightMode: true,
         sensorControl: true,
+        crosshairVisible: false,
+        crosshairColor: '#ff0000',
       };
 
       useSettingsStore.getState().setStellariumSettings(newSettings);

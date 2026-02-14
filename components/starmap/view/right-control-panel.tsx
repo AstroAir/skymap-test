@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useState, useCallback } from 'react';
+import React, { memo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,8 +22,9 @@ import { LocationManager } from '../management/location-manager';
 import { StellariumMount } from '../mount/stellarium-mount';
 import { AstroSessionPanel } from '../planning/astro-session-panel';
 
-import { useEquipmentStore } from '@/lib/stores';
 import { buildSelectionData } from '@/lib/core/selection-utils';
+import { useEquipmentFOVProps } from '@/lib/hooks/use-equipment-fov-props';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 import type { RightControlPanelProps } from '@/types/starmap/view';
 
 export const RightControlPanel = memo(function RightControlPanel({
@@ -40,22 +41,22 @@ export const RightControlPanel = memo(function RightControlPanel({
   const t = useTranslations();
   const { currentSelection, observationSelection } = buildSelectionData(selectedObject);
 
-  // Subscribe to equipment store directly — avoids prop drilling
-  const fovSimEnabled = useEquipmentStore((s) => s.fovDisplay.enabled);
-  const setFovSimEnabled = useEquipmentStore((s) => s.setFOVEnabled);
-  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
-  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
-  const focalLength = useEquipmentStore((s) => s.focalLength);
-  const mosaic = useEquipmentStore((s) => s.mosaic);
-  const gridType = useEquipmentStore((s) => s.fovDisplay.gridType);
-  const setSensorWidth = useEquipmentStore((s) => s.setSensorWidth);
-  const setSensorHeight = useEquipmentStore((s) => s.setSensorHeight);
-  const setFocalLength = useEquipmentStore((s) => s.setFocalLength);
-  const setMosaic = useEquipmentStore((s) => s.setMosaic);
-  const setGridType = useEquipmentStore((s) => s.setGridType);
+  // Equipment FOV props — shared hook avoids duplicating 12+ selectors
+  const {
+    fovSimEnabled, setFovSimEnabled,
+    sensorWidth, setSensorWidth,
+    sensorHeight, setSensorHeight,
+    focalLength, setFocalLength,
+    mosaic, setMosaic,
+    gridType, setGridType,
+  } = useEquipmentFOVProps();
 
-  const [collapsed, setCollapsed] = useState(false);
-  const toggleCollapsed = useCallback(() => setCollapsed(prev => !prev), []);
+  // Persisted collapsed state — survives page refresh
+  const collapsed = useSettingsStore((s) => s.preferences.rightPanelCollapsed);
+  const setPreference = useSettingsStore((s) => s.setPreference);
+  const toggleCollapsed = useCallback(() => {
+    setPreference('rightPanelCollapsed', !collapsed);
+  }, [collapsed, setPreference]);
 
   return (
     <>

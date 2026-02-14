@@ -201,6 +201,19 @@ export {
   type TargetAstroData,
 } from './use-object-astro-data';
 
+// Camera capture hook
+export {
+  useCamera,
+  CAMERA_RESOLUTIONS,
+  type FacingMode,
+  type CameraErrorType,
+  type CameraDevice,
+  type CameraCapabilities,
+  type CameraResolution,
+  type UseCameraOptions,
+  type UseCameraReturn,
+} from './use-camera';
+
 // Onboarding tour hooks
 export { useTourPosition } from './use-tour-position';
 export { useFocusTrap } from './use-focus-trap';

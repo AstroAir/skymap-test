@@ -5,48 +5,58 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 // Mock stores
-const mockUseMarkerStore = jest.fn((selector) => {
-  const state = {
-    markers: [],
-    groups: [],
-    selectedGroup: 'all',
-    showMarkers: true,
-    showLabels: true,
-    globalMarkerSize: 20,
-    sortBy: 'date',
-    pendingCoords: null,
-    editingMarkerId: null,
-    addMarker: jest.fn(),
-    removeMarker: jest.fn(),
-    updateMarker: jest.fn(),
-    toggleMarkerVisibility: jest.fn(),
-    clearAllMarkers: jest.fn(),
-    setSelectedGroup: jest.fn(),
-    setShowMarkers: jest.fn(),
-    setShowLabels: jest.fn(),
-    setGlobalMarkerSize: jest.fn(),
-    setSortBy: jest.fn(),
-    setPendingCoords: jest.fn(),
-    setEditingMarkerId: jest.fn(),
-    addGroup: jest.fn(),
-    removeGroup: jest.fn(),
-    renameGroup: jest.fn(),
-    exportMarkers: jest.fn(() => '{}'),
-    importMarkers: jest.fn(() => ({ count: 0 })),
-  };
-  return selector ? selector(state) : state;
-});
+const markerState = {
+  markers: [],
+  groups: [],
+  selectedGroup: 'all',
+  showMarkers: true,
+  showLabels: true,
+  globalMarkerSize: 20,
+  sortBy: 'date',
+  pendingCoords: null,
+  editingMarkerId: null,
+  addMarker: jest.fn(),
+  removeMarker: jest.fn(),
+  updateMarker: jest.fn(),
+  toggleMarkerVisibility: jest.fn(),
+  clearAllMarkers: jest.fn(),
+  setSelectedGroup: jest.fn(),
+  setShowMarkers: jest.fn(),
+  setShowLabels: jest.fn(),
+  setGlobalMarkerSize: jest.fn(),
+  setSortBy: jest.fn(),
+  setPendingCoords: jest.fn(),
+  setEditingMarkerId: jest.fn(),
+  addGroup: jest.fn(),
+  removeGroup: jest.fn(),
+  renameGroup: jest.fn(),
+  exportMarkers: jest.fn(() => '{}'),
+  importMarkers: jest.fn(() => ({ count: 0 })),
+};
 
-const mockUseStellariumStore = jest.fn((selector) => {
-  const state = {
-    setViewDirection: jest.fn(),
-  };
-  return selector ? selector(state) : state;
-});
+const mockUseMarkerStore = Object.assign(
+  jest.fn((selector) => (selector ? selector(markerState) : markerState)),
+  { getState: () => markerState }
+);
+
+const stellariumState = {
+  setViewDirection: jest.fn(),
+};
+
+const mockUseStellariumStore = Object.assign(
+  jest.fn((selector) => (selector ? selector(stellariumState) : stellariumState)),
+  { getState: () => stellariumState }
+);
 
 jest.mock('@/lib/stores', () => ({
-  useMarkerStore: (selector: (state: unknown) => unknown) => mockUseMarkerStore(selector),
-  useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
+  useMarkerStore: Object.assign(
+    (selector: (state: unknown) => unknown) => mockUseMarkerStore(selector),
+    { getState: () => markerState }
+  ),
+  useStellariumStore: Object.assign(
+    (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
+    { getState: () => stellariumState }
+  ),
   MARKER_COLORS: ['red', 'blue', 'green', 'yellow'],
   MARKER_ICONS: ['star', 'circle', 'crosshair', 'diamond'],
   MAX_MARKERS: 500,

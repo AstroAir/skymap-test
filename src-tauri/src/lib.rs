@@ -102,7 +102,7 @@ use platform::{
     extract_stars, get_astap_databases, get_available_indexes,
     get_default_index_path, get_downloadable_indexes, get_installed_indexes,
     get_recommended_indexes, get_solver_indexes, get_solver_info, load_solver_config,
-    plate_solve, recommend_astap_database, save_solver_config, solve_image_local,
+    cancel_plate_solve, plate_solve, recommend_astap_database, save_solver_config, solve_image_local,
     solve_online, validate_solver_path,
 };
 
@@ -370,6 +370,8 @@ pub fn run() {
             detect_plate_solvers,
             #[cfg(desktop)]
             plate_solve,
+            #[cfg(desktop)]
+            cancel_plate_solve,
             #[cfg(desktop)]
             get_solver_indexes,
             #[cfg(desktop)]

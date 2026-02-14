@@ -65,6 +65,18 @@ export interface PlateSolverUnifiedProps {
 export type SolveMode = 'online' | 'local';
 
 // ============================================================================
+// Solve History
+// ============================================================================
+
+export interface SolveHistoryEntry {
+  id: string;
+  timestamp: number;
+  imageName: string;
+  solveMode: SolveMode;
+  result: PlateSolveResult;
+}
+
+// ============================================================================
 // SolveResultCard
 // ============================================================================
 

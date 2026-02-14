@@ -115,6 +115,8 @@ export interface StellariumSettings {
   skyCultureLanguage: SkyCultureLanguage;
   nightMode: boolean;
   sensorControl: boolean;
+  crosshairVisible: boolean;
+  crosshairColor: string;
 }
 
 // ============================================================================

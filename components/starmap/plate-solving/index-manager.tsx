@@ -69,6 +69,8 @@ import { isTauri } from '@/lib/tauri/app-control-api';
 // Re-export types for backward compatibility
 export type { IndexManagerProps, DownloadState } from '@/types/starmap/plate-solving';
 
+const MAX_CONCURRENT_DOWNLOADS = 2;
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -149,14 +151,26 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
     };
   }, [open, isDesktop]);
 
+  const activeDownloadCount = Array.from(downloads.values()).filter(
+    (d) => d.status === 'downloading'
+  ).length;
+
   const handleDownload = useCallback(async (index: DownloadableIndex) => {
     if (!isDesktop) {
       window.open(index.download_url, '_blank', 'noopener,noreferrer');
       return;
     }
 
-    setError(null);
+    // Concurrency guard using functional state access to avoid stale closure
+    let blocked = false;
     setDownloads((prev) => {
+      const activeCount = Array.from(prev.values()).filter(
+        (d) => d.status === 'downloading'
+      ).length;
+      if (activeCount >= MAX_CONCURRENT_DOWNLOADS) {
+        blocked = true;
+        return prev;
+      }
       const next = new Map(prev);
       next.set(index.name, {
         fileName: index.file_name,
@@ -165,6 +179,9 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
       });
       return next;
     });
+    if (blocked) return;
+
+    setError(null);
 
     try {
       const basePath = config.index_path ?? (await getDefaultIndexPath(currentSolverType));
@@ -366,6 +383,7 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
               variant="outline"
               size="sm"
               onClick={() => handleDownload(index)}
+              disabled={activeDownloadCount >= MAX_CONCURRENT_DOWNLOADS}
             >
               <Download className="h-4 w-4 mr-1" />
               {t('common.download') || 'Download'}

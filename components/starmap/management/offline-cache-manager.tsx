@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Trash2,
@@ -93,11 +93,26 @@ export function OfflineCacheManager() {
     }
   }, [tauriCache, t]);
 
-  // Refresh storage info on mount
+  // Refresh storage info on mount (once only)
+  const storageInfoLoaded = useRef(false);
   useEffect(() => {
-    refreshStorageInfo();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (storageInfoLoaded.current) return;
+    storageInfoLoaded.current = true;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (tauriCache.isAvailable) {
+          await tauriCache.refresh();
+        }
+        const info = await offlineCacheManager.getStorageInfo();
+        if (!cancelled) setStorageInfo(info);
+      } catch (error) {
+        logger.error('Failed to load initial storage info', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tauriCache]);
 
   // Calculate total stats
   const totalSize = STELLARIUM_LAYERS.reduce((acc, l) => acc + l.size, 0);

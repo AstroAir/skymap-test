@@ -11,14 +11,18 @@ import {
   AlertCircle,
   Loader2,
   ImageIcon,
-  ChevronDown
+  ChevronDown,
+  SwitchCamera,
+  Flashlight,
+  ZoomIn,
+  Smartphone,
+  Monitor,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -30,23 +34,15 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { 
   parseFITSHeader, 
-  formatRA, 
-  formatDec, 
-  formatPixelScale,
-  formatExposure,
   isFITSFile,
+  readFITSPixelData,
+  generatePreviewImageData,
   getImageDimensions,
   compressImage,
   DEFAULT_MAX_FILE_SIZE_MB,
@@ -55,10 +51,36 @@ import {
   MAX_DIMENSION_FOR_PREVIEW,
 } from '@/lib/plate-solving';
 import { formatFileSize } from '@/lib/tauri/plate-solver-api';
+import { useCamera } from '@/lib/hooks/use-camera';
+import { isMobile } from '@/lib/storage/platform';
+import { FitsMetadataPanel } from './fits-metadata-panel';
 import type { ImageMetadata, ImageCaptureProps } from '@/types/starmap/plate-solving';
 
 // Re-export types for backward compatibility
 export type { ImageMetadata, ImageCaptureProps } from '@/types/starmap/plate-solving';
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function getCameraErrorMessage(
+  errorType: string | null,
+  errorMsg: string | null,
+  t: (key: string) => string,
+): string {
+  switch (errorType) {
+    case 'permission-denied':
+      return t('plateSolving.permissionDenied') || 'Camera permission denied. Please enable in browser settings.';
+    case 'not-found':
+      return t('plateSolving.noCamera') || 'No camera detected';
+    case 'in-use':
+      return t('plateSolving.cameraInUse') || 'Camera is in use by another application';
+    case 'not-supported':
+      return t('plateSolving.cameraError') || 'Camera not supported';
+    default:
+      return errorMsg || t('plateSolving.cameraError') || 'Failed to access camera';
+  }
+}
 
 // ============================================================================
 // Component
@@ -77,8 +99,6 @@ export function ImageCapture({
   const [mode, setMode] = useState<'camera' | 'upload'>('upload');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -86,11 +106,16 @@ export function ImageCapture({
   const [imageMetadata, setImageMetadata] = useState<ImageMetadata | null>(null);
   const [compressionEnabled, setCompressionEnabled] = useState(enableCompression);
   const [compressionQuality, setCompressionQuality] = useState(85);
+  const [useNativeCapture, setUseNativeCapture] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nativeCaptureRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+
+  const mobile = useMemo(() => isMobile(), []);
+  const camera = useCamera({ facingMode: 'environment' });
 
   const maxFileSizeBytes = useMemo(() => maxFileSizeMB * 1024 * 1024, [maxFileSizeMB]);
 
@@ -193,7 +218,25 @@ export function ImageCapture({
         };
         reader.readAsDataURL(processedFile);
       } else {
-        setCapturedImage(null);
+        // Generate FITS preview from pixel data (limit to files < 100MB)
+        if (file.size < 100 * 1024 * 1024) {
+          try {
+            const pixelData = await readFITSPixelData(file);
+            if (pixelData) {
+              const imageData = generatePreviewImageData(pixelData, 'asinh');
+              const canvas = document.createElement('canvas');
+              canvas.width = imageData.width;
+              canvas.height = imageData.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.putImageData(imageData, 0, 0);
+                setCapturedImage(canvas.toDataURL('image/png'));
+              }
+            }
+          } catch {
+            // Preview generation failed — continue without preview
+          }
+        }
         setLoadingProgress(100);
         setIsLoading(false);
       }
@@ -207,90 +250,53 @@ export function ImageCapture({
     }
   }, [validateFile, compressionEnabled, compressionQuality, t]);
 
-  const startCamera = useCallback(async () => {
-    setCameraError(null);
-    setIsLoading(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-      });
-      setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-    } catch (error) {
-      setCameraError(
-        error instanceof Error 
-          ? error.message 
-          : t('plateSolving.cameraError') || 'Failed to access camera'
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [t]);
-
-  const stopCamera = useCallback(() => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
-  }, [cameraStream]);
-
+  // Attach stream to video element when camera starts
   useEffect(() => {
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [cameraStream]);
+    if (camera.stream && videoRef.current) {
+      videoRef.current.srcObject = camera.stream;
+      videoRef.current.play().catch(() => {
+        // Autoplay may be blocked
+      });
+    }
+  }, [camera.stream]);
 
   const resetState = useCallback(() => {
     setCapturedImage(null);
     setCapturedFile(null);
-    setCameraError(null);
     setFileError(null);
     setImageMetadata(null);
     setLoadingProgress(0);
-    stopCamera();
-  }, [stopCamera]);
+    camera.stop();
+  }, [camera]);
 
   const capturePhoto = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    ctx.drawImage(video, 0, 0);
-    
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-        setCapturedFile(file);
-        setCapturedImage(canvas.toDataURL('image/jpeg'));
-        setImageMetadata({
-          width: video.videoWidth,
-          height: video.videoHeight,
-          size: blob.size,
-          type: 'image/jpeg',
-          name: file.name,
-        });
-        stopCamera();
-      }
-    }, 'image/jpeg', COMPRESSION_QUALITY);
-  }, [stopCamera]);
+    const result = camera.capture(videoRef, canvasRef, COMPRESSION_QUALITY);
+    if (result) {
+      setCapturedFile(result.file);
+      setCapturedImage(result.dataUrl);
+      setImageMetadata({
+        width: result.width,
+        height: result.height,
+        size: result.file.size,
+        type: 'image/jpeg',
+        name: result.file.name,
+      });
+      camera.stop();
+    }
+  }, [camera]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  }, [processFile]);
+
+  // Handle native camera capture on mobile
+  const handleNativeCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       processFile(file);
@@ -341,8 +347,13 @@ export function ImageCapture({
   const switchToCamera = useCallback(() => {
     setMode('camera');
     resetState();
-    startCamera();
-  }, [startCamera, resetState]);
+    if (mobile && useNativeCapture) {
+      // For native capture, just trigger the input
+      nativeCaptureRef.current?.click();
+    } else {
+      camera.start();
+    }
+  }, [camera, resetState, mobile, useNativeCapture]);
 
   const switchToUpload = useCallback(() => {
     setMode('upload');
@@ -359,7 +370,7 @@ export function ImageCapture({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[540px]">
+      <DialogContent className={mobile ? 'max-w-full h-full sm:max-w-full' : 'sm:max-w-[540px]'}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Camera className="h-5 w-5" />
@@ -370,23 +381,55 @@ export function ImageCapture({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 flex flex-col">
           <Tabs value={mode} onValueChange={(v) => v === 'camera' ? switchToCamera() : switchToUpload()} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="upload" disabled={isLoading}>
+              <TabsTrigger value="upload" disabled={isLoading || camera.isLoading}>
                 <Upload className="h-4 w-4 mr-2" />
                 {t('plateSolving.uploadFile') || 'Upload File'}
               </TabsTrigger>
-              <TabsTrigger value="camera" disabled={isLoading}>
+              <TabsTrigger value="camera" disabled={isLoading || camera.isLoading}>
                 <Camera className="h-4 w-4 mr-2" />
                 {t('plateSolving.useCamera') || 'Use Camera'}
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
+          {/* Mobile: native vs browser camera toggle */}
+          {mobile && mode === 'camera' && !capturedImage && (
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {useNativeCapture ? (
+                  <Smartphone className="h-4 w-4" />
+                ) : (
+                  <Monitor className="h-4 w-4" />
+                )}
+                <span>
+                  {useNativeCapture
+                    ? (t('plateSolving.nativeCapture') || 'Native Camera')
+                    : (t('plateSolving.browserCamera') || 'Browser Camera')}
+                </span>
+              </div>
+              <Switch
+                checked={useNativeCapture}
+                onCheckedChange={(checked) => {
+                  setUseNativeCapture(checked);
+                  if (checked) {
+                    camera.stop();
+                  } else {
+                    camera.start();
+                  }
+                }}
+                aria-label={t('plateSolving.nativeCapture') || 'Native Camera'}
+              />
+            </div>
+          )}
+
           <div 
             ref={dropZoneRef}
-            className={`relative aspect-video bg-muted rounded-lg overflow-hidden border-2 transition-colors ${
+            className={`relative bg-muted rounded-lg overflow-hidden border-2 transition-colors ${
+              mobile && mode === 'camera' ? 'flex-1 min-h-[240px]' : 'aspect-video'
+            } ${
               isDragging 
                 ? 'border-primary border-dashed bg-primary/5' 
                 : 'border-transparent'
@@ -397,31 +440,124 @@ export function ImageCapture({
             role="region"
             aria-label={t('plateSolving.dropZone') || 'Image drop zone'}
           >
-            {mode === 'camera' && !capturedImage && (
+            {mode === 'camera' && !capturedImage && !useNativeCapture && (
               <>
                 <video
                   ref={videoRef}
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover ${
+                    camera.facingMode === 'user' ? 'scale-x-[-1]' : ''
+                  }`}
                   playsInline
                   muted
                   aria-label={t('plateSolving.cameraPreview') || 'Camera preview'}
                 />
-                {cameraError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 gap-2">
-                    <AlertCircle className="h-8 w-8 text-destructive" />
-                    <p className="text-destructive text-center px-4 text-sm">{cameraError}</p>
-                    <Button variant="outline" size="sm" onClick={startCamera}>
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      {t('common.retry') || 'Retry'}
-                    </Button>
+
+                {/* Camera toolbar overlay */}
+                {camera.stream && (
+                  <div className="absolute top-2 right-2 flex gap-1.5">
+                    {camera.hasMultipleCameras && (
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-background/60 backdrop-blur-sm"
+                        onClick={() => camera.switchCamera()}
+                        aria-label={t('plateSolving.switchCamera') || 'Switch Camera'}
+                      >
+                        <SwitchCamera className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {camera.capabilities.torch && (
+                      <Button
+                        variant={camera.torchOn ? 'default' : 'secondary'}
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-background/60 backdrop-blur-sm"
+                        onClick={() => camera.toggleTorch()}
+                        aria-label={t('plateSolving.torch') || 'Flashlight'}
+                      >
+                        <Flashlight className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 )}
-                {isLoading && !cameraStream && (
+
+                {/* Zoom slider overlay */}
+                {camera.stream && camera.capabilities.zoom && camera.capabilities.zoom.max > 1 && (
+                  <div className="absolute bottom-2 left-4 right-4 flex items-center gap-2">
+                    <ZoomIn className="h-3.5 w-3.5 text-white/70" />
+                    <Slider
+                      value={[camera.zoomLevel]}
+                      onValueChange={([v]) => camera.setZoom(v)}
+                      min={camera.capabilities.zoom.min}
+                      max={camera.capabilities.zoom.max}
+                      step={camera.capabilities.zoom.step}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-white/70 min-w-[2rem] text-right">
+                      {camera.zoomLevel.toFixed(1)}x
+                    </span>
+                  </div>
+                )}
+
+                {camera.error && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 gap-2 p-4">
+                    <AlertCircle className="h-8 w-8 text-destructive" />
+                    <p className="text-destructive text-center px-4 text-sm">
+                      {getCameraErrorMessage(camera.errorType, camera.error, t)}
+                    </p>
+                    {camera.errorType !== 'not-found' && (
+                      <Button variant="outline" size="sm" onClick={() => camera.start()}>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        {t('common.retry') || 'Retry'}
+                      </Button>
+                    )}
+                    {camera.errorType === 'not-found' && (
+                      <Button variant="outline" size="sm" onClick={switchToUpload}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        {t('plateSolving.uploadFile') || 'Upload File'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {camera.isLoading && !camera.stream && (
                   <div className="absolute inset-0 flex items-center justify-center bg-background/80">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
                 )}
               </>
+            )}
+
+            {/* Mobile native capture: show prompt */}
+            {mode === 'camera' && !capturedImage && useNativeCapture && (
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/80 transition-colors"
+                onClick={() => nativeCaptureRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                aria-label={t('plateSolving.takePhoto') || 'Take Photo'}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    nativeCaptureRef.current?.click();
+                  }
+                }}
+              >
+                <Smartphone className="h-12 w-12 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {t('plateSolving.nativeCaptureHint') || "Opens your device's built-in camera app"}
+                </p>
+                <Button variant="outline" className="mt-3">
+                  <Camera className="h-4 w-4 mr-2" />
+                  {t('plateSolving.takePhoto') || 'Take Photo'}
+                </Button>
+                <input
+                  ref={nativeCaptureRef}
+                  type="file"
+                  accept="image/*"
+                  capture={camera.facingMode === 'user' ? 'user' : 'environment'}
+                  className="hidden"
+                  onChange={handleNativeCapture}
+                  aria-hidden="true"
+                />
+              </div>
             )}
 
             {mode === 'upload' && !capturedImage && !isLoading && (
@@ -518,123 +654,7 @@ export function ImageCapture({
           </div>
 
           {imageMetadata && !fileError && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
-                <div className="flex items-center gap-3">
-                  <span>{imageMetadata.name}</span>
-                  {imageMetadata.width > 0 && (
-                    <span>{imageMetadata.width} × {imageMetadata.height}</span>
-                  )}
-                  <span>{formatFileSize(imageMetadata.size)}</span>
-                </div>
-                {imageMetadata.isFits && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge variant="secondary">
-                          FITS
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {t('plateSolving.fitsInfo') || 'FITS format detected - will be sent directly to solver'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-              
-              {imageMetadata.fitsData && (
-                <Collapsible>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-full justify-between text-xs">
-                      <span>{t('plateSolving.fitsMetadata') || 'FITS Metadata'}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 pt-2">
-                    <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 rounded-lg p-3">
-                      {imageMetadata.fitsData.wcs && (
-                        <>
-                          <div className="col-span-2 font-medium text-primary border-b border-primary/20 pb-1 mb-1">
-                            {t('plateSolving.wcsInfo') || 'WCS Coordinates'}
-                          </div>
-                          <div className="text-muted-foreground">{t('coordinates.ra') || 'RA'}:</div>
-                          <div className="font-mono">{formatRA(imageMetadata.fitsData.wcs.referenceCoordinates.ra)}</div>
-                          <div className="text-muted-foreground">{t('coordinates.dec') || 'Dec'}:</div>
-                          <div className="font-mono">{formatDec(imageMetadata.fitsData.wcs.referenceCoordinates.dec)}</div>
-                          <div className="text-muted-foreground">{t('plateSolving.pixelScale') || 'Scale'}:</div>
-                          <div className="font-mono">{formatPixelScale(imageMetadata.fitsData.wcs.pixelScale)}</div>
-                          <div className="text-muted-foreground">{t('plateSolving.rotation') || 'Rotation'}:</div>
-                          <div className="font-mono">{imageMetadata.fitsData.wcs.rotation.toFixed(2)}°</div>
-                          {imageMetadata.fitsData.wcs.projectionType && (
-                            <>
-                              <div className="text-muted-foreground">{t('plateSolving.projection') || 'Projection'}:</div>
-                              <div className="font-mono">{imageMetadata.fitsData.wcs.projectionType}</div>
-                            </>
-                          )}
-                        </>
-                      )}
-                      
-                      {imageMetadata.fitsData.observation && (
-                        <>
-                          <div className="col-span-2 font-medium text-primary border-b border-primary/20 pb-1 mb-1 mt-2">
-                            {t('plateSolving.observationInfo') || 'Observation Info'}
-                          </div>
-                          {imageMetadata.fitsData.observation.object && (
-                            <>
-                              <div className="text-muted-foreground">{t('plateSolving.object') || 'Object'}:</div>
-                              <div>{imageMetadata.fitsData.observation.object}</div>
-                            </>
-                          )}
-                          {imageMetadata.fitsData.observation.dateObs && (
-                            <>
-                              <div className="text-muted-foreground">{t('plateSolving.dateObs') || 'Date'}:</div>
-                              <div className="font-mono text-[10px]">{imageMetadata.fitsData.observation.dateObs}</div>
-                            </>
-                          )}
-                          {imageMetadata.fitsData.observation.exptime && (
-                            <>
-                              <div className="text-muted-foreground">{t('plateSolving.exposure') || 'Exposure'}:</div>
-                              <div className="font-mono">{formatExposure(imageMetadata.fitsData.observation.exptime)}</div>
-                            </>
-                          )}
-                          {imageMetadata.fitsData.observation.filter && (
-                            <>
-                              <div className="text-muted-foreground">{t('plateSolving.filter') || 'Filter'}:</div>
-                              <div>{imageMetadata.fitsData.observation.filter}</div>
-                            </>
-                          )}
-                          {imageMetadata.fitsData.observation.telescope && (
-                            <>
-                              <div className="text-muted-foreground">{t('plateSolving.telescope') || 'Telescope'}:</div>
-                              <div className="truncate">{imageMetadata.fitsData.observation.telescope}</div>
-                            </>
-                          )}
-                          {imageMetadata.fitsData.observation.instrument && (
-                            <>
-                              <div className="text-muted-foreground">{t('plateSolving.instrument') || 'Instrument'}:</div>
-                              <div className="truncate">{imageMetadata.fitsData.observation.instrument}</div>
-                            </>
-                          )}
-                        </>
-                      )}
-                      
-                      {imageMetadata.fitsData.image && (
-                        <>
-                          <div className="col-span-2 font-medium text-primary border-b border-primary/20 pb-1 mb-1 mt-2">
-                            {t('plateSolving.imageInfo') || 'Image Info'}
-                          </div>
-                          <div className="text-muted-foreground">{t('plateSolving.dimensions') || 'Size'}:</div>
-                          <div className="font-mono">{imageMetadata.fitsData.image.width} × {imageMetadata.fitsData.image.height}</div>
-                          <div className="text-muted-foreground">{t('plateSolving.bitDepth') || 'Bit Depth'}:</div>
-                          <div className="font-mono">{Math.abs(imageMetadata.fitsData.image.bitpix)}-bit</div>
-                        </>
-                      )}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </div>
+            <FitsMetadataPanel metadata={imageMetadata} />
           )}
 
           <Collapsible>
@@ -677,10 +697,15 @@ export function ImageCapture({
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Action buttons */}
           <div className="flex gap-2">
-            {mode === 'camera' && !capturedImage && cameraStream && (
-              <Button onClick={capturePhoto} className="flex-1" disabled={isLoading}>
-                <Camera className="h-4 w-4 mr-2" />
+            {mode === 'camera' && !capturedImage && camera.stream && !useNativeCapture && (
+              <Button
+                onClick={capturePhoto}
+                className={`flex-1 ${mobile ? 'h-14 text-base' : ''}`}
+                disabled={isLoading || camera.isLoading}
+              >
+                <Camera className={mobile ? 'h-6 w-6 mr-2' : 'h-4 w-4 mr-2'} />
                 {t('plateSolving.takePhoto') || 'Take Photo'}
               </Button>
             )}
