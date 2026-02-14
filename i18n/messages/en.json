@@ -330,6 +330,30 @@
     "plus1Week": "+1w"
   },
   "settings": {
+    "skyEngine": "Sky Engine",
+    "skyEngineSwitchTitle": "Switch Sky Engine",
+    "skyEngineStellarium": "Stellarium",
+    "skyEngineAladin": "Aladin Lite",
+    "stellariumDesc": "Full-featured planetarium with constellations, atmosphere, and landscape rendering",
+    "aladinDesc": "HiPS sky survey browser with SIMBAD/VizieR catalog overlay support",
+    "engineSwitching": "Switching engine...",
+    "stellariumOnlyFeatures": "Stellarium Features",
+    "aladinOnlyFeatures": "Aladin Features",
+    "aladinCoordinateGrid": "Coordinate Grid",
+    "aladinShowCooGrid": "Show Coordinate Grid",
+    "aladinGridOpacity": "Grid Opacity",
+    "aladinReticle": "Reticle",
+    "aladinShowReticle": "Show Reticle",
+    "aladinCoordinateFrame": "Coordinate Frame",
+    "aladinFrameICRS": "Equatorial (ICRS)",
+    "aladinFrameGalactic": "Galactic",
+    "aladinImageAdjustments": "Image Adjustments",
+    "aladinColormap": "Color Map",
+    "aladinColormapNative": "Native (Original)",
+    "aladinBrightness": "Brightness",
+    "aladinContrast": "Contrast",
+    "aladinSaturation": "Saturation",
+    "aladinGamma": "Gamma",
     "displaySettings": "Display Settings",
     "constellationLines": "Constellation Lines",
     "azimuthalGrid": "Azimuthal Grid",
@@ -572,6 +596,7 @@
       "priority": "Priority",
       "status": "Status",
       "addedAt": "Date Added",
+      "feasibility": "Tonight's Feasibility",
       "ascending": "Ascending",
       "descending": "Descending"
     },
@@ -593,7 +618,8 @@
     "singleExposure": "Single (s)",
     "totalExposure": "Total (min)",
     "subFrames": "Sub Frames",
-    "filter": "Filter"
+    "filter": "Filter",
+    "minutesTotal": "min total"
   },
   "observationLog": {
     "title": "Observation Log",
@@ -1286,7 +1312,32 @@
     "directoryCopied": "Directory path copied",
     "directoryPath": "Data directory",
     "desktopMode": "Desktop Mode (Local Files)",
-    "webMode": "Web Mode (Browser Storage)"
+    "webMode": "Web Mode (Browser Storage)",
+    "reloadRequired": "Reload required to apply changes",
+    "reloadNow": "Reload now"
+  },
+  "storagePaths": {
+    "title": "Storage Paths",
+    "dataDirectory": "Data Directory",
+    "cacheDirectory": "Cache Directory",
+    "custom": "Custom",
+    "defaultPath": "Default",
+    "changePath": "Change",
+    "openInExplorer": "Open in File Manager",
+    "resetToDefault": "Reset to Default Paths",
+    "resetConfirmTitle": "Reset Paths?",
+    "resetConfirmDesc": "This will reset data and cache directories back to the default location. Existing files in custom directories will not be deleted. You will need to restart the application.",
+    "migrating": "Migrating files...",
+    "migrateSuccess": "Migration completed successfully",
+    "migrateError": "Migration failed",
+    "filesCopied": "files copied",
+    "invalidDirectory": "Invalid directory",
+    "insufficientSpace": "Low disk space warning",
+    "restartRequired": "Please restart the application for changes to take effect",
+    "pathResetSuccess": "Paths reset to default",
+    "resetError": "Failed to reset paths",
+    "changeError": "Failed to change directory",
+    "description": "Change where the application stores your data and cache files. When changing directories, existing files will be copied to the new location. A restart is required after changes."
   },
   "equipment": {
     "title": "Equipment Manager",
@@ -2425,7 +2476,20 @@
     "transitAt": "Transit {time}",
     "overlapsWith": "Overlaps with: {list}",
     "fovInfo": "FOV: {w}° × {h}°",
-    "fRatioLabel": "f/{ratio}"
+    "fRatioLabel": "f/{ratio}",
+    "excludeFromPlan": "Exclude from this plan",
+    "excludedTargets": "{count} excluded",
+    "restoreAll": "Restore All",
+    "restore": "Restore",
+    "savePlan": "Save Plan",
+    "savePlanTooltip": "Save current plan for later use",
+    "loadPlan": "Load Plan",
+    "exportFormat": {
+      "text": "Plain Text",
+      "markdown": "Markdown",
+      "json": "JSON",
+      "nina-xml": "NINA Sequence XML"
+    }
   },
   "mountSafety": {
     "title": "Mount Safety Simulator",

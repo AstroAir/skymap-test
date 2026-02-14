@@ -99,8 +99,8 @@ export const useFavoritesStore = create<FavoritesState>()(
       addTag: (id, tag) => {
         set((state) => ({
           favorites: state.favorites.map(f =>
-            f.id === id && !f.tags.includes(tag)
-              ? { ...f, tags: [...f.tags, tag] }
+            f.id === id && !(f.tags ?? []).includes(tag)
+              ? { ...f, tags: [...(f.tags ?? []), tag] }
               : f
           ),
         }));
@@ -110,7 +110,7 @@ export const useFavoritesStore = create<FavoritesState>()(
         set((state) => ({
           favorites: state.favorites.map(f =>
             f.id === id
-              ? { ...f, tags: f.tags.filter(t => t !== tag) }
+              ? { ...f, tags: (f.tags ?? []).filter(t => t !== tag) }
               : f
           ),
         }));
@@ -162,12 +162,12 @@ export const useFavoritesStore = create<FavoritesState>()(
 
       getAllTags: () => {
         const tags = new Set<string>();
-        get().favorites.forEach(f => f.tags.forEach(t => tags.add(t)));
+        get().favorites.forEach(f => (f.tags ?? []).forEach(t => tags.add(t)));
         return Array.from(tags).sort();
       },
 
       getFavoritesByTag: (tag) => {
-        return get().favorites.filter(f => f.tags.includes(tag));
+        return get().favorites.filter(f => (f.tags ?? []).includes(tag));
       },
     }),
     {

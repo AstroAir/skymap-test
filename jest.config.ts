@@ -118,6 +118,9 @@ const config: Config = {
     // Handle module aliases (this will be automatically configured for you by Next.js)
     "^@/(.*)$": "<rootDir>/$1",
 
+    // Handle aladin-lite (loaded via CDN at runtime, not available as npm package)
+    "^aladin-lite$": "<rootDir>/__mocks__/aladin-lite.js",
+
     // Handle CSS imports (with CSS modules)
     "^.+\\.module\\.(css|sass|scss)$": "identity-obj-proxy",
 

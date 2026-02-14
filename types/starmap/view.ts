@@ -85,7 +85,6 @@ export interface RightControlPanelProps {
 // ============================================================================
 
 export interface MobileLayoutProps {
-  stel: boolean;
   currentFov: number;
   selectedObject: SelectedObjectData | null;
   contextMenuCoords: ClickCoords | null;

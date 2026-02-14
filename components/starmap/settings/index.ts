@@ -22,6 +22,7 @@ export { SearchBehaviorSettings } from './search-settings';
 export { KeyboardSettings } from './keyboard-settings';
 export { EventSourcesSettings } from './event-sources-settings';
 export { SettingsExportImport } from './settings-export-import';
+export { StoragePathSettings } from './storage-path-settings';
 export { AboutSettings } from './about-settings';
 export { SettingsSection, ToggleItem } from './settings-shared';
 export * from './settings-constants';

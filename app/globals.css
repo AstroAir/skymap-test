@@ -1056,3 +1056,23 @@ html.no-transitions *::after {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 0.8; }
 }
+
+/* Hide Aladin Lite built-in UI chrome — we provide our own controls */
+.aladin-location,
+.aladin-cooFrame,
+.aladin-fov,
+.aladin-status,
+.aladin-statusBar,
+.aladin-projection,
+.aladin-measurement,
+.aladin-statsDiv,
+.aladin-logo,
+.aladin-zoom,
+.aladin-stack,
+.aladin-fullScreen,
+.aladin-settings,
+.aladin-share,
+.aladin-simbadPointer,
+.aladin-grid {
+  display: none !important;
+}

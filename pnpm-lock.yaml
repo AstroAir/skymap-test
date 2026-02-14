@@ -98,6 +98,9 @@ importers:
       '@types/leaflet':
         specifier: ^1.9.21
         version: 1.9.21
+      aladin-lite:
+        specifier: 3.7.3-beta
+        version: 3.7.3-beta
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2545,6 +2548,9 @@ packages:
 
   ajv@8.17.1:
     resolution: {integrity: sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==}
+
+  aladin-lite@3.7.3-beta:
+    resolution: {integrity: sha512-iGcJfJWvRjFuBxccGd2Z/dADy23HA+EpFkKN4XVGqHnP25neCGYSMwy8/UVNVTKS5hDtY1RifytBNL6tERR78Q==}
 
   ansi-escapes@4.3.2:
     resolution: {integrity: sha512-gKXj5ALrKWQLsYG9jlTRmR/xKluxHV+Z9QEwNIgCfM1/uwPMCuzVVnh5mwTd+OuBZcwSIMbqssNWRm1lE51QaQ==}
@@ -7967,6 +7973,8 @@ snapshots:
       fast-uri: 3.1.0
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
+
+  aladin-lite@3.7.3-beta: {}
 
   ansi-escapes@4.3.2:
     dependencies:

@@ -61,20 +61,19 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
       const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       
       let lst = '';
-      if (stel?.core?.observer) {
-        try {
-          const observer = stel.core.observer;
-          if (observer.utc !== undefined) {
-            const lon = profileInfo.AstrometrySettings.Longitude || 0;
-            const lstHours = lstToHours(getLST(lon, observer.utc));
-            const h = Math.floor(lstHours);
-            const m = Math.floor((lstHours - h) * 60);
-            const s = Math.floor(((lstHours - h) * 60 - m) * 60);
-            lst = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-          }
-        } catch {
-          // Ignore LST calculation errors
+      const lon = profileInfo.AstrometrySettings.Longitude || 0;
+      try {
+        // Use Stellarium observer UTC when available, otherwise fall back to system time
+        const utc = stel?.core?.observer?.utc ?? (now.getTime() / 86400000 + 2440587.5);
+        if (utc !== undefined) {
+          const lstHours = lstToHours(getLST(lon, utc));
+          const h = Math.floor(lstHours);
+          const m = Math.floor((lstHours - h) * 60);
+          const s = Math.floor(((lstHours - h) * 60 - m) * 60);
+          lst = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
+      } catch {
+        // Ignore LST calculation errors
       }
       setTimeInfo({ currentTime, lst });
     };

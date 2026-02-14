@@ -45,11 +45,14 @@ export function KeyboardShortcutsManager({
 }: KeyboardShortcutsManagerProps) {
   const t = useTranslations('shortcuts');
   const stel = useStellariumStore((state) => state.stel);
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
   const fovEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
   const setFovEnabled = useEquipmentStore((state) => state.setFOVEnabled);
   const getBinding = useKeybindingStore((state) => state.getBinding);
   const customBindings = useKeybindingStore((state) => state.customBindings);
+
+  const isStellarium = skyEngine === 'stellarium';
 
   // Time control handlers (extracted to reusable hook)
   const { handlePauseTime, handleSpeedUp, handleSlowDown, handleResetTime } = useTimeControls(stel);
@@ -92,17 +95,21 @@ export function KeyboardShortcutsManager({
     // FOV overlay
     list.push(bindingToShortcut(kb('TOGGLE_FOV'), t('toggleFovOverlay'), () => setFovEnabled(!fovEnabled)));
 
-    // Display toggles
-    list.push(bindingToShortcut(kb('TOGGLE_CONSTELLATIONS'), t('toggleConstellations'), () => toggleStellariumSetting('constellationsLinesVisible')));
-    list.push(bindingToShortcut(kb('TOGGLE_GRID'), t('toggleGrid'), () => toggleStellariumSetting('equatorialLinesVisible')));
-    list.push(bindingToShortcut(kb('TOGGLE_DSO'), t('toggleDso'), () => toggleStellariumSetting('dsosVisible')));
-    list.push(bindingToShortcut(kb('TOGGLE_ATMOSPHERE'), t('toggleAtmosphere'), () => toggleStellariumSetting('atmosphereVisible')));
+    // Display toggles — Stellarium-only (no equivalent in Aladin Lite)
+    if (isStellarium) {
+      list.push(bindingToShortcut(kb('TOGGLE_CONSTELLATIONS'), t('toggleConstellations'), () => toggleStellariumSetting('constellationsLinesVisible')));
+      list.push(bindingToShortcut(kb('TOGGLE_GRID'), t('toggleGrid'), () => toggleStellariumSetting('equatorialLinesVisible')));
+      list.push(bindingToShortcut(kb('TOGGLE_DSO'), t('toggleDso'), () => toggleStellariumSetting('dsosVisible')));
+      list.push(bindingToShortcut(kb('TOGGLE_ATMOSPHERE'), t('toggleAtmosphere'), () => toggleStellariumSetting('atmosphereVisible')));
+    }
 
-    // Time controls
-    list.push(bindingToShortcut(kb('PAUSE_TIME'), t('pauseResumeTime'), handlePauseTime));
-    list.push(bindingToShortcut(kb('SPEED_UP'), t('speedUpTime'), handleSpeedUp));
-    list.push(bindingToShortcut(kb('SLOW_DOWN'), t('slowDownTime'), handleSlowDown));
-    list.push(bindingToShortcut(kb('RESET_TIME'), t('resetTime'), handleResetTime));
+    // Time controls — Stellarium-only (Aladin Lite is not time-aware)
+    if (isStellarium) {
+      list.push(bindingToShortcut(kb('PAUSE_TIME'), t('pauseResumeTime'), handlePauseTime));
+      list.push(bindingToShortcut(kb('SPEED_UP'), t('speedUpTime'), handleSpeedUp));
+      list.push(bindingToShortcut(kb('SLOW_DOWN'), t('slowDownTime'), handleSlowDown));
+      list.push(bindingToShortcut(kb('RESET_TIME'), t('resetTime'), handleResetTime));
+    }
 
     // Close panel
     if (onClosePanel) {
@@ -120,6 +127,7 @@ export function KeyboardShortcutsManager({
     onClosePanel,
     fovEnabled,
     setFovEnabled,
+    isStellarium,
     toggleStellariumSetting,
     handlePauseTime,
     handleSpeedUp,
@@ -132,7 +140,7 @@ export function KeyboardShortcutsManager({
 
   useKeyboardShortcuts({
     shortcuts,
-    enabled: enabled && !!stel,
+    enabled: enabled && (!!stel || skyEngine === 'aladin'),
   });
 
   // This component doesn't render anything

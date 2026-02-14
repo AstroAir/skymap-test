@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(not(desktop))]
+use tauri::Manager;
 
 use crate::data::StorageError;
 use crate::network::security::limits;
@@ -89,8 +91,18 @@ pub struct CreateRegionArgs {
 }
 
 fn get_cache_dir(app: &AppHandle) -> Result<PathBuf, StorageError> {
-    let app_data_dir = app.path().app_data_dir().map_err(|_| StorageError::AppDataDirNotFound)?;
-    let cache_dir = app_data_dir.join("skymap").join("cache");
+    #[cfg(desktop)]
+    let base = crate::platform::path_config::resolve_cache_dir(app)?;
+
+    #[cfg(not(desktop))]
+    let base = {
+        let app_data_dir = app.path().app_data_dir().map_err(|_| StorageError::AppDataDirNotFound)?;
+        let d = app_data_dir.join("skymap");
+        if !d.exists() { fs::create_dir_all(&d)?; }
+        d
+    };
+
+    let cache_dir = base.join("cache");
     if !cache_dir.exists() { fs::create_dir_all(&cache_dir)?; }
     Ok(cache_dir)
 }

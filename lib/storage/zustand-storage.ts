@@ -78,9 +78,14 @@ function saveToTauri(name: string, value: StorageValue<unknown>): void {
   const timeout = setTimeout(async () => {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
+      const serialized = JSON.stringify(value);
+      if (serialized === undefined) {
+        logger.error(`Failed to serialize ${name}: value is undefined`);
+        return;
+      }
       await invoke('save_store_data', { 
         storeName: name, 
-        data: JSON.stringify(value) 
+        data: serialized 
       });
       pendingSaves.delete(name);
     } catch (error) {

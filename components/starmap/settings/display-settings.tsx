@@ -13,6 +13,10 @@ import {
   Star,
   SunDim,
   Projector,
+  Telescope,
+  Layers,
+  Crosshair,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -26,7 +30,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useSatelliteStore, useSettingsStore } from '@/lib/stores';
-import type { SkyCultureLanguage, StellariumProjection } from '@/lib/core/types';
+import type { SkyCultureLanguage, StellariumProjection, SkyEngineType, AladinCooFrameSetting, AladinColormap } from '@/lib/core/types';
+import { cn } from '@/lib/utils';
 import { StellariumSurveySelector } from './stellarium-survey-selector';
 import { ObjectInfoSourcesConfig } from '../objects/object-info-sources-config';
 import { SettingsSection, ToggleItem } from './settings-shared';
@@ -48,9 +53,17 @@ const PROJECTION_OPTIONS: { value: StellariumProjection; labelKey: string }[] = 
 export function DisplaySettings() {
   const t = useTranslations();
   
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
+  const setSkyEngine = useSettingsStore((state) => state.setSkyEngine);
   const stellarium = useSettingsStore((state) => state.stellarium);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
   const setStellariumSetting = useSettingsStore((state) => state.setStellariumSetting);
+  const isStellarium = skyEngine === 'stellarium';
+  const isAladin = skyEngine === 'aladin';
+  
+  const aladinDisplay = useSettingsStore((state) => state.aladinDisplay);
+  const setAladinDisplaySetting = useSettingsStore((state) => state.setAladinDisplaySetting);
+  const toggleAladinDisplaySetting = useSettingsStore((state) => state.toggleAladinDisplaySetting);
   
   const showSatellites = useSatelliteStore((state) => state.showSatellites);
   const showSatelliteLabels = useSatelliteStore((state) => state.showLabels);
@@ -61,41 +74,84 @@ export function DisplaySettings() {
 
   return (
     <div className="p-4 space-y-4">
+      {/* Sky Engine Switcher */}
       <SettingsSection
-        title={t('settings.displaySettings')}
-        icon={<Eye className="h-4 w-4" />}
-      >
-        {DISPLAY_SETTINGS.map(({ key, labelKey }) => (
-          <ToggleItem
-            key={key}
-            id={key}
-            label={t(labelKey)}
-            checked={stellarium[key] as boolean}
-            onCheckedChange={() => toggleStellariumSetting(key)}
-          />
-        ))}
-      </SettingsSection>
-
-      <Separator />
-
-      <SettingsSection
-        title={t('settings.gridLines')}
-        icon={<Grid3X3 className="h-4 w-4" />}
+        title={t('settings.skyEngineSwitchTitle')}
+        icon={<Layers className="h-4 w-4" />}
         defaultOpen={true}
       >
-        {GRID_SETTINGS.map(({ key, labelKey }) => (
-          <ToggleItem
-            key={key}
-            id={key}
-            label={t(labelKey)}
-            checked={stellarium[key] as boolean}
-            onCheckedChange={() => toggleStellariumSetting(key)}
-          />
-        ))}
+        <div className="grid grid-cols-2 gap-2">
+          {(['stellarium', 'aladin'] as SkyEngineType[]).map((engine) => (
+            <button
+              key={engine}
+              onClick={() => setSkyEngine(engine)}
+              className={cn(
+                'flex flex-col items-center gap-1.5 p-3 rounded-lg border text-xs transition-all',
+                skyEngine === engine
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-muted bg-muted/30 text-muted-foreground hover:bg-muted/50'
+              )}
+            >
+              {engine === 'stellarium' ? (
+                <Telescope className="h-5 w-5" />
+              ) : (
+                <Globe className="h-5 w-5" />
+              )}
+              <span className="font-medium">
+                {engine === 'stellarium' ? t('settings.skyEngineStellarium') : t('settings.skyEngineAladin')}
+              </span>
+              <span className="text-[10px] text-muted-foreground text-center leading-tight">
+                {engine === 'stellarium' ? t('settings.stellariumDesc') : t('settings.aladinDesc')}
+              </span>
+            </button>
+          ))}
+        </div>
       </SettingsSection>
 
       <Separator />
 
+      {/* Stellarium-only: Display toggles */}
+      {isStellarium && (
+        <>
+          <SettingsSection
+            title={t('settings.displaySettings')}
+            icon={<Eye className="h-4 w-4" />}
+          >
+            {DISPLAY_SETTINGS.map(({ key, labelKey }) => (
+              <ToggleItem
+                key={key}
+                id={key}
+                label={t(labelKey)}
+                checked={stellarium[key] as boolean}
+                onCheckedChange={() => toggleStellariumSetting(key)}
+              />
+            ))}
+          </SettingsSection>
+
+          <Separator />
+
+          <SettingsSection
+            title={t('settings.gridLines')}
+            icon={<Grid3X3 className="h-4 w-4" />}
+            defaultOpen={true}
+          >
+            {GRID_SETTINGS.map(({ key, labelKey }) => (
+              <ToggleItem
+                key={key}
+                id={key}
+                label={t(labelKey)}
+                checked={stellarium[key] as boolean}
+                onCheckedChange={() => toggleStellariumSetting(key)}
+              />
+            ))}
+          </SettingsSection>
+
+          <Separator />
+        </>
+      )}
+
+      {/* Stellarium-only: Rendering settings */}
+      {isStellarium && (
       <SettingsSection
         title={t('settings.rendering')}
         icon={<Star className="h-4 w-4" />}
@@ -187,78 +243,246 @@ export function DisplaySettings() {
           />
         </div>
       </SettingsSection>
+      )}
 
-      <Separator />
+      {/* Stellarium-only: Projection & View Modes */}
+      {isStellarium && (
+        <>
+          <Separator />
 
-      <SettingsSection
-        title={t('settings.projection')}
-        icon={<Projector className="h-4 w-4" />}
-        defaultOpen={false}
-      >
-        <Select
-          value={stellarium.projectionType}
-          onValueChange={(v: StellariumProjection) => setStellariumSetting('projectionType', v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PROJECTION_OPTIONS.map(({ value, labelKey }) => (
-              <SelectItem key={value} value={value}>{t(labelKey)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground px-1">{t('settings.projectionDescription')}</p>
-      </SettingsSection>
+          <SettingsSection
+            title={t('settings.projection')}
+            icon={<Projector className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            <Select
+              value={stellarium.projectionType}
+              onValueChange={(v: StellariumProjection) => setStellariumSetting('projectionType', v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROJECTION_OPTIONS.map(({ value, labelKey }) => (
+                  <SelectItem key={value} value={value}>{t(labelKey)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground px-1">{t('settings.projectionDescription')}</p>
+          </SettingsSection>
 
-      <Separator />
+          <Separator />
 
-      <SettingsSection
-        title={t('settings.viewModes')}
-        icon={<Moon className="h-4 w-4" />}
-        defaultOpen={false}
-      >
-        <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-          <div className="flex-1 min-w-0 mr-2">
-            <Label htmlFor="night-mode" className="text-sm cursor-pointer flex items-center gap-2">
-              <Moon className="h-4 w-4 text-red-400" />
-              {t('settings.nightMode')}
-            </Label>
-            <p className="text-xs text-muted-foreground mt-0.5">{t('settings.nightModeDescription')}</p>
-          </div>
-          <Switch
-            id="night-mode"
-            checked={stellarium.nightMode}
-            onCheckedChange={() => toggleStellariumSetting('nightMode')}
-          />
-        </div>
-        <ToggleItem
-          id="flip-vertical"
-          label={t('settings.flipViewVertical')}
-          checked={stellarium.flipViewVertical}
-          onCheckedChange={() => toggleStellariumSetting('flipViewVertical')}
-        />
-        <ToggleItem
-          id="flip-horizontal"
-          label={t('settings.flipViewHorizontal')}
-          checked={stellarium.flipViewHorizontal}
-          onCheckedChange={() => toggleStellariumSetting('flipViewHorizontal')}
-        />
-        <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-          <div className="flex-1 min-w-0 mr-2">
-            <Label htmlFor="sensor-control" className="text-sm cursor-pointer flex items-center gap-2">
-              <Smartphone className="h-4 w-4 text-blue-400" />
-              {t('settings.sensorControl')}
-            </Label>
-            <p className="text-xs text-muted-foreground mt-0.5">{t('settings.sensorControlPermission')}</p>
-          </div>
-          <Switch
-            id="sensor-control"
-            checked={stellarium.sensorControl}
-            onCheckedChange={() => toggleStellariumSetting('sensorControl')}
-          />
-        </div>
-      </SettingsSection>
+          <SettingsSection
+            title={t('settings.viewModes')}
+            icon={<Moon className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+              <div className="flex-1 min-w-0 mr-2">
+                <Label htmlFor="night-mode" className="text-sm cursor-pointer flex items-center gap-2">
+                  <Moon className="h-4 w-4 text-red-400" />
+                  {t('settings.nightMode')}
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('settings.nightModeDescription')}</p>
+              </div>
+              <Switch
+                id="night-mode"
+                checked={stellarium.nightMode}
+                onCheckedChange={() => toggleStellariumSetting('nightMode')}
+              />
+            </div>
+            <ToggleItem
+              id="flip-vertical"
+              label={t('settings.flipViewVertical')}
+              checked={stellarium.flipViewVertical}
+              onCheckedChange={() => toggleStellariumSetting('flipViewVertical')}
+            />
+            <ToggleItem
+              id="flip-horizontal"
+              label={t('settings.flipViewHorizontal')}
+              checked={stellarium.flipViewHorizontal}
+              onCheckedChange={() => toggleStellariumSetting('flipViewHorizontal')}
+            />
+            <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+              <div className="flex-1 min-w-0 mr-2">
+                <Label htmlFor="sensor-control" className="text-sm cursor-pointer flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-blue-400" />
+                  {t('settings.sensorControl')}
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('settings.sensorControlPermission')}</p>
+              </div>
+              <Switch
+                id="sensor-control"
+                checked={stellarium.sensorControl}
+                onCheckedChange={() => toggleStellariumSetting('sensorControl')}
+              />
+            </div>
+          </SettingsSection>
+        </>
+      )}
+
+      {/* Aladin-only: Display settings */}
+      {isAladin && (
+        <>
+          <Separator />
+
+          <SettingsSection
+            title={t('settings.aladinCoordinateGrid')}
+            icon={<Grid3X3 className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            <ToggleItem
+              id="aladin-coo-grid"
+              label={t('settings.aladinShowCooGrid')}
+              checked={aladinDisplay.showCooGrid}
+              onCheckedChange={() => toggleAladinDisplaySetting('showCooGrid')}
+            />
+            {aladinDisplay.showCooGrid && (
+              <div className="space-y-2 pl-2">
+                <div className="space-y-1 py-1">
+                  <Label className="text-xs text-muted-foreground">{t('settings.aladinGridOpacity')}</Label>
+                  <Slider
+                    value={[aladinDisplay.cooGridOpacity]}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    onValueChange={([v]) => setAladinDisplaySetting('cooGridOpacity', v)}
+                  />
+                </div>
+              </div>
+            )}
+          </SettingsSection>
+
+          <Separator />
+
+          <SettingsSection
+            title={t('settings.aladinReticle')}
+            icon={<Crosshair className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            <ToggleItem
+              id="aladin-reticle"
+              label={t('settings.aladinShowReticle')}
+              checked={aladinDisplay.showReticle}
+              onCheckedChange={() => toggleAladinDisplaySetting('showReticle')}
+            />
+          </SettingsSection>
+
+          <Separator />
+
+          <SettingsSection
+            title={t('settings.aladinCoordinateFrame')}
+            icon={<Globe className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            <Select
+              value={aladinDisplay.cooFrame}
+              onValueChange={(v: AladinCooFrameSetting) => setAladinDisplaySetting('cooFrame', v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ICRSd">{t('settings.aladinFrameICRS')}</SelectItem>
+                <SelectItem value="galactic">{t('settings.aladinFrameGalactic')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingsSection>
+
+          <Separator />
+
+          <SettingsSection
+            title={t('settings.aladinImageAdjustments')}
+            icon={<ImageIcon className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            {/* Colormap */}
+            <div className="space-y-1 py-1">
+              <Label className="text-xs text-muted-foreground">{t('settings.aladinColormap')}</Label>
+              <Select
+                value={aladinDisplay.colormap}
+                onValueChange={(v: AladinColormap) => setAladinDisplaySetting('colormap', v)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="native">{t('settings.aladinColormapNative')}</SelectItem>
+                  <SelectItem value="grayscale">Grayscale</SelectItem>
+                  <SelectItem value="viridis">Viridis</SelectItem>
+                  <SelectItem value="plasma">Plasma</SelectItem>
+                  <SelectItem value="inferno">Inferno</SelectItem>
+                  <SelectItem value="magma">Magma</SelectItem>
+                  <SelectItem value="cubehelix">Cubehelix</SelectItem>
+                  <SelectItem value="rainbow">Rainbow</SelectItem>
+                  <SelectItem value="rdbu">RdBu</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Brightness */}
+            <div className="space-y-1 py-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.aladinBrightness')}</Label>
+                <span className="text-xs text-muted-foreground">{aladinDisplay.brightness.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[aladinDisplay.brightness]}
+                min={-1}
+                max={1}
+                step={0.1}
+                onValueChange={([v]) => setAladinDisplaySetting('brightness', v)}
+              />
+            </div>
+
+            {/* Contrast */}
+            <div className="space-y-1 py-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.aladinContrast')}</Label>
+                <span className="text-xs text-muted-foreground">{aladinDisplay.contrast.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[aladinDisplay.contrast]}
+                min={0}
+                max={3}
+                step={0.1}
+                onValueChange={([v]) => setAladinDisplaySetting('contrast', v)}
+              />
+            </div>
+
+            {/* Saturation */}
+            <div className="space-y-1 py-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.aladinSaturation')}</Label>
+                <span className="text-xs text-muted-foreground">{aladinDisplay.saturation.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[aladinDisplay.saturation]}
+                min={0}
+                max={3}
+                step={0.1}
+                onValueChange={([v]) => setAladinDisplaySetting('saturation', v)}
+              />
+            </div>
+
+            {/* Gamma */}
+            <div className="space-y-1 py-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.aladinGamma')}</Label>
+                <span className="text-xs text-muted-foreground">{aladinDisplay.gamma.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[aladinDisplay.gamma]}
+                min={0.1}
+                max={5}
+                step={0.1}
+                onValueChange={([v]) => setAladinDisplaySetting('gamma', v)}
+              />
+            </div>
+          </SettingsSection>
+        </>
+      )}
 
       <Separator />
 
@@ -291,30 +515,35 @@ export function DisplaySettings() {
         />
       </SettingsSection>
 
-      <Separator />
+      {/* Stellarium-only: Sky Culture Language */}
+      {isStellarium && (
+        <>
+          <Separator />
 
-      <SettingsSection
-        title={t('settings.skyCultureLanguage')}
-        icon={<Globe className="h-4 w-4" />}
-        defaultOpen={false}
-      >
-        <Select
-          value={stellarium.skyCultureLanguage}
-          onValueChange={(v: SkyCultureLanguage) => setStellariumSetting('skyCultureLanguage', v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder={t('settings.selectLanguage')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="native">{t('settings.languageNative')}</SelectItem>
-            <SelectItem value="en">{t('settings.languageEnglish')}</SelectItem>
-            <SelectItem value="zh">{t('settings.languageChinese')}</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground px-1">
-          {t('settings.skyCultureLanguageDescription')}
-        </p>
-      </SettingsSection>
+          <SettingsSection
+            title={t('settings.skyCultureLanguage')}
+            icon={<Globe className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            <Select
+              value={stellarium.skyCultureLanguage}
+              onValueChange={(v: SkyCultureLanguage) => setStellariumSetting('skyCultureLanguage', v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t('settings.selectLanguage')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="native">{t('settings.languageNative')}</SelectItem>
+                <SelectItem value="en">{t('settings.languageEnglish')}</SelectItem>
+                <SelectItem value="zh">{t('settings.languageChinese')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground px-1">
+              {t('settings.skyCultureLanguageDescription')}
+            </p>
+          </SettingsSection>
+        </>
+      )}
 
       <Separator />
 

@@ -499,6 +499,14 @@ export function useObjectSearch(): UseObjectSearchReturn {
         obsLat = stel.core.observer.latitude ?? 40;
         obsLon = stel.core.observer.longitude ?? -74;
       } catch { /* use defaults */ }
+    } else {
+      // Fallback to mount store location (works for Aladin engine)
+      try {
+        const { useMountStore } = await import('@/lib/stores');
+        const profile = useMountStore.getState().profileInfo;
+        obsLat = profile.AstrometrySettings.Latitude || 40;
+        obsLon = profile.AstrometrySettings.Longitude || -74;
+      } catch { /* use defaults */ }
     }
     const now = new Date();
     for (const result of sortedResults) {

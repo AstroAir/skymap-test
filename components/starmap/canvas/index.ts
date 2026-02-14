@@ -3,8 +3,10 @@
 // Re-exports from centralized locations for backward compatibility
 // ============================================================================
 
-// Main component
+// Main components
 export { StellariumCanvas } from './stellarium-canvas';
+export { AladinCanvas } from './aladin-canvas';
+export { SkyMapCanvas } from './sky-map-canvas';
 
 // Types (from types/)
 export type {

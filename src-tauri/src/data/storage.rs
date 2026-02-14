@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(not(desktop))]
+use tauri::Manager;
 use thiserror::Error;
 
 /// Storage-related errors
@@ -66,13 +68,23 @@ const KNOWN_STORES: &[&str] = &[
 ];
 
 /// Get the base storage directory for the application
+/// Uses custom data directory if configured (desktop only), otherwise default
 fn get_storage_dir(app: &AppHandle) -> Result<PathBuf, StorageError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|_| StorageError::AppDataDirNotFound)?;
+    #[cfg(desktop)]
+    let base_dir = crate::platform::path_config::resolve_data_dir(app)?;
 
-    let storage_dir = app_data_dir.join("skymap").join("stores");
+    #[cfg(not(desktop))]
+    let base_dir = {
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|_| StorageError::AppDataDirNotFound)?;
+        let d = app_data_dir.join("skymap");
+        if !d.exists() { fs::create_dir_all(&d)?; }
+        d
+    };
+
+    let storage_dir = base_dir.join("stores");
 
     // Ensure the directory exists
     if !storage_dir.exists() {

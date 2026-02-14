@@ -56,6 +56,7 @@ export function useMountOverlay(): UseMountOverlayReturn {
   const mountCircleRef = useRef<StellariumObject | null>(null);
   const mountAddedRef = useRef(false);
   const lastStelRef = useRef<typeof stel>(null);
+  const aladinSyncThrottleRef = useRef<number>(0);
 
   // Cleanup helper: hide the circle object
   const hideCircle = useCallback((circle: StellariumObject | null) => {
@@ -132,17 +133,30 @@ export function useMountOverlay(): UseMountOverlayReturn {
 
   // Watch for mount coordinate changes
   useEffect(() => {
-    if (!stel || !mountCircleRef.current) return;
-
-    if (!connected) {
-      hideCircle(mountCircleRef.current);
+    // Stellarium path: update circle overlay + optional lock
+    if (stel && mountCircleRef.current) {
+      if (!connected) {
+        hideCircle(mountCircleRef.current);
+        return;
+      }
+      updateCirclePos(raDegree, decDegree);
+      if (effectiveAutoSync) {
+        stel.pointAndLock(mountCircleRef.current);
+      }
       return;
     }
 
-    updateCirclePos(raDegree, decDegree);
-
-    if (effectiveAutoSync) {
-      stel.pointAndLock(mountCircleRef.current);
+    // Aladin path: no overlay circle, but auto-sync still navigates.
+    // Throttle to avoid flooding Aladin with rapid coordinate updates from tracking mounts.
+    if (!stel && connected && effectiveAutoSync) {
+      const now = Date.now();
+      if (now - aladinSyncThrottleRef.current >= 500) {
+        aladinSyncThrottleRef.current = now;
+        const { setViewDirection } = useStellariumStore.getState();
+        if (setViewDirection) {
+          setViewDirection(raDegree, decDegree);
+        }
+      }
     }
   }, [stel, connected, raDegree, decDegree, effectiveAutoSync, updateCirclePos, hideCircle]);
 
@@ -151,12 +165,19 @@ export function useMountOverlay(): UseMountOverlayReturn {
     setAutoSyncEnabled((prev) => !prev);
   }, []);
 
-  // Sync view to mount
+  // Sync view to mount — works with both Stellarium and Aladin
   const syncViewToMount = useCallback(() => {
-    if (stel && connected && mountCircleRef.current) {
+    if (!connected) return;
+    if (stel && mountCircleRef.current) {
       stel.pointAndLock(mountCircleRef.current);
+    } else {
+      // Aladin fallback: navigate via store helper
+      const { setViewDirection } = useStellariumStore.getState();
+      if (setViewDirection) {
+        setViewDirection(raDegree, decDegree);
+      }
     }
-  }, [stel, connected]);
+  }, [stel, connected, raDegree, decDegree]);
 
   // Compute Alt/Az from RA/Dec using observer location
   const altAz = useMemo(() => {

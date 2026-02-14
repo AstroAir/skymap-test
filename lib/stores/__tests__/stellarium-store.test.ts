@@ -52,6 +52,8 @@ describe('useStellariumStore', () => {
     const { result } = renderHook(() => useStellariumStore());
     act(() => {
       result.current.setStel(null);
+      result.current.setAladin(null);
+      result.current.setActiveEngine('stellarium');
       result.current.setBaseUrl('');
       result.current.setSearch({
         RAangle: 0,
@@ -209,6 +211,66 @@ describe('useStellariumStore', () => {
     });
   });
 
+  describe('setAladin', () => {
+    it('should set aladin instance', () => {
+      const { result } = renderHook(() => useStellariumStore());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mockAladin = { getRaDec: jest.fn() } as any;
+
+      act(() => {
+        result.current.setAladin(mockAladin);
+      });
+
+      expect(result.current.aladin).toBe(mockAladin);
+    });
+
+    it('should set aladin to null', () => {
+      const { result } = renderHook(() => useStellariumStore());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mockAladin = { getRaDec: jest.fn() } as any;
+
+      act(() => {
+        result.current.setAladin(mockAladin);
+      });
+      expect(result.current.aladin).toBe(mockAladin);
+
+      act(() => {
+        result.current.setAladin(null);
+      });
+      expect(result.current.aladin).toBeNull();
+    });
+  });
+
+  describe('setActiveEngine', () => {
+    it('should default to stellarium', () => {
+      const { result } = renderHook(() => useStellariumStore());
+      expect(result.current.activeEngine).toBe('stellarium');
+    });
+
+    it('should switch to aladin', () => {
+      const { result } = renderHook(() => useStellariumStore());
+
+      act(() => {
+        result.current.setActiveEngine('aladin');
+      });
+
+      expect(result.current.activeEngine).toBe('aladin');
+    });
+
+    it('should switch back to stellarium', () => {
+      const { result } = renderHook(() => useStellariumStore());
+
+      act(() => {
+        result.current.setActiveEngine('aladin');
+      });
+      act(() => {
+        result.current.setActiveEngine('stellarium');
+      });
+
+      expect(result.current.activeEngine).toBe('stellarium');
+    });
+  });
+
   describe('updateStellariumCore', () => {
     it('should warn if stel is not ready', () => {
       const { result } = renderHook(() => useStellariumStore());
@@ -218,7 +280,11 @@ describe('useStellariumStore', () => {
         result.current.updateStellariumCore(createMockSettings());
       });
 
-      expect(consoleSpy).toHaveBeenCalledWith('Stellarium engine not ready, settings update skipped');
+      // Logger outputs styled console messages, check that warn was called with message containing expected text
+      expect(consoleSpy).toHaveBeenCalled();
+      const callArgs = consoleSpy.mock.calls[0];
+      const fullMessage = callArgs.join(' ');
+      expect(fullMessage).toContain('Stellarium engine not ready, settings update skipped');
       consoleSpy.mockRestore();
     });
 

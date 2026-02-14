@@ -67,7 +67,9 @@ pub struct TargetItem {
     pub name: String,
     pub ra: f64,  // degrees
     pub dec: f64, // degrees
+    #[serde(default)]
     pub ra_string: String,
+    #[serde(default)]
     pub dec_string: String,
     // Camera/FOV settings at time of adding
     pub sensor_width: Option<f64>,
@@ -107,7 +109,9 @@ pub struct TargetInput {
     pub name: String,
     pub ra: f64,
     pub dec: f64,
+    #[serde(default)]
     pub ra_string: String,
+    #[serde(default)]
     pub dec_string: String,
     pub sensor_width: Option<f64>,
     pub sensor_height: Option<f64>,
@@ -126,7 +130,9 @@ pub struct BatchTargetInput {
     pub name: String,
     pub ra: f64,
     pub dec: f64,
+    #[serde(default)]
     pub ra_string: String,
+    #[serde(default)]
     pub dec_string: String,
 }
 

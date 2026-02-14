@@ -54,7 +54,7 @@ import { cn } from '@/lib/utils';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import { getScoreBadgeVariant, formatPlanningTime } from '@/lib/core/constants/planning-styles';
 import type { DSOCardProps, FilterPanelProps } from '@/types/starmap/planning';
-import { useMountStore } from '@/lib/stores';
+import { useMountStore, useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { TranslatedName } from '../objects/translated-name';
 import {
@@ -550,11 +550,13 @@ export function SkyAtlasPanel() {
     });
   }, [addTarget]);
   
-  // Handle go to object
+  // Handle go to object — navigate the active sky engine to the object's coordinates
   const handleGoto = useCallback((object: DeepSkyObject) => {
-    // This would integrate with the stellarium view
-    // For now, just select the object
     selectObject(object);
+    const { setViewDirection } = useStellariumStore.getState();
+    if (setViewDirection) {
+      setViewDirection(object.ra, object.dec);
+    }
   }, [selectObject]);
   
   return (

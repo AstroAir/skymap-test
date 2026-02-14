@@ -67,8 +67,7 @@ pub struct SystemInfo {
 }
 
 fn get_settings_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
-    let app_data_dir = app.path().app_data_dir().map_err(|_| StorageError::AppDataDirNotFound)?;
-    let dir = app_data_dir.join("skymap");
+    let dir = super::path_config::resolve_data_dir(app)?;
     if !dir.exists() { fs::create_dir_all(&dir)?; }
     Ok(dir.join("app_settings.json"))
 }

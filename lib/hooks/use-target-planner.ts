@@ -13,6 +13,8 @@ import {
   neverRises as neverRisesFn,
   isCircumpolar as isCircumpolarFn,
 } from '@/lib/astronomy/astro-utils';
+import { optimizeSchedule } from '@/lib/astronomy/session-scheduler';
+import type { TwilightTimes } from '@/lib/core/types/astronomy';
 
 // ============================================================================
 // Types
@@ -153,48 +155,27 @@ function calculateImagingScore(
   return Math.min(100, Math.max(0, score));
 }
 
-function scheduleTargets(
-  targets: TargetVisibility[],
-  nighttimeData: NighttimeData
-): TargetScheduleSlot[] {
-  const darkStart = nighttimeData.twilightRiseAndSet.set;
-  const darkEnd = nighttimeData.twilightRiseAndSet.rise;
+function nighttimeDataToTwilightTimes(nd: NighttimeData): TwilightTimes {
+  const darkStart = nd.twilightRiseAndSet.set;
+  const darkEnd = nd.twilightRiseAndSet.rise;
+  const darknessDuration = darkStart && darkEnd
+    ? (darkEnd.getTime() - darkStart.getTime()) / 3600000
+    : 0;
   
-  if (!darkStart || !darkEnd) return [];
-  
-  // Sort targets by optimal start time
-  const sortedTargets = [...targets]
-    .filter(t => t.optimalStart && t.optimalEnd && t.optimalHours > 0)
-    .sort((a, b) => {
-      if (!a.optimalStart || !b.optimalStart) return 0;
-      return a.optimalStart.getTime() - b.optimalStart.getTime();
-    });
-  
-  const schedule: TargetScheduleSlot[] = [];
-  let currentTime = darkStart.getTime();
-  
-  for (const target of sortedTargets) {
-    if (!target.optimalStart || !target.optimalEnd) continue;
-    
-    const slotStart = Math.max(currentTime, target.optimalStart.getTime());
-    const slotEnd = Math.min(darkEnd.getTime(), target.optimalEnd.getTime());
-    
-    if (slotEnd > slotStart) {
-      const duration = (slotEnd - slotStart) / (1000 * 60 * 60);
-      if (duration >= 0.5) { // Minimum 30 minutes
-        schedule.push({
-          targetId: target.targetId,
-          start: new Date(slotStart),
-          end: new Date(slotEnd),
-          duration,
-          altitude: target.maxAltitude,
-        });
-        currentTime = slotEnd;
-      }
-    }
-  }
-  
-  return schedule;
+  return {
+    sunset: nd.sunRiseAndSet.set,
+    civilDusk: nd.civilTwilightRiseAndSet.set,
+    nauticalDusk: nd.nauticalTwilightRiseAndSet.set,
+    astronomicalDusk: nd.twilightRiseAndSet.set,
+    astronomicalDawn: nd.twilightRiseAndSet.rise,
+    nauticalDawn: nd.nauticalTwilightRiseAndSet.rise,
+    civilDawn: nd.civilTwilightRiseAndSet.rise,
+    sunrise: nd.sunRiseAndSet.rise,
+    nightDuration: darknessDuration,
+    darknessDuration,
+    isCurrentlyNight: false,
+    currentTwilightPhase: 'night',
+  };
 }
 
 // ============================================================================
@@ -284,50 +265,41 @@ export function useTargetPlanner() {
     });
   }, [targets, location.latitude, location.longitude, nighttimeData]);
   
-  // Generate session plan
+  // Generate session plan using the unified scheduler
   const sessionPlan = useMemo((): SessionPlan => {
-    const visibleTargets = targetVisibilities.filter(t => t.isVisible && t.optimalHours > 0);
-    const schedule = scheduleTargets(visibleTargets, nighttimeData);
+    const twilight = nighttimeDataToTwilightTimes(nighttimeData);
+    const activeTargets = targets.filter(t => !t.isArchived && t.status !== 'completed');
     
-    // Calculate total imaging hours
-    const totalImagingHours = schedule.reduce((sum, slot) => sum + slot.duration, 0);
+    const schedulerResult = optimizeSchedule(
+      activeTargets,
+      location.latitude,
+      location.longitude,
+      twilight,
+      'balanced',
+      30, // minAltitude
+      30, // minImagingTime (minutes)
+      nighttimeData.referenceDate
+    );
     
-    // Calculate coverage
-    const darkStart = nighttimeData.twilightRiseAndSet.set;
-    const darkEnd = nighttimeData.twilightRiseAndSet.rise;
-    const totalDarkHours = darkStart && darkEnd
-      ? (darkEnd.getTime() - darkStart.getTime()) / (1000 * 60 * 60)
-      : 0;
-    const coverage = totalDarkHours > 0 ? (totalImagingHours / totalDarkHours) * 100 : 0;
-    
-    // Find conflicts (gaps > 30 min or overlaps)
-    const conflicts: SessionConflict[] = [];
-    for (let i = 0; i < schedule.length - 1; i++) {
-      const current = schedule[i];
-      const next = schedule[i + 1];
-      const gap = (next.start.getTime() - current.end.getTime()) / (1000 * 60);
-      
-      if (gap > 30) {
-        conflicts.push({
-          targetA: current.targetId,
-          targetB: next.targetId,
-          overlapStart: current.end,
-          overlapEnd: next.start,
-          type: 'gap',
-        });
-      }
-    }
+    // Map scheduler conflicts to hook's SessionConflict format
+    const conflicts: SessionConflict[] = (schedulerResult.gaps ?? []).map((gap, idx) => ({
+      targetA: schedulerResult.targets[idx]?.target.id ?? '',
+      targetB: schedulerResult.targets[idx + 1]?.target.id ?? '',
+      overlapStart: gap.start,
+      overlapEnd: gap.end,
+      type: 'gap' as const,
+    }));
     
     return {
-      date: new Date(),
+      date: nighttimeData.referenceDate,
       nighttimeData,
       targets: targetVisibilities,
-      totalImagingHours,
-      scheduledOrder: schedule.map(s => s.targetId),
+      totalImagingHours: schedulerResult.totalImagingTime,
+      scheduledOrder: schedulerResult.targets.map(s => s.target.id),
       conflicts,
-      coverage: Math.min(100, coverage),
+      coverage: Math.min(100, schedulerResult.nightCoverage),
     };
-  }, [targetVisibilities, nighttimeData]);
+  }, [targets, targetVisibilities, nighttimeData, location.latitude, location.longitude]);
   
   // Update observable windows for all targets - called manually to avoid infinite loops
   const updateAllVisibility = useCallback(() => {

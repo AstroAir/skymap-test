@@ -57,6 +57,7 @@ import { DataManager } from '../management/data-manager';
 import { OnboardingRestartButton } from '../onboarding/welcome-dialog';
 import { EventSourcesSettings } from './event-sources-settings';
 import { SettingsExportImport } from './settings-export-import';
+import { StoragePathSettings } from './storage-path-settings';
 import { UpdateSettings } from '../management/updater/update-settings';
 import { isTauri } from '@/lib/tauri/app-control-api';
 
@@ -214,6 +215,12 @@ export function UnifiedSettings() {
                     </Button>
                   } 
                 />
+                {isTauri() && (
+                  <>
+                    <Separator className="my-4" />
+                    <StoragePathSettings />
+                  </>
+                )}
                 <Separator className="my-4" />
                 <SettingsExportImport />
                 {isTauri() && (

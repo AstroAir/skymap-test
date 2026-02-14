@@ -97,6 +97,9 @@ use platform::{
     // Updater
     check_for_update, clear_pending_update, download_and_install_update, download_update,
     get_current_version, has_pending_update, install_update,
+    // Path config
+    get_path_config, set_custom_data_dir, set_custom_cache_dir,
+    migrate_data_dir, migrate_cache_dir, reset_paths_to_default, validate_directory,
     // Plate solver
     analyse_image, delete_index, detect_plate_solvers, download_index,
     extract_stars, get_astap_databases, get_available_indexes,
@@ -409,6 +412,21 @@ pub fn run() {
             extract_stars,
             #[cfg(desktop)]
             solve_online,
+            // Path config (desktop only)
+            #[cfg(desktop)]
+            get_path_config,
+            #[cfg(desktop)]
+            set_custom_data_dir,
+            #[cfg(desktop)]
+            set_custom_cache_dir,
+            #[cfg(desktop)]
+            migrate_data_dir,
+            #[cfg(desktop)]
+            migrate_cache_dir,
+            #[cfg(desktop)]
+            reset_paths_to_default,
+            #[cfg(desktop)]
+            validate_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,7 +5,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTonightRecommendations } from '../use-tonight-recommendations';
 
-// Mock stellarium store
+// Mock stellarium store + mount store
 jest.mock('@/lib/stores', () => ({
   useStellariumStore: jest.fn((selector) => {
     const state = {
@@ -20,6 +20,31 @@ jest.mock('@/lib/stores', () => ({
     };
     return typeof selector === 'function' ? selector(state) : state;
   }),
+  useMountStore: Object.assign(
+    jest.fn((selector) => {
+      const state = {
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 40.7128,
+            Longitude: -74.006,
+            Elevation: 10,
+          },
+        },
+      };
+      return typeof selector === 'function' ? selector(state) : state;
+    }),
+    {
+      getState: () => ({
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 40.7128,
+            Longitude: -74.006,
+            Elevation: 10,
+          },
+        },
+      }),
+    }
+  ),
 }));
 
 // Mock equipment store — default: no equipment (fallback scoring)

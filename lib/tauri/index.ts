@@ -96,6 +96,14 @@ export type {
 } from './mount-api';
 export { SLEW_RATE_PRESETS, DEFAULT_CONNECTION_CONFIG } from './mount-api';
 
+// Path Config API (desktop only)
+export { pathConfigApi } from './path-config-api';
+export type {
+  PathInfo,
+  DirectoryValidation,
+  MigrationResult,
+} from './path-config-api';
+
 // Plate Solver API (desktop only)
 export { plateSolverApi } from './plate-solver-api';
 export type {

@@ -779,7 +779,7 @@ export function ShotList({
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel>{t('shotList.sortByLabel')}</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {(['manual', 'name', 'priority', 'status', 'addedAt'] as const).map((s) => (
+                      {(['manual', 'name', 'priority', 'status', 'addedAt', 'feasibility'] as const).map((s) => (
                         <DropdownMenuCheckboxItem
                           key={s}
                           checked={sortBy === s}

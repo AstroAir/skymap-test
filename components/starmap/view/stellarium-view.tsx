@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-import { StellariumCanvas } from '../canvas/stellarium-canvas';
+import { SkyMapCanvas } from '../canvas/sky-map-canvas';
 import { InfoPanel } from '../objects/info-panel';
 import { ObjectDetailDrawer } from '../objects/object-detail-drawer';
 import { KeyboardShortcutsManager } from '../controls/keyboard-shortcuts-manager';
@@ -64,6 +64,7 @@ export function StellariumView() {
 
     // Store states
     stel,
+    skyEngine,
     mountConnected,
     stellariumSettings,
     toggleStellariumSetting,
@@ -112,12 +113,12 @@ export function StellariumView() {
             if (isSearchOpen) setIsSearchOpen(false);
             else if (selectedObject) setSelectedObject(null);
           }}
-          enabled={!!stel}
+          enabled={!!stel || skyEngine === 'aladin'}
         />
 
-        {/* Canvas */}
+        {/* Canvas — switches between Stellarium and Aladin based on skyEngine setting */}
         <div className="absolute inset-0">
-          <StellariumCanvas
+          <SkyMapCanvas
             ref={canvasRef}
             onSelectionChange={handleSelectionChange}
             onFovChange={handleFovChange}
@@ -166,7 +167,7 @@ export function StellariumView() {
 
         {/* Top Toolbar */}
         <TopToolbar
-          stel={!!stel}
+          stel={!!stel || skyEngine === 'aladin'}
           isSearchOpen={isSearchOpen}
           showSessionPanel={showSessionPanel}
           viewCenterRaDec={viewCenterRaDec}
@@ -190,7 +191,7 @@ export function StellariumView() {
 
         {/* Right Side Controls - Desktop */}
         <RightControlPanel
-          stel={!!stel}
+          stel={!!stel || skyEngine === 'aladin'}
           currentFov={currentFov}
           selectedObject={selectedObject}
           showSessionPanel={showSessionPanel}
@@ -203,7 +204,6 @@ export function StellariumView() {
 
         {/* Mobile Layout */}
         <MobileLayout
-          stel={!!stel}
           currentFov={currentFov}
           selectedObject={selectedObject}
           contextMenuCoords={contextMenuCoords}

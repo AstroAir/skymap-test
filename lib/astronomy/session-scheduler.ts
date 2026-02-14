@@ -29,15 +29,21 @@ export function optimizeSchedule(
   strategy: OptimizationStrategy,
   minAltitude: number,
   minImagingTime: number, // minutes
-  date: Date = new Date()
+  date: Date = new Date(),
+  excludedIds: Set<string> = new Set()
 ): SessionPlan {
   const jd = getJulianDateFromDate(date);
   const moonPos = getMoonPosition(jd);
   const moonPhase = getMoonPhase(jd);
   const moonIllum = getMoonIllumination(moonPhase);
   
+  // Filter out excluded targets
+  const activeTargets = excludedIds.size > 0
+    ? targets.filter(t => !excludedIds.has(t.id))
+    : targets;
+  
   // Calculate visibility for all targets
-  const targetData = targets.map(target => {
+  const targetData = activeTargets.map(target => {
     const visibility = calculateTargetVisibility(
       target.ra, target.dec, latitude, longitude, minAltitude, date
     );
@@ -102,19 +108,31 @@ export function optimizeSchedule(
     let slotStart = targetStart;
     let slotEnd = targetEnd;
     
-    // Check for overlaps and adjust
-    for (const used of usedSlots) {
-      if (slotStart < used.end && slotEnd > used.start) {
-        // Overlap detected - try to fit around it
-        if (used.start > slotStart && used.start - slotStart >= minImagingTime * 60000) {
-          slotEnd = used.start;
-        } else if (used.end < slotEnd && slotEnd - used.end >= minImagingTime * 60000) {
-          slotStart = used.end;
-        } else {
-          // Can't fit - skip this target
-          slotStart = 0;
-          slotEnd = 0;
-          break;
+    // Check for overlaps and adjust.
+    // After each adjustment, restart the loop because shrinking the slot
+    // may introduce a new conflict with a previously-checked slot.
+    let overlapResolved = false;
+    const MAX_OVERLAP_ITERATIONS = usedSlots.length + 1;
+    for (let iter = 0; iter < MAX_OVERLAP_ITERATIONS && !overlapResolved; iter++) {
+      overlapResolved = true;
+      for (const used of usedSlots) {
+        if (slotStart < used.end && slotEnd > used.start) {
+          // Overlap detected - try to fit around it
+          if (used.start > slotStart && used.start - slotStart >= minImagingTime * 60000) {
+            slotEnd = used.start;
+            overlapResolved = false; // re-check all slots
+            break;
+          } else if (used.end < slotEnd && slotEnd - used.end >= minImagingTime * 60000) {
+            slotStart = used.end;
+            overlapResolved = false; // re-check all slots
+            break;
+          } else {
+            // Can't fit - skip this target
+            slotStart = 0;
+            slotEnd = 0;
+            overlapResolved = true;
+            break;
+          }
         }
       }
     }

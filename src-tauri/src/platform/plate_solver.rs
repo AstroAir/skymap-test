@@ -1120,13 +1120,11 @@ pub struct DownloadableIndexFull {
     pub solver_type: String,
 }
 
-use tauri::Manager;
 use std::fs;
 
 fn get_config_path(app: &AppHandle) -> Result<PathBuf, PlateSolverError> {
-    let app_data_dir = app.path().app_data_dir()
-        .map_err(|_| PlateSolverError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "App data dir not found")))?;
-    let dir = app_data_dir.join("skymap");
+    let dir = super::path_config::resolve_data_dir(app)
+        .map_err(|e| PlateSolverError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string())))?;
     if !dir.exists() { fs::create_dir_all(&dir)?; }
     Ok(dir.join("solver_config.json"))
 }

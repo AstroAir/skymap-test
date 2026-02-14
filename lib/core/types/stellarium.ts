@@ -188,6 +188,70 @@ export interface StellariumSettings {
 }
 
 // ============================================================================
+// Aladin Display Settings
+// ============================================================================
+
+export type AladinCooFrameSetting = 'ICRSd' | 'galactic';
+
+export type AladinColormap =
+  | 'native'
+  | 'grayscale'
+  | 'blues'
+  | 'cividis'
+  | 'cubehelix'
+  | 'eosb'
+  | 'inferno'
+  | 'magma'
+  | 'parula'
+  | 'plasma'
+  | 'rainbow'
+  | 'rdbu'
+  | 'rdyibu'
+  | 'redtemperature'
+  | 'viridis';
+
+export interface AladinDisplaySettings {
+  // Coordinate grid
+  showCooGrid: boolean;
+  cooGridColor: string;
+  cooGridOpacity: number;
+  cooGridLabelSize: number;
+
+  // Reticle
+  showReticle: boolean;
+  reticleColor: string;
+  reticleSize: number;
+
+  // Coordinate frame
+  cooFrame: AladinCooFrameSetting;
+
+  // Image adjustments
+  colormap: AladinColormap;
+  colormapReversed: boolean;
+  brightness: number;  // -1 to 1, default 0
+  contrast: number;    // 0 to 3, default 1
+  saturation: number;  // 0 to 3, default 1
+  gamma: number;       // 0.1 to 5, default 1
+}
+
+export const DEFAULT_ALADIN_DISPLAY_SETTINGS: AladinDisplaySettings = {
+  showCooGrid: false,
+  cooGridColor: 'rgb(178, 50, 178)',
+  cooGridOpacity: 0.6,
+  cooGridLabelSize: 12,
+  showReticle: false,
+  reticleColor: '#ff0000',
+  reticleSize: 22,
+  cooFrame: 'ICRSd',
+  colormap: 'native',
+  colormapReversed: false,
+  brightness: 0,
+  contrast: 1,
+  saturation: 1,
+  gamma: 1,
+};
+
+// ============================================================================
 // Framing Types
 // ============================================================================
 

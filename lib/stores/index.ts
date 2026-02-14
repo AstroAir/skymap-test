@@ -133,6 +133,13 @@ export {
   type EventSourceConfig,
 } from './event-sources-store';
 
+// Session plan store
+export {
+  useSessionPlanStore,
+  type SavedSessionPlan,
+  type SavedScheduledTarget,
+} from './session-plan-store';
+
 // Updater store
 export {
   useUpdaterStore,

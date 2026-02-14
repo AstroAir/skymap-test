@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { useStellariumStore } from '@/lib/stores';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 import { rad2deg } from '@/lib/astronomy/starmap-utils';
 import type { SearchResultItem } from '@/lib/core/types';
 import { createLogger } from '@/lib/logger';
@@ -9,7 +10,8 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('use-select-target');
 
 /**
- * Shared hook for navigating to a celestial target in Stellarium.
+ * Shared hook for navigating to a celestial target.
+ * Supports both Stellarium and Aladin Lite engines.
  * Used by StellariumSearch and AdvancedSearchDialog to avoid code duplication.
  */
 export function useSelectTarget(callbacks?: {
@@ -17,8 +19,55 @@ export function useSelectTarget(callbacks?: {
   addRecentSearch?: (name: string) => void;
 }) {
   const stel = useStellariumStore((state) => state.stel);
+  const aladin = useStellariumStore((state) => state.aladin);
+  const setViewDirection = useStellariumStore((state) => state.setViewDirection);
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
+
+  // Destructure callbacks to avoid dependency on the (likely unstable) object reference
+  const onSelect = callbacks?.onSelect;
+  const addRecentSearch = callbacks?.addRecentSearch;
 
   const selectTarget = useCallback(async (item: SearchResultItem) => {
+    // ========================================================================
+    // Aladin Lite engine path
+    // ========================================================================
+    if (skyEngine === 'aladin') {
+      try {
+        const ra = item.RA;
+        const dec = item.Dec;
+
+        if (ra !== undefined && dec !== undefined) {
+          // Navigate by coordinates
+          if (setViewDirection) {
+            setViewDirection(ra, dec);
+          }
+        } else if (aladin && item.Name) {
+          // Try named object resolution via Aladin's Sesame resolver
+          if (typeof aladin.gotoObject === 'function') {
+            aladin.gotoObject(item.Name, {
+              success: () => {
+                if (typeof aladin.adjustFovForObject === 'function') {
+                  aladin.adjustFovForObject(item.Name);
+                }
+              },
+              error: () => {
+                logger.warn(`Aladin could not resolve object: ${item.Name}`);
+              },
+            });
+          }
+        }
+
+        addRecentSearch?.(item.Name);
+        onSelect?.(item);
+      } catch (error) {
+        logger.error('Error selecting target (Aladin)', error);
+      }
+      return;
+    }
+
+    // ========================================================================
+    // Stellarium engine path
+    // ========================================================================
     if (!stel) return;
 
     try {
@@ -26,8 +75,8 @@ export function useSelectTarget(callbacks?: {
       if (item.StellariumObj) {
         Object.assign(stel.core, { selection: item.StellariumObj });
         stel.pointAndLock(item.StellariumObj);
-        callbacks?.addRecentSearch?.(item.Name);
-        callbacks?.onSelect?.(item);
+        addRecentSearch?.(item.Name);
+        onSelect?.(item);
         return;
       }
 
@@ -64,12 +113,12 @@ export function useSelectTarget(callbacks?: {
         stel.pointAndLock(targetCircle);
       }
 
-      callbacks?.addRecentSearch?.(item.Name);
-      callbacks?.onSelect?.(item);
+      addRecentSearch?.(item.Name);
+      onSelect?.(item);
     } catch (error) {
       logger.error('Error selecting target', error);
     }
-  }, [stel, callbacks]);
+  }, [stel, aladin, setViewDirection, skyEngine, onSelect, addRecentSearch]);
 
   return selectTarget;
 }

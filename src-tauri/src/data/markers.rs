@@ -25,7 +25,9 @@ pub struct SkyMarker {
     pub description: Option<String>,
     pub ra: f64,
     pub dec: f64,
+    #[serde(default)]
     pub ra_string: String,
+    #[serde(default)]
     pub dec_string: String,
     pub color: String,
     pub icon: MarkerIcon,
@@ -42,7 +44,9 @@ pub struct MarkerInput {
     pub description: Option<String>,
     pub ra: f64,
     pub dec: f64,
+    #[serde(default)]
     pub ra_string: String,
+    #[serde(default)]
     pub dec_string: String,
     pub color: String,
     pub icon: MarkerIcon,

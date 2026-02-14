@@ -5,6 +5,8 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 const mockSettingsState = {
+  skyEngine: 'stellarium' as const,
+  setSkyEngine: jest.fn(),
   stellarium: {
     constellationsLinesVisible: true,
     constellationArtVisible: false,
@@ -18,6 +20,8 @@ const mockSettingsState = {
     atmosphereVisible: false,
     landscapesVisible: false,
     dsosVisible: true,
+    milkyWayVisible: true,
+    fogVisible: false,
     surveyEnabled: true,
     surveyId: 'dss',
     surveyUrl: undefined,
@@ -26,6 +30,14 @@ const mockSettingsState = {
     sensorControl: false,
     crosshairVisible: true,
     crosshairColor: 'rgba(255, 255, 255, 0.3)',
+    projectionType: 'stereographic' as const,
+    bortleIndex: 3,
+    starLinearScale: 0.8,
+    starRelativeScale: 1.1,
+    displayLimitMag: 99,
+    flipViewVertical: false,
+    flipViewHorizontal: false,
+    exposureScale: 2,
   },
   toggleStellariumSetting: jest.fn(),
   setStellariumSetting: jest.fn(),

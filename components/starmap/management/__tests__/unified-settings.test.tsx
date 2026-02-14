@@ -306,6 +306,10 @@ jest.mock('../../settings/settings-export-import', () => ({
   SettingsExportImport: () => <div data-testid="settings-export-import">SettingsExportImport</div>,
 }));
 
+jest.mock('../../settings/storage-path-settings', () => ({
+  StoragePathSettings: () => <div data-testid="storage-path-settings">StoragePathSettings</div>,
+}));
+
 jest.mock('../../map', () => ({
   MapProviderSettings: () => <div data-testid="map-provider-settings">MapProviderSettings</div>,
   MapHealthMonitor: () => <div data-testid="map-health-monitor">MapHealthMonitor</div>,

@@ -1,15 +1,20 @@
 import { create } from 'zustand';
-import type { StellariumEngine, StellariumSettings } from '@/lib/core/types';
+import type { StellariumEngine, StellariumSettings, SkyEngineType } from '@/lib/core/types';
+import type A from 'aladin-lite';
 import { PROJECTION_VALUES } from '@/lib/core/types';
 import { SKY_SURVEYS } from '@/lib/core/constants';
 import { updateStellariumTranslation } from '@/lib/translations';
 import { createLogger } from '@/lib/logger';
 
+type AladinInstance = ReturnType<typeof A.aladin>;
+
 const logger = createLogger('stellarium-store');
 
 interface StellariumState {
-  // Engine instance
+  // Engine instances
   stel: StellariumEngine | null;
+  aladin: AladinInstance | null;
+  activeEngine: SkyEngineType;
   baseUrl: string;
   
   // Search state
@@ -29,6 +34,8 @@ interface StellariumState {
   
   // Actions
   setStel: (stel: StellariumEngine | null) => void;
+  setAladin: (aladin: AladinInstance | null) => void;
+  setActiveEngine: (engine: SkyEngineType) => void;
   setBaseUrl: (url: string) => void;
   setSearch: (search: Partial<StellariumState['search']>) => void;
   setHelpers: (helpers: {
@@ -41,6 +48,8 @@ interface StellariumState {
 
 export const useStellariumStore = create<StellariumState>((set, get) => ({
   stel: null,
+  aladin: null,
+  activeEngine: 'stellarium' as SkyEngineType,
   baseUrl: '',
   search: {
     RAangle: 0,
@@ -53,13 +62,23 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
   viewDirection: null,
   
   setStel: (stel) => set({ stel }),
+  setAladin: (aladin) => set({ aladin }),
+  setActiveEngine: (activeEngine) => set({ activeEngine }),
   setBaseUrl: (baseUrl) => set({ baseUrl }),
   setSearch: (search) => set((state) => ({ 
     search: { ...state.search, ...search } 
   })),
   setHelpers: (helpers) => set({
-    getCurrentViewDirection: helpers.getCurrentViewDirection ?? get().getCurrentViewDirection,
-    setViewDirection: helpers.setViewDirection ?? get().setViewDirection,
+    // Use 'in' check so explicit null clears the helper (vs ?? which would keep stale value).
+    // The `as` cast is needed because the property type is `T | null` but TypeScript
+    // sees the optional param as `T | null | undefined`; at runtime the value is always
+    // either a function or null when the key is present.
+    getCurrentViewDirection: 'getCurrentViewDirection' in helpers
+      ? (helpers.getCurrentViewDirection ?? null) as StellariumState['getCurrentViewDirection']
+      : get().getCurrentViewDirection,
+    setViewDirection: 'setViewDirection' in helpers
+      ? (helpers.setViewDirection ?? null) as StellariumState['setViewDirection']
+      : get().setViewDirection,
   }),
   updateViewDirection: () => {
     const fn = get().getCurrentViewDirection;

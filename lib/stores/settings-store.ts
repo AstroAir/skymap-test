@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
-import type { StellariumSettings } from '@/lib/core/types';
+import type { StellariumSettings, SkyEngineType, AladinDisplaySettings } from '@/lib/core/types';
+import { DEFAULT_ALADIN_DISPLAY_SETTINGS } from '@/lib/core/types/stellarium';
 import { DEFAULT_STELLARIUM_SETTINGS } from '@/components/starmap/settings/settings-constants';
 
 // ============================================================================
@@ -73,6 +74,9 @@ interface SettingsState {
   };
   backendProtocol: 'http' | 'https';
   
+  // Sky engine selection
+  skyEngine: SkyEngineType;
+  
   // Stellarium display settings
   stellarium: StellariumSettings;
   
@@ -91,9 +95,15 @@ interface SettingsState {
   // Search settings
   search: SearchSettings;
   
+  // Aladin display settings
+  aladinDisplay: AladinDisplaySettings;
+  
   // Actions - Connection
   setConnection: (connection: Partial<SettingsState['connection']>) => void;
   setBackendProtocol: (protocol: 'http' | 'https') => void;
+  
+  // Actions - Sky Engine
+  setSkyEngine: (engine: SkyEngineType) => void;
   
   // Actions - Stellarium
   setStellariumSetting: <K extends keyof StellariumSettings>(key: K, value: StellariumSettings[K]) => void;
@@ -119,6 +129,11 @@ interface SettingsState {
   // Actions - Search
   setSearchSetting: <K extends keyof SearchSettings>(key: K, value: SearchSettings[K]) => void;
   setSearchSettings: (settings: Partial<SearchSettings>) => void;
+  
+  // Actions - Aladin Display
+  setAladinDisplaySetting: <K extends keyof AladinDisplaySettings>(key: K, value: AladinDisplaySettings[K]) => void;
+  setAladinDisplaySettings: (settings: Partial<AladinDisplaySettings>) => void;
+  toggleAladinDisplaySetting: (key: keyof AladinDisplaySettings) => void;
   
   // Actions - Reset
   resetToDefaults: () => void;
@@ -191,12 +206,14 @@ export const useSettingsStore = create<SettingsState>()(
         port: '1888',
       },
       backendProtocol: 'http',
+      skyEngine: 'stellarium' as SkyEngineType,
       stellarium: DEFAULT_STELLARIUM,
       preferences: DEFAULT_PREFERENCES,
       performance: DEFAULT_PERFORMANCE,
       accessibility: DEFAULT_ACCESSIBILITY,
       notifications: DEFAULT_NOTIFICATIONS,
       search: DEFAULT_SEARCH,
+      aladinDisplay: DEFAULT_ALADIN_DISPLAY_SETTINGS,
       
       // Actions - Connection
       setConnection: (connection) => set((state) => ({
@@ -204,6 +221,9 @@ export const useSettingsStore = create<SettingsState>()(
       })),
       
       setBackendProtocol: (backendProtocol) => set({ backendProtocol }),
+      
+      // Actions - Sky Engine
+      setSkyEngine: (skyEngine) => set({ skyEngine }),
       
       // Actions - Stellarium
       setStellariumSetting: (key, value) => set((state) => ({
@@ -267,20 +287,41 @@ export const useSettingsStore = create<SettingsState>()(
         search: { ...state.search, ...settings }
       })),
       
+      // Actions - Aladin Display
+      setAladinDisplaySetting: (key, value) => set((state) => ({
+        aladinDisplay: { ...state.aladinDisplay, [key]: value }
+      })),
+      
+      setAladinDisplaySettings: (settings) => set((state) => ({
+        aladinDisplay: { ...state.aladinDisplay, ...settings }
+      })),
+      
+      toggleAladinDisplaySetting: (key) => set((state) => {
+        const currentValue = state.aladinDisplay[key];
+        if (typeof currentValue === 'boolean') {
+          return {
+            aladinDisplay: { ...state.aladinDisplay, [key]: !currentValue }
+          };
+        }
+        return state;
+      }),
+      
       // Actions - Reset
       resetToDefaults: () => set({
+        skyEngine: 'stellarium' as SkyEngineType,
         stellarium: DEFAULT_STELLARIUM,
         preferences: DEFAULT_PREFERENCES,
         performance: DEFAULT_PERFORMANCE,
         accessibility: DEFAULT_ACCESSIBILITY,
         notifications: DEFAULT_NOTIFICATIONS,
         search: DEFAULT_SEARCH,
+        aladinDisplay: DEFAULT_ALADIN_DISPLAY_SETTINGS,
       }),
     }),
     {
       name: 'starmap-settings',
       storage: getZustandStorage(),
-      version: 7, // Add engine rendering settings (bortle, star scale, projection, flip, etc.)
+      version: 9, // Add skyEngine field for dual-engine support
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState>;
         
@@ -288,6 +329,7 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 7) {
           return {
             ...state,
+            skyEngine: 'stellarium' as SkyEngineType,
             stellarium: {
               ...DEFAULT_STELLARIUM,
               ...state.stellarium,
@@ -314,17 +356,39 @@ export const useSettingsStore = create<SettingsState>()(
             },
           };
         }
+        
+        // Migration from v7 to v8: add skyEngine
+        if (version < 8) {
+          return {
+            ...state,
+            skyEngine: state.skyEngine ?? ('stellarium' as SkyEngineType),
+          };
+        }
+        
+        // Migration from v8 to v9: add aladinDisplay
+        if (version < 9) {
+          return {
+            ...state,
+            aladinDisplay: {
+              ...DEFAULT_ALADIN_DISPLAY_SETTINGS,
+              ...(state as Record<string, unknown>).aladinDisplay as Partial<AladinDisplaySettings> | undefined,
+            },
+          };
+        }
+        
         return state;
       },
       partialize: (state) => ({
         connection: state.connection,
         backendProtocol: state.backendProtocol,
+        skyEngine: state.skyEngine,
         stellarium: state.stellarium,
         preferences: state.preferences,
         performance: state.performance,
         accessibility: state.accessibility,
         notifications: state.notifications,
         search: state.search,
+        aladinDisplay: state.aladinDisplay,
       }),
     }
   )

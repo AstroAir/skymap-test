@@ -23,6 +23,7 @@ jest.mock('@/lib/stores', () => {
     ),
     useSettingsStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
       selector({
+        skyEngine: 'stellarium',
         stellarium: {},
         toggleStellariumSetting: jest.fn(),
       })
@@ -128,5 +129,82 @@ describe('KeyboardShortcutsManager', () => {
 
     const call = mockUseKeyboardShortcuts.mock.calls[0][0];
     expect(call.enabled).toBe(false);
+  });
+});
+
+// ============================================================================
+// Aladin engine compatibility
+// ============================================================================
+
+describe('KeyboardShortcutsManager (Aladin engine)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Reconfigure mocks for Aladin mode
+    const { useStellariumStore, useSettingsStore } = jest.requireMock('@/lib/stores');
+    (useStellariumStore as jest.Mock).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) => selector({ stel: null })
+    );
+    (useSettingsStore as jest.Mock).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({
+          skyEngine: 'aladin',
+          stellarium: {},
+          toggleStellariumSetting: jest.fn(),
+        })
+    );
+  });
+
+  it('enables shortcuts when Aladin is active (stel=null)', () => {
+    render(<KeyboardShortcutsManager />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    expect(call.enabled).toBe(true);
+  });
+
+  it('excludes Stellarium-only display toggle shortcuts in Aladin mode', () => {
+    render(<KeyboardShortcutsManager />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const keys = call.shortcuts.map((s: { key: string }) => s.key);
+
+    // Stellarium-only display toggles should NOT be present
+    expect(keys).not.toContain('l'); // constellations
+    expect(keys).not.toContain('g'); // grid
+    expect(keys).not.toContain('d'); // DSO
+    expect(keys).not.toContain('a'); // atmosphere
+  });
+
+  it('excludes time control shortcuts in Aladin mode', () => {
+    render(<KeyboardShortcutsManager />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const keys = call.shortcuts.map((s: { key: string }) => s.key);
+
+    // Time controls should NOT be present
+    expect(keys).not.toContain(' '); // pause
+    expect(keys).not.toContain(']'); // speed up
+    expect(keys).not.toContain('['); // slow down
+    expect(keys).not.toContain('t'); // reset time
+  });
+
+  it('still includes universal shortcuts (zoom, search, FOV) in Aladin mode', () => {
+    const onZoomIn = jest.fn();
+    const onZoomOut = jest.fn();
+    const onToggleSearch = jest.fn();
+
+    render(
+      <KeyboardShortcutsManager
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+        onToggleSearch={onToggleSearch}
+      />
+    );
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const keys = call.shortcuts.map((s: { key: string }) => s.key);
+
+    expect(keys).toContain('+'); // zoom in
+    expect(keys).toContain('-'); // zoom out
+    expect(keys).toContain('f'); // FOV toggle
   });
 });

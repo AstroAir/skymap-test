@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useStellariumStore } from '@/lib/stores';
+import { useStellariumStore, useMountStore } from '@/lib/stores';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import type { SearchResultItem, I18nMessage } from '@/lib/core/types';
@@ -117,7 +117,7 @@ export function useTonightRecommendations() {
   const [isLoading, setIsLoading] = useState(false);
   const [planDate, setPlanDate] = useState<Date>(new Date());
 
-  // Get observer location from Stellarium or default
+  // Get observer location from Stellarium, mount store, or default
   const getObserverLocation = useCallback(() => {
     if (stel?.core?.observer) {
       try {
@@ -130,6 +130,13 @@ export function useTonightRecommendations() {
         // Fallback
       }
     }
+    // Fallback to mount store location (works for Aladin engine)
+    try {
+      const profile = useMountStore.getState().profileInfo;
+      const lat = profile.AstrometrySettings.Latitude;
+      const lon = profile.AstrometrySettings.Longitude;
+      if (lat || lon) return { latitude: lat || 40, longitude: lon || -74 };
+    } catch { /* ignore */ }
     return { latitude: 40, longitude: -74 };
   }, [stel]);
 

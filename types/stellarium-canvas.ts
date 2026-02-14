@@ -2,34 +2,22 @@
 // Stellarium Canvas Types
 // ============================================================================
 
-import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
+import type { ClickCoords } from '@/lib/core/types';
+import type { SkyMapCanvasRef, SkyMapCanvasProps } from '@/lib/core/types/sky-engine';
 
 // Re-export ClickCoords as ClickCoordinates for backward compatibility
 export type ClickCoordinates = ClickCoords;
 
-export interface StellariumCanvasRef {
-  zoomIn: () => void;
-  zoomOut: () => void;
-  setFov: (fov: number) => void;
-  getFov: () => number;
-  getClickCoordinates: (clientX: number, clientY: number) => ClickCoordinates | null;
-  /** Debug: Force reload the engine */
-  reloadEngine: () => void;
-  /** Debug: Get engine status */
-  getEngineStatus: () => EngineStatus;
-}
+// StellariumCanvasRef is identical to SkyMapCanvasRef.
+// Using a type alias ensures type compatibility when used as a ref target
+// in the SkyMapCanvas engine-switching wrapper.
+export type StellariumCanvasRef = SkyMapCanvasRef;
 
-export interface StellariumCanvasProps {
-  onSelectionChange?: (selection: SelectedObjectData | null) => void;
-  onFovChange?: (fov: number) => void;
-  onContextMenu?: (e: React.MouseEvent, coords: ClickCoordinates | null) => void;
-}
+// StellariumCanvasProps is identical to SkyMapCanvasProps.
+export type StellariumCanvasProps = SkyMapCanvasProps;
 
-export interface EngineStatus {
-  isLoading: boolean;
-  hasError: boolean;
-  isReady: boolean;
-}
+// Re-export from canonical location to avoid duplicate interface definitions
+export type { EngineStatus } from '@/lib/core/types/sky-engine';
 
 export interface LoadingState {
   isLoading: boolean;

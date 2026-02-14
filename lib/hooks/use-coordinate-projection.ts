@@ -1,6 +1,10 @@
 /**
  * Unified coordinate projection hook for overlay components
- * Converts RA/Dec celestial coordinates to screen coordinates using gnomonic projection
+ * Converts RA/Dec celestial coordinates to screen coordinates
+ * 
+ * Supports dual engines:
+ * - Stellarium: gnomonic (rectilinear) projection via engine API
+ * - Aladin Lite: world2pix() direct coordinate conversion
  * 
  * This hook consolidates the coordinate transformation logic previously duplicated in:
  * - SkyMarkers
@@ -9,6 +13,7 @@
 
 import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { useStellariumStore } from '@/lib/stores';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 import { useGlobalAnimationLoop } from './use-animation-frame';
 import { createLogger } from '@/lib/logger';
 
@@ -76,76 +81,103 @@ export interface UseBatchProjectionOptions<T> {
 }
 
 // ============================================================================
-// Core Projection Function
+// Core Projection Functions
 // ============================================================================
 
 /**
- * Creates a coordinate projection function bound to a specific Stellarium instance
- * Uses gnomonic (rectilinear) projection - inverse of getClickCoordinates in StellariumCanvas
+ * Creates a Stellarium-specific coordinate projector
+ * Uses gnomonic (rectilinear) projection - inverse of getClickCoordinates
  */
-export function createCoordinateProjector(
-  stel: ReturnType<typeof useStellariumStore.getState>['stel'],
+function createStellariumProjector(
+  stel: NonNullable<ReturnType<typeof useStellariumStore.getState>['stel']>,
   containerWidth: number,
   containerHeight: number,
-  visibilityMargin: number = 1.1
+  visibilityMargin: number
 ): (ra: number, dec: number) => ScreenPosition | null {
-  if (!stel) {
-    return () => null;
-  }
-
   return (ra: number, dec: number): ScreenPosition | null => {
     try {
-      // Convert degrees to radians
       const raRad = ra * stel.D2R;
       const decRad = dec * stel.D2R;
-
-      // Convert spherical to cartesian (ICRF frame)
       const icrfVec = stel.s2c(raRad, decRad);
-
-      // Convert ICRF to VIEW frame
       const viewVec = stel.convertFrame(stel.observer, 'ICRF', 'VIEW', icrfVec);
 
-      // Check if the point is behind the viewer (z > 0 in VIEW frame means behind)
       if (viewVec[2] > 0) {
         return { x: 0, y: 0, visible: false };
       }
 
-      // Get current FOV and aspect ratio
-      const fov = stel.core.fov; // FOV in radians
+      const fov = stel.core.fov;
       const aspect = containerWidth / containerHeight;
-
-      // Gnomonic projection:
-      // projX = viewX / (-viewZ), projY = viewY / (-viewZ)
-      // Then scale by 1/tan(fov/2) and account for aspect ratio
       const scale = 1 / Math.tan(fov / 2);
-
-      // Project onto the viewing plane
       const projX = viewVec[0] / (-viewVec[2]);
       const projY = viewVec[1] / (-viewVec[2]);
-
-      // Convert to normalized device coordinates
-      // ndcX = projX * scale / aspect (to match inverse in getClickCoordinates)
-      // ndcY = projY * scale
       const ndcX = (projX * scale) / aspect;
       const ndcY = projY * scale;
 
-      // Check if within visible area (with configurable margin)
       if (Math.abs(ndcX) > visibilityMargin || Math.abs(ndcY) > visibilityMargin) {
         return { x: 0, y: 0, visible: false };
       }
 
-      // Convert to screen coordinates
-      // screenX = (ndcX + 1) * 0.5 * width
-      // screenY = (1 - ndcY) * 0.5 * height (Y is inverted)
       const screenX = (ndcX + 1) * 0.5 * containerWidth;
       const screenY = (1 - ndcY) * 0.5 * containerHeight;
 
       return { x: screenX, y: screenY, visible: true };
     } catch (error) {
-      logger.error('Error converting coordinates', error);
+      logger.error('Error converting coordinates (Stellarium)', error);
       return null;
     }
   };
+}
+
+/**
+ * Creates an Aladin Lite-specific coordinate projector
+ * Uses Aladin's native world2pix() for coordinate conversion
+ */
+function createAladinProjector(
+  aladin: NonNullable<ReturnType<typeof useStellariumStore.getState>['aladin']>,
+  containerWidth: number,
+  containerHeight: number,
+  visibilityMargin: number
+): (ra: number, dec: number) => ScreenPosition | null {
+  return (ra: number, dec: number): ScreenPosition | null => {
+    try {
+      const result = aladin.world2pix(ra, dec);
+      if (!result) {
+        return { x: 0, y: 0, visible: false };
+      }
+      const [x, y] = result;
+      const marginX = containerWidth * (visibilityMargin - 1);
+      const marginY = containerHeight * (visibilityMargin - 1);
+      const visible = x >= -marginX && x <= containerWidth + marginX
+        && y >= -marginY && y <= containerHeight + marginY;
+      return { x, y, visible };
+    } catch (error) {
+      logger.error('Error converting coordinates (Aladin)', error);
+      return null;
+    }
+  };
+}
+
+/**
+ * Creates a coordinate projection function for the currently active sky engine.
+ * Automatically dispatches to Stellarium or Aladin projector.
+ */
+export function createCoordinateProjector(
+  stel: ReturnType<typeof useStellariumStore.getState>['stel'],
+  containerWidth: number,
+  containerHeight: number,
+  visibilityMargin: number = 1.1,
+  aladin?: ReturnType<typeof useStellariumStore.getState>['aladin'],
+  activeEngine?: string
+): (ra: number, dec: number) => ScreenPosition | null {
+  // If Aladin engine is active and instance is available, use Aladin projector
+  if (activeEngine === 'aladin' && aladin) {
+    return createAladinProjector(aladin, containerWidth, containerHeight, visibilityMargin);
+  }
+  // Default: Stellarium projector
+  if (!stel) {
+    return () => null;
+  }
+  return createStellariumProjector(stel, containerWidth, containerHeight, visibilityMargin);
 }
 
 // ============================================================================
@@ -162,6 +194,10 @@ export function useCoordinateProjection({
   visibilityMargin = 1.1,
 }: UseCoordinateProjectionOptions): UseCoordinateProjectionReturn {
   const stel = useStellariumStore((state) => state.stel);
+  const aladin = useStellariumStore((state) => state.aladin);
+  // Use settings-store (updated synchronously) instead of stellarium-store's
+  // activeEngine (set in useEffect, one tick behind) to avoid desync.
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
 
   const convertToScreen = useCallback(
     (ra: number, dec: number): ScreenPosition | null => {
@@ -169,11 +205,13 @@ export function useCoordinateProjection({
         stel,
         containerWidth,
         containerHeight,
-        visibilityMargin
+        visibilityMargin,
+        aladin,
+        skyEngine
       );
       return projector(ra, dec);
     },
-    [stel, containerWidth, containerHeight, visibilityMargin]
+    [stel, aladin, skyEngine, containerWidth, containerHeight, visibilityMargin]
   );
 
   const projectItems = useCallback(
@@ -182,7 +220,9 @@ export function useCoordinateProjection({
         stel,
         containerWidth,
         containerHeight,
-        visibilityMargin
+        visibilityMargin,
+        aladin,
+        skyEngine
       );
 
       const results: ProjectedItem<T>[] = [];
@@ -199,13 +239,13 @@ export function useCoordinateProjection({
       }
       return results;
     },
-    [stel, containerWidth, containerHeight, visibilityMargin]
+    [stel, aladin, skyEngine, containerWidth, containerHeight, visibilityMargin]
   );
 
   return {
     convertToScreen,
     projectItems,
-    isReady: !!stel,
+    isReady: skyEngine === 'aladin' ? !!aladin : !!stel,
   };
 }
 
@@ -225,6 +265,10 @@ export function useBatchProjection<T>({
   loopId = 'batch-projection',
 }: UseBatchProjectionOptions<T>): ProjectedItem<T>[] {
   const stel = useStellariumStore((state) => state.stel);
+  const aladin = useStellariumStore((state) => state.aladin);
+  // Use settings-store (updated synchronously) instead of stellarium-store's
+  // activeEngine (set in useEffect, one tick behind) to avoid desync.
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
   const [positions, setPositions] = useState<ProjectedItem<T>[]>([]);
   
   // Store items in ref to avoid stale closures
@@ -236,19 +280,22 @@ export function useBatchProjection<T>({
   // Throttle timestamp tracking
   const lastUpdateRef = useRef<number>(0);
 
+  const engineReady = skyEngine === 'aladin' ? !!aladin : !!stel;
+
+  // Memoize the projector to avoid re-creating the closure on every animation frame
+  const projector = useMemo(
+    () => engineReady
+      ? createCoordinateProjector(stel, containerWidth, containerHeight, visibilityMargin, aladin, skyEngine)
+      : null,
+    [stel, aladin, skyEngine, engineReady, containerWidth, containerHeight, visibilityMargin]
+  );
+
   // Memoize the update callback
   const updatePositions = useCallback(() => {
-    if (!stel || !enabled) {
+    if (!projector || !enabled) {
       setPositions([]);
       return;
     }
-
-    const projector = createCoordinateProjector(
-      stel,
-      containerWidth,
-      containerHeight,
-      visibilityMargin
-    );
 
     const currentItems = itemsRef.current;
     const newPositions: ProjectedItem<T>[] = [];
@@ -271,7 +318,7 @@ export function useBatchProjection<T>({
     }
 
     setPositions(newPositions);
-  }, [stel, enabled, containerWidth, containerHeight, visibilityMargin, getRa, getDec]);
+  }, [projector, enabled, getRa, getDec]);
 
   // Subscribe to global animation loop with throttling
   useGlobalAnimationLoop(
@@ -285,7 +332,7 @@ export function useBatchProjection<T>({
       },
       [updatePositions, intervalMs]
     ),
-    enabled && !!stel
+    enabled && engineReady
   );
 
   // Return only visible items

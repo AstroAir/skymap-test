@@ -11,6 +11,7 @@ pub mod app_settings;
 pub mod app_control;
 pub mod updater;
 pub mod plate_solver;
+pub mod path_config;
 
 // Re-export app settings types and commands
 pub use app_settings::{
@@ -29,6 +30,13 @@ pub use updater::{
     UpdateInfo, UpdateProgress, UpdateStatus, UpdaterError,
     check_for_update, clear_pending_update, download_and_install_update, download_update,
     get_current_version, has_pending_update, install_update,
+};
+
+// Re-export path config types and commands
+pub use path_config::{
+    DirectoryValidation, MigrationResult, PathConfig, PathInfo,
+    get_path_config, migrate_cache_dir, migrate_data_dir, reset_paths_to_default,
+    set_custom_cache_dir, set_custom_data_dir, validate_directory,
 };
 
 // Re-export plate solver types and commands

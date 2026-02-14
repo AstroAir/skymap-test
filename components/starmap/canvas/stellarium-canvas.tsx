@@ -45,6 +45,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     // Store Actions
     // ============================================================================
     const setStel = useStellariumStore((state) => state.setStel);
+    const setActiveEngine = useStellariumStore((state) => state.setActiveEngine);
 
     // ============================================================================
     // Hooks
@@ -122,14 +123,18 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     // Effect: Start Loading on Mount
     // ============================================================================
     useEffect(() => {
+      setActiveEngine('stellarium');
       startLoading();
 
       return () => {
         // Cleanup on unmount
         stelRef.current = null;
         setStel(null);
+        // Clear helpers to prevent stale closures when switching engines
+        const { setHelpers } = useStellariumStore.getState();
+        setHelpers({ getCurrentViewDirection: null, setViewDirection: null });
       };
-    }, [startLoading, setStel]);
+    }, [startLoading, setStel, setActiveEngine]);
 
     // ============================================================================
     // Effect: ResizeObserver for dynamic canvas resize

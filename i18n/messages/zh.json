@@ -330,6 +330,30 @@
     "plus1Week": "+1周"
   },
   "settings": {
+    "skyEngine": "星图引擎",
+    "skyEngineSwitchTitle": "切换星图引擎",
+    "skyEngineStellarium": "Stellarium",
+    "skyEngineAladin": "Aladin Lite",
+    "stellariumDesc": "全功能天象仪，支持星座线、大气效果和地景渲染",
+    "aladinDesc": "HiPS 巡天浏览器，支持 SIMBAD/VizieR 天文目录叠加",
+    "engineSwitching": "引擎切换中...",
+    "stellariumOnlyFeatures": "Stellarium 专属功能",
+    "aladinOnlyFeatures": "Aladin 专属功能",
+    "aladinCoordinateGrid": "坐标网格",
+    "aladinShowCooGrid": "显示坐标网格",
+    "aladinGridOpacity": "网格透明度",
+    "aladinReticle": "十字准星",
+    "aladinShowReticle": "显示十字准星",
+    "aladinCoordinateFrame": "坐标系",
+    "aladinFrameICRS": "赤道坐标 (ICRS)",
+    "aladinFrameGalactic": "银道坐标",
+    "aladinImageAdjustments": "图像调节",
+    "aladinColormap": "色彩映射",
+    "aladinColormapNative": "原始 (默认)",
+    "aladinBrightness": "亮度",
+    "aladinContrast": "对比度",
+    "aladinSaturation": "饱和度",
+    "aladinGamma": "伽马",
     "displaySettings": "显示设置",
     "constellationLines": "星座连线",
     "azimuthalGrid": "地平坐标网格",
@@ -572,6 +596,7 @@
       "priority": "优先级",
       "status": "状态",
       "addedAt": "添加时间",
+      "feasibility": "今晚可行性",
       "ascending": "升序",
       "descending": "降序"
     },
@@ -593,7 +618,8 @@
     "singleExposure": "单帧 (秒)",
     "totalExposure": "总计 (分)",
     "subFrames": "子帧数",
-    "filter": "滤镜"
+    "filter": "滤镜",
+    "minutesTotal": "分钟总计"
   },
   "observationLog": {
     "title": "观测日志",
@@ -1286,7 +1312,32 @@
     "directoryCopied": "目录路径已复制",
     "directoryPath": "数据目录",
     "desktopMode": "桌面模式（本地文件）",
-    "webMode": "网页模式（浏览器存储）"
+    "webMode": "网页模式（浏览器存储）",
+    "reloadRequired": "需要重新加载以应用更改",
+    "reloadNow": "立即重新加载"
+  },
+  "storagePaths": {
+    "title": "存储路径",
+    "dataDirectory": "数据目录",
+    "cacheDirectory": "缓存目录",
+    "custom": "自定义",
+    "defaultPath": "默认",
+    "changePath": "更改",
+    "openInExplorer": "在文件管理器中打开",
+    "resetToDefault": "恢复默认路径",
+    "resetConfirmTitle": "恢复默认路径？",
+    "resetConfirmDesc": "这将把数据和缓存目录恢复到默认位置。自定义目录中的现有文件不会被删除。您需要重启应用程序。",
+    "migrating": "正在迁移文件...",
+    "migrateSuccess": "迁移完成",
+    "migrateError": "迁移失败",
+    "filesCopied": "个文件已复制",
+    "invalidDirectory": "无效的目录",
+    "insufficientSpace": "磁盘空间不足警告",
+    "restartRequired": "请重启应用程序以使更改生效",
+    "pathResetSuccess": "已恢复默认路径",
+    "resetError": "恢复默认路径失败",
+    "changeError": "更改目录失败",
+    "description": "更改应用程序存储数据和缓存文件的位置。更改目录时，现有文件将被复制到新位置。更改后需要重启应用。"
   },
   "equipment": {
     "title": "设备管理",
@@ -2425,7 +2476,20 @@
     "transitAt": "中天 {time}",
     "overlapsWith": "与以下目标重叠: {list}",
     "fovInfo": "视场: {w}° × {h}°",
-    "fRatioLabel": "f/{ratio}"
+    "fRatioLabel": "f/{ratio}",
+    "excludeFromPlan": "从本计划中排除",
+    "excludedTargets": "已排除 {count} 个",
+    "restoreAll": "全部恢复",
+    "restore": "恢复",
+    "savePlan": "保存计划",
+    "savePlanTooltip": "保存当前计划以便日后使用",
+    "loadPlan": "加载计划",
+    "exportFormat": {
+      "text": "纯文本",
+      "markdown": "Markdown",
+      "json": "JSON",
+      "nina-xml": "NINA 序列 XML"
+    }
   },
   "mountSafety": {
     "title": "赤道仪安全模拟",

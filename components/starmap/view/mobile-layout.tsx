@@ -23,7 +23,6 @@ import { useEquipmentStore } from '@/lib/stores';
 import type { MobileLayoutProps } from '@/types/starmap/view';
 
 export const MobileLayout = memo(function MobileLayout({
-  stel,
   currentFov,
   selectedObject,
   contextMenuCoords,
@@ -116,7 +115,7 @@ export const MobileLayout = memo(function MobileLayout({
         
         {/* Mount & Advanced */}
         <div className="flex items-center gap-0.5 shrink-0">
-          {stel && <StellariumMount compact />}
+          <StellariumMount compact />
           <PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />
           <SkyAtlasPanel />
           <EquipmentManager />

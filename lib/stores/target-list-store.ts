@@ -87,7 +87,7 @@ interface TargetListState {
   searchQuery: string;
   filterStatus: 'all' | TargetItem['status'];
   filterPriority: 'all' | TargetItem['priority'];
-  sortBy: 'manual' | 'name' | 'priority' | 'status' | 'addedAt';
+  sortBy: 'manual' | 'name' | 'priority' | 'status' | 'addedAt' | 'feasibility';
   sortOrder: 'asc' | 'desc';
   
   // Single target actions
@@ -197,11 +197,11 @@ export const useTargetListStore = create<TargetListState>()(
             name: newTarget.name,
             ra: newTarget.ra,
             dec: newTarget.dec,
-            ra_string: newTarget.raString,
-            dec_string: newTarget.decString,
+            ra_string: newTarget.raString || '',
+            dec_string: newTarget.decString || '',
             priority: newTarget.priority,
             notes: newTarget.notes,
-            tags: newTarget.tags,
+            tags: newTarget.tags ?? [],
             sensor_width: newTarget.sensorWidth,
             sensor_height: newTarget.sensorHeight,
             focal_length: newTarget.focalLength,
@@ -337,13 +337,13 @@ export const useTargetListStore = create<TargetListState>()(
         const idsSet = new Set(ids);
         return {
           targets: state.targets.map((t) =>
-            idsSet.has(t.id) && !t.tags.includes(tag)
-              ? { ...t, tags: [...t.tags, tag] }
+            idsSet.has(t.id) && !(t.tags ?? []).includes(tag)
+              ? { ...t, tags: [...(t.tags ?? []), tag] }
               : t
           ),
-          availableTags: state.availableTags.includes(tag)
-            ? state.availableTags
-            : [...state.availableTags, tag],
+          availableTags: (state.availableTags ?? []).includes(tag)
+            ? (state.availableTags ?? [])
+            : [...(state.availableTags ?? []), tag],
         };
       }),
       
@@ -352,7 +352,7 @@ export const useTargetListStore = create<TargetListState>()(
         return {
           targets: state.targets.map((t) =>
             idsSet.has(t.id)
-              ? { ...t, tags: t.tags.filter((tg) => tg !== tag) }
+              ? { ...t, tags: (t.tags ?? []).filter((tg) => tg !== tag) }
               : t
           ),
         };
@@ -385,17 +385,17 @@ export const useTargetListStore = create<TargetListState>()(
       
       // ========== Tag management ==========
       addTag: (tag) => set((state) => ({
-        availableTags: state.availableTags.includes(tag)
-          ? state.availableTags
-          : [...state.availableTags, tag],
+        availableTags: (state.availableTags ?? []).includes(tag)
+          ? (state.availableTags ?? [])
+          : [...(state.availableTags ?? []), tag],
       })),
       
       removeTag: (tag) => set((state) => ({
-        availableTags: state.availableTags.filter((t) => t !== tag),
-        filterTags: state.filterTags.filter((t) => t !== tag),
+        availableTags: (state.availableTags ?? []).filter((t) => t !== tag),
+        filterTags: (state.filterTags ?? []).filter((t) => t !== tag),
         targets: state.targets.map((t) => ({
           ...t,
-          tags: t.tags.filter((tg) => tg !== tag),
+          tags: (t.tags ?? []).filter((tg) => tg !== tag),
         })),
       })),
       
@@ -536,7 +536,7 @@ export const useTargetListStore = create<TargetListState>()(
           const q = state.searchQuery.trim().toLowerCase();
           filtered = filtered.filter((t) =>
             t.name.toLowerCase().includes(q) ||
-            t.tags.some((tag) => tag.toLowerCase().includes(q)) ||
+            (t.tags ?? []).some((tag) => tag.toLowerCase().includes(q)) ||
             t.notes?.toLowerCase().includes(q)
           );
         }
@@ -554,7 +554,7 @@ export const useTargetListStore = create<TargetListState>()(
         // Filter by tags
         if (state.filterTags.length > 0) {
           filtered = filtered.filter((t) =>
-            state.filterTags.some((tag) => t.tags.includes(tag))
+            state.filterTags.some((tag) => (t.tags ?? []).includes(tag))
           );
         }
         
@@ -575,6 +575,18 @@ export const useTargetListStore = create<TargetListState>()(
               }
               case 'addedAt':
                 return dir * (a.addedAt - b.addedAt);
+              case 'feasibility': {
+                // Composite score: imaging duration (hours) + altitude weight + circumpolar bonus
+                const calcScore = (t: TargetItem) => {
+                  const w = t.observableWindow;
+                  if (!w) return 0;
+                  const durationHours = (w.end.getTime() - w.start.getTime()) / 3600000;
+                  const altScore = w.maxAltitude / 90; // normalize 0-1
+                  const circumpolarBonus = w.isCircumpolar ? 0.2 : 0;
+                  return durationHours * 0.5 + altScore * 0.3 + circumpolarBonus;
+                };
+                return dir * (calcScore(b) - calcScore(a));
+              }
               default:
                 return 0;
             }
@@ -605,12 +617,12 @@ export const useTargetListStore = create<TargetListState>()(
               break;
             case 'tag':
               // For tag grouping, a target can appear in multiple groups
-              if (target.tags.length === 0) {
+              if ((target.tags ?? []).length === 0) {
                 key = 'untagged';
                 if (!groups.has(key)) groups.set(key, []);
                 groups.get(key)!.push(target);
               } else {
-                for (const tag of target.tags) {
+                for (const tag of (target.tags ?? [])) {
                   if (!groups.has(tag)) groups.set(tag, []);
                   groups.get(tag)!.push(target);
                 }

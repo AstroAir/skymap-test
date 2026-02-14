@@ -4,6 +4,7 @@
  */
 
 export * from './stellarium';
+export * from './sky-engine';
 export * from './search';
 export * from './equipment';
 export * from './astronomy';

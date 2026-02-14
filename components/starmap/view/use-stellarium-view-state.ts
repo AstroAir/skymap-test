@@ -9,7 +9,7 @@ import { useSettingsStore } from '@/lib/stores/settings-store';
 import { useNavigationHistoryStore } from '@/lib/hooks';
 import { rad2deg } from '@/lib/astronomy/starmap-utils';
 import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
-import type { StellariumCanvasRef } from '../canvas/stellarium-canvas';
+import type { SkyMapCanvasRef } from '@/lib/core/types/sky-engine';
 import type { StellariumSearchRef } from '../search/stellarium-search';
 
 // Dialog state consolidated into reducer to avoid 5 individual useState hooks.
@@ -72,7 +72,7 @@ export function useStellariumViewState() {
   const [dialogs, dispatchDialog] = useReducer(dialogReducer, initialDialogState);
 
   // Refs
-  const canvasRef = useRef<StellariumCanvasRef>(null);
+  const canvasRef = useRef<SkyMapCanvasRef>(null);
   const searchRef = useRef<StellariumSearchRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fovChangeRafRef = useRef<number | null>(null);
@@ -111,6 +111,7 @@ export function useStellariumViewState() {
   // Settings store
   const stellariumSettings = useSettingsStore((state) => state.stellarium);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
   const skipCloseConfirmation = useSettingsStore((state) => state.preferences.skipCloseConfirmation);
   const setPreference = useSettingsStore((state) => state.setPreference);
 
@@ -433,6 +434,7 @@ export function useStellariumViewState() {
 
     // Store states
     stel,
+    skyEngine,
     safeSetViewDirection,
     mountConnected,
     stellariumSettings,

@@ -63,6 +63,33 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
   const [subFrames, setSubFrames] = useState(target.exposurePlan?.subFrames?.toString() || '');
   const [filter, setFilter] = useState(target.exposurePlan?.filter || '');
 
+  const handleSingleExposureChange = (val: string) => {
+    setSingleExposure(val);
+    const se = parseFloat(val);
+    const sf = parseInt(subFrames);
+    if (se > 0 && sf > 0) {
+      setTotalExposure(((se * sf) / 60).toFixed(1));
+    }
+  };
+
+  const handleSubFramesChange = (val: string) => {
+    setSubFrames(val);
+    const se = parseFloat(singleExposure);
+    const sf = parseInt(val);
+    if (se > 0 && sf > 0) {
+      setTotalExposure(((se * sf) / 60).toFixed(1));
+    }
+  };
+
+  const handleTotalExposureChange = (val: string) => {
+    setTotalExposure(val);
+    const te = parseFloat(val);
+    const se = parseFloat(singleExposure);
+    if (te > 0 && se > 0) {
+      setSubFrames(Math.ceil((te * 60) / se).toString());
+    }
+  };
+
   const handleSave = () => {
     if (!target) return;
 
@@ -230,7 +257,7 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
                 <Input
                   type="number"
                   value={singleExposure}
-                  onChange={(e) => setSingleExposure(e.target.value)}
+                  onChange={(e) => handleSingleExposureChange(e.target.value)}
                   placeholder="s"
                   className="h-7 text-xs"
                 />
@@ -240,7 +267,7 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
                 <Input
                   type="number"
                   value={totalExposure}
-                  onChange={(e) => setTotalExposure(e.target.value)}
+                  onChange={(e) => handleTotalExposureChange(e.target.value)}
                   placeholder="min"
                   className="h-7 text-xs"
                 />
@@ -250,7 +277,7 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
                 <Input
                   type="number"
                   value={subFrames}
-                  onChange={(e) => setSubFrames(e.target.value)}
+                  onChange={(e) => handleSubFramesChange(e.target.value)}
                   placeholder="#"
                   className="h-7 text-xs"
                 />
@@ -265,6 +292,12 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
                 />
               </div>
             </div>
+            {/* Auto-calculated summary */}
+            {parseFloat(singleExposure) > 0 && parseInt(subFrames) > 0 && (
+              <div className="col-span-2 text-[10px] text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                {parseInt(subFrames)} × {parseFloat(singleExposure)}s = {((parseFloat(singleExposure) * parseInt(subFrames)) / 60).toFixed(1)} {t('targetDetail.minutesTotal')}
+              </div>
+            )}
           </div>
 
           {/* FOV info (read-only) */}

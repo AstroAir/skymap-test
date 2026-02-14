@@ -54,10 +54,13 @@ import {
   ListOrdered,
   Timer,
   Eye,
+  EyeOff,
+  Save,
+  FolderOpen,
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useMountStore, useStellariumStore, useEquipmentStore } from '@/lib/stores';
+import { useMountStore, useStellariumStore, useEquipmentStore, useSessionPlanStore } from '@/lib/stores';
 import { useTargetListStore, type TargetItem } from '@/lib/stores/target-list-store';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import {
@@ -71,6 +74,7 @@ import {
   type TwilightTimes,
 } from '@/lib/astronomy/astro-utils';
 import { optimizeSchedule } from '@/lib/astronomy/session-scheduler';
+import { exportSessionPlan } from '@/lib/astronomy/plan-exporter';
 import type { ScheduledTarget, SessionPlan, OptimizationStrategy } from '@/types/starmap/planning';
 import { MountSafetySimulator } from './mount-safety-simulator';
 
@@ -248,10 +252,10 @@ function SessionTimeline({ plan, twilight, onTargetClick }: TimelineProps) {
 interface TargetCardProps {
   scheduled: ScheduledTarget;
   onNavigate: () => void;
-  onRemove: () => void;
+  onExclude: () => void;
 }
 
-function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProps) {
+function ScheduledTargetCard({ scheduled, onNavigate, onExclude }: TargetCardProps) {
   const t = useTranslations();
   
   return (
@@ -289,11 +293,11 @@ function ScheduledTargetCard({ scheduled, onNavigate, onRemove }: TargetCardProp
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onRemove}>
-                <Trash2 className="h-3.5 w-3.5" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:text-amber-400" onClick={onExclude}>
+                <EyeOff className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{t('actions.remove')}</TooltipContent>
+            <TooltipContent>{t('sessionPlanner.excludeFromPlan')}</TooltipContent>
           </Tooltip>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="icon" className="h-7 w-7 [&[data-state=open]>svg]:rotate-180 transition-transform">
@@ -389,12 +393,18 @@ export function SessionPlanner() {
   const [minImagingTime, setMinImagingTime] = useState(30); // minutes
   const [showGaps, setShowGaps] = useState(true);
   const [planDate, setPlanDate] = useState<Date>(new Date());
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
   
   const profileInfo = useMountStore((state) => state.profileInfo);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const targets = useTargetListStore((state) => state.targets);
   const setActiveTarget = useTargetListStore((state) => state.setActiveTarget);
-  const removeTarget = useTargetListStore((state) => state.removeTarget);
+  
+  // Session plan persistence
+  const savedPlans = useSessionPlanStore((state) => state.savedPlans);
+  const savePlan = useSessionPlanStore((state) => state.savePlan);
+  const deleteSavedPlan = useSessionPlanStore((state) => state.deletePlan);
+  const [showSavedPlans, setShowSavedPlans] = useState(false);
   
   // Equipment profile
   const focalLength = useEquipmentStore((state) => state.focalLength);
@@ -434,10 +444,33 @@ export function SessionPlanner() {
       strategy,
       minAltitude,
       minImagingTime,
-      planDate
+      planDate,
+      excludedIds
     ),
-    [activeTargets, latitude, longitude, twilight, strategy, minAltitude, minImagingTime, planDate]
+    [activeTargets, latitude, longitude, twilight, strategy, minAltitude, minImagingTime, planDate, excludedIds]
   );
+  
+  // Get excluded targets for display
+  const excludedTargets = useMemo(
+    () => activeTargets.filter(t => excludedIds.has(t.id)),
+    [activeTargets, excludedIds]
+  );
+  
+  const toggleExclude = useCallback((targetId: string) => {
+    setExcludedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(targetId)) {
+        next.delete(targetId);
+      } else {
+        next.add(targetId);
+      }
+      return next;
+    });
+  }, []);
+  
+  const restoreAllExcluded = useCallback(() => {
+    setExcludedIds(new Set());
+  }, []);
   
   const handleTargetClick = useCallback((target: TargetItem) => {
     setActiveTarget(target.id);
@@ -445,6 +478,49 @@ export function SessionPlanner() {
       setViewDirection(target.ra, target.dec);
     }
   }, [setActiveTarget, setViewDirection]);
+  
+  const handleSavePlan = useCallback(() => {
+    if (plan.targets.length === 0) return;
+    const dateStr = planDate.toLocaleDateString();
+    savePlan({
+      name: `${t('sessionPlanner.title')} - ${dateStr}`,
+      planDate: planDate.toISOString(),
+      latitude,
+      longitude,
+      strategy,
+      minAltitude,
+      minImagingTime,
+      targets: plan.targets.map(s => ({
+        targetId: s.target.id,
+        targetName: s.target.name,
+        ra: s.target.ra,
+        dec: s.target.dec,
+        startTime: s.startTime.toISOString(),
+        endTime: s.endTime.toISOString(),
+        duration: s.duration,
+        maxAltitude: s.maxAltitude,
+        moonDistance: s.moonDistance,
+        feasibilityScore: s.feasibility.score,
+        order: s.order,
+      })),
+      excludedTargetIds: Array.from(excludedIds),
+      totalImagingTime: plan.totalImagingTime,
+      nightCoverage: plan.nightCoverage,
+      efficiency: plan.efficiency,
+    });
+  }, [plan, planDate, latitude, longitude, strategy, minAltitude, minImagingTime, excludedIds, savePlan, t]);
+  
+  const handleLoadPlan = useCallback((saved: { planDate: string; strategy: OptimizationStrategy; minAltitude: number; minImagingTime: number; excludedTargetIds: string[] }) => {
+    setPlanDate(new Date(saved.planDate));
+    setStrategy(saved.strategy);
+    setMinAltitude(saved.minAltitude);
+    setMinImagingTime(saved.minImagingTime);
+    // Filter out stale exclusion IDs that no longer match current targets
+    const currentTargetIds = new Set(activeTargets.map(t => t.id));
+    const validExcluded = saved.excludedTargetIds.filter(id => currentTargetIds.has(id));
+    setExcludedIds(new Set(validExcluded));
+    setShowSavedPlans(false);
+  }, [activeTargets]);
   
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -677,9 +753,45 @@ export function SessionPlanner() {
                     key={scheduled.target.id}
                     scheduled={scheduled}
                     onNavigate={() => handleTargetClick(scheduled.target)}
-                    onRemove={() => removeTarget(scheduled.target.id)}
+                    onExclude={() => toggleExclude(scheduled.target.id)}
                   />
                 ))
+              )}
+              
+              {/* Excluded targets */}
+              {excludedTargets.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <EyeOff className="h-3.5 w-3.5" />
+                      {t('sessionPlanner.excludedTargets', { count: excludedTargets.length })}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={restoreAllExcluded}
+                    >
+                      {t('sessionPlanner.restoreAll')}
+                    </Button>
+                  </div>
+                  {excludedTargets.map(target => (
+                    <div
+                      key={target.id}
+                      className="flex items-center justify-between p-2 rounded-lg border border-dashed border-border opacity-50"
+                    >
+                      <span className="text-sm text-muted-foreground">{target.name}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => toggleExclude(target.id)}
+                      >
+                        {t('sessionPlanner.restore')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </ScrollArea>
@@ -693,20 +805,89 @@ export function SessionPlanner() {
               minAltitude={minAltitude}
               minImagingTime={minImagingTime}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const planText = plan.targets.map((t, i) => 
-                  `${i + 1}. ${t.target.name}\n   ${formatTimeShort(t.startTime)} - ${formatTimeShort(t.endTime)} (${formatDuration(t.duration)})\n   Max Alt: ${t.maxAltitude.toFixed(0)}° | Moon: ${t.moonDistance.toFixed(0)}°`
-                ).join('\n\n');
-                const summary = `Session Plan - ${new Date().toLocaleDateString()}\n${'='.repeat(40)}\nTargets: ${plan.targets.length}\nTotal Time: ${formatDuration(plan.totalImagingTime)}\nCoverage: ${plan.nightCoverage.toFixed(0)}%\n\n${planText}`;
-                navigator.clipboard.writeText(summary);
-              }}
-              disabled={plan.targets.length === 0}
-            >
-              {t('sessionPlanner.copyPlan')}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSavePlan}
+                  disabled={plan.targets.length === 0}
+                >
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                  {t('sessionPlanner.savePlan')}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('sessionPlanner.savePlanTooltip')}</TooltipContent>
+            </Tooltip>
+            {savedPlans.length > 0 && (
+              <Popover open={showSavedPlans} onOpenChange={setShowSavedPlans}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+                    {t('sessionPlanner.loadPlan')}
+                    <Badge variant="secondary" className="ml-1.5 text-[10px]">{savedPlans.length}</Badge>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" align="start">
+                  <ScrollArea className="max-h-48">
+                    <div className="space-y-1">
+                      {savedPlans.map(saved => (
+                        <div
+                          key={saved.id}
+                          className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 cursor-pointer group"
+                        >
+                          <button
+                            className="flex-1 text-left"
+                            onClick={() => handleLoadPlan(saved)}
+                          >
+                            <div className="text-sm font-medium truncate">{saved.name}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {new Date(saved.planDate).toLocaleDateString()} · {saved.targets.length} {t('sessionPlanner.targets').toLowerCase()}
+                            </div>
+                          </button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
+                            onClick={(e) => { e.stopPropagation(); deleteSavedPlan(saved.id); }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" disabled={plan.targets.length === 0}>
+                  {t('sessionPlanner.copyPlan')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-44 p-1" align="start">
+                {(['text', 'markdown', 'json', 'nina-xml'] as const).map(fmt => (
+                  <Button
+                    key={fmt}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-xs h-7"
+                    onClick={() => {
+                      const exported = exportSessionPlan(plan, {
+                        format: fmt,
+                        planDate,
+                        latitude,
+                        longitude,
+                      });
+                      navigator.clipboard.writeText(exported);
+                    }}
+                  >
+                    {t(`sessionPlanner.exportFormat.${fmt}`)}
+                  </Button>
+                ))}
+              </PopoverContent>
+            </Popover>
           </div>
           <Button variant="outline" onClick={() => setOpen(false)}>
             {t('common.close')}

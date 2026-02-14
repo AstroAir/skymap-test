@@ -26,7 +26,9 @@ pub struct TargetExportItem {
     pub name: String,
     pub ra: f64,
     pub dec: f64,
+    #[serde(default)]
     pub ra_string: String,
+    #[serde(default)]
     pub dec_string: String,
     pub object_type: Option<String>,
     pub constellation: Option<String>,
