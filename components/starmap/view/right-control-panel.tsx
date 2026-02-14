@@ -24,6 +24,7 @@ import { AstroSessionPanel } from '../planning/astro-session-panel';
 
 import { buildSelectionData } from '@/lib/core/selection-utils';
 import { useEquipmentFOVProps } from '@/lib/hooks/use-equipment-fov-props';
+import { useEquipmentStore } from '@/lib/stores';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import type { RightControlPanelProps } from '@/types/starmap/view';
 
@@ -50,6 +51,9 @@ export const RightControlPanel = memo(function RightControlPanel({
     mosaic, setMosaic,
     gridType, setGridType,
   } = useEquipmentFOVProps();
+
+  const aperture = useEquipmentStore((s) => s.aperture);
+  const pixelSize = useEquipmentStore((s) => s.pixelSize);
 
   // Persisted collapsed state — survives page refresh
   const collapsed = useSettingsStore((s) => s.preferences.rightPanelCollapsed);
@@ -135,7 +139,7 @@ export const RightControlPanel = memo(function RightControlPanel({
                 onGridTypeChange={setGridType}
               />
             </div>
-            <ExposureCalculator focalLength={focalLength} />
+            <ExposureCalculator focalLength={focalLength} aperture={aperture} pixelSize={pixelSize} />
             <div data-tour-id="shotlist-button">
               <ShotList currentSelection={currentSelection} />
             </div>

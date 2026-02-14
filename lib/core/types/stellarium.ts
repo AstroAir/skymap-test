@@ -19,7 +19,9 @@ export interface StellariumEngine {
   s2c: (ra: number, dec: number) => number[];
   anp: (angle: number) => number;
   anpm: (angle: number) => number;
-  pointAndLock: (obj: StellariumObject) => void;
+  pointAndLock: (obj: StellariumObject, duration?: number) => void;
+  zoomTo: (fov: number, duration?: number) => void;
+  lookAt: (pos: number[], duration?: number) => void;
   change: (callback: (obj: unknown, attr: string) => void) => void;
 }
 
@@ -34,25 +36,45 @@ export interface StellariumCore {
   selection: StellariumObject | null;
   time_speed: number;
   fov: number;
-  stars: StellariumDataModule;
+
+  // Core rendering properties exposed by engine core_klass
+  projection: number;
+  star_linear_scale: number;
+  star_relative_scale: number;
+  bortle_index: number;
+  display_limit_mag: number;
+  exposure_scale: number;
+  tonemapper_p: number;
+  flip_view_vertical: boolean;
+  flip_view_horizontal: boolean;
+  mount_frame: number;
+  y_offset: number;
+
+  // Modules
+  stars: StellariumHintsModule;
   skycultures: StellariumDataModule;
-  dsos: StellariumDataModule;
+  dsos: StellariumHintsModule;
   dss: StellariumDataModule;
   hips: StellariumHipsModule;
   milkyway: StellariumDataModule;
   minor_planets: StellariumDataModule;
-  planets: StellariumDataModule;
+  planets: StellariumHintsModule;
   comets: StellariumCometsModule;
-  landscapes: StellariumDataModule;
+  landscapes: StellariumLandscapeModule;
   constellations: {
     lines_visible: boolean;
     labels_visible: boolean;
+    images_visible?: boolean;
+    boundaries_visible?: boolean;
   };
   lines: {
     azimuthal: { visible: boolean };
     equatorial: { visible: boolean };
+    equatorial_jnow?: { visible: boolean };
     meridian: { visible: boolean };
     ecliptic: { visible: boolean };
+    horizon?: { visible: boolean };
+    galactic?: { visible: boolean };
   };
   atmosphere: { visible: boolean };
 }
@@ -86,6 +108,15 @@ export interface StellariumDataModule {
   addDataSource: (options: { url: string; key?: string }) => void;
 }
 
+export interface StellariumHintsModule extends StellariumDataModule {
+  hints_visible?: boolean;
+  hints_mag_offset?: number;
+}
+
+export interface StellariumLandscapeModule extends StellariumDataModule {
+  fog_visible?: boolean;
+}
+
 export interface StellariumCometsModule extends StellariumDataModule {
   listObjs?: (observer: StellariumObserver, limit: number, filter: () => boolean) => StellariumObject[];
 }
@@ -95,6 +126,31 @@ export interface StellariumCometsModule extends StellariumDataModule {
 // ============================================================================
 
 export type SkyCultureLanguage = 'native' | 'en' | 'zh';
+
+export type StellariumProjection =
+  | 'stereographic'
+  | 'equal-area'
+  | 'perspective'
+  | 'fisheye'
+  | 'hammer'
+  | 'cylinder'
+  | 'mercator'
+  | 'orthographic'
+  | 'sinusoidal'
+  | 'miller';
+
+export const PROJECTION_VALUES: Record<StellariumProjection, number> = {
+  'stereographic': 1,
+  'equal-area': 2,
+  'perspective': 0,
+  'fisheye': 3,
+  'hammer': 4,
+  'cylinder': 5,
+  'mercator': 7,
+  'orthographic': 8,
+  'sinusoidal': 9,
+  'miller': 10,
+};
 
 export interface StellariumSettings {
   constellationsLinesVisible: boolean;
@@ -109,6 +165,8 @@ export interface StellariumSettings {
   atmosphereVisible: boolean;
   landscapesVisible: boolean;
   dsosVisible: boolean;
+  milkyWayVisible: boolean;
+  fogVisible: boolean;
   surveyEnabled: boolean;
   surveyId: string;
   surveyUrl?: string;
@@ -117,6 +175,16 @@ export interface StellariumSettings {
   sensorControl: boolean;
   crosshairVisible: boolean;
   crosshairColor: string;
+
+  // Engine core rendering settings
+  projectionType: StellariumProjection;
+  bortleIndex: number;
+  starLinearScale: number;
+  starRelativeScale: number;
+  displayLimitMag: number;
+  flipViewVertical: boolean;
+  flipViewHorizontal: boolean;
+  exposureScale: number;
 }
 
 // ============================================================================

@@ -51,7 +51,8 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const searchInputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     
-    // Use the enhanced search hook
+    // Use the enhanced search hook (shared with AdvancedSearchDialog)
+    const searchHookResult = useObjectSearch();
     const {
       query,
       results,
@@ -77,7 +78,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       popularObjects,
       quickCategories,
       searchStats,
-    } = useObjectSearch();
+    } = searchHookResult;
     
     const [isFocused, setIsFocused] = useState(false);
     const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
@@ -353,6 +354,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           open={advancedSearchOpen}
           onOpenChange={setAdvancedSearchOpen}
           onSelect={handleAdvancedSelect}
+          searchHook={searchHookResult}
         />
 
         {/* Keyboard hints */}
@@ -427,6 +429,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                 else itemRefs.current.delete(index);
               }}
               listboxId="search-results-listbox"
+              searchQuery={query}
             />
           </ScrollArea>
         )}

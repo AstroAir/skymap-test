@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useStellariumStore } from '@/lib/stores';
+import { useEquipmentStore } from '@/lib/stores/equipment-store';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 import type { SearchResultItem, I18nMessage } from '@/lib/core/types';
 import {
   neverRises,
@@ -24,9 +26,12 @@ import {
   calculateSeasonalScore,
   calculateComprehensiveImagingScore,
   EXTENDED_SEASONAL_DATA,
+  // Advanced Recommendation Engine
+  AdvancedRecommendationEngine,
   type DeepSkyObject,
   type NighttimeData,
   type ImagingScoreResult,
+  type ScoredRecommendation,
 } from '@/lib/catalogs';
 
 // ============================================================================
@@ -100,6 +105,13 @@ export interface TonightConditions {
 
 export function useTonightRecommendations() {
   const stel = useStellariumStore((state) => state.stel);
+  const focalLength = useEquipmentStore((s) => s.focalLength);
+  const aperture = useEquipmentStore((s) => s.aperture);
+  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
+  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
+  const pixelSize = useEquipmentStore((s) => s.pixelSize);
+  const bortle = useEquipmentStore((s) => s.exposureDefaults.bortle);
+  const bortleIndex = useSettingsStore((s) => s.stellarium.bortleIndex);
   const [recommendations, setRecommendations] = useState<RecommendedTarget[]>([]);
   const [conditions, setConditions] = useState<TonightConditions | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -173,9 +185,104 @@ export function useTonightRecommendations() {
     const refDate = planDate;
     const currentMonth = refDate.getMonth() + 1;
     const referenceDate = cond.nighttimeData?.referenceDate || refDate;
+    const effectiveBortle = bortle || bortleIndex || 5;
 
     const scored: RecommendedTarget[] = [];
 
+    // Try equipment-aware scoring via AdvancedRecommendationEngine
+    const hasEquipmentData = focalLength > 0 && aperture > 0 && sensorWidth > 0;
+    let advancedResults: ScoredRecommendation[] | null = null;
+
+    if (hasEquipmentData) {
+      try {
+        const engine = new AdvancedRecommendationEngine(
+          {
+            telescopeFocalLength: focalLength,
+            telescopeAperture: aperture,
+            cameraSensorWidth: sensorWidth,
+            cameraSensorHeight: sensorHeight,
+            cameraPixelSize: pixelSize || 3.76,
+            cameraResolutionX: sensorWidth > 0 && pixelSize > 0 ? Math.round((sensorWidth * 1000) / pixelSize) : 4096,
+            cameraResolutionY: sensorHeight > 0 && pixelSize > 0 ? Math.round((sensorHeight * 1000) / pixelSize) : 3072,
+            mountType: 'equatorial',
+            hasAutoGuider: false,
+          },
+          {
+            latitude,
+            longitude,
+            elevation: 0,
+            bortleClass: effectiveBortle,
+          }
+        );
+        advancedResults = engine.getRecommendations(DSO_CATALOG, refDate, 30);
+      } catch {
+        // Fall through to standard scoring
+      }
+    }
+
+    // If advanced engine produced results, convert them to RecommendedTarget format
+    if (advancedResults && advancedResults.length > 0) {
+      for (const rec of advancedResults) {
+        const dso = rec.object;
+        const reasons: I18nMessage[] = [];
+        const warnings: I18nMessage[] = [];
+
+        for (const r of rec.reasons) {
+          reasons.push({ key: 'tonightRec.compReason', params: { text: r } });
+        }
+        for (const w of rec.warnings) {
+          warnings.push({ key: 'tonightRec.compWarning', params: { text: w } });
+        }
+
+        // Add equipment-specific info from feasibility
+        if (rec.feasibility.fovFit === 'perfect' || rec.feasibility.fovFit === 'good') {
+          reasons.push({ key: 'tonightRec.goodFovFit' });
+        } else if (rec.feasibility.fovFit === 'too_large') {
+          warnings.push({ key: 'tonightRec.tooLargeForFov' });
+        }
+
+        const commonName = dso.alternateNames?.[0] || dso.name;
+        const altData = calculateAltitudeData(dso.ra, dso.dec, latitude, longitude, referenceDate);
+        const moonDistance = dso.moonDistance ?? calculateMoonDistance(dso.ra, dso.dec, referenceDate);
+
+        scored.push({
+          Name: dso.name,
+          Type: 'DSO',
+          RA: dso.ra,
+          Dec: dso.dec,
+          'Common names': commonName,
+          score: rec.totalScore,
+          maxAltitude: rec.imagingWindow.peakAltitude,
+          transitTime: altData.transitTime,
+          riseTime: altData.riseTime,
+          setTime: altData.setTime,
+          moonDistance,
+          imagingHours: rec.imagingWindow.darkHours,
+          reasons: reasons.slice(0, 4),
+          warnings: warnings.slice(0, 3),
+          dsoData: dso,
+          airmass: calculateAirmass(rec.imagingWindow.peakAltitude),
+          airmassQuality: getAirmassQuality(calculateAirmass(rec.imagingWindow.peakAltitude)),
+          scoreBreakdown: {
+            altitudeScore: Math.round(rec.scoreBreakdown.altitudeScore * (25 / 15)),
+            airmassScore: Math.round(rec.scoreBreakdown.lightPollutionScore * (20 / 8)),
+            moonScore: Math.round(rec.scoreBreakdown.moonScore),
+            brightnessScore: Math.round(rec.scoreBreakdown.brightnessScore * (15 / 10)),
+            seasonalScore: Math.round(rec.scoreBreakdown.seasonalScore * (10 / 15)),
+            transitScore: Math.round(rec.scoreBreakdown.transitScore * 2),
+          },
+          seasonalOptimal: rec.scoreBreakdown.seasonalScore >= 12,
+          transitDuringDark: rec.scoreBreakdown.transitScore >= 4,
+        });
+      }
+
+      scored.sort((a, b) => b.score - a.score);
+      setRecommendations(scored.slice(0, 25));
+      setIsLoading(false);
+      return;
+    }
+
+    // Fallback: standard scoring (no equipment data)
     // Use DSO_CATALOG from Sky Atlas
     for (const dso of DSO_CATALOG) {
       // Skip targets that never rise
@@ -244,7 +351,7 @@ export function useTonightRecommendations() {
         transitProximity,
         seasonalScore,
         darkSkyRequired: seasonal?.requiresDarkSky,
-        bortleClass: 5, // Default suburban sky, could be made configurable
+        bortleClass: effectiveBortle,
       });
       
       // ========================================================================
@@ -396,7 +503,7 @@ export function useTonightRecommendations() {
     // Take top 25 for better selection
     setRecommendations(scored.slice(0, 25));
     setIsLoading(false);
-  }, [calculateConditions, planDate]);
+  }, [calculateConditions, planDate, focalLength, aperture, sensorWidth, sensorHeight, pixelSize, bortle, bortleIndex]);
 
   // Auto-calculate on mount
   const hasInitialized = useRef(false);

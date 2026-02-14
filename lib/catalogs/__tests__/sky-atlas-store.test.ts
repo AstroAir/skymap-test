@@ -2,15 +2,26 @@ import { act, renderHook } from '@testing-library/react';
 import { useSkyAtlasStore } from '../sky-atlas-store';
 
 // Mock search-engine
+const mockSearchDeepSkyObjects = jest.fn().mockResolvedValue({
+  objects: [],
+  totalCount: 0,
+  filteredCount: 0,
+  page: 1,
+  pageSize: 50,
+  totalPages: 0,
+});
+const mockSearchWithFuzzyName = jest.fn().mockResolvedValue({
+  objects: [],
+  totalCount: 0,
+  filteredCount: 0,
+  page: 1,
+  pageSize: 50,
+  totalPages: 0,
+});
+
 jest.mock('../search-engine', () => ({
-  searchDeepSkyObjects: jest.fn().mockResolvedValue({
-    objects: [],
-    totalCount: 0,
-    filteredCount: 0,
-    page: 1,
-    pageSize: 50,
-    totalPages: 0,
-  }),
+  searchDeepSkyObjects: (...args: unknown[]) => mockSearchDeepSkyObjects(...args),
+  searchWithFuzzyName: (...args: unknown[]) => mockSearchWithFuzzyName(...args),
   createDefaultFilters: jest.fn(() => ({
     objectName: '',
     filterDate: new Date(),
@@ -257,6 +268,40 @@ describe('useSkyAtlasStore', () => {
       });
 
       expect(result.current.isSearching).toBe(false);
+    });
+
+    it('should use searchWithFuzzyName when objectName filter is set', async () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.setFilters({ objectName: 'M31' });
+      });
+
+      await act(async () => {
+        await result.current.search();
+      });
+
+      expect(mockSearchWithFuzzyName).toHaveBeenCalled();
+      const callArgs = mockSearchWithFuzzyName.mock.calls[0];
+      expect(callArgs[2]).toMatchObject({ fuzzySearch: true });
+    });
+
+    it('should use searchDeepSkyObjects when no name filter', async () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.setFilters({ objectName: '' });
+      });
+
+      mockSearchDeepSkyObjects.mockClear();
+      mockSearchWithFuzzyName.mockClear();
+
+      await act(async () => {
+        await result.current.search();
+      });
+
+      expect(mockSearchDeepSkyObjects).toHaveBeenCalled();
+      expect(mockSearchWithFuzzyName).not.toHaveBeenCalled();
     });
   });
 });

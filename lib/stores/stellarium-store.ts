@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { StellariumEngine, StellariumSettings } from '@/lib/core/types';
+import { PROJECTION_VALUES } from '@/lib/core/types';
 import { SKY_SURVEYS } from '@/lib/core/constants';
 import { updateStellariumTranslation } from '@/lib/translations';
 import { createLogger } from '@/lib/logger';
@@ -81,17 +82,31 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
     const core = stel.core;
     
     try {
-      // Grid and line settings - use direct property assignment for Stellarium engine compatibility
+      // ── Core rendering properties (from engine core_klass) ──
+      core.bortle_index = settings.bortleIndex;
+      core.star_linear_scale = settings.starLinearScale;
+      core.star_relative_scale = settings.starRelativeScale;
+      core.display_limit_mag = settings.displayLimitMag;
+      core.flip_view_vertical = settings.flipViewVertical;
+      core.flip_view_horizontal = settings.flipViewHorizontal;
+      core.exposure_scale = settings.exposureScale;
+
+      // Projection type
+      const projValue = PROJECTION_VALUES[settings.projectionType];
+      if (projValue !== undefined) {
+        core.projection = projValue;
+      }
+
+      // ── Constellation settings (labels decoupled from lines) ──
       if (core.constellations) {
         core.constellations.lines_visible = settings.constellationsLinesVisible;
-        core.constellations.labels_visible = settings.constellationsLinesVisible;
-        // Constellation art (illustrations) - if available in the engine
-        const constellationsAny = core.constellations as Record<string, unknown>;
-        if ('images_visible' in constellationsAny) {
-          constellationsAny.images_visible = settings.constellationArtVisible;
+        core.constellations.labels_visible = settings.constellationLabelsVisible;
+        if (core.constellations.images_visible !== undefined) {
+          core.constellations.images_visible = settings.constellationArtVisible;
         }
       }
       
+      // ── Grid and line settings ──
       if (core.lines) {
         if (core.lines.azimuthal) core.lines.azimuthal.visible = settings.azimuthalLinesVisible;
         if (core.lines.equatorial) core.lines.equatorial.visible = settings.equatorialLinesVisible;
@@ -99,6 +114,7 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
         if (core.lines.ecliptic) core.lines.ecliptic.visible = settings.eclipticLinesVisible;
       }
       
+      // ── Module visibility ──
       if (core.atmosphere) {
         core.atmosphere.visible = settings.atmosphereVisible;
       }
@@ -106,8 +122,20 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
       if (core.dsos) {
         core.dsos.visible = settings.dsosVisible;
       }
+
+      if (core.milkyway) {
+        core.milkyway.visible = settings.milkyWayVisible;
+      }
+
+      // Star & planet hints (labels)
+      if (core.stars && core.stars.hints_visible !== undefined) {
+        core.stars.hints_visible = settings.starLabelsVisible;
+      }
+      if (core.planets && core.planets.hints_visible !== undefined) {
+        core.planets.hints_visible = settings.planetLabelsVisible;
+      }
       
-      // Handle landscapes with error handling
+      // ── Landscapes & fog ──
       if (core.landscapes && baseUrl) {
         try {
           const landscapeUrl = settings.landscapesVisible 
@@ -120,14 +148,17 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
             key: landscapeKey,
           });
           core.landscapes.visible = true;
+
+          if (core.landscapes.fog_visible !== undefined) {
+            core.landscapes.fog_visible = settings.fogVisible;
+          }
         } catch (landscapeError) {
           logger.warn('Failed to update landscape', landscapeError);
         }
       }
       
-      // Handle sky survey (HiPS) with proper error handling
+      // ── HiPS sky survey ──
       if (core.hips) {
-        // First check for direct URL (online surveys), then fall back to local survey lookup
         let surveyUrl: string | undefined = settings.surveyUrl;
         
         if (!surveyUrl) {
@@ -137,7 +168,6 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
         
         if (settings.surveyEnabled && surveyUrl) {
           try {
-            // Set visibility first, then URL using direct property assignment
             core.hips.visible = true;
             core.hips.url = surveyUrl;
             logger.info('HiPS survey set to', { url: surveyUrl });
@@ -149,7 +179,7 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
         }
       }
       
-      // Update sky culture language translation
+      // ── Sky culture language ──
       if (settings.skyCultureLanguage) {
         updateStellariumTranslation(settings.skyCultureLanguage);
       }

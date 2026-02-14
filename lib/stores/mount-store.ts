@@ -166,7 +166,18 @@ export const useMountStore = create<MountStoreState>()(
     {
       name: 'starmap-mount',
       storage: getZustandStorage(),
+      version: 1, // v1: persist profileInfo
+      migrate: (persistedState, version) => {
+        const state = persistedState as Partial<MountStoreState>;
+        if (version < 1) {
+          // profileInfo was not persisted before v1; keep whatever was loaded
+          // (or defaults) so the bootstrap in useObserverSync can handle migration.
+          return { ...state };
+        }
+        return state as MountStoreState;
+      },
       partialize: (state) => ({
+        profileInfo: state.profileInfo,
         safetyConfig: state.safetyConfig,
         connectionConfig: state.connectionConfig,
       }),

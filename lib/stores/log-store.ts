@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import {
   LogLevel,
   LogEntry,
@@ -246,20 +247,20 @@ export const useLogStore = create<LogStore>((set, get) => {
  * Hook to get log panel state
  */
 export function useLogPanel() {
-  return useLogStore((state) => ({
+  return useLogStore(useShallow((state) => ({
     isOpen: state.isPanelOpen,
     open: state.openPanel,
     close: state.closePanel,
     toggle: state.togglePanel,
-  }));
+  })));
 }
 
 /**
  * Hook to get log statistics
  */
 export function useLogStats() {
-  return useLogStore((state) => ({
+  return useLogStore(useShallow((state) => ({
     stats: state.stats,
     totalCount: state.totalCount,
-  }));
+  })));
 }

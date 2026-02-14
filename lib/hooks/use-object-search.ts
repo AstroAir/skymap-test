@@ -15,10 +15,21 @@ import {
   POPULAR_DSOS,
   MESSIER_CATALOG,
   CONSTELLATION_SEARCH_DATA,
+  DSO_NAME_INDEX,
   getMatchScore,
   getDetailedSearchMatch,
   fuzzyMatch,
+  DSO_CATALOG,
+  getDSOById,
+  getMessierObjects,
+  parseCatalogId,
+  enhancedQuickSearch,
+  calculateAltitude,
+  calculateMoonDistance,
 } from '@/lib/catalogs';
+import { searchLocalCatalog } from '@/lib/services/local-resolve-service';
+import { useSettingsStore } from '@/lib/stores/settings-store';
+import { parseRACoordinate, parseDecCoordinate } from '@/lib/astronomy/coordinates/conversions';
 import { createLogger } from '@/lib/logger';
 import { getResultId } from '@/lib/core/search-utils';
 
@@ -49,57 +60,27 @@ export interface SearchStats {
   searchTimeMs: number;
 }
 
-// Parse coordinate string (supports various formats)
+// Parse coordinate string using shared parsing from conversions.ts
 function parseCoordinateSearch(query: string): { ra: number; dec: number } | null {
-  // Try to parse as "RA Dec" format
-  // Formats: "10.68 41.27", "00h42m44s +41°16'09\"", "00:42:44 +41:16:09"
-  
   const trimmed = query.trim();
   
   // Try decimal format: "10.68 41.27" or "10.68, 41.27"
   const decimalMatch = trimmed.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
   if (decimalMatch) {
-    const ra = parseFloat(decimalMatch[1]);
-    const dec = parseFloat(decimalMatch[2]);
-    if (!isNaN(ra) && !isNaN(dec) && ra >= 0 && ra < 360 && dec >= -90 && dec <= 90) {
+    const ra = parseRACoordinate(decimalMatch[1]);
+    const dec = parseDecCoordinate(decimalMatch[2]);
+    if (ra !== null && dec !== null) {
       return { ra, dec };
     }
   }
   
-  // Try HMS/DMS format: "00h42m44s +41°16'09\""
-  const hmsMatch = trimmed.match(/(\d+)h\s*(\d+)m\s*([\d.]+)s?\s+([+-]?\d+)[°d]\s*(\d+)[′']\s*([\d.]+)[″"]?/i);
-  if (hmsMatch) {
-    const raH = parseInt(hmsMatch[1]);
-    const raM = parseInt(hmsMatch[2]);
-    const raS = parseFloat(hmsMatch[3]);
-    const decD = parseInt(hmsMatch[4]);
-    const decM = parseInt(hmsMatch[5]);
-    const decS = parseFloat(hmsMatch[6]);
-    
-    const ra = (raH + raM / 60 + raS / 3600) * 15; // Convert hours to degrees
-    const decSign = decD < 0 || hmsMatch[4].startsWith('-') ? -1 : 1;
-    const dec = decSign * (Math.abs(decD) + decM / 60 + decS / 3600);
-    
-    if (ra >= 0 && ra < 360 && dec >= -90 && dec <= 90) {
-      return { ra, dec };
-    }
-  }
-  
-  // Try colon format: "00:42:44 +41:16:09"
-  const colonMatch = trimmed.match(/(\d+):(\d+):([\d.]+)\s+([+-]?\d+):(\d+):([\d.]+)/);
-  if (colonMatch) {
-    const raH = parseInt(colonMatch[1]);
-    const raM = parseInt(colonMatch[2]);
-    const raS = parseFloat(colonMatch[3]);
-    const decD = parseInt(colonMatch[4]);
-    const decM = parseInt(colonMatch[5]);
-    const decS = parseFloat(colonMatch[6]);
-    
-    const ra = (raH + raM / 60 + raS / 3600) * 15;
-    const decSign = decD < 0 || colonMatch[4].startsWith('-') ? -1 : 1;
-    const dec = decSign * (Math.abs(decD) + decM / 60 + decS / 3600);
-    
-    if (ra >= 0 && ra < 360 && dec >= -90 && dec <= 90) {
+  // Try splitting on whitespace for structured formats (HMS+DMS, colon-separated)
+  // Match patterns like "00h42m44s +41°16'09\"" or "00:42:44 +41:16:09"
+  const parts = trimmed.match(/^(\S+(?:\s+\S+)?)\s+([+-]?\S+(?:\s+\S+)?)$/);
+  if (parts) {
+    const ra = parseRACoordinate(parts[1]);
+    const dec = parseDecCoordinate(parts[2]);
+    if (ra !== null && dec !== null) {
       return { ra, dec };
     }
   }
@@ -176,8 +157,6 @@ export interface UseObjectSearchReturn {
 // Hook Implementation
 // ============================================================================
 
-const DEBOUNCE_MS = 150;
-const MAX_RESULTS = 50;
 const MAX_RECENT = 8;
 const FUZZY_THRESHOLD = 0.3; // Minimum score to include in results
 
@@ -197,7 +176,7 @@ function onlineResultToSearchItem(result: OnlineSearchResult): SearchResultItem 
   
   return {
     Name: result.name,
-    Type: typeMap[result.category] || 'DSO',
+    Type: (typeMap[result.category] || 'DSO') as SearchResultItem['Type'],
     RA: result.ra,
     Dec: result.dec,
     'Common names': result.alternateNames?.join(', '),
@@ -205,7 +184,7 @@ function onlineResultToSearchItem(result: OnlineSearchResult): SearchResultItem 
     Size: result.angularSize,
     _isOnlineResult: true,
     _onlineSource: result.source,
-  } as SearchResultItem;
+  };
 }
 
 
@@ -223,6 +202,10 @@ export function useObjectSearch(): UseObjectSearchReturn {
     clearRecentSearches: clearStoreRecentSearches,
     updateAllOnlineStatus,
   } = useSearchStore();
+  
+  const enableFuzzySearch = useSettingsStore((s) => s.search.enableFuzzySearch);
+  const autoSearchDelay = useSettingsStore((s) => s.search.autoSearchDelay);
+  const maxSearchResults = useSettingsStore((s) => s.search.maxSearchResults);
   
   const [state, setState] = useState<SearchState>({
     query: '',
@@ -257,15 +240,33 @@ export function useObjectSearch(): UseObjectSearchReturn {
   useEffect(() => { onlineAvailableRef.current = state.onlineAvailable; }, [state.onlineAvailable]);
   useEffect(() => { filtersRef.current = state.filters; }, [state.filters]);
   
-  // Check online availability on mount
+  // Check online availability on mount (throttled: skip if checked within 5 min)
+  const lastStatusCheck = useSearchStore((s) => s.lastStatusCheck);
   useEffect(() => {
-    checkOnlineSearchAvailability().then((status) => {
-      updateAllOnlineStatus(status);
-      const anyOnline = Object.values(status).some(v => v);
+    const THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+    if (Date.now() - lastStatusCheck < THROTTLE_MS) {
+      // Use cached status
+      const cachedStatus = useSearchStore.getState().onlineStatus;
+      const anyOnline = Object.values(cachedStatus).some(v => v);
       setState(prev => ({ ...prev, onlineAvailable: anyOnline }));
+      return;
+    }
+
+    const controller = new AbortController();
+    checkOnlineSearchAvailability().then((status) => {
+      if (!controller.signal.aborted) {
+        updateAllOnlineStatus(status);
+        const anyOnline = Object.values(status).some(v => v);
+        setState(prev => ({ ...prev, onlineAvailable: anyOnline }));
+      }
     }).catch(() => {
-      setState(prev => ({ ...prev, onlineAvailable: false }));
+      if (!controller.signal.aborted) {
+        setState(prev => ({ ...prev, onlineAvailable: false }));
+      }
     });
+
+    return () => { controller.abort(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateAllOnlineStatus]);
   
   // Cleanup on unmount
@@ -318,7 +319,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
         if (!passesMagnitudeFilter(item.Magnitude)) return;
         
         addedNames.add(key);
-        results.push({ ...item, _fuzzyScore: score } as SearchResultItem & { _fuzzyScore: number });
+        results.push({ ...item, _fuzzyScore: score });
       }
     };
     
@@ -349,9 +350,50 @@ export function useObjectSearch(): UseObjectSearchReturn {
       }, 2.0); // High score for exact coordinate match
     }
     
-    // 3. Search DSO catalogs with fuzzy matching
+    // 3. Local catalog ID fast path (getDSOById)
     if (filters.types.includes('DSO')) {
-      // Search popular DSOs first
+      const catalogId = parseCatalogId(query);
+      if (catalogId) {
+        const localObj = getDSOById(catalogId.normalized);
+        if (localObj) {
+          addResult({
+            Name: localObj.name,
+            Type: 'DSO',
+            RA: localObj.ra,
+            Dec: localObj.dec,
+            Magnitude: localObj.magnitude,
+            'Common names': localObj.alternateNames?.join(', '),
+          }, 2.5);
+        }
+      }
+      
+      // 3b. Search full DSO_CATALOG with enhanced fuzzy search or simple matching
+      if (enableFuzzySearch) {
+        const dsoResults = enhancedQuickSearch(DSO_CATALOG, query, 20);
+        for (const dso of dsoResults) {
+          addResult({
+            Name: dso.name,
+            Type: 'DSO',
+            RA: dso.ra,
+            Dec: dso.dec,
+            Magnitude: dso.magnitude,
+            'Common names': dso.alternateNames?.join(', '),
+          }, 1.5);
+        }
+      } else {
+        // Non-fuzzy: use DSO_NAME_INDEX for fast prefix/contains lookup
+        const firstChar = query.trim()[0]?.toUpperCase();
+        if (firstChar && DSO_NAME_INDEX.has(firstChar)) {
+          for (const dso of DSO_NAME_INDEX.get(firstChar)!) {
+            const score = getMatchScore(dso, query);
+            if (score >= FUZZY_THRESHOLD) {
+              addResult(dso, score);
+            }
+          }
+        }
+      }
+      
+      // 3c. Also search POPULAR_DSOS/MESSIER_CATALOG for SearchResultItem-typed entries
       for (const dso of POPULAR_DSOS) {
         const score = getMatchScore(dso, query);
         if (score >= FUZZY_THRESHOLD) {
@@ -359,7 +401,6 @@ export function useObjectSearch(): UseObjectSearchReturn {
         }
       }
       
-      // Search extended Messier catalog
       for (const dso of MESSIER_CATALOG) {
         const score = getMatchScore(dso, query);
         if (score >= FUZZY_THRESHOLD) {
@@ -401,7 +442,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
         }
       }
       
-      // Comets
+      // Comets (with fuzzy matching)
       if (filters.types.includes('Comet')) {
         try {
           const comets = stel.core.comets;
@@ -412,17 +453,18 @@ export function useObjectSearch(): UseObjectSearchReturn {
                 const designations = comet.designations();
                 for (const designation of designations) {
                   const name = designation.replace(/^NAME /, '');
-                  if (name.toLowerCase().includes(lowerQuery)) {
+                  const score = fuzzyMatch(name, query);
+                  if (score >= FUZZY_THRESHOLD) {
                     addResult({
                       Name: name,
                       Type: 'Comet',
                       StellariumObj: comet,
-                    });
+                    }, score);
                     break;
                   }
                 }
               }
-              if (results.length >= MAX_RESULTS) break;
+              if (results.length >= maxSearchResults) break;
             }
           }
         } catch (error) {
@@ -444,11 +486,33 @@ export function useObjectSearch(): UseObjectSearchReturn {
     // Sort results by fuzzy score (highest first)
     const sortedResults = results
       .sort((a, b) => {
-        const scoreA = (a as SearchResultItem & { _fuzzyScore?: number })._fuzzyScore || 0;
-        const scoreB = (b as SearchResultItem & { _fuzzyScore?: number })._fuzzyScore || 0;
+        const scoreA = a._fuzzyScore || 0;
+        const scoreB = b._fuzzyScore || 0;
         return scoreB - scoreA;
       })
-      .slice(0, MAX_RESULTS);
+      .slice(0, maxSearchResults);
+    
+    // Enrich DSO results with current altitude and visibility data
+    let obsLat = 40, obsLon = -74;
+    if (stel?.core?.observer) {
+      try {
+        obsLat = stel.core.observer.latitude ?? 40;
+        obsLon = stel.core.observer.longitude ?? -74;
+      } catch { /* use defaults */ }
+    }
+    const now = new Date();
+    for (const result of sortedResults) {
+      if (result.Type === 'DSO' && result.RA !== undefined && result.Dec !== undefined) {
+        try {
+          const alt = calculateAltitude(result.RA, result.Dec, obsLat, obsLon, now);
+          result._currentAltitude = Math.round(alt * 10) / 10;
+          result._isVisible = alt > 0;
+          result._moonDistance = Math.round(calculateMoonDistance(result.RA, result.Dec, now) * 10) / 10;
+        } catch {
+          // Skip enrichment on error
+        }
+      }
+    }
     
     // Calculate search statistics for local results
     const localEndTime = performance.now();
@@ -472,12 +536,17 @@ export function useObjectSearch(): UseObjectSearchReturn {
     });
     
     // Fire online search if mode is hybrid/online
+    // Skip online if we already have a high-confidence local match (e.g., catalog ID resolved)
+    const hasHighConfidenceMatch = sortedResults.some(
+      r => (r._fuzzyScore || 0) >= 2.0
+    );
     const currentMode = searchModeRef.current;
     const isOnlineAvailable = onlineAvailableRef.current;
     const shouldSearchOnline = 
       (currentMode === 'hybrid' || currentMode === 'online') &&
       isOnlineAvailable &&
-      query.length >= 2;
+      query.length >= 2 &&
+      !hasHighConfidenceMatch;
     
     if (shouldSearchOnline) {
       setState(prev => ({ ...prev, isOnlineSearching: true }));
@@ -488,7 +557,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
         
         const onlineResponse = await searchOnlineByName(query, {
           sources: enabledSources.length > 0 ? enabledSources : ['sesame', 'simbad'],
-          limit: MAX_RESULTS,
+          limit: maxSearchResults,
           timeout: searchSettings.timeout,
           signal,
         });
@@ -506,7 +575,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
         }
         
         if (newOnlineItems.length > 0) {
-          const mergedResults = [...sortedResults, ...newOnlineItems].slice(0, MAX_RESULTS + MAX_RESULTS);
+          const mergedResults = [...sortedResults, ...newOnlineItems].slice(0, maxSearchResults);
           
           // Recalculate stats
           const mergedResultsByType: Record<string, number> = {};
@@ -533,12 +602,55 @@ export function useObjectSearch(): UseObjectSearchReturn {
         logger.debug('Online search error in unified hook', error);
         setState(prev => ({ ...prev, isOnlineSearching: false }));
       }
+    } else if (
+      // Local catalog fallback: when online would be useful but is unavailable,
+      // supplement results using deeper local catalog search
+      (currentMode === 'hybrid' || currentMode === 'online') &&
+      !isOnlineAvailable &&
+      query.length >= 2 &&
+      !hasHighConfidenceMatch &&
+      sortedResults.length < 5
+    ) {
+      try {
+        const localFallbackResults = searchLocalCatalog(query, maxSearchResults);
+        const existingNames = new Set(sortedResults.map(r => r.Name.toLowerCase()));
+        const newLocalItems: SearchResultItem[] = [];
+        
+        for (const localResult of localFallbackResults) {
+          if (!existingNames.has(localResult.name.toLowerCase())) {
+            existingNames.add(localResult.name.toLowerCase());
+            newLocalItems.push(onlineResultToSearchItem(localResult));
+          }
+        }
+        
+        if (newLocalItems.length > 0) {
+          const mergedResults = [...sortedResults, ...newLocalItems].slice(0, maxSearchResults);
+          const mergedResultsByType: Record<string, number> = {};
+          for (const result of mergedResults) {
+            const type = result.Type || 'Unknown';
+            mergedResultsByType[type] = (mergedResultsByType[type] || 0) + 1;
+          }
+          
+          setState(prev => ({
+            ...prev,
+            results: mergedResults,
+          }));
+          
+          setSearchStats({
+            totalResults: mergedResults.length,
+            resultsByType: mergedResultsByType,
+            searchTimeMs: Math.round(performance.now() - startTime),
+          });
+        }
+      } catch (error) {
+        logger.debug('Local catalog fallback error', error);
+      }
     }
     
     // Record in store-based search history
     addStoreRecentSearch(query, sortedResults.length, searchModeRef.current === 'local' ? 'local' : 'mixed');
     
-  }, [stel, targets, getEnabledSources, searchSettings.timeout, addStoreRecentSearch]);
+  }, [stel, targets, getEnabledSources, searchSettings.timeout, addStoreRecentSearch, enableFuzzySearch, maxSearchResults]);
   
   // Debounced search with transition for smoother UI
   const search = useCallback((query: string) => {
@@ -553,8 +665,8 @@ export function useObjectSearch(): UseObjectSearchReturn {
       startTransition(() => {
         performSearch(query, filtersRef.current);
       });
-    }, DEBOUNCE_MS);
-  }, [performSearch, startTransition]);
+    }, autoSearchDelay);
+  }, [performSearch, startTransition, autoSearchDelay]);
   
   const setQuery = useCallback((query: string) => {
     search(query);
@@ -663,12 +775,38 @@ export function useObjectSearch(): UseObjectSearchReturn {
   // Quick access data
   const popularObjects = useMemo(() => POPULAR_DSOS.slice(0, 10), []);
   
-  const quickCategories = useMemo(() => [
-    { label: 'galaxies', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Galaxy')) },
-    { label: 'nebulae', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Nebula')) },
-    { label: 'planets', items: CELESTIAL_BODIES.filter(b => b.Type === 'Planet') },
-    { label: 'clusters', items: POPULAR_DSOS.filter(d => d['Common names']?.includes('Cluster')) },
-  ], []);
+  const quickCategories = useMemo(() => {
+    const messierItems: SearchResultItem[] = getMessierObjects().slice(0, 15).map(dso => ({
+      Name: dso.name,
+      Type: 'DSO' as const,
+      RA: dso.ra,
+      Dec: dso.dec,
+      Magnitude: dso.magnitude,
+      'Common names': dso.alternateNames?.join(', '),
+    }));
+
+    // Use DSO_CATALOG type field for reliable categorization instead of string matching on Common names
+    const galaxyTypes = new Set(['Galaxy', 'GalaxyPair', 'GalaxyTriplet', 'GalaxyCluster']);
+    const nebulaTypes = new Set(['Nebula', 'PlanetaryNebula', 'EmissionNebula', 'ReflectionNebula', 'DarkNebula', 'HII', 'SupernovaRemnant']);
+    const clusterTypes = new Set(['OpenCluster', 'GlobularCluster', 'StarCluster']);
+
+    const toSearchItem = (dso: typeof DSO_CATALOG[number]): SearchResultItem => ({
+      Name: dso.name,
+      Type: 'DSO' as const,
+      RA: dso.ra,
+      Dec: dso.dec,
+      Magnitude: dso.magnitude,
+      'Common names': dso.alternateNames?.join(', '),
+    });
+
+    return [
+      { label: 'messier', items: messierItems },
+      { label: 'galaxies', items: DSO_CATALOG.filter(d => galaxyTypes.has(d.type) && d.magnitude !== undefined && d.magnitude <= 10).slice(0, 15).map(toSearchItem) },
+      { label: 'nebulae', items: DSO_CATALOG.filter(d => nebulaTypes.has(d.type) && d.magnitude !== undefined && d.magnitude <= 10).slice(0, 15).map(toSearchItem) },
+      { label: 'planets', items: CELESTIAL_BODIES.filter(b => b.Type === 'Planet') },
+      { label: 'clusters', items: DSO_CATALOG.filter(d => clusterTypes.has(d.type) && d.magnitude !== undefined && d.magnitude <= 10).slice(0, 15).map(toSearchItem) },
+    ];
+  }, []);
   
   return {
     query: state.query,

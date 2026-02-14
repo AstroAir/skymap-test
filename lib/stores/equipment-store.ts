@@ -155,13 +155,24 @@ interface EquipmentState {
   applyCamera: (camera: CameraPreset) => void;
   applyTelescope: (telescope: TelescopePreset) => void;
   
+  // Ocular simulator selection state (persisted)
+  selectedOcularTelescopeId: string;
+  selectedEyepieceId: string;
+  selectedBarlowId: string;
+  setSelectedOcularTelescopeId: (id: string) => void;
+  setSelectedEyepieceId: (id: string) => void;
+  setSelectedBarlowId: (id: string) => void;
+  
   // Actions - Ocular equipment
   addCustomEyepiece: (eyepiece: Omit<EyepiecePreset, 'id' | 'isCustom'>) => void;
   removeCustomEyepiece: (id: string) => void;
+  updateCustomEyepiece: (id: string, updates: Partial<EyepiecePreset>) => void;
   addCustomBarlow: (barlow: Omit<BarlowPreset, 'id' | 'isCustom'>) => void;
   removeCustomBarlow: (id: string) => void;
+  updateCustomBarlow: (id: string, updates: Partial<BarlowPreset>) => void;
   addCustomOcularTelescope: (telescope: Omit<OcularTelescopePreset, 'id' | 'isCustom'>) => void;
   removeCustomOcularTelescope: (id: string) => void;
+  updateCustomOcularTelescope: (id: string, updates: Partial<OcularTelescopePreset>) => void;
   
   // Actions - Reset
   resetToDefaults: () => void;
@@ -244,6 +255,14 @@ export const useEquipmentStore = create<EquipmentState>()(
       customEyepieces: [],
       customBarlows: [],
       customOcularTelescopes: [],
+      
+      // Ocular simulator selection (persisted)
+      selectedOcularTelescopeId: 't1',
+      selectedEyepieceId: 'e1',
+      selectedBarlowId: 'b0',
+      setSelectedOcularTelescopeId: (id) => set({ selectedOcularTelescopeId: id }),
+      setSelectedEyepieceId: (id) => set({ selectedEyepieceId: id }),
+      setSelectedBarlowId: (id) => set({ selectedBarlowId: id }),
       
       // Equipment selection
       setActiveCamera: (id) => set({ activeCameraId: id }),
@@ -364,6 +383,12 @@ export const useEquipmentStore = create<EquipmentState>()(
       },
       removeCustomEyepiece: (id) => set((state) => ({
         customEyepieces: state.customEyepieces.filter((e) => e.id !== id),
+        selectedEyepieceId: state.selectedEyepieceId === id ? 'e1' : state.selectedEyepieceId,
+      })),
+      updateCustomEyepiece: (id, updates) => set((state) => ({
+        customEyepieces: state.customEyepieces.map((e) =>
+          e.id === id ? { ...e, ...updates } : e
+        ),
       })),
       addCustomBarlow: (barlow) => {
         const id = `barlow-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -373,6 +398,12 @@ export const useEquipmentStore = create<EquipmentState>()(
       },
       removeCustomBarlow: (id) => set((state) => ({
         customBarlows: state.customBarlows.filter((b) => b.id !== id),
+        selectedBarlowId: state.selectedBarlowId === id ? 'b0' : state.selectedBarlowId,
+      })),
+      updateCustomBarlow: (id, updates) => set((state) => ({
+        customBarlows: state.customBarlows.map((b) =>
+          b.id === id ? { ...b, ...updates } : b
+        ),
       })),
       addCustomOcularTelescope: (telescope) => {
         const id = `ocular-scope-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -382,6 +413,12 @@ export const useEquipmentStore = create<EquipmentState>()(
       },
       removeCustomOcularTelescope: (id) => set((state) => ({
         customOcularTelescopes: state.customOcularTelescopes.filter((t) => t.id !== id),
+        selectedOcularTelescopeId: state.selectedOcularTelescopeId === id ? 't1' : state.selectedOcularTelescopeId,
+      })),
+      updateCustomOcularTelescope: (id, updates) => set((state) => ({
+        customOcularTelescopes: state.customOcularTelescopes.map((t) =>
+          t.id === id ? { ...t, ...updates } : t
+        ),
       })),
       
       // Reset
@@ -468,6 +505,9 @@ export const useEquipmentStore = create<EquipmentState>()(
         customEyepieces: state.customEyepieces,
         customBarlows: state.customBarlows,
         customOcularTelescopes: state.customOcularTelescopes,
+        selectedOcularTelescopeId: state.selectedOcularTelescopeId,
+        selectedEyepieceId: state.selectedEyepieceId,
+        selectedBarlowId: state.selectedBarlowId,
       }),
     }
   )

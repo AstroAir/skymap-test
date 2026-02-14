@@ -21,8 +21,10 @@ export function calculateOcularView(
   const effectiveFocalLength = telescope.focalLength * barlow.magnification;
   const magnification = effectiveFocalLength / eyepiece.focalLength;
   
-  // True field of view
-  const tfov = eyepiece.afov / magnification;
+  // True field of view — use field stop when available for precision
+  const tfov = eyepiece.fieldStop && eyepiece.fieldStop > 0
+    ? (eyepiece.fieldStop / effectiveFocalLength) * (180 / Math.PI)
+    : eyepiece.afov / magnification;
   
   // Exit pupil
   const exitPupil = telescope.aperture / magnification;
@@ -30,11 +32,17 @@ export function calculateOcularView(
   // Dawes limit (arcseconds) - theoretical resolution
   const dawesLimit = 116 / telescope.aperture;
   
+  // Rayleigh limit (arcseconds) - diffraction limit
+  const rayleighLimit = 138 / telescope.aperture;
+  
   // Maximum useful magnification (2x aperture in mm)
   const maxUsefulMag = telescope.aperture * 2;
   
   // Minimum useful magnification (aperture/7 for 7mm exit pupil)
   const minUsefulMag = telescope.aperture / 7;
+  
+  // Best planetary magnification (~1.5x aperture in mm)
+  const bestPlanetaryMag = telescope.aperture * 1.5;
   
   // Focal ratio
   const focalRatio = telescope.focalLength / telescope.aperture;
@@ -45,19 +53,41 @@ export function calculateOcularView(
   // Limiting magnitude (approximate)
   const limitingMag = 2 + 5 * Math.log10(telescope.aperture);
   
+  // Surface brightness factor (relative to naked eye, 7mm pupil)
+  // Values >1 mean brighter extended objects; <1 means dimmer
+  const surfaceBrightness = Math.pow(exitPupil / 7, 2);
+  
+  // Observing suggestion based on magnification range
+  const isOverMagnified = magnification > maxUsefulMag;
+  const isUnderMagnified = magnification < minUsefulMag;
+  let observingSuggestion: OcularViewResult['observingSuggestion'];
+  if (isOverMagnified) {
+    observingSuggestion = 'overlimit';
+  } else if (magnification <= telescope.aperture * 0.7) {
+    observingSuggestion = 'deepsky';
+  } else if (magnification >= telescope.aperture * 1.2) {
+    observingSuggestion = 'planetary';
+  } else {
+    observingSuggestion = 'allround';
+  }
+  
   return {
     magnification,
     tfov,
     exitPupil,
     dawesLimit,
+    rayleighLimit,
     maxUsefulMag,
     minUsefulMag,
+    bestPlanetaryMag,
     focalRatio,
     lightGathering,
     limitingMag,
-    isOverMagnified: magnification > maxUsefulMag,
-    isUnderMagnified: magnification < minUsefulMag,
+    surfaceBrightness,
+    isOverMagnified,
+    isUnderMagnified,
     effectiveFocalLength,
+    observingSuggestion,
   };
 }
 

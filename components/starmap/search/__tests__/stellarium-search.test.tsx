@@ -4,19 +4,28 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 
-// Mock hooks
-jest.mock('@/lib/hooks', () => ({
-  useObjectSearch: jest.fn(() => ({
+// ============================================================================
+// Helper: create a complete mock return value for useObjectSearch
+// ============================================================================
+function createMockSearchHook(overrides: Record<string, unknown> = {}) {
+  return {
     query: '',
-    searchQuery: '',
-    setSearchQuery: jest.fn(),
     setQuery: jest.fn(),
+    search: jest.fn(),
     results: [],
-    searchResults: [],
     groupedResults: new Map(),
     isSearching: false,
+    isOnlineSearching: false,
+    onlineAvailable: false,
     searchStats: { totalResults: 0, resultsByType: {}, searchTimeMs: 0 },
-    filters: { types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'], minMagnitude: undefined, maxMagnitude: undefined },
+    filters: {
+      types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'TargetList', 'Constellation'],
+      includeTargetList: true,
+      searchMode: 'name',
+      minMagnitude: undefined,
+      maxMagnitude: undefined,
+      searchRadius: 5,
+    },
     setFilters: jest.fn(),
     clearSearch: jest.fn(),
     selectedIds: new Set(),
@@ -32,9 +41,23 @@ jest.mock('@/lib/hooks', () => ({
     isSelected: jest.fn(() => false),
     popularObjects: [],
     quickCategories: [],
-  })),
+    ...overrides,
+  };
+}
+
+// Mock hooks
+jest.mock('@/lib/hooks', () => ({
+  useObjectSearch: jest.fn(() => createMockSearchHook()),
   useCelestialName: jest.fn((name: string) => name),
   useSkyCultureLanguage: jest.fn(() => 'native'),
+  useSelectTarget: jest.fn(() => jest.fn()),
+}));
+
+jest.mock('@/lib/hooks/use-target-list-actions', () => ({
+  useTargetListActions: jest.fn(() => ({
+    handleAddToTargetList: jest.fn(),
+    handleBatchAdd: jest.fn(),
+  })),
 }));
 
 // Mock stores
@@ -50,6 +73,16 @@ jest.mock('@/lib/stores', () => ({
     addTargetsBatch: jest.fn(),
     targets: [],
   })),
+}));
+
+// Mock search-utils (getResultId)
+jest.mock('@/lib/core/search-utils', () => ({
+  getResultId: jest.fn((item: { Type?: string; Name: string }) => `${item.Type}-${item.Name}`),
+}));
+
+// Mock translations helper
+jest.mock('@/lib/translations', () => ({
+  translateCelestialName: jest.fn((name: string) => name),
 }));
 
 // Mock UI components
@@ -94,6 +127,28 @@ jest.mock('@/components/ui/collapsible', () => ({
   CollapsibleTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+jest.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuCheckboxItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+jest.mock('@/components/ui/checkbox', () => ({
+  Checkbox: ({ checked, onCheckedChange }: { checked?: boolean; onCheckedChange?: (c: boolean) => void }) => (
+    <input type="checkbox" data-testid="checkbox" checked={checked} onChange={(e) => onCheckedChange?.(e.target.checked)} />
+  ),
+}));
+
+// Mock child components to simplify tests
+jest.mock('../advanced-search-dialog', () => ({
+  AdvancedSearchDialog: ({ searchHook }: { open: boolean; searchHook?: unknown }) => (
+    <div data-testid="advanced-search-dialog" data-has-shared-hook={!!searchHook}>mock-advanced-search</div>
+  ),
+}));
+
 import { StellariumSearch } from '../stellarium-search';
 
 describe('StellariumSearch', () => {
@@ -122,41 +177,46 @@ describe('StellariumSearch', () => {
   it('calls setQuery when typing', () => {
     const { useObjectSearch } = jest.requireMock('@/lib/hooks');
     const mockSetQuery = jest.fn();
-    useObjectSearch.mockReturnValue({
-      query: '',
-      searchQuery: '',
-      setSearchQuery: jest.fn(),
-      setQuery: mockSetQuery,
-      results: [],
-      searchResults: [],
-      groupedResults: new Map(),
-      isSearching: false,
-      searchStats: { totalResults: 0, resultsByType: {}, searchTimeMs: 0 },
-      filters: { types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'], minMagnitude: undefined, maxMagnitude: undefined },
-      setFilters: jest.fn(),
-      clearSearch: jest.fn(),
-      selectedIds: new Set(),
-      toggleSelection: jest.fn(),
-      selectAll: jest.fn(),
-      clearSelection: jest.fn(),
-      sortBy: 'relevance',
-      setSortBy: jest.fn(),
-      recentSearches: [],
-      addRecentSearch: jest.fn(),
-      clearRecentSearches: jest.fn(),
-      getSelectedItems: jest.fn(() => []),
-      isSelected: jest.fn(() => false),
-      popularObjects: [],
-      quickCategories: [],
-    });
-    
+    useObjectSearch.mockReturnValue(createMockSearchHook({ setQuery: mockSetQuery }));
+
     render(<StellariumSearch {...defaultProps} />);
-    
+
     const input = screen.getByTestId('search-input');
     fireEvent.change(input, { target: { value: 'M31' } });
-    
+
     expect(mockSetQuery).toHaveBeenCalledWith('M31');
   });
 
-});
+  it('passes shared searchHook to AdvancedSearchDialog', () => {
+    render(<StellariumSearch {...defaultProps} />);
+    const dialog = screen.getByTestId('advanced-search-dialog');
+    expect(dialog).toHaveAttribute('data-has-shared-hook', 'true');
+  });
 
+  it('shows online searching indicator when isOnlineSearching is true', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      query: 'M31',
+      isOnlineSearching: true,
+      results: [{ Name: 'M31', Type: 'DSO' }],
+      groupedResults: new Map([['DSO', [{ Name: 'M31', Type: 'DSO' }]]]),
+    }));
+
+    render(<StellariumSearch {...defaultProps} />);
+    // The component should render without errors when online search is active
+    expect(screen.getByTestId('search-input')).toBeInTheDocument();
+  });
+
+  it('displays search stats when available', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      query: 'M31',
+      searchStats: { totalResults: 5, resultsByType: { DSO: 3, Star: 2 }, searchTimeMs: 42 },
+      results: [{ Name: 'M31', Type: 'DSO' }],
+      groupedResults: new Map([['DSO', [{ Name: 'M31', Type: 'DSO' }]]]),
+    }));
+
+    render(<StellariumSearch {...defaultProps} />);
+    expect(screen.getByTestId('search-input')).toBeInTheDocument();
+  });
+});

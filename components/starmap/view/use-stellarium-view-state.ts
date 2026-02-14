@@ -163,6 +163,11 @@ export function useStellariumViewState() {
     if (!el) return;
 
     const handleMouseDown = (e: MouseEvent) => {
+      // Only track clicks on the canvas itself for info panel placement.
+      // Clicks on UI overlays (InfoPanel, toolbars, etc.) must be ignored
+      // to prevent repositioning the panel mid-click and breaking button interactions.
+      if (!(e.target instanceof HTMLCanvasElement)) return;
+
       const rect = containerBoundsRef.current;
       if (rect) {
         setClickPosition({

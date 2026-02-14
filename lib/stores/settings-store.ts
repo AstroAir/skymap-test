@@ -280,12 +280,12 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'starmap-settings',
       storage: getZustandStorage(),
-      version: 6, // Bump version for startup behavior and display label settings
+      version: 7, // Add engine rendering settings (bortle, star scale, projection, flip, etc.)
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState>;
         
         // Migration from older versions
-        if (version < 6) {
+        if (version < 7) {
           return {
             ...state,
             stellarium: {

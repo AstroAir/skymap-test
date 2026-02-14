@@ -27,6 +27,7 @@ export interface GroupedResultsListProps {
   /** Initial expanded groups */
   defaultExpanded?: string[];
   listboxId?: string;
+  searchQuery?: string;
 }
 
 export const GroupedResultsList = memo(function GroupedResultsList({
@@ -43,6 +44,7 @@ export const GroupedResultsList = memo(function GroupedResultsList({
   itemRefCallback,
   defaultExpanded = ['DSO', 'Planet'],
   listboxId,
+  searchQuery = '',
 }: GroupedResultsListProps) {
   const t = useTranslations();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(defaultExpanded));
@@ -101,6 +103,7 @@ export const GroupedResultsList = memo(function GroupedResultsList({
                   onMouseEnter={onMouseEnter}
                   onAddToTargetList={onAddToTargetList}
                   globalIndex={globalIndex}
+                  searchQuery={searchQuery}
                 />
               );
             })}

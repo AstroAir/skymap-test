@@ -20,12 +20,16 @@ export function useStellariumZoom({
   onFovChange,
 }: UseStellariumZoomOptions) {
   // Helper to set FOV with proper engine update
-  const setEngineFov = useCallback((fovDeg: number) => {
+  // Uses engine's smooth zoomTo when duration > 0, direct assignment otherwise
+  const setEngineFov = useCallback((fovDeg: number, duration = 0) => {
     if (!stelRef.current) return;
     const clampedFov = Math.max(MIN_FOV, Math.min(MAX_FOV, fovDeg));
     const fovRad = fovToRad(clampedFov);
-    // Use direct property assignment for better compatibility with Stellarium engine
-    stelRef.current.core.fov = fovRad;
+    if (duration > 0 && stelRef.current.zoomTo) {
+      stelRef.current.zoomTo(fovRad, duration);
+    } else {
+      stelRef.current.core.fov = fovRad;
+    }
     onFovChange?.(clampedFov);
   }, [stelRef, onFovChange]);
 

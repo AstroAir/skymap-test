@@ -19,6 +19,7 @@ import { EquipmentManager } from '../management/equipment-manager';
 
 import { buildSelectionData } from '@/lib/core/selection-utils';
 import { useEquipmentFOVProps } from '@/lib/hooks/use-equipment-fov-props';
+import { useEquipmentStore } from '@/lib/stores';
 import type { MobileLayoutProps } from '@/types/starmap/view';
 
 export const MobileLayout = memo(function MobileLayout({
@@ -43,6 +44,10 @@ export const MobileLayout = memo(function MobileLayout({
     mosaic, setMosaic,
     gridType, setGridType,
   } = useEquipmentFOVProps();
+
+  // Additional equipment props for ExposureCalculator
+  const aperture = useEquipmentStore((s) => s.aperture);
+  const pixelSize = useEquipmentStore((s) => s.pixelSize);
 
   return (
     <>
@@ -96,7 +101,7 @@ export const MobileLayout = memo(function MobileLayout({
             gridType={gridType}
             onGridTypeChange={setGridType}
           />
-          <ExposureCalculator focalLength={focalLength} />
+          <ExposureCalculator focalLength={focalLength} aperture={aperture} pixelSize={pixelSize} />
         </div>
         
         <ToolbarSeparator />

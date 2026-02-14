@@ -2,126 +2,83 @@
 
 [Root](../../CLAUDE.md) > [lib](../) > **catalogs**
 
-> **Last Updated:** 2025-01-31
+> **Last Updated:** 2026-02-14
 > **Module Type:** TypeScript
-
----
-
-## Breadcrumb
-
-`[Root](../../CLAUDE.md) > [lib](../) > **catalogs**`
 
 ---
 
 ## Module Responsibility
 
-The `catalogs` module provides astronomical catalog data and type definitions. It includes object type classifications, catalog information, and utilities for working with astronomical objects.
+Comprehensive DSO catalog, search, recommendation, and filtering system ported from N.I.N.A.
+Provides local astronomical object data, fuzzy search, advanced scoring, and recommendation engines.
 
 ---
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `types.ts` | Catalog type definitions |
-| `catalog-data.ts` | Catalog data and metadata |
-| `nighttime-calculator.ts` | Night time calculations |
+| File | Purpose | Used By |
+|------|---------|---------|
+| `types.ts` | DeepSkyObject, NighttimeData, filter types | All catalog modules |
+| `catalog-data.ts` | DSO_CATALOG (~260 objects), getDSOById, getMessierObjects, getDSOsByConstellation, getDSOsByType | search hooks, sky-atlas-store |
+| `nighttime-calculator.ts` | Sun/Moon rise-set, twilight, nighttime data | tonight-recommendations, sky-atlas-store |
+| `deep-sky-object.ts` | enrichDeepSkyObject (altitude, transit, moon distance, imaging score) | tonight-recommendations, search hooks |
+| `search-engine.ts` | searchDeepSkyObjects, enhancedSearch, enhancedQuickSearch, searchWithFuzzyName, getTonightsBest | search hooks, sky-atlas-store |
+| `fuzzy-search.ts` | Levenshtein, Jaro-Winkler, parseCatalogId, COMMON_NAME_TO_CATALOG, buildSearchIndex | search-engine, local-resolve-service |
+| `scoring-algorithms.ts` | calculateComprehensiveImagingScore, airmass, meridian, moon impact, seasonal scoring | tonight-recommendations |
+| `advanced-recommendation-engine.ts` | AdvancedRecommendationEngine (equipment-aware), getQuickRecommendations | tonight-recommendations |
+| `dso-filters.ts` | applyDSOFilters (NINA-style), checkAltitudeDuration, enrichDSOWithCalculations | Available for advanced filtering |
+| `celestial-search-data.ts` | CELESTIAL_BODIES, POPULAR_DSOS, MESSIER_CATALOG, DSO_NAME_INDEX, fuzzyMatch | search hooks |
+| `sky-atlas-store.ts` | Zustand store for Sky Atlas panel (filters, search, pagination) | sky-atlas-panel, wut-tab, positions-tab |
+| `index.ts` | Re-exports all public APIs | All consumers |
 
 ---
 
-## Key Types
+## Integration Status
 
-### Object Types
-
-```typescript
-export enum ObjectType {
-  // Solar System
-  Star = 'star',
-  Planet = 'planet',
-  Moon = 'moon',
-  Asteroid = 'asteroid',
-  Comet = 'comet',
-  DwarfPlanet = 'dwarf-planet',
-
-  // Deep Sky
-  Galaxy = 'galaxy',
-  Nebula = 'nebula',
-  Cluster = 'cluster',
-  OpenCluster = 'open-cluster',
-  GlobularCluster = 'globular-cluster',
-  PlanetaryNebula = 'planetary-nebula',
-  SupernovaRemnant = 'supernova-remnant',
-
-  // Other
-  Constellation = 'constellation',
-  Asterism = 'asterism',
-  Other = 'other',
-}
-```
-
-### Catalog Types
-
-```typescript
-export interface CatalogInfo {
-  id: string;
-  name: string;
-  description: string;
-  objectCount: number;
-  coverage: string;
-}
-
-export interface CatalogObject {
-  id: string;
-  name: string;
-  catalog: string;
-  ra: number;
-  dec: number;
-  magnitude: number;
-  objectType: ObjectType;
-  size?: number;
-  constellation?: string;
-}
-```
+| Feature | Status | Consumer |
+|---------|--------|----------|
+| Local catalog ID search | ✅ Active | `use-object-search.ts` |
+| Fuzzy search (enhancedQuickSearch) | ✅ Active | `use-object-search.ts` |
+| Sky Atlas panel + store | ✅ Active | `sky-atlas-panel.tsx` |
+| Tonight's recommendations | ✅ Active | `tonight-recommendations.tsx` |
+| AdvancedRecommendationEngine | ✅ Active | `use-tonight-recommendations.ts` (equipment-aware) |
+| Local name resolution fallback | ✅ Active | `local-resolve-service.ts` → `use-object-search.ts` |
+| Search result enrichment | ✅ Active | `use-object-search.ts` (altitude, visibility, moon distance) |
+| Messier quick category | ✅ Active | `use-object-search.ts` quickCategories |
+| searchWithFuzzyName in Sky Atlas | ✅ Active | `sky-atlas-store.ts` search() |
+| FITS header parsing | ✅ Active | `image-capture.tsx` |
+| applyDSOFilters (NINA-style) | ⚠️ Available | Exported but not yet wired to UI |
 
 ---
 
-## Available Catalogs
-
-| ID | Name | Objects |
-|----|------|---------|
-| `messier` | Messier Catalog | 110 |
-| `ngc` | New General Catalog | ~8,000 |
-| `ic` | Index Catalog | ~5,000 |
-| `bright-stars` | Bright Star Catalog | ~9,000 |
-| `hipparcos` | Hipparcos Catalog | ~120,000 |
-| `tycho` | Tycho Catalog | ~2.5 million |
-
----
-
-## Usage Examples
-
-### Get Object Type
+## Key Exports
 
 ```typescript
-import { getObjectType, ObjectType } from '@/lib/catalogs';
+// Catalog data
+import { DSO_CATALOG, getDSOById, getMessierObjects, getDSOsByConstellation, getDSOsByType } from '@/lib/catalogs';
 
-const type = getObjectType('M31');
-console.log(type); // ObjectType.Galaxy
-```
+// Search
+import { enhancedQuickSearch, searchDeepSkyObjects, searchWithFuzzyName } from '@/lib/catalogs';
 
-### Get Catalog Info
+// Fuzzy search utilities
+import { parseCatalogId, COMMON_NAME_TO_CATALOG, fuzzySearch } from '@/lib/catalogs';
 
-```typescript
-import { getCatalogInfo } from '@/lib/catalogs';
+// Scoring & enrichment
+import { enrichDeepSkyObject, calculateAltitude, calculateMoonDistance } from '@/lib/catalogs';
+import { calculateComprehensiveImagingScore, calculateAirmass } from '@/lib/catalogs';
 
-const info = getCatalogInfo('messier');
-console.log(info.objectCount); // 110
+// Advanced recommendations
+import { AdvancedRecommendationEngine, getQuickRecommendations } from '@/lib/catalogs';
+
+// Local name resolution (separate service)
+import { resolveObjectNameLocally, searchLocalCatalog } from '@/lib/services/local-resolve-service';
 ```
 
 ---
 
 ## Related Files
 
-- [`types.ts`](./types.ts) - Type definitions
-- [`catalog-data.ts`](./catalog-data.ts) - Catalog data
+- [`lib/services/local-resolve-service.ts`](../services/local-resolve-service.ts) - Local name resolution service
+- [`lib/hooks/use-object-search.ts`](../hooks/use-object-search.ts) - Main search hook
+- [`lib/hooks/use-tonight-recommendations.ts`](../hooks/use-tonight-recommendations.ts) - Tonight recommendations hook
 - [Root CLAUDE.md](../../CLAUDE.md) - Project documentation

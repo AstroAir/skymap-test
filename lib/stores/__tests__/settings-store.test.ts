@@ -30,6 +30,8 @@ const DEFAULT_STELLARIUM = {
   atmosphereVisible: false,
   landscapesVisible: false,
   dsosVisible: true,
+  milkyWayVisible: true,
+  fogVisible: false,
   surveyEnabled: true,
   surveyId: 'dss',
   surveyUrl: undefined,
@@ -38,6 +40,14 @@ const DEFAULT_STELLARIUM = {
   sensorControl: false,
   crosshairVisible: true,
   crosshairColor: 'rgba(255, 255, 255, 0.3)',
+  projectionType: 'stereographic' as const,
+  bortleIndex: 3,
+  starLinearScale: 0.8,
+  starRelativeScale: 1.1,
+  displayLimitMag: 99,
+  flipViewVertical: false,
+  flipViewHorizontal: false,
+  exposureScale: 2,
 };
 
 const DEFAULT_PREFERENCES = {
@@ -226,6 +236,8 @@ describe('Settings Store', () => {
         atmosphereVisible: true,
         landscapesVisible: true,
         dsosVisible: false,
+        milkyWayVisible: true,
+        fogVisible: false,
         surveyEnabled: false,
         surveyId: 'mellinger',
         surveyUrl: 'https://example.com',
@@ -234,6 +246,14 @@ describe('Settings Store', () => {
         sensorControl: true,
         crosshairVisible: false,
         crosshairColor: '#ff0000',
+        projectionType: 'stereographic' as const,
+        bortleIndex: 5,
+        starLinearScale: 1.0,
+        starRelativeScale: 1.5,
+        displayLimitMag: 15,
+        flipViewVertical: true,
+        flipViewHorizontal: false,
+        exposureScale: 3,
       };
 
       useSettingsStore.getState().setStellariumSettings(newSettings);

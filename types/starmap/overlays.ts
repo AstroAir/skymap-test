@@ -74,14 +74,18 @@ export interface OcularViewResult {
   tfov: number;
   exitPupil: number;
   dawesLimit: number;
+  rayleighLimit: number;
   maxUsefulMag: number;
   minUsefulMag: number;
+  bestPlanetaryMag: number;
   focalRatio: number;
   lightGathering: number;
   limitingMag: number;
+  surfaceBrightness: number;
   isOverMagnified: boolean;
   isUnderMagnified: boolean;
   effectiveFocalLength: number;
+  observingSuggestion: 'deepsky' | 'allround' | 'planetary' | 'overlimit';
 }
 
 /** Props for ocular view preview sub-component */
@@ -90,6 +94,7 @@ export interface OcularViewPreviewProps {
   magnification: number;
   exitPupil: number;
   isOverMagnified: boolean;
+  isUnderMagnified: boolean;
 }
 
 /** Pre-generated star data for ocular view simulation */

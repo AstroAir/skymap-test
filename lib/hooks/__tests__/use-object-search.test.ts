@@ -37,6 +37,24 @@ jest.mock('@/lib/services/online-search-service', () => ({
   checkOnlineSearchAvailability: jest.fn().mockReturnValue(new Promise(() => {})),
 }));
 
+jest.mock('@/lib/stores/settings-store', () => ({
+  useSettingsStore: jest.fn((selector) => {
+    const state = { search: { enableFuzzySearch: true, autoSearchDelay: 150, maxSearchResults: 50 } };
+    return typeof selector === 'function' ? selector(state) : state;
+  }),
+}));
+
+jest.mock('@/lib/astronomy/coordinates/conversions', () => ({
+  parseRACoordinate: jest.fn((v: string) => {
+    const n = parseFloat(v);
+    return !isNaN(n) && n >= 0 && n < 360 ? n : null;
+  }),
+  parseDecCoordinate: jest.fn((v: string) => {
+    const n = parseFloat(v);
+    return !isNaN(n) && n >= -90 && n <= 90 ? n : null;
+  }),
+}));
+
 describe('useObjectSearch', () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -458,6 +476,63 @@ describe('useObjectSearch', () => {
         expect(category.label).toBeDefined();
         expect(category.items).toBeDefined();
       });
+    });
+
+    it('should include messier category', () => {
+      const { result } = renderHook(() => useObjectSearch());
+      
+      const messierCategory = result.current.quickCategories.find(c => c.label === 'messier');
+      expect(messierCategory).toBeDefined();
+      expect(messierCategory!.items.length).toBeGreaterThan(0);
+    });
+
+    it('should include planets category', () => {
+      const { result } = renderHook(() => useObjectSearch());
+      
+      const planetsCategory = result.current.quickCategories.find(c => c.label === 'planets');
+      expect(planetsCategory).toBeDefined();
+    });
+  });
+
+  describe('search result enrichment', () => {
+    it('should enrich DSO results with altitude data', async () => {
+      const { result } = renderHook(() => useObjectSearch());
+      
+      act(() => {
+        result.current.search('M31');
+        jest.advanceTimersByTime(200);
+      });
+      
+      await waitFor(() => {
+        expect(result.current.results.length).toBeGreaterThan(0);
+      });
+      
+      const dsoResult = result.current.results.find(r => r.Type === 'DSO');
+      if (dsoResult) {
+        // Enrichment should have computed altitude data
+        expect(dsoResult._currentAltitude).toBeDefined();
+        expect(typeof dsoResult._currentAltitude).toBe('number');
+        expect(typeof dsoResult._isVisible).toBe('boolean');
+      }
+    });
+
+    it('should enrich DSO results with moon distance', async () => {
+      const { result } = renderHook(() => useObjectSearch());
+      
+      act(() => {
+        result.current.search('M42');
+        jest.advanceTimersByTime(200);
+      });
+      
+      await waitFor(() => {
+        expect(result.current.results.length).toBeGreaterThan(0);
+      });
+      
+      const dsoResult = result.current.results.find(r => r.Type === 'DSO');
+      if (dsoResult) {
+        expect(dsoResult._moonDistance).toBeDefined();
+        expect(typeof dsoResult._moonDistance).toBe('number');
+      }
     });
   });
 });

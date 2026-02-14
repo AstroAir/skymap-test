@@ -87,6 +87,32 @@ export const InfoPanel = memo(function InfoPanel({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Native event listeners to prevent Stellarium WASM engine from receiving
+  // mouse events that originate in the info panel. The engine sets
+  // document.onmouseup inside a canvas mousedown handler, which persists and
+  // fires on ALL subsequent mouseup events — including clicks on InfoPanel
+  // buttons. This causes the WASM core to process a "sky click" that
+  // deselects the object, unmounting the panel before the button action fires.
+  // React's synthetic stopPropagation (above) fires via delegation at the root
+  // and cannot prevent native handlers on ancestor elements from executing.
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+
+    const stop = (e: Event) => e.stopPropagation();
+    el.addEventListener('mousedown', stop);
+    el.addEventListener('mouseup', stop);
+    el.addEventListener('pointerdown', stop);
+    el.addEventListener('pointerup', stop);
+
+    return () => {
+      el.removeEventListener('mousedown', stop);
+      el.removeEventListener('mouseup', stop);
+      el.removeEventListener('pointerdown', stop);
+      el.removeEventListener('pointerup', stop);
+    };
+  }, []);
+
   // Calculate astronomical data using shared hooks
   const astroData = useAstroEnvironment(latitude, longitude, currentTime);
   const targetData = useTargetAstroData(selectedObject, latitude, longitude, astroData.moonRa, astroData.moonDec, currentTime);
@@ -99,6 +125,11 @@ export const InfoPanel = memo(function InfoPanel({
     <TooltipProvider>
       <Card 
         ref={panelRef}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
         className={cn(
           'bg-card/95 backdrop-blur-md border-border/60 shadow-2xl',
           'transition-all duration-300 ease-out',

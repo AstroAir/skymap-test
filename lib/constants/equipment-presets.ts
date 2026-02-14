@@ -125,19 +125,31 @@ export interface OcularTelescopePreset {
 }
 
 export const EYEPIECE_PRESETS: EyepiecePreset[] = [
-  { id: 'e1', name: 'Plössl 32mm', focalLength: 32, afov: 52 },
-  { id: 'e2', name: 'Plössl 25mm', focalLength: 25, afov: 52 },
-  { id: 'e3', name: 'Plössl 17mm', focalLength: 17, afov: 52 },
-  { id: 'e4', name: 'Plössl 10mm', focalLength: 10, afov: 52 },
-  { id: 'e5', name: 'Plössl 6mm', focalLength: 6, afov: 52 },
-  { id: 'e6', name: 'Wide Field 24mm', focalLength: 24, afov: 68 },
-  { id: 'e7', name: 'Wide Field 15mm', focalLength: 15, afov: 68 },
-  { id: 'e8', name: 'Ultra Wide 9mm', focalLength: 9, afov: 82 },
-  { id: 'e9', name: 'Ultra Wide 5mm', focalLength: 5, afov: 82 },
+  { id: 'e1', name: 'Plössl 32mm', focalLength: 32, afov: 52, fieldStop: 27 },
+  { id: 'e2', name: 'Plössl 25mm', focalLength: 25, afov: 52, fieldStop: 21.3 },
+  { id: 'e3', name: 'Plössl 17mm', focalLength: 17, afov: 52, fieldStop: 14.5 },
+  { id: 'e4', name: 'Plössl 10mm', focalLength: 10, afov: 52, fieldStop: 8.5 },
+  { id: 'e5', name: 'Plössl 6mm', focalLength: 6, afov: 52, fieldStop: 5.1 },
+  { id: 'e6', name: 'Wide Field 24mm', focalLength: 24, afov: 68, fieldStop: 27.2 },
+  { id: 'e7', name: 'Wide Field 15mm', focalLength: 15, afov: 68, fieldStop: 17 },
+  { id: 'e8', name: 'Ultra Wide 9mm', focalLength: 9, afov: 82, fieldStop: 12.4 },
+  { id: 'e9', name: 'Ultra Wide 5mm', focalLength: 5, afov: 82, fieldStop: 6.9 },
+  { id: 'e10', name: 'Nagler 31mm', focalLength: 31, afov: 82, fieldStop: 42 },
+  { id: 'e11', name: 'Nagler 16mm', focalLength: 16, afov: 82, fieldStop: 22 },
+  { id: 'e12', name: 'Ethos 13mm', focalLength: 13, afov: 100, fieldStop: 22.1 },
+  { id: 'e13', name: 'Ethos 6mm', focalLength: 6, afov: 100, fieldStop: 10.4 },
+  { id: 'e14', name: 'XW 40mm', focalLength: 40, afov: 70, fieldStop: 46 },
+  { id: 'e15', name: 'Morpheus 6.5mm', focalLength: 6.5, afov: 76, fieldStop: 8.7 },
 ];
 
 export const BARLOW_PRESETS: BarlowPreset[] = [
   { id: 'b0', name: 'None', magnification: 1 },
+  // Focal reducers
+  { id: 'r1', name: '0.63x Reducer', magnification: 0.63 },
+  { id: 'r2', name: '0.72x Reducer', magnification: 0.72 },
+  { id: 'r3', name: '0.8x Reducer', magnification: 0.8 },
+  { id: 'r4', name: '0.85x Reducer', magnification: 0.85 },
+  // Barlows
   { id: 'b1', name: '2x Barlow', magnification: 2 },
   { id: 'b2', name: '2.5x Barlow', magnification: 2.5 },
   { id: 'b3', name: '3x Barlow', magnification: 3 },

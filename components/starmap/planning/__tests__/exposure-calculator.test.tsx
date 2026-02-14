@@ -100,6 +100,12 @@ const mockUseEquipmentStore = jest.fn(() => ({
   focalLength: 400,
   aperture: 80,
   pixelSize: 3.76,
+  sensorWidth: 23.5,
+  sensorHeight: 15.6,
+  getResolution: () => ({
+    width: Math.round((23.5 * 1000) / 3.76),
+    height: Math.round((15.6 * 1000) / 3.76),
+  }),
   exposureDefaults: {
     exposureTime: 120,
     gain: 100,

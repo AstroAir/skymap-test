@@ -45,7 +45,7 @@ import { getTypeIcon } from './search-utils';
 
 export type { AdvancedSearchDialogProps } from '@/types/starmap/search';
 
-export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedSearchDialogProps) {
+export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook }: AdvancedSearchDialogProps) {
   const t = useTranslations();
   
   // Local state for advanced filters
@@ -61,8 +61,8 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
   const [autoSearch, setAutoSearch] = useState(true);
   const [activeTab, setActiveTab] = useState('filters');
 
-  
-  // Use the search hook
+  // Use shared search hook from parent, or create own instance as fallback
+  const ownSearch = useObjectSearch();
   const {
     results,
     groupedResults,
@@ -82,7 +82,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
     getSelectedItems,
     isSelected,
     searchStats,
-  } = useObjectSearch();
+  } = searchHook ?? ownSearch;
   
   // Get sky culture language for name translation
   const skyCultureLanguage = useSkyCultureLanguage();
@@ -458,6 +458,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect }: AdvancedS
                     onToggleSelection={toggleSelection}
                     onAddToTargetList={handleAddToTargetList}
                     defaultExpanded={['DSO', 'Planet', 'Constellation']}
+                    searchQuery={localQuery}
                   />
                 </div>
               </ScrollArea>

@@ -28,6 +28,14 @@ export interface SearchResultItem {
   Magnitude?: number;
   Size?: string;
   StellariumObj?: StellariumObject;
+  _fuzzyScore?: number;
+  _isOnlineResult?: boolean;
+  _onlineSource?: string;
+  _currentAltitude?: number;
+  _isVisible?: boolean;
+  _transitTime?: Date;
+  _moonDistance?: number;
+  _imagingScore?: number;
 }
 
 // ============================================================================

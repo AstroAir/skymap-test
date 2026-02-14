@@ -172,7 +172,7 @@ export const TopToolbar = memo(function TopToolbar({
 
             {/* UI Preferences Group */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <ThemeToggle className="h-9 w-9" showCustomize />
+              <ThemeToggle variant="icon" className="h-9 w-9" />
               <LanguageSwitcher className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
             </ToolbarGroup>
           </div>

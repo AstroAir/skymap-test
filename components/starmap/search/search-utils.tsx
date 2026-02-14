@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import {
   Star,
   Globe,
@@ -35,3 +36,38 @@ export function getCategoryIcon(label: string) {
     default: return <CircleDot className="h-3 w-3" />;
   }
 }
+
+/**
+ * Highlight matching portions of text in search results.
+ * Splits text on query matches (case-insensitive) and wraps matches in <mark>.
+ */
+export const HighlightText = memo(function HighlightText({
+  text,
+  query,
+  className,
+}: {
+  text: string;
+  query: string;
+  className?: string;
+}) {
+  if (!query || query.length < 2) {
+    return <span className={className}>{text}</span>;
+  }
+
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+
+  return (
+    <span className={className}>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={i} className="bg-primary/20 text-foreground rounded-sm px-0.5">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </span>
+  );
+});

@@ -11,8 +11,10 @@ export const DISPLAY_SETTINGS = [
   { key: 'starLabelsVisible' as const, labelKey: 'settings.starLabels' },
   { key: 'planetLabelsVisible' as const, labelKey: 'settings.planetLabels' },
   { key: 'dsosVisible' as const, labelKey: 'settings.deepSkyObjects' },
+  { key: 'milkyWayVisible' as const, labelKey: 'settings.milkyWay' },
   { key: 'atmosphereVisible' as const, labelKey: 'settings.atmosphere' },
   { key: 'landscapesVisible' as const, labelKey: 'settings.landscape' },
+  { key: 'fogVisible' as const, labelKey: 'settings.fog' },
 ] as const;
 
 export const GRID_SETTINGS = [
@@ -90,6 +92,8 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   atmosphereVisible: false,
   landscapesVisible: false,
   dsosVisible: true,
+  milkyWayVisible: true,
+  fogVisible: false,
   surveyEnabled: true,
   surveyId: 'dss',
   surveyUrl: undefined,
@@ -98,4 +102,14 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   sensorControl: false,
   crosshairVisible: true,
   crosshairColor: 'rgba(255, 255, 255, 0.3)',
+
+  // Engine core rendering settings
+  projectionType: 'stereographic' as const,
+  bortleIndex: 3,
+  starLinearScale: 0.8,
+  starRelativeScale: 1.1,
+  displayLimitMag: 99,
+  flipViewVertical: false,
+  flipViewHorizontal: false,
+  exposureScale: 2,
 };

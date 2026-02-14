@@ -22,6 +22,7 @@ import {
   initializeFiltersWithNighttime,
   getTonightsBest,
   quickSearchByName,
+  searchWithFuzzyName,
   getCatalogStats,
   type CatalogStats,
 } from './search-engine';
@@ -213,12 +214,22 @@ export const useSkyAtlasStore = create<SkyAtlasStore>()(
         set({ isSearching: true, searchError: null });
         
         try {
-          const result = await searchDeepSkyObjects(catalog, filters, {
-            latitude,
-            longitude,
-            pageSize,
-            page: currentPage,
-          });
+          // Use fuzzy name search when a name filter is present
+          const hasNameFilter = filters.objectName && filters.objectName.trim().length > 0;
+          const result = hasNameFilter
+            ? await searchWithFuzzyName(catalog, filters, {
+                latitude,
+                longitude,
+                pageSize,
+                page: currentPage,
+                fuzzySearch: true,
+              })
+            : await searchDeepSkyObjects(catalog, filters, {
+                latitude,
+                longitude,
+                pageSize,
+                page: currentPage,
+              });
           
           // Check if aborted
           if (searchAbortController.signal.aborted) {

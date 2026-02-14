@@ -11,6 +11,8 @@ import {
   formatExposureTime,
   BORTLE_SCALE,
   getBortleExposureMultiplier,
+  getBortleQualityMultiplier,
+  getBortleMinimumMultiplier,
 } from '../exposure';
 
 describe('Exposure Calculations', () => {
@@ -347,6 +349,101 @@ describe('Exposure Calculations', () => {
     it('handles out-of-range values', () => {
       expect(getBortleExposureMultiplier(0)).toBe(2); // Default
       expect(getBortleExposureMultiplier(10)).toBe(2); // Default
+    });
+  });
+
+  // ============================================================================
+  // getBortleQualityMultiplier
+  // ============================================================================
+  describe('getBortleQualityMultiplier', () => {
+    it('returns same values as getBortleExposureMultiplier (alias)', () => {
+      for (let i = 1; i <= 9; i++) {
+        expect(getBortleQualityMultiplier(i)).toBe(getBortleExposureMultiplier(i));
+      }
+    });
+
+    it('darker skies have higher quality multiplier', () => {
+      expect(getBortleQualityMultiplier(1)).toBeGreaterThan(getBortleQualityMultiplier(5));
+      expect(getBortleQualityMultiplier(5)).toBeGreaterThan(getBortleQualityMultiplier(9));
+    });
+
+    it('handles out-of-range values', () => {
+      expect(getBortleQualityMultiplier(0)).toBe(2);
+      expect(getBortleQualityMultiplier(10)).toBe(2);
+    });
+  });
+
+  // ============================================================================
+  // getBortleMinimumMultiplier
+  // ============================================================================
+  describe('getBortleMinimumMultiplier', () => {
+    it('light-polluted skies need more minimum time', () => {
+      expect(getBortleMinimumMultiplier(9)).toBeGreaterThan(getBortleMinimumMultiplier(5));
+      expect(getBortleMinimumMultiplier(5)).toBeGreaterThan(getBortleMinimumMultiplier(1));
+    });
+
+    it('returns positive values for all Bortle levels', () => {
+      for (let i = 1; i <= 9; i++) {
+        expect(getBortleMinimumMultiplier(i)).toBeGreaterThan(0);
+      }
+    });
+
+    it('Bortle 5 baseline is 1.0', () => {
+      expect(getBortleMinimumMultiplier(5)).toBe(1.0);
+    });
+
+    it('dark sky multiplier is less than 1', () => {
+      expect(getBortleMinimumMultiplier(1)).toBeLessThan(1);
+      expect(getBortleMinimumMultiplier(2)).toBeLessThan(1);
+    });
+
+    it('bright sky multiplier is greater than 1', () => {
+      expect(getBortleMinimumMultiplier(7)).toBeGreaterThan(1);
+      expect(getBortleMinimumMultiplier(9)).toBeGreaterThan(1);
+    });
+
+    it('handles out-of-range values', () => {
+      expect(getBortleMinimumMultiplier(0)).toBe(1);
+      expect(getBortleMinimumMultiplier(10)).toBe(1);
+    });
+  });
+
+  // ============================================================================
+  // calculateTotalIntegration (extended tests for new multiplier logic)
+  // ============================================================================
+  describe('calculateTotalIntegration - new multiplier logic', () => {
+    it('minimum uses getBortleMinimumMultiplier (bright sky needs more)', () => {
+      const darkMin = calculateTotalIntegration({ bortle: 1, targetType: 'nebula' });
+      const brightMin = calculateTotalIntegration({ bortle: 9, targetType: 'nebula' });
+      // Light-polluted sky should require MORE minimum integration
+      expect(brightMin.minimum).toBeGreaterThan(darkMin.minimum);
+    });
+
+    it('recommended uses getBortleQualityMultiplier (dark sky benefits more)', () => {
+      const dark = calculateTotalIntegration({ bortle: 1, targetType: 'nebula' });
+      const bright = calculateTotalIntegration({ bortle: 9, targetType: 'nebula' });
+      // Dark skies should have higher recommended (more benefit from longer integration)
+      expect(dark.recommended).toBeGreaterThan(bright.recommended);
+    });
+
+    it('narrowband halves all values', () => {
+      const bb = calculateTotalIntegration({ bortle: 5, targetType: 'nebula', isNarrowband: false });
+      const nb = calculateTotalIntegration({ bortle: 5, targetType: 'nebula', isNarrowband: true });
+      expect(nb.minimum).toBe(Math.round(bb.minimum * 0.5));
+      expect(nb.recommended).toBe(Math.round(bb.recommended * 0.5));
+      expect(nb.ideal).toBe(Math.round(bb.ideal * 0.5));
+    });
+
+    it('all target types return valid results', () => {
+      const types: Array<'galaxy' | 'nebula' | 'cluster' | 'planetary'> = ['galaxy', 'nebula', 'cluster', 'planetary'];
+      for (const t of types) {
+        const result = calculateTotalIntegration({ bortle: 5, targetType: t });
+        expect(result.minimum).toBeGreaterThan(0);
+        expect(result.recommended).toBeGreaterThan(0);
+        expect(result.ideal).toBeGreaterThan(0);
+        expect(result.ideal).toBeGreaterThan(result.recommended);
+        expect(result.recommended).toBeGreaterThan(result.minimum);
+      }
     });
   });
 });

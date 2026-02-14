@@ -15,6 +15,12 @@ describe('useEquipmentStore', () => {
         activeTelescopeId: null,
         customCameras: [],
         customTelescopes: [],
+        customEyepieces: [],
+        customBarlows: [],
+        customOcularTelescopes: [],
+        selectedOcularTelescopeId: 't1',
+        selectedEyepieceId: 'e1',
+        selectedBarlowId: 'b0',
       });
       useEquipmentStore.getState().resetToDefaults();
     });
@@ -57,6 +63,17 @@ describe('useEquipmentStore', () => {
       
       expect(state.customCameras).toEqual([]);
       expect(state.customTelescopes).toEqual([]);
+      expect(state.customEyepieces).toEqual([]);
+      expect(state.customBarlows).toEqual([]);
+      expect(state.customOcularTelescopes).toEqual([]);
+    });
+
+    it('should have default ocular selection', () => {
+      const state = useEquipmentStore.getState();
+      
+      expect(state.selectedOcularTelescopeId).toBe('t1');
+      expect(state.selectedEyepieceId).toBe('e1');
+      expect(state.selectedBarlowId).toBe('b0');
     });
   });
 
@@ -546,6 +563,250 @@ describe('useEquipmentStore', () => {
       expect(coverage?.totalPanels).toBe(6);
       expect(coverage?.width).toBeGreaterThan(0);
       expect(coverage?.height).toBeGreaterThan(0);
+    });
+  });
+
+  describe('ocular simulator selection state', () => {
+    it('should have default ocular selection IDs', () => {
+      const state = useEquipmentStore.getState();
+      
+      expect(state.selectedOcularTelescopeId).toBe('t1');
+      expect(state.selectedEyepieceId).toBe('e1');
+      expect(state.selectedBarlowId).toBe('b0');
+    });
+
+    it('should set selected ocular telescope', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.setSelectedOcularTelescopeId('t3');
+      });
+      
+      expect(result.current.selectedOcularTelescopeId).toBe('t3');
+    });
+
+    it('should set selected eyepiece', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.setSelectedEyepieceId('e5');
+      });
+      
+      expect(result.current.selectedEyepieceId).toBe('e5');
+    });
+
+    it('should set selected barlow', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.setSelectedBarlowId('b2');
+      });
+      
+      expect(result.current.selectedBarlowId).toBe('b2');
+    });
+  });
+
+  describe('custom ocular equipment', () => {
+    it('should add custom eyepiece', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomEyepiece({
+          name: 'My Eyepiece',
+          focalLength: 12,
+          afov: 68,
+          fieldStop: 13.5,
+        });
+      });
+      
+      expect(result.current.customEyepieces).toHaveLength(1);
+      expect(result.current.customEyepieces[0].name).toBe('My Eyepiece');
+      expect(result.current.customEyepieces[0].focalLength).toBe(12);
+      expect(result.current.customEyepieces[0].afov).toBe(68);
+      expect(result.current.customEyepieces[0].fieldStop).toBe(13.5);
+      expect(result.current.customEyepieces[0].isCustom).toBe(true);
+      expect(result.current.customEyepieces[0].id).toContain('eyepiece-');
+    });
+
+    it('should remove custom eyepiece', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomEyepiece({ name: 'EP1', focalLength: 10, afov: 52 });
+      });
+      
+      const id = result.current.customEyepieces[0].id;
+      
+      act(() => {
+        result.current.removeCustomEyepiece(id);
+      });
+      
+      expect(result.current.customEyepieces).toHaveLength(0);
+    });
+
+    it('should reset eyepiece selection when removing selected custom eyepiece', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomEyepiece({ name: 'EP1', focalLength: 10, afov: 52 });
+      });
+      
+      const id = result.current.customEyepieces[0].id;
+      
+      act(() => {
+        result.current.setSelectedEyepieceId(id);
+      });
+      
+      expect(result.current.selectedEyepieceId).toBe(id);
+      
+      act(() => {
+        result.current.removeCustomEyepiece(id);
+      });
+      
+      expect(result.current.selectedEyepieceId).toBe('e1');
+    });
+
+    it('should update custom eyepiece', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomEyepiece({ name: 'EP1', focalLength: 10, afov: 52 });
+      });
+      
+      const id = result.current.customEyepieces[0].id;
+      
+      act(() => {
+        result.current.updateCustomEyepiece(id, { name: 'Updated EP', afov: 68 });
+      });
+      
+      expect(result.current.customEyepieces[0].name).toBe('Updated EP');
+      expect(result.current.customEyepieces[0].afov).toBe(68);
+      expect(result.current.customEyepieces[0].focalLength).toBe(10);
+    });
+
+    it('should add custom barlow', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomBarlow({ name: 'My 1.5x', magnification: 1.5 });
+      });
+      
+      expect(result.current.customBarlows).toHaveLength(1);
+      expect(result.current.customBarlows[0].name).toBe('My 1.5x');
+      expect(result.current.customBarlows[0].magnification).toBe(1.5);
+      expect(result.current.customBarlows[0].isCustom).toBe(true);
+    });
+
+    it('should remove custom barlow and reset selection', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomBarlow({ name: 'B1', magnification: 1.5 });
+      });
+      
+      const id = result.current.customBarlows[0].id;
+      
+      act(() => {
+        result.current.setSelectedBarlowId(id);
+        result.current.removeCustomBarlow(id);
+      });
+      
+      expect(result.current.customBarlows).toHaveLength(0);
+      expect(result.current.selectedBarlowId).toBe('b0');
+    });
+
+    it('should update custom barlow', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomBarlow({ name: 'B1', magnification: 1.5 });
+      });
+      
+      const id = result.current.customBarlows[0].id;
+      
+      act(() => {
+        result.current.updateCustomBarlow(id, { magnification: 1.8 });
+      });
+      
+      expect(result.current.customBarlows[0].magnification).toBe(1.8);
+    });
+
+    it('should add custom ocular telescope', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomOcularTelescope({
+          name: 'My SCT',
+          focalLength: 2032,
+          aperture: 203,
+          type: 'catadioptric',
+        });
+      });
+      
+      expect(result.current.customOcularTelescopes).toHaveLength(1);
+      expect(result.current.customOcularTelescopes[0].name).toBe('My SCT');
+      expect(result.current.customOcularTelescopes[0].type).toBe('catadioptric');
+      expect(result.current.customOcularTelescopes[0].isCustom).toBe(true);
+    });
+
+    it('should remove custom ocular telescope and reset selection', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomOcularTelescope({
+          name: 'OT1', focalLength: 1000, aperture: 200, type: 'reflector',
+        });
+      });
+      
+      const id = result.current.customOcularTelescopes[0].id;
+      
+      act(() => {
+        result.current.setSelectedOcularTelescopeId(id);
+        result.current.removeCustomOcularTelescope(id);
+      });
+      
+      expect(result.current.customOcularTelescopes).toHaveLength(0);
+      expect(result.current.selectedOcularTelescopeId).toBe('t1');
+    });
+
+    it('should update custom ocular telescope', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomOcularTelescope({
+          name: 'OT1', focalLength: 1000, aperture: 200, type: 'reflector',
+        });
+      });
+      
+      const id = result.current.customOcularTelescopes[0].id;
+      
+      act(() => {
+        result.current.updateCustomOcularTelescope(id, { name: 'Updated OT', aperture: 250 });
+      });
+      
+      expect(result.current.customOcularTelescopes[0].name).toBe('Updated OT');
+      expect(result.current.customOcularTelescopes[0].aperture).toBe(250);
+      expect(result.current.customOcularTelescopes[0].focalLength).toBe(1000);
+    });
+
+    it('should not reset selection when removing non-selected custom eyepiece', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+      
+      act(() => {
+        result.current.addCustomEyepiece({ name: 'EP1', focalLength: 10, afov: 52 });
+        result.current.addCustomEyepiece({ name: 'EP2', focalLength: 15, afov: 60 });
+      });
+      
+      const id1 = result.current.customEyepieces[0].id;
+      const id2 = result.current.customEyepieces[1].id;
+      
+      act(() => {
+        result.current.setSelectedEyepieceId(id2);
+        result.current.removeCustomEyepiece(id1);
+      });
+      
+      expect(result.current.selectedEyepieceId).toBe(id2);
+      expect(result.current.customEyepieces).toHaveLength(1);
     });
   });
 

@@ -31,18 +31,12 @@ jest.mock('@/lib/stores/theme-store', () => ({
   },
 }));
 
-// Mock ThemeCustomizer to avoid heavy rendering in tests
-jest.mock('../theme-customizer', () => ({
-  ThemeCustomizer: ({ open }: { open?: boolean }) => open ? <div data-testid="theme-customizer">customizer</div> : null,
-}));
-
 const messages = {
   theme: {
     switchToLight: 'Switch to Light',
     switchToDark: 'Switch to Dark',
     switchTheme: 'Theme',
     system: 'System',
-    customize: 'Customize',
   },
   common: {
     lightMode: 'Light Mode',
@@ -115,24 +109,12 @@ describe('ThemeToggle', () => {
     expect(mockSetTheme).toHaveBeenCalledWith('light');
   });
 
-  it('shows customize option when showCustomize is true', async () => {
+  it('dropdown shows exactly 3 theme options', async () => {
     const user = userEvent.setup();
-    const mockOnCustomizeClick = jest.fn();
-    renderWithProviders(
-      <ThemeToggle 
-        variant="dropdown" 
-        showCustomize={true} 
-        onCustomizeClick={mockOnCustomizeClick} 
-      />
-    );
+    renderWithProviders(<ThemeToggle variant="dropdown" />);
     
     await user.click(screen.getByRole('button'));
     const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(4); // 3 themes + customize
-    
-    const customizeItem = items[3];
-    expect(customizeItem.textContent).toContain('theme.customize');
-    await user.click(customizeItem);
-    expect(mockOnCustomizeClick).toHaveBeenCalled();
+    expect(items).toHaveLength(3);
   });
 });

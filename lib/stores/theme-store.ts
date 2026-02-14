@@ -198,6 +198,15 @@ function applyThemeToDOM(customization: ThemeCustomization) {
     // Apply font size
     styleUpdates.push(['--font-size-scale', String(fontSizeScale[customization.fontSize])]);
 
+    // Clear all previous color inline styles before applying new ones
+    const allColorKeys: (keyof ThemeColors)[] = [
+      'primary', 'secondary', 'accent', 'background',
+      'foreground', 'muted', 'card', 'border', 'destructive',
+    ];
+    allColorKeys.forEach(key => {
+      root.style.removeProperty(`--${key}`);
+    });
+
     // Apply custom colors based on current theme
     const isDark = root.classList.contains('dark');
     const colors = isDark ? customization.customColors.dark : customization.customColors.light;

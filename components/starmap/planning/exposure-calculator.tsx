@@ -17,6 +17,7 @@ import {
   ChevronUp,
   Copy,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,8 +66,9 @@ import {
   calculateTotalIntegration,
   formatDuration,
 } from '@/lib/astronomy/astro-utils';
-import { calculateSNR, estimateFileSize } from '@/lib/astronomy/exposure-utils';
-import { COMMON_FILTERS, BINNING_OPTIONS, IMAGE_TYPES } from '@/lib/core/constants/planning';
+import { calculateSNR, estimateFileSize, calculateOptimalSubExposure, estimateSessionTime } from '@/lib/astronomy/exposure-utils';
+import { checkSampling } from '@/lib/astronomy/imaging/exposure';
+import { COMMON_FILTERS, BINNING_OPTIONS, IMAGE_TYPES, FILTER_SEQUENCE_PRESETS } from '@/lib/core/constants/planning';
 import type { ExposurePlan, ExposureCalculatorProps } from '@/types/starmap/planning';
 import { useEquipmentStore } from '@/lib/stores';
 
@@ -211,25 +213,38 @@ export function ExposureCalculator({
     });
   }, [bortle, targetType, isNarrowband]);
   
+  const fRatio = aperture > 0 ? focalLength / aperture : 5;
+  const imageScale = focalLength > 0 ? (206.265 * pixelSize) / focalLength : 0;
+
   const snr = useMemo(() => {
-    return calculateSNR(exposureTime, gain, bortle, isNarrowband);
-  }, [exposureTime, gain, bortle, isNarrowband]);
+    return calculateSNR(exposureTime, gain, bortle, isNarrowband, fRatio, pixelSize);
+  }, [exposureTime, gain, bortle, isNarrowband, fRatio, pixelSize]);
+
+  const optimalSub = useMemo(() => {
+    return calculateOptimalSubExposure(bortle, fRatio, pixelSize, focalLength, isNarrowband, undefined, gain);
+  }, [bortle, fRatio, pixelSize, focalLength, isNarrowband, gain]);
   
   const totalIntegrationMinutes = useMemo(() => {
     return (exposureTime * frameCount) / 60;
   }, [exposureTime, frameCount]);
+
+  const sessionTime = useMemo(() => {
+    return estimateSessionTime(exposureTime, frameCount, ditherEnabled, ditherEvery);
+  }, [exposureTime, frameCount, ditherEnabled, ditherEvery]);
   
+  const sensorResolution = useMemo(() => {
+    return equipmentStore.getResolution();
+  }, [equipmentStore]);
+
   const fileSize = useMemo(() => {
-    return estimateFileSize(binning);
-  }, [binning]);
+    return estimateFileSize(binning, 16, sensorResolution.width, sensorResolution.height);
+  }, [binning, sensorResolution]);
   
   const totalStorageGB = useMemo(() => {
     return (fileSize * frameCount) / 1024;
   }, [fileSize, frameCount]);
   
   const bortleInfo = BORTLE_SCALE.find((b) => b.value === bortle);
-  const fRatio = focalLength / aperture;
-  const imageScale = (206.265 * pixelSize) / focalLength; // arcsec/pixel
   
   // Plan summary
   const plan = useMemo((): ExposurePlan => ({
@@ -255,6 +270,25 @@ export function ExposureCalculator({
     setOpen(false);
   }, [plan, onExposurePlanChange]);
   
+  const handleReset = useCallback(() => {
+    setFocalLength(propFocalLength ?? equipmentStore.focalLength);
+    setAperture(propAperture ?? equipmentStore.aperture);
+    setPixelSize(propPixelSize ?? equipmentStore.pixelSize);
+    setBortle(exposureDefaults.bortle);
+    setExposureTime(exposureDefaults.exposureTime);
+    setGain(exposureDefaults.gain);
+    setOffset(exposureDefaults.offset);
+    setBinning(exposureDefaults.binning);
+    setImageType('LIGHT');
+    setFilter(exposureDefaults.filter);
+    setFrameCount(exposureDefaults.frameCount);
+    setDitherEnabled(exposureDefaults.ditherEnabled);
+    setDitherEvery(exposureDefaults.ditherEvery);
+    setTargetType(exposureDefaults.targetType);
+    setTracking(exposureDefaults.tracking);
+    setShowAdvanced(false);
+  }, [propFocalLength, propAperture, propPixelSize, equipmentStore, exposureDefaults]);
+
   const handleCopy = useCallback(() => {
     const text = `Exposure: ${exposureTime}s × ${frameCount} = ${formatDuration(totalIntegrationMinutes)}\nFilter: ${filter} | Gain: ${gain} | Binning: ${binning}`;
     navigator.clipboard.writeText(text);
@@ -387,7 +421,7 @@ export function ExposureCalculator({
                             'w-2 h-2 rounded-full',
                             f.type === 'narrowband' ? 'bg-red-500' : 'bg-blue-500'
                           )} />
-                          <span>{f.name}</span>
+                          <span>{t(f.nameKey)}</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -435,7 +469,7 @@ export function ExposureCalculator({
                   <SelectContent>
                     {IMAGE_TYPES.map((type) => (
                       <SelectItem key={type.id} value={type.id}>
-                        {type.name}
+                        {t(type.nameKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -589,6 +623,22 @@ export function ExposureCalculator({
                   <span className="font-mono">{imageScale.toFixed(2)} &quot;/px</span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{t('exposure.sampling')}</span>
+                  {(() => {
+                    const sampling = checkSampling(imageScale, 2.5);
+                    const samplingColors = {
+                      undersampled: 'text-yellow-500',
+                      optimal: 'text-green-500',
+                      oversampled: 'text-orange-500',
+                    };
+                    return (
+                      <span className={cn('font-mono text-xs', samplingColors[sampling])}>
+                        {t(`exposure.sampling${sampling.charAt(0).toUpperCase() + sampling.slice(1)}`)}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{t('exposure.recommendedSingle')}</span>
                   <span className="font-mono">{exposureCalc.recommendedSingle}s</span>
                 </div>
@@ -596,6 +646,38 @@ export function ExposureCalculator({
                   <span className="text-muted-foreground">{t('exposure.recommendedTotal')}</span>
                   <span className="font-mono">{integrationCalc.recommended}m</span>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Optimal Sub-Exposure */}
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-yellow-500" />
+                  {t('exposure.optimalSubExposure')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-2 space-y-2">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 rounded-lg border border-border">
+                    <p className="text-[10px] text-muted-foreground">{t('exposure.aggressive')}</p>
+                    <p className="text-sm font-mono font-medium">{optimalSub.aggressive}s</p>
+                    <p className="text-[9px] text-muted-foreground">10%</p>
+                  </div>
+                  <div className="p-2 rounded-lg border border-primary bg-primary/10">
+                    <p className="text-[10px] text-primary">{t('exposure.balanced')}</p>
+                    <p className="text-sm font-mono font-medium">{optimalSub.balanced}s</p>
+                    <p className="text-[9px] text-muted-foreground">5%</p>
+                  </div>
+                  <div className="p-2 rounded-lg border border-border">
+                    <p className="text-[10px] text-muted-foreground">{t('exposure.conservativeSub')}</p>
+                    <p className="text-sm font-mono font-medium">{optimalSub.conservative}s</p>
+                    <p className="text-[9px] text-muted-foreground">2%</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {t('exposure.optimalSubDescription', { readNoise: optimalSub.readNoiseUsed.toFixed(1), skyFlux: optimalSub.skyFluxPerPixel.toFixed(2) })}
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -634,6 +716,16 @@ export function ExposureCalculator({
                     <span className="text-xs text-muted-foreground">{t('exposure.storageRequired')}</span>
                     <p className="font-mono font-medium">{totalStorageGB.toFixed(2)} GB</p>
                   </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">{t('exposure.sessionDuration')}</span>
+                    <p className="font-mono font-medium">{formatDuration(sessionTime.totalMinutes)}</p>
+                  </div>
+                  {sessionTime.overheadMinutes > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">{t('exposure.overhead')}</span>
+                      <p className="font-mono font-medium text-muted-foreground">+{formatDuration(sessionTime.overheadMinutes)}</p>
+                    </div>
+                  )}
                 </div>
                 
                 <Separator />
@@ -688,11 +780,74 @@ export function ExposureCalculator({
                 <p className="text-sm font-mono">{integrationCalc.ideal}m</p>
               </div>
             </div>
+
+            {/* Multi-Filter Sequence Planner */}
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg border border-border hover:bg-accent/50 text-sm">
+                <span className="flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-purple-500" />
+                  {t('exposure.multiFilterSequence')}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2 space-y-2">
+                {FILTER_SEQUENCE_PRESETS.map((preset) => {
+                  const totalRatio = preset.filters.reduce((sum, f) => sum + f.ratio, 0);
+                  const totalFramesForPreset = frameCount;
+                  return (
+                    <Card key={preset.id} className="border-border/50">
+                      <CardHeader className="py-2 px-3">
+                        <CardTitle className="text-xs font-medium">{t(preset.nameKey)}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-1 px-3">
+                        <div className="space-y-1">
+                          {preset.filters.map((f, idx) => {
+                            const filterInfo = COMMON_FILTERS.find(cf => cf.id === f.filterId);
+                            const filterFrames = Math.round((f.ratio / totalRatio) * totalFramesForPreset);
+                            const filterMinutes = (filterFrames * exposureTime) / 60;
+                            return (
+                              <div key={`${f.filterId}-${idx}`} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={cn(
+                                    'w-1.5 h-1.5 rounded-full',
+                                    filterInfo?.type === 'narrowband' ? 'bg-red-500' : 'bg-blue-500'
+                                  )} />
+                                  <span>{filterInfo ? t(filterInfo.nameKey) : f.filterId}</span>
+                                  <span className="text-muted-foreground">×{f.ratio}</span>
+                                </div>
+                                <span className="font-mono text-muted-foreground">
+                                  {filterFrames}f · {filterMinutes.toFixed(0)}m
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <Separator className="my-1.5" />
+                        <div className="flex justify-between text-xs font-medium">
+                          <span>{t('exposure.totalTime')}</span>
+                          <span className="font-mono">{formatDuration(totalIntegrationMinutes)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
           </TabsContent>
         </Tabs>
         
         {/* Action Buttons */}
         <div className="flex gap-2 pt-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="shrink-0" onClick={handleReset}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{t('exposure.resetDefaults')}</p>
+            </TooltipContent>
+          </Tooltip>
           <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>
             {t('common.cancel')}
           </Button>

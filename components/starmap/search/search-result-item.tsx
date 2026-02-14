@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Plus } from 'lucide-react';
+import { HighlightText } from './search-utils';
 
 export { getResultId } from '@/lib/core/search-utils';
 export { type SkyCultureLanguage } from '@/lib/core/types';
@@ -31,6 +32,7 @@ export const SearchResultItemRow = memo(forwardRef<HTMLDivElement, SearchResultI
   onMouseEnter,
   onAddToTargetList,
   globalIndex = 0,
+  searchQuery = '',
 }, ref) {
   const t = useTranslations();
 
@@ -58,13 +60,17 @@ export const SearchResultItemRow = memo(forwardRef<HTMLDivElement, SearchResultI
         onClick={() => onSelect(item)}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-foreground font-medium truncate">
-            {translateCelestialName(item.Name, skyCultureLanguage as SkyCultureLanguage)}
-          </p>
+          <HighlightText
+            text={translateCelestialName(item.Name, skyCultureLanguage as SkyCultureLanguage)}
+            query={searchQuery}
+            className="text-sm text-foreground font-medium truncate block"
+          />
           {item['Common names'] && (
-            <p className="text-xs text-muted-foreground truncate">
-              {translateCelestialName(item['Common names'], skyCultureLanguage as SkyCultureLanguage)}
-            </p>
+            <HighlightText
+              text={translateCelestialName(item['Common names'], skyCultureLanguage as SkyCultureLanguage)}
+              query={searchQuery}
+              className="text-xs text-muted-foreground truncate block"
+            />
           )}
         </div>
         

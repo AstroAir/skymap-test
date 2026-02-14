@@ -8,6 +8,7 @@ import type { SearchSourceConfig, SearchSettings, SearchMode } from '@/lib/store
 import type { OnlineSearchSource, ONLINE_SEARCH_SOURCES } from '@/lib/services/online-search-service';
 import type { FavoriteObject } from '@/lib/stores';
 import type { useTranslations } from 'next-intl';
+import type { UseObjectSearchReturn } from '@/lib/hooks/use-object-search';
 
 // ============================================================================
 // StellariumSearch
@@ -33,7 +34,9 @@ export interface AdvancedSearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect?: (item?: SearchResultItem) => void;
+  searchHook?: UseObjectSearchReturn;
 }
+
 
 // ============================================================================
 // SearchResultItem
@@ -46,6 +49,7 @@ export interface SearchResultItemProps {
   isHighlighted?: boolean;
   showCheckbox?: boolean;
   skyCultureLanguage: SkyCultureLanguage | string;
+  searchQuery?: string;
   onSelect: (item: SearchResultItem) => void;
   onToggleSelection?: (id: string) => void;
   onMouseEnter?: (index: number) => void;

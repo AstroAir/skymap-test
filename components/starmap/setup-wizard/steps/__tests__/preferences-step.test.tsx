@@ -24,6 +24,8 @@ describe('PreferencesStep', () => {
         atmosphereVisible: false,
         landscapesVisible: false,
         dsosVisible: true,
+        milkyWayVisible: true,
+        fogVisible: false,
         surveyEnabled: true,
         surveyId: 'dss',
         surveyUrl: undefined,
@@ -32,6 +34,14 @@ describe('PreferencesStep', () => {
         sensorControl: false,
         crosshairVisible: true,
         crosshairColor: 'rgba(255, 255, 255, 0.3)',
+        projectionType: 'stereographic',
+        bortleIndex: 3,
+        starLinearScale: 0.8,
+        starRelativeScale: 1.1,
+        displayLimitMag: 99,
+        flipViewVertical: false,
+        flipViewHorizontal: false,
+        exposureScale: 2,
       },
     });
   });

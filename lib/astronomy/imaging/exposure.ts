@@ -2,7 +2,7 @@
  * Exposure calculation utilities
  */
 
-import { BORTLE_SCALE, getBortleExposureMultiplier } from '@/lib/core/constants/bortle-scale';
+import { BORTLE_SCALE, getBortleExposureMultiplier, getBortleQualityMultiplier, getBortleMinimumMultiplier } from '@/lib/core/constants/bortle-scale';
 
 // ============================================================================
 // Types
@@ -104,16 +104,19 @@ export function calculateTotalIntegration(
   
   const base = baseMinutes[targetType] || baseMinutes.nebula;
   
-  // Multiply by Bortle factor (darker skies need less time)
-  const bortleMultiplier = getBortleExposureMultiplier(bortle);
+  // Minimum multiplier: light-polluted skies need MORE minimum time
+  const minMultiplier = getBortleMinimumMultiplier(bortle);
+  
+  // Quality multiplier: darker skies reward more total integration
+  const qualityMultiplier = getBortleQualityMultiplier(bortle);
   
   // Narrowband can cut through light pollution
   const narrowbandFactor = isNarrowband ? 0.5 : 1;
   
   return {
-    minimum: Math.round(base.min * bortleMultiplier * narrowbandFactor),
-    recommended: Math.round(base.rec * bortleMultiplier * narrowbandFactor),
-    ideal: Math.round(base.ideal * bortleMultiplier * narrowbandFactor),
+    minimum: Math.round(base.min * minMultiplier * narrowbandFactor),
+    recommended: Math.round(base.rec * qualityMultiplier * narrowbandFactor * 0.5),
+    ideal: Math.round(base.ideal * qualityMultiplier * narrowbandFactor * 0.5),
   };
 }
 
@@ -181,4 +184,4 @@ export function formatExposureTime(seconds: number): string {
 }
 
 // Re-export Bortle scale for convenience
-export { BORTLE_SCALE, getBortleExposureMultiplier };
+export { BORTLE_SCALE, getBortleExposureMultiplier, getBortleQualityMultiplier, getBortleMinimumMultiplier };
