@@ -49,7 +49,7 @@ describe('useAladinCatalogs', () => {
 
     // No catalogs should be added — dynamic import won't fire
     expect(aladinMock.catalogFromVizieR).not.toHaveBeenCalled();
-    expect(aladinMock.catalogFromSIMBAD).not.toHaveBeenCalled();
+    expect(aladinMock.catalogFromSimbad).not.toHaveBeenCalled();
   });
 
   it('does not load catalogs when skyEngine is not aladin', async () => {

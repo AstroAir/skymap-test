@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { AlertTriangle, MapPinned } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -20,14 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MapPinned } from 'lucide-react';
-import { degreesToHMS, degreesToDMS, raDecToAltAz } from '@/lib/astronomy/starmap-utils';
-import {
-  calculateTargetVisibility,
-  getSunPosition,
-  formatTimeShort,
-  getJulianDateFromDate,
-} from '@/lib/astronomy/astro-utils';
+import { parseDecCoordinate, parseRACoordinate } from '@/lib/astronomy/coordinates/conversions';
+import { computeRiseTransitSet, type EngineBody } from '@/lib/astronomy/engine';
+import { formatTimeShort } from '@/lib/astronomy/time/formats';
+import { degreesToDMS, degreesToHMS } from '@/lib/astronomy/starmap-utils';
 import { AltitudeChart } from '../altitude-chart';
 
 interface RTSTabProps {
@@ -36,73 +34,174 @@ interface RTSTabProps {
   selectedTarget?: { name: string; ra: number; dec: number };
 }
 
+type TargetMode = EngineBody;
+
+const TARGET_OPTIONS: Array<{ value: TargetMode; label: string }> = [
+  { value: 'Custom', label: 'Custom' },
+  { value: 'Sun', label: 'Sun' },
+  { value: 'Moon', label: 'Moon' },
+  { value: 'Mercury', label: 'Mercury' },
+  { value: 'Venus', label: 'Venus' },
+  { value: 'Mars', label: 'Mars' },
+  { value: 'Jupiter', label: 'Jupiter' },
+  { value: 'Saturn', label: 'Saturn' },
+  { value: 'Uranus', label: 'Uranus' },
+  { value: 'Neptune', label: 'Neptune' },
+  { value: 'Pluto', label: 'Pluto' },
+];
+
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+interface RTSRow {
+  date: Date;
+  riseTime: Date | null;
+  transitTime: Date | null;
+  setTime: Date | null;
+  transitAlt: number;
+  isCircumpolar: boolean;
+  neverRises: boolean;
+  darkImagingHours: number;
+}
+
 export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
   const t = useTranslations();
+  const [targetMode, setTargetMode] = useState<TargetMode>(selectedTarget ? 'Custom' : 'Moon');
   const [targetName, setTargetName] = useState(selectedTarget?.name ?? '');
-  const [targetRA, setTargetRA] = useState(selectedTarget?.ra?.toString() ?? '');
-  const [targetDec, setTargetDec] = useState(selectedTarget?.dec?.toString() ?? '');
-  const [dateRange, setDateRange] = useState<number>(7); // days ahead
-  
-  // Parse coordinates
-  const ra = parseFloat(targetRA) || selectedTarget?.ra || 0;
-  const dec = parseFloat(targetDec) || selectedTarget?.dec || 0;
-  
-  // Calculate RTS for multiple days
-  const rtsData = useMemo(() => {
-    if (!ra && !dec) return [];
-    
-    const results: Array<{
-      date: Date;
-      riseTime: Date | null;
-      transitTime: Date | null;
-      setTime: Date | null;
-      transitAlt: number;
-      sunAlt: number;
-    }> = [];
-    
-    const now = new Date();
-    for (let i = 0; i < dateRange; i++) {
-      const date = new Date(now);
-      date.setDate(date.getDate() + i);
-      date.setHours(12, 0, 0, 0);
-      
-      const visibility = calculateTargetVisibility(ra, dec, latitude, longitude, 0, date);
-      const sunPos = getSunPosition(getJulianDateFromDate(date));
-      const sunAltAz = raDecToAltAz(sunPos.ra, sunPos.dec, latitude, longitude);
-      
-      results.push({
-        date,
-        riseTime: visibility.riseTime,
-        transitTime: visibility.transitTime,
-        setTime: visibility.setTime,
-        transitAlt: visibility.transitAltitude,
-        sunAlt: sunAltAz.altitude,
-      });
+  const [targetRA, setTargetRA] = useState(selectedTarget?.ra ? degreesToHMS(selectedTarget.ra) : '');
+  const [targetDec, setTargetDec] = useState(selectedTarget?.dec ? degreesToDMS(selectedTarget.dec) : '');
+  const [dateRange, setDateRange] = useState(7);
+  const [startDate, setStartDate] = useState(toLocalDateString(new Date()));
+  const [rows, setRows] = useState<RTSRow[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const parsedRa = useMemo(() => parseRACoordinate(targetRA), [targetRA]);
+  const parsedDec = useMemo(() => parseDecCoordinate(targetDec), [targetDec]);
+  const coordinateError = useMemo(() => {
+    if (targetMode !== 'Custom') return null;
+    if (targetRA.trim().length === 0 || targetDec.trim().length === 0) {
+      return t('astroCalc.enterCoordinates');
     }
-    
-    return results;
-  }, [ra, dec, latitude, longitude, dateRange]);
-  
-  const formatDate = (date: Date) => {
+    if (parsedRa === null || parsedDec === null) {
+      return t('astroCalc.invalidCoordinates');
+    }
+    return null;
+  }, [parsedDec, parsedRa, targetDec, targetMode, targetRA, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (coordinateError) {
+        setRows([]);
+        setError(null);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      try {
+        const start = new Date(`${startDate}T12:00:00`);
+        const nextRows: RTSRow[] = [];
+        for (let index = 0; index < dateRange; index += 1) {
+          const date = new Date(start);
+          date.setDate(start.getDate() + index);
+
+          const result = await computeRiseTransitSet({
+            body: targetMode,
+            observer: { latitude, longitude },
+            date,
+            customCoordinate: targetMode === 'Custom' && parsedRa !== null && parsedDec !== null
+              ? { ra: parsedRa, dec: parsedDec }
+              : undefined,
+          });
+
+          nextRows.push({
+            date,
+            riseTime: result.riseTime,
+            transitTime: result.transitTime,
+            setTime: result.setTime,
+            transitAlt: result.transitAltitude,
+            isCircumpolar: result.isCircumpolar,
+            neverRises: result.neverRises,
+            darkImagingHours: result.darkImagingHours,
+          });
+        }
+
+        if (!cancelled) {
+          setRows(nextRows);
+        }
+      } catch (runError) {
+        if (!cancelled) {
+          setRows([]);
+          setError(runError instanceof Error ? runError.message : t('astroCalc.calculationFailed'));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [coordinateError, dateRange, latitude, longitude, parsedDec, parsedRa, startDate, t, targetMode]);
+
+  const formatDate = (date: Date): string => {
     return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   };
-  
+
+  const hasCustomCoordinate = targetMode === 'Custom' && parsedRa !== null && parsedDec !== null;
+
   return (
     <div className="space-y-4">
-      {/* Target Input Row 1: Name + Days */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.targetType')}</Label>
+          <Select value={targetMode} onValueChange={(value) => setTargetMode(value as TargetMode)}>
+            <SelectTrigger className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TARGET_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('astroCalc.startDate')}</Label>
+          <Input
+            type="date"
+            value={startDate}
+            onChange={(event) => setStartDate(event.target.value)}
+            className="h-8"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.targetName')}</Label>
           <Input
             value={targetName}
-            onChange={(e) => setTargetName(e.target.value)}
-            placeholder="M31, NGC 7000..."
+            onChange={(event) => setTargetName(event.target.value)}
             className="h-8"
+            placeholder={targetMode === 'Custom' ? 'M31, NGC 7000...' : targetMode}
           />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">{t('astroCalc.daysAhead')}</Label>
-          <Select value={dateRange.toString()} onValueChange={(v) => setDateRange(parseInt(v))}>
+          <Select value={dateRange.toString()} onValueChange={(value) => setDateRange(Number.parseInt(value, 10))}>
             <SelectTrigger className="h-8">
               <SelectValue />
             </SelectTrigger>
@@ -114,85 +213,98 @@ export function RTSTab({ latitude, longitude, selectedTarget }: RTSTabProps) {
           </Select>
         </div>
       </div>
-      
-      {/* Target Input Row 2: RA + Dec */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t('astroCalc.raLabel')}</Label>
-          <Input
-            value={targetRA}
-            onChange={(e) => setTargetRA(e.target.value)}
-            placeholder="10.68"
-            className="h-8 font-mono"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">{t('astroCalc.decLabel')}</Label>
-          <Input
-            value={targetDec}
-            onChange={(e) => setTargetDec(e.target.value)}
-            placeholder="41.27"
-            className="h-8 font-mono"
-          />
-        </div>
-      </div>
-      
-      {/* Current info with altitude chart */}
-      {ra || dec ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-6 text-sm p-3 rounded-lg bg-muted/50">
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground text-xs">RA</span>
-              <span className="font-mono text-sm">{degreesToHMS(ra)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground text-xs">Dec</span>
-              <span className="font-mono text-sm">{degreesToDMS(dec)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground text-xs">{t('astroCalc.maxAltitude')}</span>
-              <span className="text-sm font-medium">{(90 - Math.abs(latitude - dec)).toFixed(1)}°</span>
-            </div>
+
+      {targetMode === 'Custom' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('astroCalc.raLabel')}</Label>
+            <Input
+              value={targetRA}
+              onChange={(event) => setTargetRA(event.target.value)}
+              placeholder="00:42:44.3"
+              className="h-8 font-mono"
+            />
           </div>
-          
-          <AltitudeChart ra={ra} dec={dec} name={targetName} hoursAhead={12} />
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-          <MapPinned className="h-10 w-10 mb-3 opacity-40" />
-          <p className="text-sm font-medium">{t('astroCalc.enterCoordinates')}</p>
-          <p className="text-xs mt-1">{t('astroCalc.enterCoordinatesHint')}</p>
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('astroCalc.decLabel')}</Label>
+            <Input
+              value={targetDec}
+              onChange={(event) => setTargetDec(event.target.value)}
+              placeholder="+41:16:09"
+              className="h-8 font-mono"
+            />
+          </div>
         </div>
       )}
-      
-      {/* RTS Table */}
-      <ScrollArea className="h-[350px] border rounded-lg">
-        <Table>
-          <TableHeader className="sticky top-0 bg-background">
-            <TableRow>
-              <TableHead>{t('astroCalc.date')}</TableHead>
-              <TableHead>{t('astroCalc.rise')}</TableHead>
-              <TableHead>{t('astroCalc.transit')}</TableHead>
-              <TableHead>{t('astroCalc.transitAlt')}</TableHead>
-              <TableHead>{t('astroCalc.set')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rtsData.map((day, i) => (
-              <TableRow key={i}>
-                <TableCell className="font-medium text-sm">{formatDate(day.date)}</TableCell>
-                <TableCell className="font-mono text-xs">
-                  {day.riseTime ? formatTimeShort(day.riseTime) : t('astroCalc.circumpolar')}
-                </TableCell>
-                <TableCell className="font-mono text-xs">{formatTimeShort(day.transitTime)}</TableCell>
-                <TableCell className="text-xs">{day.transitAlt.toFixed(1)}°</TableCell>
-                <TableCell className="font-mono text-xs">
-                  {day.setTime ? formatTimeShort(day.setTime) : t('astroCalc.circumpolar')}
-                </TableCell>
+
+      {coordinateError && (
+        <div className="flex items-center gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-2 text-xs text-yellow-600">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {coordinateError}
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {error}
+        </div>
+      )}
+
+      {hasCustomCoordinate && (
+        <AltitudeChart
+          ra={parsedRa}
+          dec={parsedDec}
+          name={targetName || t('astroCalc.defaultTarget')}
+          hoursAhead={24}
+        />
+      )}
+
+      <div className="flex items-center justify-between">
+        <Badge variant="outline" className="text-xs">
+          {rows.length} {t('astroCalc.days')}
+        </Badge>
+        {isLoading && (
+          <Badge variant="secondary" className="text-xs">
+            {t('astroCalc.calculating')}
+          </Badge>
+        )}
+      </div>
+
+      <ScrollArea className="h-[320px] border rounded-lg">
+        {rows.length === 0 && !isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+            <MapPinned className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm font-medium">{t('astroCalc.noData')}</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead>{t('astroCalc.date')}</TableHead>
+                <TableHead>{t('astroCalc.rise')}</TableHead>
+                <TableHead>{t('astroCalc.transit')}</TableHead>
+                <TableHead>{t('astroCalc.set')}</TableHead>
+                <TableHead className="text-right">{t('astroCalc.transitAlt')}</TableHead>
+                <TableHead className="text-right">{t('astroCalc.darkHours')}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.date.toISOString()}>
+                  <TableCell className="text-xs font-medium">{formatDate(row.date)}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatTimeShort(row.riseTime)}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatTimeShort(row.transitTime)}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatTimeShort(row.setTime)}</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums">{row.transitAlt.toFixed(1)}°</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums">
+                    {row.neverRises ? t('astroCalc.neverRises') : row.isCircumpolar ? t('astroCalc.circumpolar') : `${row.darkImagingHours.toFixed(1)}h`}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </ScrollArea>
     </div>
   );

@@ -22,6 +22,14 @@ export { eventsApi } from './events-api';
 export { targetListApi } from './target-list-api';
 export { markersApi } from './markers-api';
 export { TauriSyncProvider } from './TauriSyncProvider';
+export { mapKeysApi } from './map-keys-api';
+export type {
+  MapApiKeyMeta,
+  MapApiKeySecureRecord,
+  MapApiKeyQuota,
+  MapApiKeyRestrictions,
+  MapKeyProvider,
+} from './map-keys-api';
 
 // HTTP Client API
 export { httpApi } from './http-api';
@@ -93,6 +101,8 @@ export type {
   MountAxis as TauriMountAxis,
   DiscoveredDevice,
   SlewRatePreset,
+  ObservingConditions as TauriObservingConditions,
+  SafetyState as TauriSafetyState,
 } from './mount-api';
 export { SLEW_RATE_PRESETS, DEFAULT_CONNECTION_CONFIG } from './mount-api';
 

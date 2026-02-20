@@ -43,7 +43,24 @@ jest.mock('@/lib/stores', () => ({
 
 // Mock astro-data-sources
 jest.mock('@/lib/services/astro-data-sources', () => ({
-  fetchAllAstroEvents: jest.fn(() => Promise.resolve([])),
+  fetchDailyAstroEvents: jest.fn(() => Promise.resolve({
+    date: new Date(),
+    timezone: 'Etc/UTC',
+    events: [],
+    fetchedAt: new Date(),
+    sourceBreakdown: {},
+  })),
+  fetchAstroEventsInRange: jest.fn(() => Promise.resolve([])),
+}));
+
+jest.mock('@/lib/tauri/hooks', () => ({
+  useAstroEvents: () => ({
+    getDailyEvents: jest.fn(() => Promise.resolve([])),
+  }),
+}));
+
+jest.mock('@/lib/storage/platform', () => ({
+  isTauri: jest.fn(() => false),
 }));
 
 // Mock event-detail-dialog

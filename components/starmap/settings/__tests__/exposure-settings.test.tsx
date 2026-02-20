@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 const mockUseEquipmentStore = jest.fn((selector) => {
   const state = {
@@ -18,6 +18,19 @@ const mockUseEquipmentStore = jest.fn((selector) => {
       tracking: 'guided',
       targetType: 'nebula',
       bortle: 5,
+      sqmOverride: undefined,
+      filterBandwidthNm: 300,
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'unity',
+      manualGain: 100,
+      manualReadNoiseEnabled: false,
+      manualReadNoise: 1.8,
+      manualDarkCurrent: 0.002,
+      manualFullWell: 50000,
+      manualQE: 0.8,
+      manualEPeraDu: 1,
+      targetSurfaceBrightness: 22,
+      targetSignalRate: 0,
     },
     setExposureDefaults: jest.fn(),
   };
@@ -80,6 +93,14 @@ describe('ExposureSettings', () => {
   it('renders exposure settings component', () => {
     render(<ExposureSettings />);
     expect(screen.getAllByTestId('label').length).toBeGreaterThan(0);
+  });
+
+  it('renders advanced model default controls', () => {
+    render(<ExposureSettings />);
+    expect(screen.getByText('exposure.advancedModelDefaults')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('exposure.advancedModelDefaults'));
+    expect(screen.getByText('exposure.readNoiseLimitPercent')).toBeInTheDocument();
+    expect(screen.getByText('exposure.gainStrategy')).toBeInTheDocument();
   });
 
   it('renders exposure time buttons', () => {

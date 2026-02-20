@@ -20,21 +20,20 @@ interface I18nProviderProps {
 
 export function I18nProvider({ children }: I18nProviderProps) {
   const locale = useLocaleStore((state) => state.locale);
+  const safeLocale: Locale = locale === 'zh' ? 'zh' : 'en';
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Keep <html lang> in sync with current locale
   useEffect(() => {
     if (mounted) {
-      document.documentElement.lang = locale;
-    }
-  }, [mounted, locale]);
+      document.documentElement.lang = safeLocale;
+    };
+  }, [mounted, safeLocale]);
 
-  // Use default locale during SSR/initial render
-  const currentLocale = mounted ? locale : 'en';
+  const currentLocale: Locale = mounted ? safeLocale : 'en';
 
   return (
     <NextIntlClientProvider

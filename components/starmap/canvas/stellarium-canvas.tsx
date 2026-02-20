@@ -15,6 +15,8 @@ import {
   useObserverSync,
   useSettingsSync,
   useStellariumLoader,
+  useStellariumCalendar,
+  useStellariumFonts,
 } from '@/lib/hooks/stellarium';
 import { LoadingOverlay } from './components';
 
@@ -34,12 +36,20 @@ export type { StellariumCanvasRef, StellariumCanvasProps } from '@/types/stellar
  */
 export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvasProps>(
   function StellariumCanvas({ onSelectionChange, onFovChange, onContextMenu }, ref) {
+    type EngineEventName = 'click' | 'rectSelection';
+    type EngineEventCallback = (event: unknown) => void;
+
     // ============================================================================
     // Refs
     // ============================================================================
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const stelRef = useRef<StellariumEngine | null>(null);
+    const boundEngineRef = useRef<StellariumEngine | null>(null);
+    const engineEventListenersRef = useRef<Record<EngineEventName, Set<EngineEventCallback>>>({
+      click: new Set(),
+      rectSelection: new Set(),
+    });
 
     // ============================================================================
     // Store Actions
@@ -93,6 +103,41 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     // Settings synchronization with debouncing
     useSettingsSync(stelRef, engineReady);
 
+    const { runCalendar } = useStellariumCalendar(stelRef);
+    const { setEngineFont } = useStellariumFonts(stelRef);
+
+    const bindEngineEvents = useCallback((stel: StellariumEngine) => {
+      if (boundEngineRef.current === stel || !stel.on) return;
+
+      stel.on('click', (event) => {
+        for (const callback of engineEventListenersRef.current.click) {
+          callback(event);
+        }
+      });
+      stel.on('rectSelection', (event) => {
+        for (const callback of engineEventListenersRef.current.rectSelection) {
+          callback(event);
+        }
+      });
+      boundEngineRef.current = stel;
+    }, []);
+
+    const onEngineEvent = useCallback((event: EngineEventName, callback: EngineEventCallback) => {
+      engineEventListenersRef.current[event].add(callback);
+      if (stelRef.current) {
+        bindEngineEvents(stelRef.current);
+      }
+      return () => {
+        engineEventListenersRef.current[event].delete(callback);
+      };
+    }, [bindEngineEvents]);
+
+    useEffect(() => {
+      if (engineReady && stelRef.current) {
+        bindEngineEvents(stelRef.current);
+      }
+    }, [engineReady, bindEngineEvents]);
+
     // ============================================================================
     // Engine Status
     // ============================================================================
@@ -117,19 +162,30 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       getClickCoordinates,
       reloadEngine,
       getEngineStatus,
-    }), [zoomIn, zoomOut, setFov, getClickCoordinates, reloadEngine, getEngineStatus]);
+      getEngine: () => stelRef.current,
+      onEngineEvent,
+      setEngineFont,
+      runCalendar,
+    }), [zoomIn, zoomOut, setFov, getClickCoordinates, reloadEngine, getEngineStatus, onEngineEvent, setEngineFont, runCalendar]);
 
     // ============================================================================
     // Effect: Start Loading on Mount
     // ============================================================================
     useEffect(() => {
+      const engineEventListeners = engineEventListenersRef.current;
       setActiveEngine('stellarium');
-      startLoading();
+      const startFrame = window.requestAnimationFrame(() => {
+        void startLoading();
+      });
 
       return () => {
+        window.cancelAnimationFrame(startFrame);
         // Cleanup on unmount
         stelRef.current = null;
         setStel(null);
+        boundEngineRef.current = null;
+        engineEventListeners.click.clear();
+        engineEventListeners.rectSelection.clear();
         // Clear helpers to prevent stale closures when switching engines
         const { setHelpers } = useStellariumStore.getState();
         setHelpers({ getCurrentViewDirection: null, setViewDirection: null });

@@ -17,8 +17,11 @@ import {
   calculateImagingFeasibility,
   calculateTwilightTimes,
 } from '@/lib/astronomy/astro-utils';
+import { transformCoordinate } from '@/lib/astronomy/pipeline';
+import { buildTimeScaleContext } from '@/lib/astronomy/time-scales';
 import type { SelectedObjectData } from '@/lib/core/types';
 import type { TargetVisibility, ImagingFeasibility, TwilightTimes } from '@/lib/core/types';
+import type { AstronomicalFrame, CoordinateQualityFlag, EopFreshness, TimeScale } from '@/lib/core/types';
 
 // ============================================================================
 // Types
@@ -33,6 +36,11 @@ export interface AstroEnvironmentData {
   moonDec: number;
   sunAltitude: number;
   lstString: string;
+  lstSource: 'UT1' | 'UTC';
+  lstTimeScale: TimeScale;
+  dataFreshness: EopFreshness;
+  qualityFlag: CoordinateQualityFlag;
+  epochJd: number;
   twilight: TwilightTimes;
 }
 
@@ -43,7 +51,16 @@ export interface TargetAstroData {
   moonDistance: number;
   visibility: TargetVisibility;
   feasibility: ImagingFeasibility;
+  frame: AstronomicalFrame;
+  timeScale: TimeScale;
+  qualityFlag: CoordinateQualityFlag;
+  dataFreshness: EopFreshness;
+  epochJd: number;
+  updatedAt: string;
+  riskHints: string[];
 }
+
+export type ObjectAstroDataV2 = TargetAstroData;
 
 // ============================================================================
 // Hook
@@ -59,6 +76,7 @@ export function useAstroEnvironment(
   currentTime: Date,
 ): AstroEnvironmentData {
   return useMemo(() => {
+    const context = buildTimeScaleContext(currentTime);
     const jd = getJulianDateFromDate(currentTime);
     const moonPhase = getMoonPhase(jd);
     const moonPhaseName = getMoonPhaseName(moonPhase);
@@ -69,11 +87,10 @@ export function useAstroEnvironment(
     const moonAltAz = raDecToAltAz(moonPos.ra, moonPos.dec, latitude, longitude);
     const sunAltAz = raDecToAltAz(sunPos.ra, sunPos.dec, latitude, longitude);
 
-    // Compute LST for the given time
-    const S = jd - 2451545.0;
-    const T = S / 36525.0;
-    const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
-    const lst = ((GST + longitude) % 360 + 360) % 360;
+    const lst = transformCoordinate(
+      { raDeg: moonPos.ra, decDeg: moonPos.dec },
+      { latitude, longitude, date: currentTime, fromFrame: 'ICRF', toFrame: 'OBSERVED' }
+    ).lstDeg;
     const lstString = degreesToHMS(lst);
 
     const twilight = calculateTwilightTimes(latitude, longitude, currentTime);
@@ -86,6 +103,11 @@ export function useAstroEnvironment(
       moonDec: moonPos.dec,
       sunAltitude: sunAltAz.altitude,
       lstString,
+      lstSource: context.eop.freshness === 'fallback' ? 'UTC' : 'UT1',
+      lstTimeScale: context.eop.freshness === 'fallback' ? 'UTC' : 'UT1',
+      dataFreshness: context.eop.freshness,
+      qualityFlag: context.eop.freshness === 'fallback' ? 'fallback' : 'precise',
+      epochJd: context.jdUtc,
       twilight,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,10 +139,22 @@ export function useTargetAstroData(
     const ra = selectedObject.raDeg;
     const dec = selectedObject.decDeg;
 
-    const altAz = raDecToAltAz(ra, dec, latitude, longitude);
+    const transformed = transformCoordinate(
+      { raDeg: ra, decDeg: dec },
+      { latitude, longitude, date: currentTime, fromFrame: 'ICRF', toFrame: 'OBSERVED' }
+    );
+    const altAz = {
+      altitude: transformed.altitudeDeg,
+      azimuth: transformed.azimuthDeg,
+    };
     const moonDistance = angularSeparation(ra, dec, moonRa, moonDec);
     const visibility = calculateTargetVisibility(ra, dec, latitude, longitude, 30);
     const feasibility = calculateImagingFeasibility(ra, dec, latitude, longitude);
+
+    const riskHints: string[] = [];
+    if (visibility.neverRises) riskHints.push('never-rises');
+    if (moonDistance < 25) riskHints.push('moon-interference');
+    if (feasibility.score < 45) riskHints.push('low-feasibility');
 
     return {
       altitude: altAz.altitude,
@@ -128,6 +162,13 @@ export function useTargetAstroData(
       moonDistance,
       visibility,
       feasibility,
+      frame: transformed.metadata.frame,
+      timeScale: transformed.metadata.timeScale,
+      qualityFlag: transformed.metadata.qualityFlag,
+      dataFreshness: transformed.metadata.dataFreshness,
+      epochJd: transformed.metadata.epochJd,
+      updatedAt: transformed.metadata.generatedAt,
+      riskHints,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedObject, latitude, longitude, moonRa, moonDec, Math.floor(currentTime.getTime() / 1000)]);

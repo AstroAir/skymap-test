@@ -5,6 +5,7 @@
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { StellariumCanvasRef } from '@/types/stellarium-canvas';
 
 // Mock unified cache
 jest.mock('@/lib/offline', () => ({
@@ -23,17 +24,27 @@ const mockSetStel = jest.fn();
 const mockSetBaseUrl = jest.fn();
 const mockSetHelpers = jest.fn();
 const mockUpdateStellariumCore = jest.fn();
+const mockSetActiveEngine = jest.fn();
+const engineEventHandlers: Partial<Record<'click' | 'rectSelection', (event: unknown) => void>> = {};
 
 jest.mock('@/lib/stores', () => ({
-  useStellariumStore: jest.fn((selector) => {
-    const state = {
-      setStel: mockSetStel,
-      setBaseUrl: mockSetBaseUrl,
-      setHelpers: mockSetHelpers,
-      updateStellariumCore: mockUpdateStellariumCore,
-    };
-    return selector(state);
-  }),
+  useStellariumStore: Object.assign(
+    jest.fn((selector) => {
+      const state = {
+        setStel: mockSetStel,
+        setBaseUrl: mockSetBaseUrl,
+        setHelpers: mockSetHelpers,
+        updateStellariumCore: mockUpdateStellariumCore,
+        setActiveEngine: mockSetActiveEngine,
+      };
+      return selector(state);
+    }),
+    {
+      getState: () => ({
+        setHelpers: mockSetHelpers,
+      }),
+    }
+  ),
   useSettingsStore: Object.assign(
     jest.fn((selector) => {
       const state = {
@@ -132,6 +143,9 @@ const mockStelEngine = {
   anpm: jest.fn((x) => x),
   pointAndLock: jest.fn(),
   change: jest.fn(),
+  on: jest.fn((eventName: 'click' | 'rectSelection', callback: (event: unknown) => void) => {
+    engineEventHandlers[eventName] = callback;
+  }),
 };
 
 /**
@@ -150,6 +164,8 @@ describe('StellariumCanvas', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    delete engineEventHandlers.click;
+    delete engineEventHandlers.rectSelection;
     
     // Reset window.StelWebEngine
     delete (window as { StelWebEngine?: unknown }).StelWebEngine;
@@ -428,6 +444,60 @@ describe('Module Exports', () => {
     expect(hooksModule.useObserverSync).toBeDefined();
     expect(hooksModule.useSettingsSync).toBeDefined();
     expect(hooksModule.useStellariumLoader).toBeDefined();
+    expect(hooksModule.useStellariumCalendar).toBeDefined();
+    expect(hooksModule.useStellariumFonts).toBeDefined();
+    expect(hooksModule.useStellariumLayerApi).toBeDefined();
+    expect(hooksModule.useStellariumValueWatch).toBeDefined();
+  });
+
+  describe('Ref API', () => {
+    it('supports click event subscribe and unsubscribe via onEngineEvent', async () => {
+      jest.useFakeTimers();
+      try {
+        const mockStelWebEngine = jest.fn((options) => {
+          setTimeout(() => {
+            options.onReady(mockStelEngine);
+          }, 50);
+        });
+        (window as { StelWebEngine?: typeof mockStelWebEngine }).StelWebEngine = mockStelWebEngine;
+
+        const { StellariumCanvas } = await import('../stellarium-canvas');
+        const ref = React.createRef<StellariumCanvasRef>();
+
+        render(<StellariumCanvas ref={ref} />);
+
+        await act(async () => {
+          jest.advanceTimersByTime(500);
+        });
+
+        await waitFor(() => {
+          expect(ref.current).toBeTruthy();
+        });
+        await waitFor(() => {
+          expect(ref.current?.getEngine?.()).toBeTruthy();
+        });
+
+        const callback = jest.fn();
+        expect(typeof ref.current?.onEngineEvent).toBe('function');
+        const unsubscribe = ref.current?.onEngineEvent?.('click', callback);
+
+        expect(mockStelEngine.on).toHaveBeenCalledWith('click', expect.any(Function));
+        expect(mockStelEngine.on).toHaveBeenCalledWith('rectSelection', expect.any(Function));
+
+        act(() => {
+          engineEventHandlers.click?.({ point: { x: 1, y: 2 } });
+        });
+        expect(callback).toHaveBeenCalledWith({ point: { x: 1, y: 2 } });
+
+        unsubscribe?.();
+        act(() => {
+          engineEventHandlers.click?.({ point: { x: 3, y: 4 } });
+        });
+        expect(callback).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   it('exports LoadingOverlay component correctly', async () => {

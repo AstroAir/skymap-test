@@ -10,7 +10,7 @@ import type { ObjectType } from '@/lib/hooks/use-object-search';
 // ============================================================================
 
 /** All available celestial object types for search filtering */
-export const ALL_OBJECT_TYPES: ObjectType[] = ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'];
+export const ALL_OBJECT_TYPES: ObjectType[] = ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'Constellation'];
 
 // ============================================================================
 // Catalog Presets
@@ -40,4 +40,5 @@ export const SOURCE_COLOR_MAP: Record<string, string> = {
   sesame: 'bg-purple-500/10 text-purple-500 border-purple-500/30',
   vizier: 'bg-orange-500/10 text-orange-500 border-orange-500/30',
   ned: 'bg-green-500/10 text-green-500 border-green-500/30',
+  mpc: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/30',
 };

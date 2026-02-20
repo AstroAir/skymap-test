@@ -6,6 +6,7 @@ import { getMoonDistance, getMoonInterference } from '../celestial/separation';
 import { getMoonIllumination, getMoonPhase } from '../celestial/moon';
 import { calculateTargetVisibility } from '../visibility/target';
 import { calculateTwilightTimes } from '../twilight/calculator';
+import { dateToJulianDate } from '../time/julian';
 import type { 
   ImagingFeasibility, 
   FeasibilityRecommendation,
@@ -40,9 +41,10 @@ export function calculateImagingFeasibility(
   const visibility = calculateTargetVisibility(ra, dec, latitude, longitude, minAltitude, date);
   
   // Get moon data
-  const moonPhase = getMoonPhase();
+  const julianDate = dateToJulianDate(date);
+  const moonPhase = getMoonPhase(julianDate);
   const moonIllumination = getMoonIllumination(moonPhase);
-  const moonDistance = getMoonDistance(ra, dec);
+  const moonDistance = getMoonDistance(ra, dec, julianDate);
   // moonInterference is calculated but used for future enhancements
   getMoonInterference(ra, dec, moonIllumination);
   

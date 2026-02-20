@@ -78,6 +78,8 @@ export class StarmapPage extends BasePage {
   // Tonight recommendations
   readonly tonightButton: Locator;
   readonly tonightPanel: Locator;
+  readonly dailyKnowledgeButton: Locator;
+  readonly dailyKnowledgeDialog: Locator;
   
   // Sky atlas
   readonly skyAtlasButton: Locator;
@@ -154,8 +156,8 @@ export class StarmapPage extends BasePage {
     this.resetViewButton = page.getByRole('button', { name: /reset/i });
     
     // Settings
-    this.settingsButton = page.getByRole('button', { name: /settings/i }).or(page.locator('[data-testid="settings-button"]'));
-    this.settingsPanel = page.locator('[data-testid="settings-panel"]').or(page.locator('[role="dialog"]').filter({ hasText: /settings/i }));
+    this.settingsButton = page.locator('[data-testid="settings-button"]');
+    this.settingsPanel = page.locator('[data-testid="settings-panel"]');
     this.displaySettingsTab = page.getByRole('tab', { name: /display/i });
     this.equipmentTab = page.getByRole('tab', { name: /equipment/i });
     this.fovTab = page.getByRole('tab', { name: /fov/i });
@@ -207,6 +209,8 @@ export class StarmapPage extends BasePage {
     // Tonight recommendations
     this.tonightButton = page.getByRole('button', { name: /tonight/i });
     this.tonightPanel = page.locator('[role="dialog"]').filter({ hasText: /tonight/i });
+    this.dailyKnowledgeButton = page.locator('[data-tour-id="daily-knowledge"] button').first();
+    this.dailyKnowledgeDialog = page.locator('[role="dialog"]').filter({ hasText: /daily knowledge|每日知识/i });
     
     // Sky atlas
     this.skyAtlasButton = page.getByRole('button', { name: /atlas/i });
@@ -276,6 +280,18 @@ export class StarmapPage extends BasePage {
     
     // Skip onboarding and setup wizard by setting localStorage
     await this.page.evaluate(() => {
+      localStorage.setItem('starmap-onboarding', JSON.stringify({
+        state: {
+          hasCompletedOnboarding: true,
+          hasCompletedSetup: true,
+          completedSteps: ['welcome', 'search', 'navigation', 'zoom', 'settings', 'fov', 'shotlist', 'tonight', 'contextmenu', 'complete'],
+          setupCompletedSteps: ['welcome', 'location', 'equipment', 'preferences', 'complete'],
+          showOnNextVisit: false,
+        },
+        version: 3,
+      }));
+
+      // Backward-compat keys kept for older tests/components.
       localStorage.setItem('onboarding-storage', JSON.stringify({
         state: {
           hasCompletedOnboarding: true,
@@ -295,6 +311,25 @@ export class StarmapPage extends BasePage {
         },
         version: 1,
       }));
+
+      const rawSettings = localStorage.getItem('starmap-settings');
+      try {
+        const parsed = rawSettings
+          ? (JSON.parse(rawSettings) as { state?: { preferences?: Record<string, unknown> }; version?: number })
+          : {};
+        parsed.state = parsed.state ?? {};
+        parsed.state.preferences = {
+          ...(parsed.state.preferences ?? {}),
+          showSplash: false,
+          dailyKnowledgeAutoShow: false,
+        };
+        localStorage.setItem('starmap-settings', JSON.stringify(parsed));
+      } catch {
+        localStorage.setItem('starmap-settings', JSON.stringify({
+          state: { preferences: { showSplash: false, dailyKnowledgeAutoShow: false } },
+          version: 13,
+        }));
+      }
     });
     
     await this.page.reload();
@@ -374,8 +409,39 @@ export class StarmapPage extends BasePage {
    * Open settings panel
    */
   async openSettings() {
-    await this.settingsButton.click();
-    await expect(this.settingsPanel).toBeVisible();
+    const splash = this.page.locator('[data-testid="splash-screen"]').first();
+    const skipHint = this.page.getByText(/press any key or click to skip|按任意键或点击跳过/i).first();
+    const dialogOverlay = this.page.locator('[data-slot="dialog-overlay"][data-state="open"]').first();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const splashVisible = await splash.isVisible().catch(() => false);
+      const hintVisible = await skipHint.isVisible().catch(() => false);
+      const overlayVisible = await dialogOverlay.isVisible().catch(() => false);
+
+      if (splashVisible) {
+        await splash.click({ timeout: TEST_TIMEOUTS.short, force: true }).catch(() => {});
+      } else if (hintVisible) {
+        await skipHint.click({ timeout: TEST_TIMEOUTS.short, force: true }).catch(() => {});
+      }
+
+      if (overlayVisible) {
+        await dialogOverlay.click({ force: true }).catch(() => {});
+      }
+
+      await this.page.keyboard.press('Escape').catch(() => {});
+      const hidden = await splash.isHidden().catch(() => false);
+      const overlayHidden = await dialogOverlay.isHidden().catch(() => false);
+      if (hidden && overlayHidden) break;
+      await this.page.waitForTimeout(250);
+    }
+
+    const settingsButton = this.settingsButton.first();
+    if (await settingsButton.count()) {
+      await settingsButton.click({ force: true });
+    } else {
+      await this.page.getByRole('button', { name: /settings/i }).first().click({ force: true });
+    }
+
+    await expect(this.settingsPanel.first()).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
   }
 
   /**
@@ -462,6 +528,11 @@ export class StarmapPage extends BasePage {
   async openTonightRecommendations() {
     await this.tonightButton.click();
     await expect(this.tonightPanel).toBeVisible();
+  }
+
+  async openDailyKnowledge() {
+    await this.dailyKnowledgeButton.click();
+    await expect(this.dailyKnowledgeDialog).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
   }
 
   /**

@@ -11,6 +11,56 @@ import type { StellariumSettings } from '@/lib/core/types';
 
 export type OnboardingPhase = 'idle' | 'setup' | 'tour';
 
+export type TourId =
+  | 'first-run-core'
+  | 'module-discovery'
+  | 'module-planning'
+  | 'module-imaging'
+  | 'module-controls'
+  | 'module-settings-help'
+  | 'module-advanced';
+
+export type StepFallbackMode = 'center' | 'skip';
+
+export type TourBeforeEnterActionType =
+  | 'expandRightPanel'
+  | 'openSettingsDrawer'
+  | 'openSearch'
+  | 'openMobileDrawer'
+  | 'openDailyKnowledge'
+  | 'closeTransientPanels';
+
+export interface TourBeforeEnterAction {
+  type: TourBeforeEnterActionType;
+  tab?: string;
+  section?: string;
+}
+
+export type StepSkipCode =
+  | 'unavailable'
+  | 'missing-selector'
+  | 'hidden-by-platform'
+  | 'unsupported-engine';
+
+export interface StepSkipReason {
+  code: StepSkipCode;
+  messageKey: string;
+  details?: string;
+}
+
+export interface TourContext {
+  isMobile: boolean;
+  isTauri: boolean;
+  skyEngine: string;
+  stelAvailable: boolean;
+  featureVisibility?: Record<string, boolean>;
+}
+
+export interface TourSelectors {
+  desktop?: string;
+  mobile?: string;
+}
+
 // ============================================================================
 // Setup Wizard Step (used in setup phase)
 // ============================================================================
@@ -28,6 +78,14 @@ export interface SetupWizardSetupData {
   preferencesConfigured: boolean;
 }
 
+export interface SetupWizardMetadata {
+  location: 'configured' | 'skipped';
+  equipment: 'configured' | 'skipped';
+  preferences: 'configured' | 'skipped';
+  skipReasons: Partial<Record<'location' | 'equipment' | 'preferences', string>>;
+  completedAt: string | null;
+}
+
 // ============================================================================
 // TourStep (used in tour phase)
 // ============================================================================
@@ -43,6 +101,47 @@ export interface TourStep {
   nextOnAction?: boolean;
   showSkip?: boolean;
   spotlightRadius?: number;
+  tourId?: TourId;
+  capabilityId?: string;
+  selectors?: TourSelectors;
+  availability?: (context: TourContext) => boolean;
+  beforeEnterAction?: TourBeforeEnterAction | TourBeforeEnterAction[];
+  fallbackMode?: StepFallbackMode;
+  skipReason?: StepSkipReason;
+}
+
+export interface CapabilityStep {
+  capabilityId: string;
+  tourId: TourId;
+  selectors: TourSelectors;
+  titleKey: string;
+  descriptionKey: string;
+  placement: TourStep['placement'];
+  highlightPadding?: number;
+  action?: TourStep['action'];
+  nextOnAction?: boolean;
+  showSkip?: boolean;
+  spotlightRadius?: number;
+  availability?: (context: TourContext) => boolean;
+  beforeEnterAction?: TourBeforeEnterAction | TourBeforeEnterAction[];
+  fallbackMode?: StepFallbackMode;
+}
+
+export interface TourDefinition {
+  id: TourId;
+  titleKey: string;
+  descriptionKey: string;
+  capabilityIds: string[];
+  order: number;
+  isCore?: boolean;
+}
+
+export interface TourProgress {
+  currentStepIndex: number;
+  totalSteps: number;
+  completedStepIds: string[];
+  completed: boolean;
+  updatedAt: string | null;
 }
 
 // ============================================================================
@@ -53,6 +152,7 @@ export interface OnboardingTourProps {
   onTourStart?: () => void;
   onTourEnd?: () => void;
   onStepChange?: (stepIndex: number) => void;
+  onTourCompleted?: (tourId: TourId) => void;
 }
 
 // ============================================================================
@@ -143,6 +243,8 @@ export interface PreferenceOption {
 
 export interface UnifiedOnboardingProps {
   onComplete?: () => void;
+  initialTourId?: TourId;
+  onTourCompleted?: (tourId: TourId) => void;
 }
 
 export interface OnboardingRestartButtonProps {

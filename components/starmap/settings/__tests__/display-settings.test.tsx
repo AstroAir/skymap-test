@@ -11,12 +11,16 @@ const mockSettingsState = {
     constellationsLinesVisible: true,
     constellationArtVisible: false,
     constellationLabelsVisible: true,
+    constellationBoundariesVisible: false,
     starLabelsVisible: true,
     planetLabelsVisible: true,
     azimuthalLinesVisible: false,
     equatorialLinesVisible: false,
+    equatorialJnowLinesVisible: false,
     meridianLinesVisible: false,
     eclipticLinesVisible: false,
+    horizonLinesVisible: false,
+    galacticLinesVisible: false,
     atmosphereVisible: false,
     landscapesVisible: false,
     dsosVisible: true,
@@ -28,6 +32,15 @@ const mockSettingsState = {
     skyCultureLanguage: 'native' as const,
     nightMode: false,
     sensorControl: false,
+    sensorAbsolutePreferred: true,
+    sensorUseCompassHeading: true,
+    sensorUpdateHz: 30,
+    sensorDeadbandDeg: 0.35,
+    sensorSmoothingFactor: 0.2,
+    sensorCalibrationRequired: true,
+    sensorCalibrationAzimuthOffsetDeg: 0,
+    sensorCalibrationAltitudeOffsetDeg: 0,
+    sensorCalibrationUpdatedAt: null,
     crosshairVisible: true,
     crosshairColor: 'rgba(255, 255, 255, 0.3)',
     projectionType: 'stereographic' as const,
@@ -38,6 +51,9 @@ const mockSettingsState = {
     flipViewVertical: false,
     flipViewHorizontal: false,
     exposureScale: 2,
+    tonemapperP: 0.5,
+    mountFrame: 5 as const,
+    viewYOffset: 0,
   },
   toggleStellariumSetting: jest.fn(),
   setStellariumSetting: jest.fn(),
@@ -69,6 +85,10 @@ jest.mock('@/components/ui/label', () => ({
 
 jest.mock('@/components/ui/separator', () => ({
   Separator: () => <hr data-testid="separator" />,
+}));
+
+jest.mock('@/components/ui/slider', () => ({
+  Slider: () => <div data-testid="slider" />,
 }));
 
 jest.mock('@/components/ui/select', () => ({

@@ -3,7 +3,7 @@
  * Defines engine-agnostic interfaces for switching between Stellarium and Aladin Lite
  */
 
-import type { ClickCoords, SelectedObjectData } from './stellarium';
+import type { ClickCoords, SelectedObjectData, StellariumEngine } from './stellarium';
 
 // ============================================================================
 // Engine Type
@@ -33,7 +33,14 @@ export interface SkyMapCanvasRef {
   getClickCoordinates: (clientX: number, clientY: number) => ClickCoords | null;
   reloadEngine: () => void;
   getEngineStatus: () => EngineStatus;
-  exportImage?: () => string | null;
+  getEngine?: () => StellariumEngine | null;
+  onEngineEvent?: (
+    event: 'click' | 'rectSelection',
+    cb: (event: unknown) => void
+  ) => () => void;
+  setEngineFont?: (face: 'regular' | 'bold', url: string) => Promise<void>;
+  runCalendar?: (args: { start: Date; end: Date }) => Promise<unknown[]>;
+  exportImage?: () => Promise<string | null>;
   gotoObject?: (name: string) => void;
 }
 

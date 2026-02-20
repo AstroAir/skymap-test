@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useStellariumStore, useMountStore } from '@/lib/stores';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
 import { useSettingsStore } from '@/lib/stores/settings-store';
-import type { SearchResultItem, I18nMessage } from '@/lib/core/types';
+import type { SearchResultItem, I18nMessage, RecommendationProfile, RecommendationBreakdownV2 } from '@/lib/core/types';
 import {
   neverRises,
   isCircumpolar,
@@ -40,6 +40,9 @@ import {
 
 export interface RecommendedTarget extends SearchResultItem {
   score: number;
+  scoreVersion: 'v2';
+  scoreProfile: RecommendationProfile;
+  scoreConfidence: 'high' | 'medium' | 'low';
   maxAltitude: number;
   transitTime: Date | null;
   riseTime: Date | null;
@@ -53,6 +56,7 @@ export interface RecommendedTarget extends SearchResultItem {
   airmass?: number;
   airmassQuality?: 'excellent' | 'good' | 'fair' | 'poor' | 'bad';
   scoreBreakdown?: ImagingScoreResult['breakdown'];
+  scoreBreakdownV2?: RecommendationBreakdownV2;
   qualityRating?: ImagingScoreResult['quality'];
   seasonalOptimal?: boolean;
   transitDuringDark?: boolean;
@@ -99,11 +103,88 @@ export interface TonightConditions {
 
 // neverRises, isCircumpolar, calculateImagingHours imported from @/lib/astronomy/astro-utils
 
+const PROFILE_WEIGHTS: Record<RecommendationProfile, RecommendationBreakdownV2> = {
+  imaging: {
+    observability: 30,
+    moonImpact: 20,
+    equipmentMatch: 25,
+    targetSuitability: 10,
+    timingQuality: 10,
+    difficultyPenalty: 5,
+  },
+  visual: {
+    observability: 35,
+    moonImpact: 10,
+    equipmentMatch: 5,
+    targetSuitability: 25,
+    timingQuality: 20,
+    difficultyPenalty: 5,
+  },
+  hybrid: {
+    observability: 32.5,
+    moonImpact: 15,
+    equipmentMatch: 15,
+    targetSuitability: 17.5,
+    timingQuality: 15,
+    difficultyPenalty: 5,
+  },
+};
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function normalizeScore(value: number, max: number): number {
+  if (!Number.isFinite(value) || max <= 0) return 0;
+  return clampScore((value / max) * 100);
+}
+
+function weightedScore(
+  profile: RecommendationProfile,
+  breakdown: RecommendationBreakdownV2,
+  hasEquipmentData: boolean,
+): { score: number; confidence: 'high' | 'medium' | 'low' } {
+  const baseWeights = { ...PROFILE_WEIGHTS[profile] };
+  const confidence: 'high' | 'medium' | 'low' = hasEquipmentData ? 'high' : 'medium';
+
+  if (!hasEquipmentData) {
+    const equipmentWeight = baseWeights.equipmentMatch;
+    baseWeights.equipmentMatch = 0;
+    const redistribute = equipmentWeight / 5;
+    baseWeights.observability += redistribute;
+    baseWeights.moonImpact += redistribute;
+    baseWeights.targetSuitability += redistribute;
+    baseWeights.timingQuality += redistribute;
+    baseWeights.difficultyPenalty += redistribute;
+  }
+
+  const raw =
+    (breakdown.observability * baseWeights.observability +
+      breakdown.moonImpact * baseWeights.moonImpact +
+      breakdown.equipmentMatch * baseWeights.equipmentMatch +
+      breakdown.targetSuitability * baseWeights.targetSuitability +
+      breakdown.timingQuality * baseWeights.timingQuality) /
+      100 -
+    (breakdown.difficultyPenalty * baseWeights.difficultyPenalty) / 100;
+
+  return {
+    score: clampScore(raw),
+    confidence,
+  };
+}
+
 // ============================================================================
 // Main Hook
 // ============================================================================
 
-export function useTonightRecommendations() {
+interface UseTonightRecommendationOptions {
+  limit?: number;
+}
+
+export function useTonightRecommendations(
+  profileOverride?: RecommendationProfile,
+  options: UseTonightRecommendationOptions = {},
+) {
   const stel = useStellariumStore((state) => state.stel);
   const focalLength = useEquipmentStore((s) => s.focalLength);
   const aperture = useEquipmentStore((s) => s.aperture);
@@ -112,10 +193,13 @@ export function useTonightRecommendations() {
   const pixelSize = useEquipmentStore((s) => s.pixelSize);
   const bortle = useEquipmentStore((s) => s.exposureDefaults.bortle);
   const bortleIndex = useSettingsStore((s) => s.stellarium.bortleIndex);
+  const observationProfile = useSettingsStore((s) => s.observationProfile);
   const [recommendations, setRecommendations] = useState<RecommendedTarget[]>([]);
   const [conditions, setConditions] = useState<TonightConditions | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [planDate, setPlanDate] = useState<Date>(new Date());
+  const profile = profileOverride ?? observationProfile;
+  const limit = options.limit ?? 25;
 
   // Get observer location from Stellarium, mount store, or default
   const getObserverLocation = useCallback(() => {
@@ -251,6 +335,19 @@ export function useTonightRecommendations() {
         const commonName = dso.alternateNames?.[0] || dso.name;
         const altData = calculateAltitudeData(dso.ra, dso.dec, latitude, longitude, referenceDate);
         const moonDistance = dso.moonDistance ?? calculateMoonDistance(dso.ra, dso.dec, referenceDate);
+        const advancedDifficulty = EXTENDED_SEASONAL_DATA[dso.id]?.difficulty;
+        const breakdownV2: RecommendationBreakdownV2 = {
+          observability: normalizeScore(rec.imagingWindow.peakAltitude, 90),
+          moonImpact: normalizeScore(moonDistance, 180),
+          equipmentMatch: clampScore(rec.feasibility.snrEstimate ?? 0),
+          targetSuitability: normalizeScore(25 - Math.min(25, dso.surfaceBrightness ?? 23), 25),
+          timingQuality: normalizeScore(rec.imagingWindow.darkHours, Math.max(1, cond.totalDarkHours)),
+          difficultyPenalty: advancedDifficulty === 'expert' ? 90 : advancedDifficulty === 'advanced' ? 70 : advancedDifficulty === 'intermediate' ? 40 : 15,
+        };
+        const weighted = weightedScore(profile, breakdownV2, hasEquipmentData);
+        const boundedAdvancedScore = Number.isFinite(weighted.score)
+          ? clampScore(Math.round(weighted.score))
+          : 0;
 
         scored.push({
           Name: dso.name,
@@ -258,7 +355,10 @@ export function useTonightRecommendations() {
           RA: dso.ra,
           Dec: dso.dec,
           'Common names': commonName,
-          score: rec.totalScore,
+          score: boundedAdvancedScore,
+          scoreVersion: 'v2',
+          scoreProfile: profile,
+          scoreConfidence: weighted.confidence,
           maxAltitude: rec.imagingWindow.peakAltitude,
           transitTime: altData.transitTime,
           riseTime: altData.riseTime,
@@ -278,13 +378,14 @@ export function useTonightRecommendations() {
             seasonalScore: Math.round(rec.scoreBreakdown.seasonalScore * (10 / 15)),
             transitScore: Math.round(rec.scoreBreakdown.transitScore * 2),
           },
+          scoreBreakdownV2: breakdownV2,
           seasonalOptimal: rec.scoreBreakdown.seasonalScore >= 12,
           transitDuringDark: rec.scoreBreakdown.transitScore >= 4,
         });
       }
 
       scored.sort((a, b) => b.score - a.score);
-      setRecommendations(scored.slice(0, 25));
+      setRecommendations(scored.slice(0, limit));
       setIsLoading(false);
       return;
     }
@@ -454,26 +555,29 @@ export function useTonightRecommendations() {
       // ========================================================================
       // Calculate Final Score
       // ========================================================================
-      
-      // Base score from comprehensive algorithm (0-100)
-      let finalScore = comprehensiveScore.totalScore;
-      
-      // Bonus adjustments
-      if (isCircumpolarTarget) finalScore += 3;
-      if (transitsDuringDark) finalScore += 5;
-      if (effectiveHours > 4) finalScore += 5;
-      
-      // Difficulty bonus for easier targets (beginner-friendly)
-      if (seasonal?.difficulty === 'beginner') finalScore += 5;
-      else if (seasonal?.difficulty === 'intermediate') finalScore += 2;
-      
-      // Object type bonus (popular categories)
-      const objType = (dso.type || '').toLowerCase();
-      if (objType.includes('nebula') || objType.includes('emission')) {
-        finalScore += 3; // Nebulae are photogenic
-      } else if (objType.includes('galaxy') && (dso.magnitude ?? 99) < 10) {
-        finalScore += 3; // Bright galaxies
-      }
+      const breakdownV2: RecommendationBreakdownV2 = {
+        observability: normalizeScore(maxAlt, 90),
+        moonImpact: normalizeScore(moonDistance, 180),
+        equipmentMatch: hasEquipmentData ? clampScore(comprehensiveScore.breakdown.altitudeScore * 4) : 50,
+        targetSuitability: normalizeScore(20 - Math.min(20, dso.surfaceBrightness ?? 21), 20),
+        timingQuality: normalizeScore(effectiveHours, Math.max(1, cond.totalDarkHours)),
+        difficultyPenalty: seasonal?.difficulty === 'expert'
+          ? 90
+          : seasonal?.difficulty === 'advanced'
+            ? 70
+            : seasonal?.difficulty === 'intermediate'
+              ? 40
+              : 15,
+      };
+      const weighted = weightedScore(profile, breakdownV2, hasEquipmentData);
+      let finalScore = weighted.score;
+
+      if (isCircumpolarTarget) finalScore += profile === 'visual' ? 6 : 3;
+      if (transitsDuringDark) finalScore += profile === 'imaging' ? 5 : 3;
+      if (effectiveHours > 4) finalScore += 4;
+      const boundedScore = Number.isFinite(finalScore)
+        ? Math.max(0, Math.min(100, Math.round(finalScore)))
+        : 0;
 
       // Get common name from alternate names
       const commonName = dso.alternateNames?.[0] || dso.name;
@@ -484,7 +588,10 @@ export function useTonightRecommendations() {
         RA: dso.ra,
         Dec: dso.dec,
         'Common names': commonName,
-        score: Math.max(0, Math.min(100, Math.round(finalScore))),
+        score: boundedScore,
+        scoreVersion: 'v2',
+        scoreProfile: profile,
+        scoreConfidence: weighted.confidence,
         maxAltitude: maxAlt,
         transitTime: altitudeData.transitTime,
         riseTime: altitudeData.riseTime,
@@ -498,6 +605,7 @@ export function useTonightRecommendations() {
         airmass,
         airmassQuality,
         scoreBreakdown: comprehensiveScore.breakdown,
+        scoreBreakdownV2: breakdownV2,
         qualityRating: comprehensiveScore.quality,
         seasonalOptimal: isSeasonalOptimal,
         transitDuringDark: transitsDuringDark,
@@ -508,9 +616,9 @@ export function useTonightRecommendations() {
     scored.sort((a, b) => b.score - a.score);
 
     // Take top 25 for better selection
-    setRecommendations(scored.slice(0, 25));
+    setRecommendations(scored.slice(0, limit));
     setIsLoading(false);
-  }, [calculateConditions, planDate, focalLength, aperture, sensorWidth, sensorHeight, pixelSize, bortle, bortleIndex]);
+  }, [calculateConditions, planDate, focalLength, aperture, sensorWidth, sensorHeight, pixelSize, bortle, bortleIndex, limit, profile]);
 
   // Auto-calculate on mount
   const hasInitialized = useRef(false);
@@ -525,6 +633,7 @@ export function useTonightRecommendations() {
     recommendations,
     conditions,
     isLoading,
+    profile,
     refresh: calculateRecommendations,
     planDate,
     setPlanDate,

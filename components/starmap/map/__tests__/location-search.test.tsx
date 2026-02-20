@@ -9,6 +9,11 @@ jest.mock('@/lib/services/geocoding-service', () => ({
   geocodingService: {
     geocode: jest.fn(),
     reverseGeocode: jest.fn(),
+    getSearchCapabilities: jest.fn(() => ({
+      autocompleteAvailable: true,
+      mode: 'online-autocomplete',
+      providers: ['google'],
+    })),
   },
 }));
 
@@ -16,6 +21,7 @@ import { geocodingService } from '@/lib/services/geocoding-service';
 
 const mockGeocode = geocodingService.geocode as jest.Mock;
 const mockReverseGeocode = geocodingService.reverseGeocode as jest.Mock;
+const mockGetSearchCapabilities = geocodingService.getSearchCapabilities as jest.Mock;
 
 // Mock UI components - Input must be defined inline to avoid hoisting issues
 jest.mock('@/components/ui/input', () => ({
@@ -90,6 +96,11 @@ describe('LocationSearch', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    mockGetSearchCapabilities.mockReturnValue({
+      autocompleteAvailable: true,
+      mode: 'online-autocomplete',
+      providers: ['google'],
+    });
     
     // Mock localStorage
     const localStorageMock = {
@@ -162,7 +173,7 @@ describe('LocationSearch', () => {
       });
 
       await waitFor(() => {
-        expect(mockGeocode).toHaveBeenCalledWith('Tokyo', expect.any(Object));
+        expect(mockGeocode).toHaveBeenCalledWith('Tokyo', expect.objectContaining({ provider: 'google' }));
       });
     });
 

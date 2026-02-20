@@ -88,11 +88,22 @@ const mockUseEquipmentStore = jest.fn((selector) => {
   return selector ? selector(state) : state;
 });
 
+const mockUsePlanningUiStore = jest.fn((selector) => {
+  const state = {
+    shotListOpen: true,
+    openShotList: jest.fn(),
+    closeShotList: jest.fn(),
+    setShotListOpen: jest.fn(),
+  };
+  return selector ? selector(state) : state;
+});
+
 jest.mock('@/lib/stores', () => ({
   useTargetListStore: (selector: (state: unknown) => unknown) => mockUseTargetListStore(selector),
   useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
   useMountStore: (selector: (state: unknown) => unknown) => mockUseMountStore(selector),
   useEquipmentStore: (selector: (state: unknown) => unknown) => mockUseEquipmentStore(selector),
+  usePlanningUiStore: (selector: (state: unknown) => unknown) => mockUsePlanningUiStore(selector),
 }));
 
 // Mock astro-utils

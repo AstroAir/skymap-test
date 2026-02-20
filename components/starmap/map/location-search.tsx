@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { geocodingService } from '@/lib/services/geocoding-service';
+import type { SearchCapabilities } from '@/lib/services/geocoding-service';
 import type { GeocodingResult } from '@/lib/services/map-providers/base-map-provider';
 import type { Coordinates, LocationResult, SearchHistory } from '@/types/starmap/map';
 import {
@@ -56,6 +57,9 @@ function LocationSearchComponent({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [searchCapabilities, setSearchCapabilities] = useState<SearchCapabilities>(() =>
+    geocodingService.getSearchCapabilities()
+  );
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -105,7 +109,13 @@ function LocationSearchComponent({
     });
   }, [saveSearchHistory]);
 
-  const performSearch = useCallback(async (searchQuery: string) => {
+  const refreshSearchCapabilities = useCallback(() => {
+    const capabilities = geocodingService.getSearchCapabilities();
+    setSearchCapabilities(capabilities);
+    return capabilities;
+  }, []);
+
+  const performSearch = useCallback(async (searchQuery: string, preferredProvider?: 'openstreetmap' | 'google' | 'mapbox') => {
     if (!searchQuery.trim()) {
       setResults([]);
       return;
@@ -127,6 +137,7 @@ function LocationSearchComponent({
         limit: 8,
         language: locale,
         fallback: true,
+        provider: preferredProvider,
       });
       
       // Only update if this is still the latest query
@@ -153,19 +164,26 @@ function LocationSearchComponent({
   const handleInputChange = useCallback((value: string) => {
     setQuery(value);
     setIsOpen(true);
+    const capabilities = refreshSearchCapabilities();
 
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    if (value.trim()) {
+    if (!value.trim()) {
+      setResults([]);
+      return;
+    }
+
+    if (capabilities.mode === 'online-autocomplete') {
+      const preferredProvider = capabilities.providers[0];
       searchTimeoutRef.current = setTimeout(() => {
-        performSearch(value);
+        performSearch(value, preferredProvider);
       }, 300);
     } else {
       setResults([]);
     }
-  }, [performSearch]);
+  }, [performSearch, refreshSearchCapabilities]);
 
   const handleLocationSelect = useCallback((result: GeocodingResult, fromHistory = false) => {
     const location: LocationResult = {
@@ -244,10 +262,12 @@ function LocationSearchComponent({
 
     switch (e.key) {
       case 'ArrowDown':
+        if (totalItems === 0) return;
         e.preventDefault();
         setSelectedIndex(prev => (prev + 1) % totalItems);
         break;
       case 'ArrowUp':
+        if (totalItems === 0) return;
         e.preventDefault();
         setSelectedIndex(prev => prev <= 0 ? totalItems - 1 : prev - 1);
         break;
@@ -264,6 +284,8 @@ function LocationSearchComponent({
               handleLocationSelect(searchHistory[historyIndex].result, true);
             }
           }
+        } else if (query.trim() && searchCapabilities.mode === 'submit-search') {
+          performSearch(query);
         }
         break;
       case 'Escape':
@@ -271,7 +293,7 @@ function LocationSearchComponent({
         setSelectedIndex(-1);
         break;
     }
-  }, [isOpen, results, showRecentSearches, showCurrentLocation, searchHistory, selectedIndex, handleLocationSelect, handleCurrentLocation, totalItems]);
+  }, [isOpen, results, showRecentSearches, showCurrentLocation, searchHistory, selectedIndex, handleLocationSelect, handleCurrentLocation, totalItems, query, searchCapabilities.mode, performSearch]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -291,6 +313,10 @@ function LocationSearchComponent({
     }
   }, [autoFocus]);
 
+  useEffect(() => {
+    refreshSearchCapabilities();
+  }, [refreshSearchCapabilities]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -305,8 +331,15 @@ function LocationSearchComponent({
 
   // Memoize dropdown visibility check
   const shouldShowDropdown = useMemo(() => 
-    isOpen && (results.length > 0 || (showRecentSearches && searchHistory.length > 0) || !query.trim()),
-    [isOpen, results.length, showRecentSearches, searchHistory.length, query]
+    isOpen
+    && (
+      results.length > 0
+      || isSearching
+      || (showRecentSearches && searchHistory.length > 0)
+      || !query.trim()
+      || (query.trim().length > 0 && searchCapabilities.mode !== 'online-autocomplete')
+    ),
+    [isOpen, results.length, isSearching, showRecentSearches, searchHistory.length, query, searchCapabilities.mode]
   );
 
   return (
@@ -326,7 +359,10 @@ function LocationSearchComponent({
           value={query}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            refreshSearchCapabilities();
+            setIsOpen(true);
+          }}
           className="pl-9 pr-10"
           disabled={disabled}
         />
@@ -420,7 +456,13 @@ function LocationSearchComponent({
                 {!isSearching && query.trim() && results.length === 0 && (
                   <div className="flex items-center justify-center py-4">
                     <span className="text-sm text-muted-foreground">
-                      {t('map.noResults') || 'No locations found'}
+                      {searchCapabilities.mode === 'submit-search'
+                        ? (t('map.submitToSearch') || 'Press Enter to search')
+                        : searchCapabilities.mode === 'offline-cache'
+                          ? (t('map.offlineSearchRestricted') || 'Offline mode: online search disabled')
+                          : searchCapabilities.mode === 'disabled'
+                            ? (t('map.searchDisabled') || 'Search is disabled by policy')
+                            : (t('map.noResults') || 'No locations found')}
                     </span>
                   </div>
                 )}

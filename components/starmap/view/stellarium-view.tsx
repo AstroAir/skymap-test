@@ -8,6 +8,7 @@ import { InfoPanel } from '../objects/info-panel';
 import { ObjectDetailDrawer } from '../objects/object-detail-drawer';
 import { KeyboardShortcutsManager } from '../controls/keyboard-shortcuts-manager';
 import { UnifiedOnboarding } from '../onboarding/unified-onboarding';
+import { StartupModalCoordinator } from '../knowledge/startup-modal-coordinator';
 
 import { TopToolbar } from './top-toolbar';
 import { RightControlPanel } from './right-control-panel';
@@ -24,7 +25,11 @@ import { UpdateBanner } from '../management/updater/update-banner';
 import { UpdateDialog } from '../management/updater/update-dialog';
 import { isTauri } from '@/lib/tauri/app-control-api';
 
-export function StellariumView() {
+interface StellariumViewProps {
+  showSplash?: boolean;
+}
+
+export function StellariumView({ showSplash = false }: StellariumViewProps) {
   const {
     // UI state
     isSearchOpen,
@@ -101,6 +106,7 @@ export function StellariumView() {
       <div ref={containerRef} className="relative w-full h-full bg-black overflow-hidden" data-tour-id="canvas">
         {/* Unified Onboarding (Welcome + Setup Wizard + Tour) */}
         <UnifiedOnboarding />
+        <StartupModalCoordinator showSplash={showSplash} />
 
         {/* Keyboard Shortcuts Manager */}
         <KeyboardShortcutsManager

@@ -20,7 +20,7 @@ function createMockSearchHook(overrides: Record<string, unknown> = {}) {
     onlineAvailable: false,
     searchStats: { totalResults: 0, resultsByType: {}, searchTimeMs: 0 },
     filters: {
-      types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'TargetList', 'Constellation'],
+      types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'TargetList', 'Constellation'],
       includeTargetList: true,
       searchMode: 'name',
       minMagnitude: undefined,
@@ -89,7 +89,7 @@ jest.mock('@/lib/hooks/use-target-list-actions', () => ({
 
 // Mock constants
 jest.mock('@/lib/core/constants/search', () => ({
-  ALL_OBJECT_TYPES: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'],
+  ALL_OBJECT_TYPES: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'Constellation'],
   CATALOG_PRESETS: [],
 }));
 
@@ -228,6 +228,16 @@ describe('AdvancedSearchDialog', () => {
   it('renders tabs for different search modes', () => {
     render(<AdvancedSearchDialog {...defaultProps} />);
     expect(screen.getByTestId('tabs')).toBeInTheDocument();
+  });
+
+  it('renders batch search controls and extended sort options', () => {
+    const { container } = render(<AdvancedSearchDialog {...defaultProps} />);
+
+    expect(container.querySelector('textarea')).toBeInTheDocument();
+    expect(container.querySelector('input[type="file"][accept=".txt,.csv"]')).toBeInTheDocument();
+
+    const optionValues = screen.getAllByTestId('select-item').map(node => node.getAttribute('value'));
+    expect(optionValues).toEqual(expect.arrayContaining(['magnitude', 'altitude', 'distance']));
   });
 
   it('uses shared searchHook when provided', () => {

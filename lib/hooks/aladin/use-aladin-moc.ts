@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState, type RefObject } from 'react';
+import { useEffect, useRef, useCallback, type RefObject } from 'react';
 import type A from 'aladin-lite';
+import { setMocStyleCompat } from '@/lib/aladin/aladin-compat';
 import { useSettingsStore } from '@/lib/stores/settings-store';
+import { useAladinStore, type AladinMOCLayer } from '@/lib/stores/aladin-store';
 import { createLogger } from '@/lib/logger';
 
 type AladinInstance = ReturnType<typeof A.aladin>;
@@ -10,20 +12,8 @@ type AladinMOC = ReturnType<typeof A.MOCFromURL>;
 
 const logger = createLogger('aladin-moc');
 
-// ============================================================================
-// Types
-// ============================================================================
+export type MOCLayer = AladinMOCLayer;
 
-export interface MOCLayer {
-  id: string;
-  name: string;
-  url: string;
-  color: string;
-  opacity: number;
-  visible: boolean;
-}
-
-// Well-known MOC URLs for common surveys
 export const WELL_KNOWN_MOCS: { name: string; url: string; color: string }[] = [
   {
     name: 'SDSS DR16',
@@ -47,10 +37,6 @@ export const WELL_KNOWN_MOCS: { name: string; url: string; color: string }[] = [
   },
 ];
 
-// ============================================================================
-// Hook
-// ============================================================================
-
 interface UseAladinMOCOptions {
   aladinRef: RefObject<AladinInstance | null>;
   engineReady: boolean;
@@ -64,17 +50,28 @@ interface UseAladinMOCReturn {
   setMOCOpacity: (mocId: string, opacity: number) => void;
 }
 
+interface MocHandle {
+  moc: AladinMOC;
+  sourceKey: string;
+}
+
+function sourceKey(layer: MOCLayer): string {
+  return layer.url ? `url:${layer.url}` : `json:${JSON.stringify(layer.json ?? {})}`;
+}
+
 export function useAladinMOC({
   aladinRef,
   engineReady,
 }: UseAladinMOCOptions): UseAladinMOCReturn {
   const skyEngine = useSettingsStore((state) => state.skyEngine);
-  const [mocLayers, setMocLayers] = useState<MOCLayer[]>([]);
 
-  // Track MOC instances
-  const mocInstancesRef = useRef<Map<string, AladinMOC>>(new Map());
+  const mocLayers = useAladinStore((state) => state.mocLayers);
+  const addMocLayer = useAladinStore((state) => state.addMocLayer);
+  const removeMocLayer = useAladinStore((state) => state.removeMocLayer);
+  const toggleMocLayer = useAladinStore((state) => state.toggleMocLayer);
+  const updateMocLayer = useAladinStore((state) => state.updateMocLayer);
 
-  // Aladin static API
+  const mocInstancesRef = useRef<Map<string, MocHandle>>(new Map());
   const aladinStaticRef = useRef<typeof A | null>(null);
 
   useEffect(() => {
@@ -86,83 +83,96 @@ export function useAladinMOC({
     });
   }, [engineReady, skyEngine]);
 
-  const addMOC = useCallback((url: string, name: string, color = '#3b82f6') => {
+  useEffect(() => {
     const aladin = aladinRef.current;
     const AStatic = aladinStaticRef.current;
-    if (!aladin || !AStatic) return;
+    if (!aladin || !AStatic || !engineReady || skyEngine !== 'aladin') return;
 
-    const mocId = `moc-${Date.now()}`;
+    const active = mocInstancesRef.current;
 
-    try {
-      const moc = AStatic.MOCFromURL(url, {
-        name,
-        color,
-        opacity: 0.3,
-        lineWidth: 1,
-        adaptativeDisplay: true,
+    for (const layer of mocLayers) {
+      const key = sourceKey(layer);
+      const existing = active.get(layer.id);
+
+      if (existing && existing.sourceKey !== key) {
+        try { existing.moc.hide(); } catch { /* ignore */ }
+        active.delete(layer.id);
+      }
+
+      const current = active.get(layer.id);
+      const moc = current?.moc ?? (() => {
+        try {
+          const created = layer.url
+            ? AStatic.MOCFromURL(layer.url, {
+              name: layer.name,
+              color: layer.color,
+              opacity: layer.opacity,
+              lineWidth: layer.lineWidth,
+              adaptativeDisplay: true,
+            })
+            : AStatic.MOCFromJSON(layer.json ?? {}, {
+              name: layer.name,
+              color: layer.color,
+              opacity: layer.opacity,
+              lineWidth: layer.lineWidth,
+              adaptativeDisplay: true,
+            });
+          aladin.addMOC(created);
+          active.set(layer.id, { moc: created, sourceKey: key });
+          return created;
+        } catch (error) {
+          logger.warn(`Failed to add MOC: ${layer.name}`, error);
+          return null;
+        }
+      })();
+
+      if (!moc) continue;
+
+      setMocStyleCompat(moc, {
+        visible: layer.visible,
+        opacity: layer.opacity,
+        color: layer.color,
+        lineWidth: layer.lineWidth,
       });
-
-      aladin.addMOC(moc);
-      mocInstancesRef.current.set(mocId, moc);
-
-      setMocLayers((prev) => [
-        ...prev,
-        { id: mocId, name, url, color, opacity: 0.3, visible: true },
-      ]);
-
-      logger.info(`MOC added: ${name}`);
-    } catch (error) {
-      logger.warn(`Failed to add MOC: ${name}`, error);
     }
-  }, [aladinRef]);
+
+    for (const [id, handle] of active) {
+      if (mocLayers.some((layer) => layer.id === id)) continue;
+      try { handle.moc.hide(); } catch { /* ignore */ }
+      active.delete(id);
+    }
+  }, [aladinRef, engineReady, mocLayers, skyEngine]);
+
+  const addMOC = useCallback((url: string, name: string, color = '#3b82f6') => {
+    addMocLayer({
+      name,
+      url,
+      color,
+      opacity: 0.3,
+      lineWidth: 1,
+      visible: true,
+    });
+  }, [addMocLayer]);
 
   const removeMOC = useCallback((mocId: string) => {
-    const moc = mocInstancesRef.current.get(mocId);
-    if (moc) {
-      try { moc.hide(); } catch { /* ignore */ }
-      mocInstancesRef.current.delete(mocId);
-    }
-    setMocLayers((prev) => prev.filter((l) => l.id !== mocId));
-    logger.info(`MOC removed: ${mocId}`);
-  }, []);
+    removeMocLayer(mocId);
+  }, [removeMocLayer]);
 
   const toggleMOC = useCallback((mocId: string) => {
-    const moc = mocInstancesRef.current.get(mocId);
-    if (!moc) return;
-
-    try {
-      moc.toggle();
-      setMocLayers((prev) =>
-        prev.map((l) => (l.id === mocId ? { ...l, visible: !l.visible } : l))
-      );
-    } catch (error) {
-      logger.warn(`Failed to toggle MOC: ${mocId}`, error);
-    }
-  }, []);
+    toggleMocLayer(mocId);
+  }, [toggleMocLayer]);
 
   const setMOCOpacity = useCallback((mocId: string, opacity: number) => {
-    const moc = mocInstancesRef.current.get(mocId);
-    if (!moc) return;
+    updateMocLayer(mocId, { opacity });
+  }, [updateMocLayer]);
 
-    try {
-      moc.setOpacity(opacity);
-      setMocLayers((prev) =>
-        prev.map((l) => (l.id === mocId ? { ...l, opacity } : l))
-      );
-    } catch (error) {
-      logger.warn(`Failed to set MOC opacity: ${mocId}`, error);
-    }
-  }, []);
-
-  // Cleanup
   useEffect(() => {
-    const currentInstances = mocInstancesRef.current;
+    const mocInstances = mocInstancesRef.current;
     return () => {
-      for (const [, moc] of currentInstances) {
-        try { moc.hide(); } catch { /* ignore */ }
+      for (const [, handle] of mocInstances) {
+        try { handle.moc.hide(); } catch { /* ignore */ }
       }
-      currentInstances.clear();
-      setMocLayers([]);
+      mocInstances.clear();
     };
   }, []);
 

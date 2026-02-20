@@ -36,6 +36,8 @@ use data::{
     load_observation_log, save_observation_log, search_observations, update_session,
     // Target I/O
     export_targets, import_targets,
+    // Session I/O
+    export_session_plan, import_session_plan, load_session_templates, save_session_template,
     // Target list
     add_tag_to_targets, add_target, add_targets_batch, archive_completed_targets,
     clear_all_targets, clear_completed_targets, get_target_stats, load_target_list,
@@ -56,8 +58,8 @@ use astronomy::{
     equatorial_to_horizontal, format_dec_dms, format_ra_hms, galactic_to_equatorial,
     horizontal_to_equatorial, parse_dec_dms, parse_ra_hms,
     // Events
-    get_astro_events, get_meteor_showers, get_moon_phases_for_month, get_seasonal_events,
-    get_tonight_highlights,
+    get_astro_events, get_daily_astro_events, get_meteor_showers, get_moon_phases_for_month,
+    get_seasonal_events, get_tonight_highlights,
 };
 
 use cache::{
@@ -84,7 +86,7 @@ use mount::{
     mount_park, mount_unpark,
     mount_set_tracking, mount_set_tracking_rate,
     mount_move_axis, mount_stop_axis, mount_set_slew_rate,
-    mount_discover,
+    mount_discover, mount_get_observing_conditions, mount_get_safety_state,
 };
 
 #[cfg(desktop)]
@@ -100,6 +102,8 @@ use platform::{
     // Path config
     get_path_config, set_custom_data_dir, set_custom_cache_dir,
     migrate_data_dir, migrate_cache_dir, reset_paths_to_default, validate_directory,
+    // Secure map API keys
+    save_map_api_key, list_map_api_keys_meta, get_map_api_key, delete_map_api_key, set_active_map_api_key,
     // Plate solver
     analyse_image, delete_index, detect_plate_solvers, download_index,
     extract_stars, get_astap_databases, get_available_indexes,
@@ -211,6 +215,11 @@ pub fn run() {
             // Target import/export
             export_targets,
             import_targets,
+            // Session plan import/export/templates
+            export_session_plan,
+            import_session_plan,
+            save_session_template,
+            load_session_templates,
             // Astronomy calculations
             equatorial_to_horizontal,
             horizontal_to_equatorial,
@@ -259,6 +268,7 @@ pub fn run() {
             get_meteor_showers,
             get_seasonal_events,
             get_astro_events,
+            get_daily_astro_events,
             get_tonight_highlights,
             // Target list
             load_target_list,
@@ -325,6 +335,8 @@ pub fn run() {
             mount_stop_axis,
             mount_set_slew_rate,
             mount_discover,
+            mount_get_observing_conditions,
+            mount_get_safety_state,
             // Desktop-only commands
             #[cfg(desktop)]
             load_app_settings,
@@ -368,6 +380,17 @@ pub fn run() {
             reload_webview,
             #[cfg(desktop)]
             is_dev_mode,
+            // Secure Map API Keys (desktop only)
+            #[cfg(desktop)]
+            save_map_api_key,
+            #[cfg(desktop)]
+            list_map_api_keys_meta,
+            #[cfg(desktop)]
+            get_map_api_key,
+            #[cfg(desktop)]
+            delete_map_api_key,
+            #[cfg(desktop)]
+            set_active_map_api_key,
             // Plate Solver (desktop only)
             #[cfg(desktop)]
             detect_plate_solvers,

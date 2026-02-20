@@ -29,6 +29,87 @@ export interface OptimalSubExposureResult {
   readNoiseUsed: number;
 }
 
+export type GainStrategy = 'unity' | 'max_dynamic_range' | 'manual';
+
+export interface CameraNoiseProfile {
+  readNoise?: number;
+  darkCurrent?: number;
+  fullWell?: number;
+  qe?: number;
+  bitDepth?: number;
+  ePerAdu?: number;
+  gain?: number;
+}
+
+export interface SkyModelInput {
+  bortle?: number;
+  sqm?: number;
+  filterBandwidthNm?: number;
+  skyFluxOverride?: number;
+  isNarrowband?: boolean;
+  fRatio?: number;
+  pixelSize?: number;
+  focalLength?: number;
+  targetSurfaceBrightness?: number;
+  targetSignalRate?: number;
+}
+
+export interface SmartExposureInput {
+  camera?: CameraNoiseProfile;
+  sky: SkyModelInput;
+  readNoiseLimitPercent?: number;
+  gainStrategy?: GainStrategy;
+  manualGain?: number;
+  minExposureSec?: number;
+  maxExposureSec?: number;
+  targetSNR?: number;
+  targetTimeNoiseRatio?: number;
+}
+
+export interface SmartExposureNoiseBreakdown {
+  readNoise: number;
+  skyNoise: number;
+  darkNoise: number;
+  totalNoise: number;
+  readFraction: number;
+  skyFraction: number;
+  darkFraction: number;
+}
+
+export interface SmartExposureStackEstimate {
+  perFrameSNR: number;
+  perFrameTimeNoiseRatio: number;
+  targetSNR?: number;
+  targetTimeNoiseRatio: number;
+  framesForTargetSNR?: number;
+  framesForTimeNoise: number;
+  recommendedFrameCount: number;
+  estimatedTotalMinutes: number;
+}
+
+export interface SmartExposureResult {
+  recommendedExposureSec: number;
+  recommendedGain: number;
+  gainStrategyUsed: GainStrategy;
+  recommendedGainReason: string;
+  exposureRangeSec: {
+    min: number;
+    max: number;
+  };
+  skyFluxPerPixel: number;
+  targetSignalPerPixelPerSec: number;
+  readNoiseLimitPercent: number;
+  readNoiseUsed: number;
+  darkCurrentUsed: number;
+  qeUsed: number;
+  dynamicRangeScore: number;
+  dynamicRangeStops: number;
+  electronsPerAdu: number;
+  noiseBreakdown: SmartExposureNoiseBreakdown;
+  constraintHits: string[];
+  stackEstimate: SmartExposureStackEstimate;
+}
+
 // ============================================================================
 // Sky Flux Calculation
 // ============================================================================
@@ -67,6 +148,303 @@ export function calculateSkyFlux(
   }
 
   return Math.max(0.001, skyFlux);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getSqmValue(bortle?: number, sqmOverride?: number): number {
+  if (typeof sqmOverride === 'number' && Number.isFinite(sqmOverride)) {
+    return sqmOverride;
+  }
+
+  const normalizedBortle = clamp(Math.round(bortle ?? 5), 1, 9);
+  const bortleEntry = BORTLE_SCALE.find((entry) => entry.value === normalizedBortle);
+  return bortleEntry?.sqm ?? 20.49;
+}
+
+export function calculateSkyFluxFromSqm(
+  sqm: number,
+  fRatio: number = 5,
+  pixelSizeUm: number = 3.76,
+  _focalLengthMm: number = 400,
+  filterBandwidthNm: number = 300
+): number {
+  // KStars/SharpCap-aligned approach:
+  // 1) Convert SQM to base e-/s for a 1um pixel at f/1
+  //    rate = A * exp(B * SQM), A=1009110388.7838, B=-0.921471...
+  // 2) Scale by pixel area and focal ratio:
+  //    rate_scaled = rate * pixelSize^2 * (1 / fRatio^2)
+  // 3) Apply filter bandwidth factor (300nm broadband reference)
+  //
+  // This keeps sky flux physically tied to sensor pixel area + focal ratio,
+  // and avoids making it depend on focal length directly.
+  const sqmClamped = clamp(sqm, 16, 23);
+  const baseRateFor1umAtF1 = 1009110388.7838 * Math.exp(-0.921471189594521 * sqmClamped);
+  const pixelAreaFactor = Math.max(0.25, pixelSizeUm * pixelSizeUm);
+  const fRatioFactor = 1 / Math.max(1, fRatio * fRatio);
+  const normalizedBandwidth = clamp(filterBandwidthNm, 2, 300);
+  const bandwidthFactor = normalizedBandwidth / 300;
+
+  return Math.max(0.001, baseRateFor1umAtF1 * pixelAreaFactor * fRatioFactor * bandwidthFactor);
+}
+
+function estimateElectronsPerAdu(gain: number): number {
+  return Math.max(0.1, 4 / (1 + gain / 33.333));
+}
+
+function estimateTargetSignalRate(
+  targetSignalRate: number | undefined,
+  targetSurfaceBrightness: number | undefined,
+  sqm: number,
+  skyFluxPerPixel: number,
+  qe: number
+): number {
+  if (typeof targetSignalRate === 'number' && targetSignalRate > 0) {
+    return targetSignalRate;
+  }
+
+  if (typeof targetSurfaceBrightness === 'number' && Number.isFinite(targetSurfaceBrightness)) {
+    const relativeFactor = Math.pow(10, -0.4 * (targetSurfaceBrightness - sqm));
+    return Math.max(0.0001, skyFluxPerPixel * relativeFactor * qe);
+  }
+
+  return Math.max(0.0001, 0.25 * qe);
+}
+
+interface SmartCandidate {
+  gain: number;
+  exposureSec: number;
+  readNoise: number;
+  darkCurrent: number;
+  qe: number;
+  skyFlux: number;
+  targetSignalRate: number;
+  signal: number;
+  sky: number;
+  dark: number;
+  noiseSquared: number;
+  totalNoise: number;
+  readFraction: number;
+  skyFraction: number;
+  darkFraction: number;
+  dynamicRangeScore: number;
+  dynamicRangeStops: number;
+  electronsPerAdu: number;
+  readNoiseLimitedExposure: number;
+  constraints: string[];
+  score: number;
+}
+
+function evaluateSmartCandidate(
+  gain: number,
+  input: SmartExposureInput,
+  minExposureSec: number,
+  maxExposureSec: number,
+  readNoiseLimitRatio: number,
+  skyFluxPerPixel: number,
+  sqm: number
+): SmartCandidate {
+  const readNoise = input.camera?.readNoise ?? estimateReadNoise(gain);
+  const darkCurrent = input.camera?.darkCurrent ?? 0.002;
+  const qe = clamp(input.camera?.qe ?? 0.8, 0.05, 1);
+
+  const denominator = skyFluxPerPixel * (Math.pow(1 + readNoiseLimitRatio, 2) - 1);
+  const readNoiseLimitedExposure = denominator > 0 ? (readNoise * readNoise) / denominator : maxExposureSec;
+  const exposureSec = clamp(readNoiseLimitedExposure, minExposureSec, maxExposureSec);
+
+  const targetSignalRate = estimateTargetSignalRate(
+    input.sky.targetSignalRate,
+    input.sky.targetSurfaceBrightness,
+    sqm,
+    skyFluxPerPixel,
+    qe
+  );
+
+  const signal = targetSignalRate * exposureSec;
+  const sky = skyFluxPerPixel * exposureSec;
+  const dark = darkCurrent * exposureSec;
+  const noiseSquared = signal + sky + dark + readNoise * readNoise;
+  const totalNoise = Math.sqrt(Math.max(noiseSquared, 0.000001));
+
+  const readFraction = (readNoise * readNoise) / noiseSquared;
+  const skyFraction = sky / noiseSquared;
+  const darkFraction = dark / noiseSquared;
+
+  const fullWell = Math.max(1000, input.camera?.fullWell ?? 50000);
+  const effectiveFullWell = fullWell * Math.max(0.25, 1 - gain / 500);
+  const noiseFloor = Math.max(readNoise, Math.sqrt(readNoise * readNoise + dark));
+  const dynamicRangeScore = effectiveFullWell / Math.max(noiseFloor, 0.000001);
+  const dynamicRangeStops = Math.log2(Math.max(dynamicRangeScore, 1));
+
+  const electronsPerAdu = input.camera?.ePerAdu ?? estimateElectronsPerAdu(gain);
+
+  const constraints: string[] = [];
+  if (readNoiseLimitedExposure < minExposureSec) constraints.push('min_exposure_limit');
+  if (readNoiseLimitedExposure > maxExposureSec) constraints.push('max_exposure_limit');
+
+  return {
+    gain,
+    exposureSec,
+    readNoise,
+    darkCurrent,
+    qe,
+    skyFlux: skyFluxPerPixel,
+    targetSignalRate,
+    signal,
+    sky,
+    dark,
+    noiseSquared,
+    totalNoise,
+    readFraction,
+    skyFraction,
+    darkFraction,
+    dynamicRangeScore,
+    dynamicRangeStops,
+    electronsPerAdu,
+    readNoiseLimitedExposure,
+    constraints,
+    score: 0,
+  };
+}
+
+function scoreSmartCandidate(candidate: SmartCandidate, strategy: GainStrategy): number {
+  const timeNoiseRatio = candidate.exposureSec / candidate.totalNoise;
+  const skyDominanceBonus = (1 - candidate.readFraction) * 20;
+
+  if (strategy === 'unity') {
+    const unityDistance = Math.abs(candidate.electronsPerAdu - 1);
+    return 200 - unityDistance * 140 + skyDominanceBonus + timeNoiseRatio + candidate.dynamicRangeStops;
+  }
+
+  if (strategy === 'max_dynamic_range') {
+    return candidate.dynamicRangeStops * 25 + skyDominanceBonus + timeNoiseRatio * 0.6;
+  }
+
+  return candidate.dynamicRangeStops * 5 + skyDominanceBonus + timeNoiseRatio;
+}
+
+function getCandidateGains(strategy: GainStrategy, manualGain?: number): number[] {
+  if (strategy === 'manual') {
+    return [clamp(Math.round(manualGain ?? 100), 0, 300)];
+  }
+
+  return [0, 25, 50, 75, 100, 125, 150, 200, 250, 300];
+}
+
+export function calculateSmartExposure(input: SmartExposureInput): SmartExposureResult {
+  const strategy = input.gainStrategy ?? 'unity';
+
+  const readNoiseLimitPercent = clamp(input.readNoiseLimitPercent ?? 5, 2, 20);
+  const readNoiseLimitRatio = readNoiseLimitPercent / 100;
+
+  const minExposureSec = clamp(input.minExposureSec ?? 5, 1, 3600);
+  const maxExposureSec = clamp(input.maxExposureSec ?? 600, minExposureSec, 3600);
+
+  const sqm = getSqmValue(input.sky.bortle, input.sky.sqm);
+  const fRatio = input.sky.fRatio ?? 5;
+  const pixelSize = input.sky.pixelSize ?? 3.76;
+  const focalLength = input.sky.focalLength ?? fRatio * 80;
+  const defaultBandwidth = input.sky.isNarrowband ? 7 : 300;
+  const filterBandwidthNm = input.sky.filterBandwidthNm ?? defaultBandwidth;
+  const qeForSky = clamp(input.camera?.qe ?? 0.8, 0.05, 1);
+
+  const skyFluxPerPixelBase =
+    input.sky.skyFluxOverride && input.sky.skyFluxOverride > 0
+      ? input.sky.skyFluxOverride
+      : calculateSkyFluxFromSqm(sqm, fRatio, pixelSize, focalLength, filterBandwidthNm);
+  const skyFluxPerPixel = Math.max(0.0001, skyFluxPerPixelBase * qeForSky);
+
+  const candidates = getCandidateGains(strategy, input.manualGain).map((gain) => {
+    const candidate = evaluateSmartCandidate(
+      gain,
+      input,
+      minExposureSec,
+      maxExposureSec,
+      readNoiseLimitRatio,
+      skyFluxPerPixel,
+      sqm
+    );
+    return {
+      ...candidate,
+      score: scoreSmartCandidate(candidate, strategy),
+    };
+  });
+
+  const selected = candidates.reduce((best, current) => (current.score > best.score ? current : best));
+
+  const perFrameSNR = selected.signal / selected.totalNoise;
+  const perFrameTimeNoiseRatio = selected.exposureSec / selected.totalNoise;
+
+  const targetTimeNoiseRatio = Math.max(1, input.targetTimeNoiseRatio ?? 80);
+  const framesForTimeNoise = Math.max(
+    1,
+    Math.ceil(Math.pow(targetTimeNoiseRatio / Math.max(perFrameTimeNoiseRatio, 0.00001), 2))
+  );
+
+  const targetSNR = input.targetSNR && input.targetSNR > 0 ? input.targetSNR : undefined;
+  const framesForTargetSNR =
+    typeof targetSNR === 'number'
+      ? Math.max(1, Math.ceil(Math.pow(targetSNR / Math.max(perFrameSNR, 0.00001), 2)))
+      : undefined;
+
+  const recommendedFrameCount = Math.max(framesForTimeNoise, framesForTargetSNR ?? 1);
+  const estimatedTotalMinutes = (recommendedFrameCount * selected.exposureSec) / 60;
+
+  const recommendedGainReason =
+    strategy === 'manual'
+      ? 'Manual gain selected; exposure optimized under current read-noise limit.'
+      : strategy === 'unity'
+        ? 'Gain selected closest to unity conversion while preserving stack efficiency.'
+        : 'Gain selected for highest stacked dynamic range within exposure constraints.';
+
+  const strategyConstraint =
+    strategy === 'manual'
+      ? 'manual_gain'
+      : strategy === 'unity'
+        ? 'unity_gain'
+        : 'max_dynamic_range';
+
+  return {
+    recommendedExposureSec: selected.exposureSec,
+    recommendedGain: selected.gain,
+    gainStrategyUsed: strategy,
+    recommendedGainReason,
+    exposureRangeSec: {
+      min: minExposureSec,
+      max: maxExposureSec,
+    },
+    skyFluxPerPixel,
+    targetSignalPerPixelPerSec: selected.targetSignalRate,
+    readNoiseLimitPercent,
+    readNoiseUsed: selected.readNoise,
+    darkCurrentUsed: selected.darkCurrent,
+    qeUsed: selected.qe,
+    dynamicRangeScore: selected.dynamicRangeScore,
+    dynamicRangeStops: selected.dynamicRangeStops,
+    electronsPerAdu: selected.electronsPerAdu,
+    noiseBreakdown: {
+      readNoise: selected.readNoise,
+      skyNoise: Math.sqrt(selected.sky),
+      darkNoise: Math.sqrt(selected.dark),
+      totalNoise: selected.totalNoise,
+      readFraction: selected.readFraction,
+      skyFraction: selected.skyFraction,
+      darkFraction: selected.darkFraction,
+    },
+    constraintHits: ['read_noise_limited', ...selected.constraints, strategyConstraint],
+    stackEstimate: {
+      perFrameSNR,
+      perFrameTimeNoiseRatio,
+      targetSNR,
+      targetTimeNoiseRatio,
+      framesForTargetSNR,
+      framesForTimeNoise,
+      recommendedFrameCount,
+      estimatedTotalMinutes,
+    },
+  };
 }
 
 // ============================================================================

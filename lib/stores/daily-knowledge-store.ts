@@ -1,0 +1,259 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { toast } from 'sonner';
+import { getZustandStorage } from '@/lib/storage';
+import { getDailyKnowledge } from '@/lib/services/daily-knowledge';
+import { HISTORY_LIMIT } from '@/lib/services/daily-knowledge/constants';
+import type {
+  DailyKnowledgeFilters,
+  DailyKnowledgeHistory,
+  DailyKnowledgeHistoryEntry,
+  DailyKnowledgeItem,
+  DailyKnowledgeFavorite,
+} from '@/lib/services/daily-knowledge/types';
+import { useSettingsStore } from './settings-store';
+import { useStellariumStore } from './stellarium-store';
+import { resolveObjectName } from '@/lib/services/online-search-service';
+
+export function getLocalDateKey(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+const DEFAULT_FILTERS: DailyKnowledgeFilters = {
+  query: '',
+  category: 'all',
+  source: 'all',
+  favoritesOnly: false,
+};
+
+interface DailyKnowledgePersistedState {
+  favorites: DailyKnowledgeFavorite[];
+  history: DailyKnowledgeHistory[];
+  lastShownDate: string | null;
+  snoozedDate: string | null;
+  lastSeenItemId: string | null;
+}
+
+interface DailyKnowledgeState extends DailyKnowledgePersistedState {
+  open: boolean;
+  loading: boolean;
+  error: string | null;
+  currentItem: DailyKnowledgeItem | null;
+  items: DailyKnowledgeItem[];
+  filters: DailyKnowledgeFilters;
+
+  openDialog: (entry?: DailyKnowledgeHistoryEntry) => Promise<void>;
+  closeDialog: () => void;
+  loadDaily: (entry?: DailyKnowledgeHistoryEntry) => Promise<void>;
+  loadByDate: (dateKey: string, entry?: DailyKnowledgeHistoryEntry) => Promise<void>;
+  next: () => void;
+  prev: () => void;
+  random: () => void;
+  toggleFavorite: (itemId: string) => void;
+  markDontShowToday: () => void;
+  clearSnooze: () => void;
+  recordHistory: (itemId: string, entry: DailyKnowledgeHistoryEntry, dateKey: string) => void;
+  goToRelatedObject: (related: { name: string; ra?: number; dec?: number }) => Promise<void>;
+  setFilters: (filters: Partial<DailyKnowledgeFilters>) => void;
+  setCurrentItemById: (itemId: string) => void;
+  shouldAutoShowToday: () => boolean;
+  hydrateFromImport: (state: Partial<DailyKnowledgePersistedState>) => void;
+}
+
+function trimHistory(history: DailyKnowledgeHistory[]): DailyKnowledgeHistory[] {
+  return history
+    .sort((a, b) => b.shownAt - a.shownAt)
+    .slice(0, HISTORY_LIMIT);
+}
+
+export const useDailyKnowledgeStore = create<DailyKnowledgeState>()(
+  persist(
+    (set, get) => ({
+      favorites: [],
+      history: [],
+      lastShownDate: null,
+      snoozedDate: null,
+      lastSeenItemId: null,
+      open: false,
+      loading: false,
+      error: null,
+      currentItem: null,
+      items: [],
+      filters: DEFAULT_FILTERS,
+
+      openDialog: async (entry = 'manual') => {
+        if (!useSettingsStore.getState().preferences.dailyKnowledgeEnabled) return;
+        set({ open: true });
+        const state = get();
+        if (state.items.length === 0) {
+          await get().loadDaily(entry);
+        } else if (state.currentItem) {
+          const current = state.currentItem;
+          get().recordHistory(current.id, entry, current.dateKey);
+        }
+      },
+
+      closeDialog: () => set({ open: false }),
+
+      loadDaily: async (entry = 'manual') => {
+        const dateKey = getLocalDateKey();
+        await get().loadByDate(dateKey, entry);
+      },
+
+      loadByDate: async (dateKey, entry = 'manual') => {
+        const settings = useSettingsStore.getState();
+        const locale = settings.preferences.locale;
+        set({ loading: true, error: null });
+        try {
+          const result = await getDailyKnowledge(dateKey, locale, {
+            locale,
+            onlineEnhancement: settings.preferences.dailyKnowledgeOnlineEnhancement,
+          });
+          set({
+            loading: false,
+            items: result.items,
+            currentItem: result.selected,
+            lastSeenItemId: result.selected.id,
+            lastShownDate: entry === 'auto' ? dateKey : get().lastShownDate,
+          });
+          get().recordHistory(result.selected.id, entry, dateKey);
+        } catch {
+          set({
+            loading: false,
+            error: 'dailyKnowledge.loadFailed',
+          });
+        }
+      },
+
+      next: () => {
+        const { items, currentItem } = get();
+        if (!currentItem || items.length === 0) return;
+        const idx = items.findIndex((item) => item.id === currentItem.id);
+        const nextItem = items[(idx + 1 + items.length) % items.length];
+        set({ currentItem: nextItem, lastSeenItemId: nextItem.id });
+        get().recordHistory(nextItem.id, 'manual', nextItem.dateKey);
+      },
+
+      prev: () => {
+        const { items, currentItem } = get();
+        if (!currentItem || items.length === 0) return;
+        const idx = items.findIndex((item) => item.id === currentItem.id);
+        const prevItem = items[(idx - 1 + items.length) % items.length];
+        set({ currentItem: prevItem, lastSeenItemId: prevItem.id });
+        get().recordHistory(prevItem.id, 'manual', prevItem.dateKey);
+      },
+
+      random: () => {
+        const { items } = get();
+        if (items.length === 0) return;
+        const randomIndex = Math.floor(Math.random() * items.length);
+        const randomItem = items[randomIndex];
+        set({ currentItem: randomItem, lastSeenItemId: randomItem.id });
+        get().recordHistory(randomItem.id, 'random', randomItem.dateKey);
+      },
+
+      toggleFavorite: (itemId) => {
+        set((state) => {
+          const existing = state.favorites.find((fav) => fav.itemId === itemId);
+          if (existing) {
+            return {
+              favorites: state.favorites.filter((fav) => fav.itemId !== itemId),
+            };
+          }
+          return {
+            favorites: [...state.favorites, { itemId, createdAt: Date.now() }],
+          };
+        });
+      },
+
+      markDontShowToday: () => {
+        const today = getLocalDateKey();
+        set({ snoozedDate: today });
+      },
+
+      clearSnooze: () => set({ snoozedDate: null }),
+
+      recordHistory: (itemId, entry, dateKey) => {
+        set((state) => ({
+          history: trimHistory([
+            {
+              itemId,
+              entry,
+              dateKey,
+              shownAt: Date.now(),
+            },
+            ...state.history,
+          ]),
+        }));
+      },
+
+      goToRelatedObject: async (related) => {
+        const setViewDirection = useStellariumStore.getState().setViewDirection;
+        if (!setViewDirection) {
+          toast.error('Sky engine is not ready');
+          return;
+        }
+
+        if (typeof related.ra === 'number' && typeof related.dec === 'number') {
+          setViewDirection(related.ra, related.dec);
+          return;
+        }
+
+        try {
+          const resolved = await resolveObjectName(related.name);
+          if (resolved) {
+            setViewDirection(resolved.ra, resolved.dec);
+            return;
+          }
+        } catch {
+          // fall through to toast
+        }
+        toast.error(`Unable to locate ${related.name}`);
+      },
+
+      setFilters: (filters) =>
+        set((state) => ({
+          filters: { ...state.filters, ...filters },
+        })),
+
+      setCurrentItemById: (itemId) => {
+        const item = get().items.find((entry) => entry.id === itemId);
+        if (!item) return;
+        set({ currentItem: item, lastSeenItemId: item.id });
+      },
+
+      shouldAutoShowToday: () => {
+        const settings = useSettingsStore.getState().preferences;
+        if (!settings.dailyKnowledgeEnabled || !settings.dailyKnowledgeAutoShow) return false;
+        const today = getLocalDateKey();
+        const state = get();
+        if (state.snoozedDate === today) return false;
+        return state.lastShownDate !== today;
+      },
+
+      hydrateFromImport: (state) =>
+        set((prev) => ({
+          favorites: state.favorites ?? prev.favorites,
+          history: state.history ? trimHistory(state.history) : prev.history,
+          lastShownDate: state.lastShownDate ?? prev.lastShownDate,
+          snoozedDate: state.snoozedDate ?? prev.snoozedDate,
+          lastSeenItemId: state.lastSeenItemId ?? prev.lastSeenItemId,
+        })),
+    }),
+    {
+      name: 'starmap-daily-knowledge',
+      storage: getZustandStorage(),
+      version: 1,
+      partialize: (state) => ({
+        favorites: state.favorites,
+        history: state.history,
+        lastShownDate: state.lastShownDate,
+        snoozedDate: state.snoozedDate,
+        lastSeenItemId: state.lastSeenItemId,
+      }),
+    }
+  )
+);

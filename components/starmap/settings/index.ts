@@ -20,6 +20,7 @@ export { AccessibilitySettings } from './accessibility-settings';
 export { NotificationSettings } from './notification-settings';
 export { SearchBehaviorSettings } from './search-settings';
 export { KeyboardSettings } from './keyboard-settings';
+export { MobileSettings } from './mobile-settings';
 export { EventSourcesSettings } from './event-sources-settings';
 export { SettingsExportImport } from './settings-export-import';
 export { StoragePathSettings } from './storage-path-settings';

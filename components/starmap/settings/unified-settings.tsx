@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Settings,
@@ -41,9 +41,12 @@ import {
 import {
   useSettingsStore,
   useEquipmentStore,
+  useOnboardingBridgeStore,
 } from '@/lib/stores';
 import { useThemeStore } from '@/lib/stores/theme-store';
-import { MapProviderSettings, MapHealthMonitor } from '../map';
+import { useOnboardingStore } from '@/lib/stores/onboarding-store';
+import { TOUR_DEFINITIONS } from '@/lib/constants/onboarding-capabilities';
+import { MapProviderSettings, MapHealthMonitor, MapApiKeyManager } from '../map';
 import { cn } from '@/lib/utils';
 import { DisplaySettings } from './display-settings';
 import { EquipmentSettings } from './equipment-settings';
@@ -65,6 +68,21 @@ export function UnifiedSettings() {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('display');
+  const [mapRefreshToken, setMapRefreshToken] = useState(0);
+  const openSettingsDrawerRequestId = useOnboardingBridgeStore((state) => state.openSettingsDrawerRequestId);
+  const closeTransientPanelsRequestId = useOnboardingBridgeStore((state) => state.closeTransientPanelsRequestId);
+  const settingsDrawerTab = useOnboardingBridgeStore((state) => state.settingsDrawerTab);
+  const handledOpenRequestRef = useRef(0);
+  const handledCloseRequestRef = useRef(0);
+
+  const startTourById = useOnboardingStore((state) => state.startTourById);
+  const getTourProgress = useOnboardingStore((state) => state.getTourProgress);
+  const completedTours = useOnboardingStore((state) => state.completedTours);
+
+  const moduleTours = useMemo(
+    () => TOUR_DEFINITIONS.filter((tour) => !tour.isCore),
+    [],
+  );
   
   const handleResetAll = useCallback(() => {
     useSettingsStore.getState().resetToDefaults();
@@ -72,14 +90,51 @@ export function UnifiedSettings() {
     useThemeStore.getState().resetCustomization();
   }, []);
 
+  const handleMapSettingsUpdated = useCallback(() => {
+    setMapRefreshToken(prev => prev + 1);
+  }, []);
+
+  useEffect(() => {
+    if (
+      openSettingsDrawerRequestId > 0 &&
+      openSettingsDrawerRequestId !== handledOpenRequestRef.current
+    ) {
+      handledOpenRequestRef.current = openSettingsDrawerRequestId;
+      const timer = window.setTimeout(() => {
+        setOpen(true);
+        if (settingsDrawerTab) {
+          setActiveTab(settingsDrawerTab);
+        }
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [openSettingsDrawerRequestId, settingsDrawerTab]);
+
+  useEffect(() => {
+    if (
+      closeTransientPanelsRequestId > 0 &&
+      closeTransientPanelsRequestId !== handledCloseRequestRef.current
+    ) {
+      handledCloseRequestRef.current = closeTransientPanelsRequestId;
+      const timer = window.setTimeout(() => {
+        setOpen(false);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [closeTransientPanelsRequestId]);
+
   return (
     <Drawer open={open} onOpenChange={setOpen} direction="right">
       <Tooltip>
         <TooltipTrigger asChild>
           <DrawerTrigger asChild>
             <Button
+              data-tour-id="settings"
+              data-testid="settings-button"
               variant="ghost"
               size="icon"
+              aria-label={t('settings.allSettings')}
+              title={t('settings.allSettings')}
               className={cn(
                 "h-9 w-9 backdrop-blur-md border border-border/50 touch-target toolbar-btn",
                 open
@@ -96,7 +151,11 @@ export function UnifiedSettings() {
         </TooltipContent>
       </Tooltip>
       
-      <DrawerContent className="w-[90vw] max-w-[340px] sm:max-w-[420px] md:max-w-[480px] h-full flex flex-col drawer-content">
+      <DrawerContent
+        data-testid="settings-panel"
+        aria-label={t('settings.allSettings')}
+        className="w-[90vw] max-w-[340px] sm:max-w-[420px] md:max-w-[480px] h-full flex flex-col drawer-content"
+      >
         <DrawerHeader className="border-b shrink-0 pb-2">
           <div className="flex items-center justify-between">
             <DrawerTitle className="flex items-center gap-2">
@@ -196,8 +255,9 @@ export function UnifiedSettings() {
           <TabsContent value="data" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4 space-y-4">
-                <MapHealthMonitor className="mb-4" />
-                <MapProviderSettings />
+                <MapHealthMonitor className="mb-4" refreshToken={mapRefreshToken} />
+                <MapProviderSettings onSettingsChange={handleMapSettingsUpdated} />
+                <MapApiKeyManager onKeysChange={handleMapSettingsUpdated} />
                 <Separator className="my-4" />
                 <EventSourcesSettings />
                 <Separator className="my-4" />
@@ -237,6 +297,44 @@ export function UnifiedSettings() {
                   </p>
                 </div>
                 <OnboardingRestartButton variant="outline" className="w-full" />
+                <Separator className="my-4" />
+                <div className="space-y-2" data-tour-id="onboarding-tour-center">
+                  <h3 className="text-sm font-medium">{t('onboarding.hub.title')}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {t('onboarding.hub.description')}
+                  </p>
+                  <div className="space-y-2">
+                    {moduleTours.map((tour) => {
+                      const progress = getTourProgress(tour.id);
+                      const done = completedTours.includes(tour.id);
+                      return (
+                        <div key={tour.id} className="rounded-md border border-border p-2">
+                          <p className="text-xs font-medium">{t(tour.titleKey)}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {done
+                              ? t('onboarding.hub.completed')
+                              : t('onboarding.hub.progress', {
+                                  current: Math.max(progress.currentStepIndex + 1, 0),
+                                  total: progress.totalSteps,
+                                })}
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={done ? 'outline' : 'secondary'}
+                            className="mt-2 h-7 text-xs"
+                            onClick={() => {
+                              setOpen(false);
+                              startTourById(tour.id);
+                            }}
+                          >
+                            {done ? t('onboarding.hub.restart') : t('onboarding.hub.start')}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </ScrollArea>
           </TabsContent>

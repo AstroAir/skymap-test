@@ -3,13 +3,23 @@
  */
 import { renderHook } from '@testing-library/react';
 import { useAladinEvents } from '../use-aladin-events';
+import { searchOnlineByCoordinates } from '@/lib/services/online-search-service';
+
+// Mock the online search service to avoid real network calls
+jest.mock('@/lib/services/online-search-service', () => ({
+  searchOnlineByCoordinates: jest.fn().mockResolvedValue({ results: [], sources: [], totalCount: 0, searchTimeMs: 0 }),
+}));
 
 describe('useAladinEvents', () => {
+  const mockSearchOnlineByCoordinates = searchOnlineByCoordinates as jest.MockedFunction<typeof searchOnlineByCoordinates>;
+
   const createMockAladin = () => ({
     on: jest.fn(),
     pix2world: jest.fn(() => [180, 45] as [number, number]),
     getRaDec: jest.fn(() => [180, 45] as [number, number]),
+    getFoV: jest.fn(() => [60, 60] as [number, number]),
     getFov: jest.fn(() => [60, 60] as [number, number]),
+    getSize: jest.fn(() => [800, 600] as [number, number]),
   });
 
   const createContainer = () => {
@@ -23,6 +33,12 @@ describe('useAladinEvents', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearchOnlineByCoordinates.mockResolvedValue({
+      results: [],
+      sources: [],
+      totalCount: 0,
+      searchTimeMs: 0,
+    });
   });
 
   it('should not register events when engine is not ready', () => {
@@ -55,7 +71,7 @@ describe('useAladinEvents', () => {
     expect(mockAladin.on).toHaveBeenCalledWith('objectClicked', expect.any(Function));
   });
 
-  it('should register click event for deselection', () => {
+  it('should register click event for position resolution', () => {
     const mockAladin = createMockAladin();
     renderHook(() =>
       useAladinEvents({
@@ -73,7 +89,7 @@ describe('useAladinEvents', () => {
     expect(clickCalls.length).toBe(1);
   });
 
-  it('should call onSelectionChange(null) when clicking empty space', () => {
+  it('should create coordinate selection when clicking sky with ra/dec', () => {
     const mockAladin = createMockAladin();
     const onSelectionChange = jest.fn();
     renderHook(() =>
@@ -91,8 +107,113 @@ describe('useAladinEvents', () => {
     )?.[1] as (event: unknown) => void;
     expect(clickHandler).toBeDefined();
 
-    // Click with no data → deselect
-    clickHandler({ clientX: 100, clientY: 100 });
+    // Click with ra/dec → coordinate selection (not deselect)
+    clickHandler({ ra: 180, dec: 45, x: 400, y: 300 });
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        raDeg: 180,
+        decDeg: 45,
+      })
+    );
+  });
+
+  it('should compute adaptive SIMBAD search radius from FoV and viewport size', () => {
+    const mockAladin = createMockAladin();
+    mockAladin.getFoV.mockReturnValue([1, 1]);
+    mockAladin.getSize.mockReturnValue([2400, 1200]);
+
+    renderHook(() =>
+      useAladinEvents({
+        containerRef: { current: createContainer() },
+        aladinRef: { current: mockAladin as never },
+        engineReady: true,
+        onSelectionChange: jest.fn(),
+        onContextMenu: jest.fn(),
+      })
+    );
+
+    const clickHandler = mockAladin.on.mock.calls.find(
+      (c: [string, unknown]) => c[0] === 'click'
+    )?.[1] as (event: unknown) => void;
+
+    clickHandler({ ra: 180, dec: 45 });
+
+    expect(mockSearchOnlineByCoordinates).toHaveBeenCalled();
+    const [coords] = mockSearchOnlineByCoordinates.mock.calls[0];
+    expect(coords.radius).toBeCloseTo(0.005, 3);
+  });
+
+  it('should abort previous SIMBAD lookup when a new click arrives', () => {
+    const mockAladin = createMockAladin();
+    mockSearchOnlineByCoordinates.mockImplementation(() => new Promise(() => {}));
+
+    renderHook(() =>
+      useAladinEvents({
+        containerRef: { current: createContainer() },
+        aladinRef: { current: mockAladin as never },
+        engineReady: true,
+        onSelectionChange: jest.fn(),
+        onContextMenu: jest.fn(),
+      })
+    );
+
+    const clickHandler = mockAladin.on.mock.calls.find(
+      (c: [string, unknown]) => c[0] === 'click'
+    )?.[1] as (event: unknown) => void;
+
+    clickHandler({ ra: 180, dec: 45 });
+    clickHandler({ ra: 181, dec: 46 });
+
+    expect(mockSearchOnlineByCoordinates).toHaveBeenCalledTimes(2);
+    const firstOptions = mockSearchOnlineByCoordinates.mock.calls[0]?.[1];
+    const secondOptions = mockSearchOnlineByCoordinates.mock.calls[1]?.[1];
+    expect(firstOptions?.signal).toBeDefined();
+    expect(secondOptions?.signal).toBeDefined();
+    expect((firstOptions!.signal as AbortSignal).aborted).toBe(true);
+    expect((secondOptions!.signal as AbortSignal).aborted).toBe(false);
+  });
+
+  it('should ignore drag clicks (isDragging=true)', () => {
+    const mockAladin = createMockAladin();
+    const onSelectionChange = jest.fn();
+    renderHook(() =>
+      useAladinEvents({
+        containerRef: { current: createContainer() },
+        aladinRef: { current: mockAladin as never },
+        engineReady: true,
+        onSelectionChange,
+        onContextMenu: jest.fn(),
+      })
+    );
+
+    const clickHandler = mockAladin.on.mock.calls.find(
+      (c: [string, unknown]) => c[0] === 'click'
+    )?.[1] as (event: unknown) => void;
+
+    clickHandler({ ra: 180, dec: 45, isDragging: true });
+    expect(onSelectionChange).not.toHaveBeenCalled();
+  });
+
+  it('should call onSelectionChange(null) when click has no coordinates', () => {
+    const mockAladin = createMockAladin();
+    mockAladin.pix2world.mockReturnValue(null as unknown as [number, number]);
+    const onSelectionChange = jest.fn();
+    renderHook(() =>
+      useAladinEvents({
+        containerRef: { current: createContainer() },
+        aladinRef: { current: mockAladin as never },
+        engineReady: true,
+        onSelectionChange,
+        onContextMenu: jest.fn(),
+      })
+    );
+
+    const clickHandler = mockAladin.on.mock.calls.find(
+      (c: [string, unknown]) => c[0] === 'click'
+    )?.[1] as (event: unknown) => void;
+
+    // Click with no ra/dec and pix2world returns null
+    clickHandler({ someOtherProp: true });
     expect(onSelectionChange).toHaveBeenCalledWith(null);
   });
 

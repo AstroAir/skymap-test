@@ -13,6 +13,8 @@
 
 ### 其他参考资料
 
+- **[Stellarium 能力矩阵](stellarium-capability-matrix.md)** - 官方 JS 能力与实现/测试对照
+- **[观测系统契约](observation-system-contracts.md)** - 坐标/时制、推荐评分、移动端可达矩阵
 - **[术语表](glossary.md)** - 专业术语解释
 - **[常见问题](faq.md)** - 常见问题解答
 

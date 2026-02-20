@@ -238,6 +238,15 @@ function OnlineSearchSettingsContent({
             onCheckedChange={(checked) => updateSettings({ showSourceBadges: checked })}
           />
         </div>
+
+        {/* Group by source */}
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">{t('search.groupBySource', { defaultValue: 'Group by Source' })}</Label>
+          <Switch
+            checked={settings.groupBySource}
+            onCheckedChange={(checked) => updateSettings({ groupBySource: checked })}
+          />
+        </div>
         
         {/* Clear cache */}
         <Button

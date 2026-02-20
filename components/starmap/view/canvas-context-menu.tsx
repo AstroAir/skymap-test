@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { useStellariumStore, useEquipmentStore } from '@/lib/stores';
+import { useAladinStore, useEquipmentStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
 import { useEquipmentFOVRead } from '@/lib/hooks/use-equipment-fov-props';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import type { ClickCoords, SelectedObjectData } from '@/lib/core/types';
@@ -81,6 +81,18 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
   onResetView,
 }: CanvasContextMenuProps) {
   const t = useTranslations();
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
+  const setSkyEngine = useSettingsStore((state) => state.setSkyEngine);
+  const isStellarium = skyEngine === 'stellarium';
+
+  const catalogLayers = useAladinStore((state) => state.catalogLayers);
+  const toggleCatalogLayer = useAladinStore((state) => state.toggleCatalogLayer);
+  const overlayLayers = useAladinStore((state) => state.imageOverlayLayers);
+  const toggleImageOverlayLayer = useAladinStore((state) => state.toggleImageOverlayLayer);
+  const mocLayers = useAladinStore((state) => state.mocLayers);
+  const toggleMocLayer = useAladinStore((state) => state.toggleMocLayer);
+  const fitsLayers = useAladinStore((state) => state.fitsLayers);
+  const toggleFitsLayer = useAladinStore((state) => state.toggleFitsLayer);
 
   // Equipment FOV read props — shared hook avoids duplicating selectors
   const { fovSimEnabled, mosaic } = useEquipmentFOVRead();
@@ -296,31 +308,50 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
             {t('fov.fovOverlay')}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="bg-card border-border">
-            <DropdownMenuCheckboxItem
-              checked={fovSimEnabled}
-              onCheckedChange={setFovSimEnabled}
-              className="text-foreground"
-            >
-              {t('fov.showFovOverlay')}
-            </DropdownMenuCheckboxItem>
-            {fovSimEnabled && (
+            {isStellarium ? (
               <>
-                <DropdownMenuSeparator className="bg-border" />
-                <DropdownMenuItem
-                  onClick={() => { setRotationAngle(0); onOpenChange(false); }}
-                  className="text-foreground"
-                >
-                  <RotateCw className="h-4 w-4 mr-2" />
-                  {t('fov.resetRotation')}
-                </DropdownMenuItem>
                 <DropdownMenuCheckboxItem
-                  checked={mosaic.enabled}
-                  onCheckedChange={(checked: boolean) => setMosaic({ ...mosaic, enabled: checked })}
+                  checked={fovSimEnabled}
+                  onCheckedChange={setFovSimEnabled}
                   className="text-foreground"
                 >
-                  <Grid3X3 className="h-4 w-4 mr-2" />
-                  {t('fov.enableMosaic')}
+                  {t('fov.showFovOverlay')}
                 </DropdownMenuCheckboxItem>
+                {fovSimEnabled && (
+                  <>
+                    <DropdownMenuSeparator className="bg-border" />
+                    <DropdownMenuItem
+                      onClick={() => { setRotationAngle(0); onOpenChange(false); }}
+                      className="text-foreground"
+                    >
+                      <RotateCw className="h-4 w-4 mr-2" />
+                      {t('fov.resetRotation')}
+                    </DropdownMenuItem>
+                    <DropdownMenuCheckboxItem
+                      checked={mosaic.enabled}
+                      onCheckedChange={(checked: boolean) => setMosaic({ ...mosaic, enabled: checked })}
+                      className="text-foreground"
+                    >
+                      <Grid3X3 className="h-4 w-4 mr-2" />
+                      {t('fov.enableMosaic')}
+                    </DropdownMenuCheckboxItem>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem disabled className="text-muted-foreground">
+                  {t('settings.stellariumFeatureUnavailable')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-foreground"
+                  onClick={() => {
+                    setSkyEngine('stellarium');
+                    onOpenChange(false);
+                  }}
+                >
+                  {t('settings.switchToStellarium')}
+                </DropdownMenuItem>
               </>
             )}
           </DropdownMenuSubContent>
@@ -335,49 +366,107 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
             {t('settings.display')}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="bg-card border-border w-48">
-            <DropdownMenuCheckboxItem
-              checked={stellariumSettings.constellationsLinesVisible}
-              onCheckedChange={() => onToggleStellariumSetting('constellationsLinesVisible')}
-              className="text-foreground"
-            >
-              {t('settings.constellationLines')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={stellariumSettings.equatorialLinesVisible}
-              onCheckedChange={() => onToggleStellariumSetting('equatorialLinesVisible')}
-              className="text-foreground"
-            >
-              {t('settings.equatorialGrid')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={stellariumSettings.azimuthalLinesVisible}
-              onCheckedChange={() => onToggleStellariumSetting('azimuthalLinesVisible')}
-              className="text-foreground"
-            >
-              {t('settings.azimuthalGrid')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={stellariumSettings.dsosVisible}
-              onCheckedChange={() => onToggleStellariumSetting('dsosVisible')}
-              className="text-foreground"
-            >
-              {t('settings.deepSkyObjects')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator className="bg-border" />
-            <DropdownMenuCheckboxItem
-              checked={stellariumSettings.surveyEnabled}
-              onCheckedChange={() => onToggleStellariumSetting('surveyEnabled')}
-              className="text-foreground"
-            >
-              {t('settings.skySurveys')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={stellariumSettings.atmosphereVisible}
-              onCheckedChange={() => onToggleStellariumSetting('atmosphereVisible')}
-              className="text-foreground"
-            >
-              {t('settings.atmosphere')}
-            </DropdownMenuCheckboxItem>
+            {isStellarium ? (
+              <>
+                <DropdownMenuCheckboxItem
+                  checked={stellariumSettings.constellationsLinesVisible}
+                  onCheckedChange={() => onToggleStellariumSetting('constellationsLinesVisible')}
+                  className="text-foreground"
+                >
+                  {t('settings.constellationLines')}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={stellariumSettings.equatorialLinesVisible}
+                  onCheckedChange={() => onToggleStellariumSetting('equatorialLinesVisible')}
+                  className="text-foreground"
+                >
+                  {t('settings.equatorialGrid')}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={stellariumSettings.azimuthalLinesVisible}
+                  onCheckedChange={() => onToggleStellariumSetting('azimuthalLinesVisible')}
+                  className="text-foreground"
+                >
+                  {t('settings.azimuthalGrid')}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={stellariumSettings.dsosVisible}
+                  onCheckedChange={() => onToggleStellariumSetting('dsosVisible')}
+                  className="text-foreground"
+                >
+                  {t('settings.deepSkyObjects')}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuCheckboxItem
+                  checked={stellariumSettings.surveyEnabled}
+                  onCheckedChange={() => onToggleStellariumSetting('surveyEnabled')}
+                  className="text-foreground"
+                >
+                  {t('settings.skySurveys')}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={stellariumSettings.atmosphereVisible}
+                  onCheckedChange={() => onToggleStellariumSetting('atmosphereVisible')}
+                  className="text-foreground"
+                >
+                  {t('settings.atmosphere')}
+                </DropdownMenuCheckboxItem>
+              </>
+            ) : (
+              <>
+                {catalogLayers.map((layer) => (
+                  <DropdownMenuCheckboxItem
+                    key={layer.id}
+                    checked={layer.enabled}
+                    onCheckedChange={() => toggleCatalogLayer(layer.id)}
+                    className="text-foreground"
+                  >
+                    {layer.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator className="bg-border" />
+                {mocLayers.map((layer) => (
+                  <DropdownMenuCheckboxItem
+                    key={layer.id}
+                    checked={layer.visible}
+                    onCheckedChange={() => toggleMocLayer(layer.id)}
+                    className="text-foreground"
+                  >
+                    {layer.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {overlayLayers.map((layer) => (
+                  <DropdownMenuCheckboxItem
+                    key={layer.id}
+                    checked={layer.enabled}
+                    onCheckedChange={() => toggleImageOverlayLayer(layer.id)}
+                    className="text-foreground"
+                  >
+                    {layer.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {fitsLayers.map((layer) => (
+                  <DropdownMenuCheckboxItem
+                    key={layer.id}
+                    checked={layer.enabled}
+                    onCheckedChange={() => toggleFitsLayer(layer.id)}
+                    className="text-foreground"
+                  >
+                    {layer.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuItem
+                  className="text-foreground"
+                  onClick={() => {
+                    setSkyEngine('stellarium');
+                    onOpenChange(false);
+                  }}
+                >
+                  {t('settings.switchToStellarium')}
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { 
   Heart, 
@@ -8,6 +8,8 @@ import {
   Trash2, 
   Plus,
   X,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +50,8 @@ export function FavoritesQuickAccess({
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [editingTags, setEditingTags] = useState<string | null>(null);
   const [newTag, setNewTag] = useState('');
+  const [importStatus, setImportStatus] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     favorites,
@@ -57,6 +61,8 @@ export function FavoritesQuickAccess({
     removeTag,
     clearRecentlyViewed,
     getAllTags,
+    exportFavorites,
+    importFavorites,
   } = useFavoritesStore();
 
   const allTags = getAllTags();
@@ -80,8 +86,68 @@ export function FavoritesQuickAccess({
     }
   }, [addTag, newTag]);
 
+  const handleExportFavorites = useCallback(() => {
+    const exported = exportFavorites();
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `starmap-favorites-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [exportFavorites]);
+
+  const handleImportFavorites = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const content = typeof reader.result === 'string' ? reader.result : '[]';
+        const parsed = JSON.parse(content) as FavoriteObject[];
+        const result = importFavorites(parsed);
+        setImportStatus(
+          t('targetList.importDescription', {
+            imported: result.imported,
+            skipped: result.skipped,
+            defaultValue: `${result.imported} imported, ${result.skipped} skipped`,
+          })
+        );
+      } catch {
+        setImportStatus(t('targetList.importFailed', { defaultValue: 'Import failed' }));
+      }
+    };
+    reader.readAsText(file);
+  }, [importFavorites, t]);
+
   return (
     <div className={cn('space-y-2', className)}>
+      <div className="flex items-center justify-end gap-1">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleImportFavorites(file);
+            }
+            e.currentTarget.value = '';
+          }}
+        />
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => fileInputRef.current?.click()}>
+          <Upload className="h-3 w-3 mr-1" />
+          {t('targetList.import', { defaultValue: 'Import' })}
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleExportFavorites}>
+          <Download className="h-3 w-3 mr-1" />
+          {t('targetList.exportAs', { defaultValue: 'Export' })}
+        </Button>
+      </div>
+      {importStatus && (
+        <p className="text-[11px] text-muted-foreground px-1">{importStatus}</p>
+      )}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'favorites' | 'recent')}>
         <TabsList className="w-full grid grid-cols-2">
           <TabsTrigger value="favorites" className="text-xs gap-1">

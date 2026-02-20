@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Rocket, Download, Github } from 'lucide-react';
 import { SectionHeader } from './section-header';
+import { EXTERNAL_LINKS } from '@/lib/constants/external-links';
 
 export function CTASection() {
   const t = useTranslations('landing.cta');
@@ -32,7 +33,7 @@ export function CTASection() {
             asChild
           >
             <a
-              href="https://github.com/AstroAir/skymap/releases"
+              href={EXTERNAL_LINKS.releases}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -47,7 +48,7 @@ export function CTASection() {
             asChild
           >
             <a
-              href="https://github.com/AstroAir/skymap"
+              href={EXTERNAL_LINKS.repository}
               target="_blank"
               rel="noopener noreferrer"
             >

@@ -7,12 +7,7 @@ import { useSearchStore } from '../search-store';
 
 describe('search-store', () => {
   beforeEach(() => {
-    // Reset store state before each test
-    const store = useSearchStore.getState();
-    store.clearCache();
-    store.clearRecentSearches();
-    store.clearFavorites();
-    store.setSearchMode('hybrid');
+    useSearchStore.getState().resetSearchState();
   });
 
   describe('settings', () => {
@@ -103,6 +98,9 @@ describe('search-store', () => {
     const mockResult = {
       id: 'test-m31',
       name: 'M31',
+      canonicalId: 'M31',
+      identifiers: ['M31', 'NGC 224'],
+      confidence: 0.9,
       alternateNames: ['Andromeda Galaxy'],
       type: 'Galaxy',
       category: 'galaxy' as const,
@@ -268,6 +266,9 @@ describe('search-store', () => {
       {
         id: 'test-1',
         name: 'M31',
+        canonicalId: 'M31',
+        identifiers: ['M31'],
+        confidence: 0.9,
         type: 'Galaxy',
         category: 'galaxy' as const,
         ra: 10.68,
@@ -337,6 +338,7 @@ describe('search-store', () => {
           sesame: false,
           vizier: true,
           ned: true,
+          mpc: true,
           local: true,
         });
       });
@@ -356,6 +358,7 @@ describe('search-store', () => {
           sesame: true,
           vizier: false,
           ned: false,
+          mpc: true,
           local: true,
         });
       });

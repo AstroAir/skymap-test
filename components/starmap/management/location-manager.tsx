@@ -225,14 +225,30 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   const handleDelete = async (id: string) => {
     if (isTauriAvailable) {
       try {
-        await tauriApi.locations.delete(id);
+        const nextLocations = await tauriApi.locations.delete(id);
+        const nextCurrent = nextLocations.locations.find(loc => loc.id === nextLocations.current_location_id)
+          ?? nextLocations.locations.find(loc => loc.is_current);
+        if (nextCurrent && onLocationChange) {
+          onLocationChange(nextCurrent.latitude, nextCurrent.longitude, nextCurrent.altitude);
+        }
         toast.success(t('locations.deleted') || 'Location deleted');
         refresh();
       } catch (e) {
         toast.error((e as Error).message);
       }
     } else {
+      const removedWasCurrent = webLocations.some(loc => loc.id === id && loc.is_current);
       removeWebLocation(id);
+      if (removedWasCurrent) {
+        const remaining = webLocations.filter(loc => loc.id !== id);
+        const nextCurrent = remaining[0];
+        if (nextCurrent) {
+          setWebCurrent(nextCurrent.id);
+          if (onLocationChange) {
+            onLocationChange(nextCurrent.latitude, nextCurrent.longitude, nextCurrent.altitude);
+          }
+        }
+      }
       toast.success(t('locations.deleted') || 'Location deleted');
     }
   };
@@ -267,12 +283,12 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setForm({
-          ...form,
+        setForm(prev => ({
+          ...prev,
           latitude: position.coords.latitude.toFixed(6),
           longitude: position.coords.longitude.toFixed(6),
           altitude: position.coords.altitude?.toFixed(0) || '',
-        });
+        }));
         toast.success(t('locations.gpsAcquired') || 'GPS location acquired');
       },
       (error) => {
@@ -291,13 +307,11 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
     }));
 
     // Auto-fetch elevation for the selected location
-    if (!form.altitude) {
-      fetchElevation(location.coordinates.latitude, location.coordinates.longitude).then(elevation => {
-        if (elevation !== null) {
-          setForm(prev => ({ ...prev, altitude: prev.altitude || Math.round(elevation).toString() }));
-        }
-      });
-    }
+    fetchElevation(location.coordinates.latitude, location.coordinates.longitude).then(elevation => {
+      if (elevation !== null) {
+        setForm(prev => ({ ...prev, altitude: prev.altitude || Math.round(elevation).toString() }));
+      }
+    });
   };
 
   const resetForm = () => {
@@ -429,7 +443,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                       <Label>{t('locations.name') || 'Name'}</Label>
                       <Input
                         value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                         placeholder={t('locations.namePlaceholder') || 'e.g. Backyard, Dark Site'}
                       />
                     </div>
@@ -440,7 +454,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                           type="number"
                           step="any"
                           value={form.latitude}
-                          onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                          onChange={(e) => setForm(prev => ({ ...prev, latitude: e.target.value }))}
                           placeholder="39.9042"
                         />
                       </div>
@@ -450,7 +464,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                           type="number"
                           step="any"
                           value={form.longitude}
-                          onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                          onChange={(e) => setForm(prev => ({ ...prev, longitude: e.target.value }))}
                           placeholder="116.4074"
                         />
                       </div>
@@ -461,11 +475,11 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                         <Input
                           type="number"
                           value={form.altitude}
-                          onChange={(e) => setForm({ ...form, altitude: e.target.value })}
+                          onChange={(e) => setForm(prev => ({ ...prev, altitude: e.target.value }))}
                           placeholder="100"
                         />
                       </div>
-                      <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm({ ...form, bortle_class: v })} t={t} />
+                      <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm(prev => ({ ...prev, bortle_class: v }))} t={t} />
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={handleUseGPS}>
@@ -481,7 +495,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                         <Label>{t('locations.name') || 'Name'}</Label>
                         <Input
                           value={form.name}
-                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                           placeholder={t('locations.namePlaceholder') || 'e.g. Backyard, Dark Site'}
                         />
                       </div>
@@ -492,11 +506,11 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                           longitude: parseFloat(form.longitude) || 116.4074,
                         }}
                         onLocationChange={(coords: { latitude: number; longitude: number }) => {
-                          setForm({
-                            ...form,
+                          setForm(prev => ({
+                            ...prev,
                             latitude: coords.latitude.toFixed(6),
                             longitude: coords.longitude.toFixed(6),
-                          });
+                          }));
                         }}
                         onLocationSelect={handleMapLocationSelect}
                         height={220}
@@ -511,11 +525,11 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                           <Input
                             type="number"
                             value={form.altitude}
-                            onChange={(e) => setForm({ ...form, altitude: e.target.value })}
+                            onChange={(e) => setForm(prev => ({ ...prev, altitude: e.target.value }))}
                             placeholder="100"
                           />
                         </div>
-                        <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm({ ...form, bortle_class: v })} t={t} />
+                        <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm(prev => ({ ...prev, bortle_class: v }))} t={t} />
                       </div>
                     </div>
                   </TabsContent>

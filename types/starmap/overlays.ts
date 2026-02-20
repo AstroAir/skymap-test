@@ -97,6 +97,19 @@ export interface OcularViewPreviewProps {
   isUnderMagnified: boolean;
 }
 
+export interface OcularSimulatorProps {
+  onApplyFov?: (fovDeg: number) => void;
+  currentFov?: number;
+}
+
+export interface OcularOverlayProps {
+  enabled: boolean;
+  tfov: number | null;
+  currentFov: number;
+  opacity: number;
+  showCrosshair?: boolean;
+}
+
 /** Pre-generated star data for ocular view simulation */
 export interface OcularStar {
   id: number;
@@ -152,6 +165,7 @@ export interface PassCardProps {
 export interface SkyMarkersProps {
   containerWidth: number;
   containerHeight: number;
+  interactionOnly?: boolean;
   onMarkerClick?: (marker: SkyMarker) => void;
   onMarkerDoubleClick?: (marker: SkyMarker) => void;
   onMarkerEdit?: (marker: SkyMarker) => void;

@@ -184,9 +184,10 @@ pnpm tauri build
 
 ## 社区与支持
 
-- **GitHub**: [https://github.com/yourusername/skymap](https://github.com/yourusername/skymap)
-- **问题反馈**: [GitHub Issues](https://github.com/yourusername/skymap/issues)
-- **讨论区**: [GitHub Discussions](https://github.com/yourusername/skymap/discussions)
+- **GitHub**: [https://github.com/AstroAir/skymap-test](https://github.com/AstroAir/skymap-test)
+- **问题反馈**: [GitHub Issue 表单](https://github.com/AstroAir/skymap-test/issues/new)
+- **讨论区**: [GitHub Discussions](https://github.com/AstroAir/skymap-test/discussions)
+- **诊断附件流程**: 建议先在应用内反馈对话框下载诊断包，再在 Issue 页面手动上传附件
 
 ## 许可证
 

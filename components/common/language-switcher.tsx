@@ -16,6 +16,7 @@ import {
 import { useLocaleStore } from '@/lib/i18n/locale-store';
 import { locales, localeNames, type Locale } from '@/i18n/config';
 import { useTranslations } from 'next-intl';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 
 interface LanguageSwitcherProps {
   variant?: 'ghost' | 'outline' | 'default';
@@ -30,6 +31,7 @@ export function LanguageSwitcher({
 }: LanguageSwitcherProps) {
   const t = useTranslations('common');
   const { locale, setLocale } = useLocaleStore();
+  const setPreference = useSettingsStore((state) => state.setPreference);
 
   return (
     <DropdownMenu>
@@ -54,7 +56,11 @@ export function LanguageSwitcher({
         {locales.map((loc) => (
           <DropdownMenuItem
             key={loc}
-            onClick={() => setLocale(loc as Locale)}
+            onClick={() => {
+              const nextLocale = loc as Locale;
+              setLocale(nextLocale);
+              setPreference('locale', nextLocale);
+            }}
             className={locale === loc ? 'bg-accent' : ''}
           >
             {localeNames[loc as Locale]}

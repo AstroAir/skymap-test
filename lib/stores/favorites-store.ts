@@ -41,6 +41,8 @@ interface FavoritesState {
   clearRecentlyViewed: () => void;
   getAllTags: () => string[];
   getFavoritesByTag: (tag: string) => FavoriteObject[];
+  exportFavorites: () => FavoriteObject[];
+  importFavorites: (items: FavoriteObject[]) => { imported: number; skipped: number };
 }
 
 // Generate unique ID for favorites
@@ -168,6 +170,53 @@ export const useFavoritesStore = create<FavoritesState>()(
 
       getFavoritesByTag: (tag) => {
         return get().favorites.filter(f => (f.tags ?? []).includes(tag));
+      },
+
+      exportFavorites: () => {
+        return [...get().favorites];
+      },
+
+      importFavorites: (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+          return { imported: 0, skipped: 0 };
+        }
+
+        const state = get();
+        const existing = new Set(
+          state.favorites.map(f => `${f.name.toLowerCase()}-${f.ra.toFixed(4)}-${f.dec.toFixed(4)}`)
+        );
+        const additions: FavoriteObject[] = [];
+        let skipped = 0;
+
+        for (const item of items) {
+          if (!item || typeof item.name !== 'string' || typeof item.ra !== 'number' || typeof item.dec !== 'number') {
+            skipped++;
+            continue;
+          }
+
+          const key = `${item.name.toLowerCase()}-${item.ra.toFixed(4)}-${item.dec.toFixed(4)}`;
+          if (existing.has(key)) {
+            skipped++;
+            continue;
+          }
+
+          existing.add(key);
+          additions.push({
+            ...item,
+            id: item.id || generateId(),
+            tags: Array.isArray(item.tags) ? item.tags : [],
+            addedAt: item.addedAt || Date.now(),
+            viewCount: typeof item.viewCount === 'number' ? item.viewCount : 0,
+          });
+        }
+
+        if (additions.length > 0) {
+          set((current) => ({
+            favorites: [...current.favorites, ...additions],
+          }));
+        }
+
+        return { imported: additions.length, skipped };
       },
     }),
     {

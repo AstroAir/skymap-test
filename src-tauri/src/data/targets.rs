@@ -53,11 +53,48 @@ pub struct MosaicSettings {
 
 /// Exposure plan for a target
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExposurePlanAdvancedNoiseFractions {
+    pub read: Option<f64>,
+    pub sky: Option<f64>,
+    pub dark: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExposurePlanAdvancedStackEstimate {
+    pub recommended_frame_count: Option<u32>,
+    pub estimated_total_minutes: Option<f64>,
+    pub frames_for_target_snr: Option<u32>,
+    pub frames_for_time_noise: Option<u32>,
+    pub target_snr: Option<f64>,
+    pub target_time_noise_ratio: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExposurePlanAdvanced {
+    pub sqm: Option<f64>,
+    pub filter_bandwidth_nm: Option<f64>,
+    pub read_noise_limit_percent: Option<f64>,
+    pub gain_strategy: Option<String>,
+    pub recommended_gain: Option<f64>,
+    pub recommended_exposure_sec: Option<f64>,
+    pub sky_flux_per_pixel: Option<f64>,
+    pub target_signal_per_pixel_per_sec: Option<f64>,
+    pub dynamic_range_score: Option<f64>,
+    pub dynamic_range_stops: Option<f64>,
+    pub read_noise_used: Option<f64>,
+    pub dark_current_used: Option<f64>,
+    pub noise_fractions: Option<ExposurePlanAdvancedNoiseFractions>,
+    pub stack_estimate: Option<ExposurePlanAdvancedStackEstimate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExposurePlan {
     pub single_exposure: f64, // seconds
     pub total_exposure: f64,  // minutes
     pub sub_frames: u32,
     pub filter: Option<String>,
+    #[serde(default)]
+    pub advanced: Option<ExposurePlanAdvanced>,
 }
 
 /// Target item for shot planning
@@ -768,6 +805,7 @@ mod tests {
             total_exposure: 180.0,
             sub_frames: 36,
             filter: Some("Ha".to_string()),
+            advanced: None,
         };
 
         let json = serde_json::to_string(&plan).unwrap();
@@ -784,6 +822,47 @@ mod tests {
         assert_eq!(plan.single_exposure, 120.0);
         assert_eq!(plan.sub_frames, 30);
         assert!(plan.filter.is_none());
+        assert!(plan.advanced.is_none());
+    }
+
+    #[test]
+    fn test_exposure_plan_with_advanced_fields() {
+        let json = r#"{
+            "single_exposure": 180.0,
+            "total_exposure": 120.0,
+            "sub_frames": 40,
+            "filter": "L",
+            "advanced": {
+                "read_noise_limit_percent": 5.0,
+                "gain_strategy": "unity",
+                "recommended_gain": 100.0,
+                "dynamic_range_score": 4523.4,
+                "noise_fractions": {
+                    "read": 0.05,
+                    "sky": 0.9,
+                    "dark": 0.05
+                },
+                "stack_estimate": {
+                    "recommended_frame_count": 120,
+                    "estimated_total_minutes": 360.0
+                }
+            }
+        }"#;
+
+        let plan: ExposurePlan = serde_json::from_str(json).unwrap();
+        assert_eq!(plan.single_exposure, 180.0);
+        assert!(plan.advanced.is_some());
+
+        let advanced = plan.advanced.unwrap();
+        assert_eq!(advanced.gain_strategy, Some("unity".to_string()));
+        assert_eq!(advanced.read_noise_limit_percent, Some(5.0));
+        assert_eq!(
+            advanced
+                .stack_estimate
+                .as_ref()
+                .and_then(|stack| stack.recommended_frame_count),
+            Some(120)
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -1060,6 +1139,7 @@ mod tests {
                 total_exposure: 300.0,
                 sub_frames: 30,
                 filter: Some("L".to_string()),
+                advanced: None,
             }),
             notes: Some("Complete target".to_string()),
             added_at: 0,

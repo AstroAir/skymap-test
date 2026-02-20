@@ -9,7 +9,10 @@ jest.mock('@/lib/translations', () => ({
 
 // Mock core constants
 jest.mock('@/lib/core/constants', () => ({
-  SKY_SURVEYS: [],
+  SKY_SURVEYS: [
+    { id: 'DSS', url: 'https://hips.example/dss' },
+    { id: '2MASS', url: 'https://hips.example/2mass/' },
+  ],
 }));
 
 // Helper to create mock settings
@@ -17,12 +20,16 @@ const createMockSettings = (overrides?: Partial<StellariumSettings>): Stellarium
   constellationsLinesVisible: true,
   constellationArtVisible: false,
   constellationLabelsVisible: true,
+  constellationBoundariesVisible: true,
   starLabelsVisible: true,
   planetLabelsVisible: true,
   azimuthalLinesVisible: true,
   equatorialLinesVisible: true,
+  equatorialJnowLinesVisible: true,
   meridianLinesVisible: false,
   eclipticLinesVisible: true,
+  horizonLinesVisible: true,
+  galacticLinesVisible: true,
   atmosphereVisible: true,
   dsosVisible: true,
   milkyWayVisible: true,
@@ -33,6 +40,15 @@ const createMockSettings = (overrides?: Partial<StellariumSettings>): Stellarium
   surveyId: 'DSS',
   nightMode: false,
   sensorControl: false,
+  sensorAbsolutePreferred: true,
+  sensorUseCompassHeading: true,
+  sensorUpdateHz: 30,
+  sensorDeadbandDeg: 0.35,
+  sensorSmoothingFactor: 0.2,
+  sensorCalibrationRequired: true,
+  sensorCalibrationAzimuthOffsetDeg: 0,
+  sensorCalibrationAltitudeOffsetDeg: 0,
+  sensorCalibrationUpdatedAt: null,
   crosshairVisible: true,
   crosshairColor: 'rgba(255, 255, 255, 0.3)',
   projectionType: 'stereographic',
@@ -43,6 +59,9 @@ const createMockSettings = (overrides?: Partial<StellariumSettings>): Stellarium
   flipViewVertical: false,
   flipViewHorizontal: false,
   exposureScale: 2,
+  tonemapperP: 0.5,
+  mountFrame: 5,
+  viewYOffset: 0.1,
   ...overrides,
 });
 
@@ -292,21 +311,42 @@ describe('useStellariumStore', () => {
       const { result } = renderHook(() => useStellariumStore());
       
       const mockCore = {
+        bortle_index: 0,
+        star_linear_scale: 0,
+        star_relative_scale: 0,
+        display_limit_mag: 0,
+        flip_view_vertical: false,
+        flip_view_horizontal: false,
+        exposure_scale: 0,
+        tonemapper_p: 0,
+        mount_frame: 0,
+        y_offset: 0,
+        projection: 0,
         constellations: {
           lines_visible: false,
           labels_visible: false,
+          images_visible: false,
+          boundaries_visible: false,
         },
         lines: {
           azimuthal: { visible: false },
           equatorial: { visible: false },
+          equatorial_jnow: { visible: false },
           meridian: { visible: false },
           ecliptic: { visible: false },
+          horizon: { visible: false },
+          galactic: { visible: false },
         },
         atmosphere: { visible: false },
         dsos: { visible: false },
+        stars: { hints_visible: false },
+        planets: { hints_visible: false },
+        milkyway: { visible: false },
+        hips: { visible: false, url: '' },
         landscapes: {
           addDataSource: jest.fn(),
-          setCurrentLandscape: jest.fn(),
+          visible: false,
+          fog_visible: false,
         },
       };
 
@@ -323,9 +363,87 @@ describe('useStellariumStore', () => {
       });
 
       expect(mockCore.constellations.lines_visible).toBe(true);
+      expect(mockCore.constellations.boundaries_visible).toBe(true);
       expect(mockCore.lines.azimuthal.visible).toBe(true);
+      expect(mockCore.lines.equatorial_jnow.visible).toBe(true);
+      expect(mockCore.lines.horizon.visible).toBe(true);
+      expect(mockCore.lines.galactic.visible).toBe(true);
       expect(mockCore.atmosphere.visible).toBe(true);
       expect(mockCore.dsos.visible).toBe(true);
+      expect(mockCore.tonemapper_p).toBe(0.5);
+      expect(mockCore.mount_frame).toBe(5);
+      expect(mockCore.y_offset).toBe(0.1);
+    });
+
+    it('normalizes explicit surveyUrl and keeps survey enabled', () => {
+      const { result } = renderHook(() => useStellariumStore());
+      const mockCore = {
+        hips: { visible: false, url: '' },
+        landscapes: { addDataSource: jest.fn(), visible: false, fog_visible: false },
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mockStel = { core: mockCore } as any;
+
+      act(() => {
+        result.current.setStel(mockStel);
+        result.current.updateStellariumCore(
+          createMockSettings({
+            surveyEnabled: true,
+            surveyId: 'DSS',
+            surveyUrl: 'https://custom.example/hips',
+          })
+        );
+      });
+
+      expect(mockCore.hips.visible).toBe(true);
+      expect(mockCore.hips.url).toBe('https://custom.example/hips/');
+    });
+
+    it('falls back to surveyId URL when surveyUrl is absent', () => {
+      const { result } = renderHook(() => useStellariumStore());
+      const mockCore = {
+        hips: { visible: false, url: '' },
+        landscapes: { addDataSource: jest.fn(), visible: false, fog_visible: false },
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mockStel = { core: mockCore } as any;
+
+      act(() => {
+        result.current.setStel(mockStel);
+        result.current.updateStellariumCore(
+          createMockSettings({
+            surveyEnabled: true,
+            surveyId: 'dss',
+            surveyUrl: undefined,
+          })
+        );
+      });
+
+      expect(mockCore.hips.visible).toBe(true);
+      expect(mockCore.hips.url).toBe('https://hips.example/dss/');
+    });
+
+    it('disables survey when no URL can be resolved', () => {
+      const { result } = renderHook(() => useStellariumStore());
+      const mockCore = {
+        hips: { visible: true, url: 'https://previous.example/' },
+        landscapes: { addDataSource: jest.fn(), visible: false, fog_visible: false },
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mockStel = { core: mockCore } as any;
+
+      act(() => {
+        result.current.setStel(mockStel);
+        result.current.updateStellariumCore(
+          createMockSettings({
+            surveyEnabled: true,
+            surveyId: 'unknown-survey',
+            surveyUrl: '',
+          })
+        );
+      });
+
+      expect(mockCore.hips.visible).toBe(false);
     });
   });
 });

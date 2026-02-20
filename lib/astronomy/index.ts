@@ -10,6 +10,7 @@ export * from './coordinates';
 
 // Time calculations (Julian Date, Sidereal Time)
 export * from './time';
+export * from './time-scales';
 
 // Celestial body positions (Sun, Moon)
 export * from './celestial';
@@ -34,3 +35,10 @@ export * from './navigation';
 
 // Coordinate validators
 export * from './coordinate-validators';
+
+// Coordinate frame pipeline
+export * from './frames';
+export * from './pipeline';
+
+// Unified astronomy engine (Tauri + fallback)
+export * from './engine';

@@ -16,6 +16,7 @@ import { useStellariumStore } from '@/lib/stores';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import { useGlobalAnimationLoop } from './use-animation-frame';
 import { createLogger } from '@/lib/logger';
+import { viewVectorToNdc } from '@/lib/core/stellarium-projection';
 
 const logger = createLogger('use-coordinate-projection');
 
@@ -84,10 +85,7 @@ export interface UseBatchProjectionOptions<T> {
 // Core Projection Functions
 // ============================================================================
 
-/**
- * Creates a Stellarium-specific coordinate projector
- * Uses gnomonic (rectilinear) projection - inverse of getClickCoordinates
- */
+/** Creates a Stellarium-specific coordinate projector using the active core projection. */
 function createStellariumProjector(
   stel: NonNullable<ReturnType<typeof useStellariumStore.getState>['stel']>,
   containerWidth: number,
@@ -100,18 +98,19 @@ function createStellariumProjector(
       const decRad = dec * stel.D2R;
       const icrfVec = stel.s2c(raRad, decRad);
       const viewVec = stel.convertFrame(stel.observer, 'ICRF', 'VIEW', icrfVec);
-
-      if (viewVec[2] > 0) {
+      if (Array.isArray(viewVec) && viewVec.length >= 3 && viewVec[2] >= 0) {
         return { x: 0, y: 0, visible: false };
       }
-
-      const fov = stel.core.fov;
-      const aspect = containerWidth / containerHeight;
-      const scale = 1 / Math.tan(fov / 2);
-      const projX = viewVec[0] / (-viewVec[2]);
-      const projY = viewVec[1] / (-viewVec[2]);
-      const ndcX = (projX * scale) / aspect;
-      const ndcY = projY * scale;
+      const ndc = viewVectorToNdc(viewVec, {
+        projection: stel.core.projection,
+        fov: stel.core.fov,
+        aspect: containerWidth / containerHeight,
+      });
+      if (!ndc) {
+        return { x: 0, y: 0, visible: false };
+      }
+      const ndcX = ndc.x;
+      const ndcY = ndc.y;
 
       if (Math.abs(ndcX) > visibilityMargin || Math.abs(ndcY) > visibilityMargin) {
         return { x: 0, y: 0, visible: false };

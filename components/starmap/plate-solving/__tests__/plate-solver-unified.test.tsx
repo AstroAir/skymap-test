@@ -81,6 +81,10 @@ jest.mock('@tauri-apps/api/core', () => ({
   invoke: jest.fn(),
 }));
 
+jest.mock('@tauri-apps/api/event', () => ({
+  listen: jest.fn(async () => jest.fn()),
+}));
+
 // Mock app-control-api
 jest.mock('@/lib/tauri/app-control-api', () => ({
   isTauri: jest.fn(() => true),
@@ -91,6 +95,23 @@ const mockIsTauri = jest.requireMock('@/lib/tauri/app-control-api').isTauri;
 // Mock plate-solver-api
 jest.mock('@/lib/tauri/plate-solver-api', () => ({
   solveImageLocal: jest.fn(),
+  solveOnline: jest.fn().mockResolvedValue({
+    success: true,
+    ra: 180.1,
+    dec: 45.05,
+    orientation: 12.5,
+    pixscale: 1.2,
+    radius: 1.5,
+    parity: 1,
+    fov_width: 2.5,
+    fov_height: 1.8,
+    objects_in_field: ['M31'],
+    annotations: [],
+    job_id: 123,
+    wcs: null,
+    solve_time_ms: 1200,
+    error_message: null,
+  }),
   cancelPlateSolve: jest.fn().mockResolvedValue(undefined),
   convertToLegacyResult: jest.fn((result) => ({
     success: result.success,

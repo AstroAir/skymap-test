@@ -63,12 +63,15 @@ import {
 import { toast } from 'sonner';
 import { tauriApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
+import { usePlanningUiStore } from '@/lib/stores/planning-ui-store';
+import { useSessionPlanStore } from '@/lib/stores/session-plan-store';
 import type { 
   ObservationSession, 
   Observation, 
   ObservationStats,
 } from '@/lib/tauri/types';
 import type { ObservationLogProps } from '@/types/starmap/planning';
+import type { SessionDraftV2 } from '@/types/starmap/session-planner-v2';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('observation-log');
@@ -103,6 +106,9 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
   const [obsRating, setObsRating] = useState<number>(3);
   const [obsDifficulty, setObsDifficulty] = useState<number>(3);
   const [obsNotes, setObsNotes] = useState('');
+  const savedPlans = useSessionPlanStore((state) => state.savedPlans);
+  const importPlanV2 = useSessionPlanStore((state) => state.importPlanV2);
+  const openSessionPlanner = usePlanningUiStore((state) => state.openSessionPlanner);
 
   // Load data
   const loadData = useCallback(async () => {
@@ -163,6 +169,49 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       toast.error(t('observationLog.createFailed'));
     }
   }, [newSessionDate, newSessionLocation, newSessionNotes, newSessionSeeing, newSessionTransparency, newSessionBortle, t, loadData]);
+
+  const handleCreateDraftFromLatestPlan = useCallback(() => {
+    if (savedPlans.length === 0) {
+      toast.error(t('observationLog.noPlannerSession'));
+      return;
+    }
+
+    const latestPlan = savedPlans[0];
+    const manualEdits = latestPlan.targets.map((target) => {
+      const start = new Date(target.startTime);
+      const end = new Date(target.endTime);
+      const durationMinutes = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+      return {
+        targetId: target.targetId,
+        startTime: start.toTimeString().slice(0, 5),
+        endTime: end.toTimeString().slice(0, 5),
+        durationMinutes,
+        locked: true,
+      };
+    });
+
+    const draft: SessionDraftV2 = {
+      planDate: latestPlan.planDate,
+      strategy: latestPlan.strategy,
+      constraints: {
+        minAltitude: latestPlan.minAltitude,
+        minImagingTime: latestPlan.minImagingTime,
+        minMoonDistance: 20,
+      },
+      excludedTargetIds: latestPlan.excludedTargetIds,
+      manualEdits,
+      notes: latestPlan.notes,
+      weatherSnapshot: latestPlan.weatherSnapshot,
+    };
+
+    importPlanV2(
+      draft,
+      `${t('sessionPlanner.title')} - ${new Date(latestPlan.planDate).toLocaleDateString()}`,
+    );
+    setOpen(false);
+    openSessionPlanner();
+    toast.success(t('observationLog.plannerDraftCreated'));
+  }, [importPlanV2, openSessionPlanner, savedPlans, t]);
 
   // Add observation to session
   const handleAddObservation = useCallback(async () => {
@@ -320,6 +369,16 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     {t('observationLog.newSession')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleCreateDraftFromLatestPlan}
+                    disabled={savedPlans.length === 0}
+                    data-testid="observation-log-create-planner-draft"
+                  >
+                    <ChevronRight className="h-4 w-4 mr-2" />
+                    {t('observationLog.usePlannerSession')}
                   </Button>
 
                   {/* Active Session Indicator */}

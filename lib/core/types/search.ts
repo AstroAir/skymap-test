@@ -10,6 +10,7 @@ import type { StellariumObject } from './stellarium';
 
 export type SearchResultType = 
   | 'Comet' 
+  | 'Asteroid'
   | 'Planet' 
   | 'Star' 
   | 'Moon' 
@@ -31,6 +32,8 @@ export interface SearchResultItem {
   _fuzzyScore?: number;
   _isOnlineResult?: boolean;
   _onlineSource?: string;
+  _sourcePriority?: number;
+  _angularSeparation?: number; // arcsec from coordinate query center
   _currentAltitude?: number;
   _isVisible?: boolean;
   _transitTime?: Date;
@@ -48,7 +51,8 @@ export type ObjectTypeCategory =
   | 'cluster' 
   | 'star' 
   | 'planet' 
-  | 'comet' 
+  | 'comet'
+  | 'asteroid'
   | 'other';
 
 // ============================================================================
@@ -63,6 +67,7 @@ export type ObjectType =
   | 'star' 
   | 'planet' 
   | 'comet' 
+  | 'asteroid'
   | 'constellation';
 
 export type SortOption = 

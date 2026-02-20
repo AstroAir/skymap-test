@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, memo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   X, ChevronDown, ChevronUp, Crosshair, Plus,
-  Compass, TrendingUp, ArrowUp, Info, Sun, Ruler,
+  Compass, TrendingUp, ArrowUp, Info, Sun, Ruler, ShieldAlert, Clock3,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -260,6 +260,38 @@ export const InfoPanel = memo(function InfoPanel({
                           <span className="text-foreground">{targetData.visibility.transitAltitude.toFixed(1)}°</span>
                         </div>
                       </div>
+
+                      {/* Coordinate metadata */}
+                      <div className="rounded-md border border-border/70 bg-muted/30 p-2 text-[11px] space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Frame / TimeScale</span>
+                          <span className="font-mono text-foreground">{targetData.frame} / {targetData.timeScale}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Quality / EOP</span>
+                          <span className="font-mono text-foreground">{targetData.qualityFlag} / {targetData.dataFreshness}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" /> Timestamp</span>
+                          <span className="font-mono text-foreground">{new Date(targetData.updatedAt).toLocaleTimeString()}</span>
+                        </div>
+                      </div>
+
+                      {(targetData.riskHints?.length ?? 0) > 0 && (
+                        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px]">
+                          <div className="flex items-center gap-1 text-amber-300 mb-1">
+                            <ShieldAlert className="h-3 w-3" />
+                            <span>Risk Hints</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {(targetData.riskHints ?? []).map((risk) => (
+                              <Badge key={risk} variant="outline" className="text-[10px] border-amber-500/40 text-amber-200">
+                                {risk}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Feasibility Score */}
                       <FeasibilityBadge feasibility={targetData.feasibility} variant="inline" tooltipSide="right" />

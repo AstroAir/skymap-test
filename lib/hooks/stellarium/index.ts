@@ -8,3 +8,7 @@ export { useStellariumEvents } from './use-stellarium-events';
 export { useObserverSync } from './use-observer-sync';
 export { useSettingsSync } from './use-settings-sync';
 export { useStellariumLoader } from './use-stellarium-loader';
+export { useStellariumCalendar } from './use-stellarium-calendar';
+export { useStellariumFonts } from './use-stellarium-fonts';
+export { useStellariumLayerApi } from './use-stellarium-layer-api';
+export { useStellariumValueWatch } from './use-stellarium-value-watch';

@@ -37,6 +37,7 @@ once_cell = "1.19"
 futures-util = "0.3"
 tokio = { version = "1", features = ["sync", "time", "macros"] }
 time = { version = "0.3", features = ["formatting", "macros"] }
+keyring = "3"
 
 # Native disk space API
 [target.'cfg(unix)'.dependencies]

@@ -45,6 +45,9 @@ describe('useTargetListStore', () => {
       result.current.setFilterTags([]);
       result.current.setSortBy('manual');
       result.current.setSortOrder('asc');
+      result.current.setScoreProfile('imaging');
+      result.current.setScoreVersion('v2');
+      result.current.setScoreBreakdownVisibility('collapsed');
       result.current.setShowArchived(false);
     });
   });
@@ -714,6 +717,49 @@ describe('useTargetListStore', () => {
 
       const filtered = result.current.getFilteredTargets();
       expect(filtered.map(t => t.name)).toEqual(['B', 'A', 'C']);
+    });
+
+    it('should sort feasibility ascending and descending consistently', () => {
+      const { result } = renderHook(() => useTargetListStore());
+
+      act(() => {
+        result.current.addTarget({ ...mockTarget, name: 'Short Window' });
+        result.current.addTarget({ ...mockTarget, name: 'Long Window' });
+      });
+
+      const shortId = result.current.targets.find((t) => t.name === 'Short Window')!.id;
+      const longId = result.current.targets.find((t) => t.name === 'Long Window')!.id;
+
+      act(() => {
+        result.current.updateObservableWindow(shortId, {
+          start: new Date('2026-01-01T20:00:00Z'),
+          end: new Date('2026-01-01T21:00:00Z'),
+          maxAltitude: 35,
+          transitTime: new Date('2026-01-01T20:30:00Z'),
+          isCircumpolar: false,
+        });
+        result.current.updateObservableWindow(longId, {
+          start: new Date('2026-01-01T20:00:00Z'),
+          end: new Date('2026-01-02T02:00:00Z'),
+          maxAltitude: 75,
+          transitTime: new Date('2026-01-01T23:00:00Z'),
+          isCircumpolar: true,
+        });
+        result.current.setSortBy('feasibility');
+        result.current.setSortOrder('asc');
+      });
+
+      let filtered = result.current.getFilteredTargets();
+      expect(filtered[0].name).toBe('Short Window');
+      expect(filtered[1].name).toBe('Long Window');
+
+      act(() => {
+        result.current.setSortOrder('desc');
+      });
+
+      filtered = result.current.getFilteredTargets();
+      expect(filtered[0].name).toBe('Long Window');
+      expect(filtered[1].name).toBe('Short Window');
     });
   });
 

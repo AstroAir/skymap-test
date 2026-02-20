@@ -4,9 +4,12 @@ import { useState } from 'react';
 import { StellariumView, SplashScreen } from '@/components/starmap';
 import { LogPanel } from '@/components/common';
 import { useCacheInit, useWindowState } from '@/lib/hooks';
+import { useSettingsStore } from '@/lib/stores';
 
 export default function StarmapPage() {
-  const [showSplash, setShowSplash] = useState(true);
+  const showSplashPreference = useSettingsStore((state) => state.preferences.showSplash);
+  const [splashDismissed, setSplashDismissed] = useState(false);
+  const showSplash = showSplashPreference && !splashDismissed;
   
   // Initialize unified cache system
   useCacheInit({ strategy: 'cache-first', enableInterception: true });
@@ -15,11 +18,11 @@ export default function StarmapPage() {
   useWindowState();
 
   return (
-    <main className="relative w-screen h-screen bg-black overflow-hidden">
+    <main className="relative w-screen h-screen h-dvh min-h-screen min-h-dvh bg-black overflow-hidden">
       {showSplash && (
-        <SplashScreen onComplete={() => setShowSplash(false)} />
+        <SplashScreen onComplete={() => setSplashDismissed(true)} />
       )}
-      <StellariumView />
+      <StellariumView showSplash={showSplash} />
       <LogPanel />
     </main>
   );

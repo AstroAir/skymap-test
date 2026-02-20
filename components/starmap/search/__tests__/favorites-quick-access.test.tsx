@@ -14,6 +14,8 @@ jest.mock('@/lib/stores', () => ({
     removeTag: jest.fn(),
     clearRecentlyViewed: jest.fn(),
     getAllTags: jest.fn(() => []),
+    exportFavorites: jest.fn(() => []),
+    importFavorites: jest.fn(() => ({ imported: 0, skipped: 0 })),
   })),
   FAVORITE_TAGS: ['imaging', 'visual', 'easy', 'challenging', 'spring', 'summer', 'autumn', 'winter'],
 }));
@@ -201,5 +203,50 @@ describe('FavoritesQuickAccess', () => {
     // Should show tag filter badges
     const badges = screen.getAllByTestId('badge');
     expect(badges.length).toBeGreaterThan(0);
+  });
+
+  it('calls exportFavorites when export button is clicked', () => {
+    const { useFavoritesStore } = jest.requireMock('@/lib/stores');
+    const exportFavorites = jest.fn(() => []);
+    useFavoritesStore.mockReturnValue({
+      favorites: [],
+      recentlyViewed: [],
+      removeFavorite: jest.fn(),
+      addTag: jest.fn(),
+      removeTag: jest.fn(),
+      clearRecentlyViewed: jest.fn(),
+      getAllTags: jest.fn(() => []),
+      exportFavorites,
+      importFavorites: jest.fn(() => ({ imported: 0, skipped: 0 })),
+    });
+
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: jest.fn(() => 'blob:test'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: jest.fn(),
+    });
+
+    render(<FavoritesQuickAccess {...defaultProps} />);
+    fireEvent.click(screen.getByText('targetList.exportAs'));
+
+    expect(exportFavorites).toHaveBeenCalled();
+
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: originalCreateObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: originalRevokeObjectURL,
+    });
   });
 });

@@ -4,13 +4,31 @@ import { useEffect, useCallback, useRef, type RefObject } from 'react';
 import type A from 'aladin-lite';
 import type { SelectedObjectData, ClickCoords } from '@/lib/core/types';
 import { LONG_PRESS_DURATION, TOUCH_MOVE_THRESHOLD } from '@/lib/core/constants/stellarium-canvas';
+import { raDecToAltAzAtTime } from '@/lib/astronomy/coordinates/transforms';
 import { formatRaString, formatDecString, buildClickCoords } from '@/lib/astronomy/coordinates/format-coords';
-import { useStellariumStore } from '@/lib/stores';
+import { searchOnlineByCoordinates } from '@/lib/services/online-search-service';
+import { useMountStore, useStellariumStore } from '@/lib/stores';
+import { getFoVCompat } from '@/lib/aladin/aladin-compat';
 import { createLogger } from '@/lib/logger';
 
 type AladinInstance = ReturnType<typeof A.aladin>;
 
 const logger = createLogger('aladin-events');
+
+// Minimum angular separation (degrees) to accept a SIMBAD match as the clicked object.
+// Objects farther than this from the click point are rejected.
+const MAX_MATCH_SEPARATION_DEG = 0.25;
+
+/** Haversine angular distance in degrees between two sky positions (both in degrees). */
+function angularSeparation(ra1: number, dec1: number, ra2: number, dec2: number): number {
+  const toRad = Math.PI / 180;
+  const dRa = (ra2 - ra1) * toRad;
+  const dDec = (dec2 - dec1) * toRad;
+  const a =
+    Math.sin(dDec / 2) ** 2 +
+    Math.cos(dec1 * toRad) * Math.cos(dec2 * toRad) * Math.sin(dRa / 2) ** 2;
+  return (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) / toRad;
+}
 
 interface UseAladinEventsOptions {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -46,11 +64,17 @@ export function useAladinEvents({
     onHoverChangeRef.current = onHoverChange;
   });
 
-  // Flag to suppress the generic `click` deselect when `objectClicked` just
-  // fired in the same event cycle.  Aladin fires both events for object clicks,
-  // so without this guard the `click` handler would immediately deselect the
-  // object that `objectClicked` just selected.
+  // Flag to suppress the generic `click` handler when `objectClicked` just
+  // fired.  Aladin fires both events for catalog-source clicks; without this
+  // guard the `click` handler would start a redundant SIMBAD lookup.
+  // Uses setTimeout (not queueMicrotask) for robustness — gives a wider window
+  // in case events fire in separate microtask batches.
   const objectClickedRef = useRef(false);
+  const objectClickedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Abort controller for pending SIMBAD coordinate queries — each new click
+  // (or objectClicked) cancels the previous in-flight lookup.
+  const simbadAbortRef = useRef<AbortController | null>(null);
 
   // Register Aladin event handlers exactly once per engine instance.
   // Aladin Lite v3 has no off() / removeEventListener, so we must not
@@ -68,11 +92,20 @@ export function useAladinEvents({
       const cb = onSelectionChangeRef.current;
       if (!cb) return;
 
-      // Set flag so the subsequent `click` event doesn't deselect
+      // Cancel any pending SIMBAD lookup from a previous click — prevents
+      // stale results from overwriting this catalog-based selection.
+      simbadAbortRef.current?.abort();
+      simbadAbortRef.current = null;
+
+      // Set flag so the subsequent `click` event doesn't trigger a redundant
+      // SIMBAD lookup.  Use setTimeout with 100 ms window (not queueMicrotask)
+      // to handle cases where events fire in separate microtask batches.
       objectClickedRef.current = true;
-      // Clear the flag asynchronously — by the next microtask the `click`
-      // handler (which fires synchronously in the same cycle) will have run.
-      queueMicrotask(() => { objectClickedRef.current = false; });
+      if (objectClickedTimerRef.current) clearTimeout(objectClickedTimerRef.current);
+      objectClickedTimerRef.current = setTimeout(() => {
+        objectClickedRef.current = false;
+        objectClickedTimerRef.current = null;
+      }, 100);
 
       if (!object || typeof object !== 'object') {
         cb(null);
@@ -103,7 +136,8 @@ export function useAladinEvents({
       }
     });
 
-    // Click on empty space → deselect (only when no object was clicked)
+    // Click on sky → resolve clicked position (like Stellarium's click-to-select).
+    // Aladin Lite v3 'click' event provides {ra, dec, x, y, isDragging}.
     aladin.on('click', (event: unknown) => {
       // Skip if objectClicked just fired — that handler already set the selection
       if (objectClickedRef.current) return;
@@ -111,10 +145,105 @@ export function useAladinEvents({
       const cb = onSelectionChangeRef.current;
       if (!cb) return;
       if (!event || typeof event !== 'object') return;
+
       const e = event as Record<string, unknown>;
-      if (!e.data) {
-        cb(null);
+
+      // Ignore drag-end clicks
+      if (e.isDragging === true) return;
+
+      // Extract RA/Dec from click event (Aladin v3 provides them directly)
+      let ra: number | undefined;
+      let dec: number | undefined;
+
+      if (typeof e.ra === 'number' && typeof e.dec === 'number') {
+        ra = e.ra;
+        dec = e.dec;
+      } else if (typeof e.x === 'number' && typeof e.y === 'number') {
+        // Fallback: convert pixel → world via aladin instance
+        const worldCoords = aladin.pix2world(e.x as number, e.y as number);
+        if (worldCoords) {
+          [ra, dec] = worldCoords;
+        }
       }
+
+      if (ra === undefined || dec === undefined) {
+        cb(null);
+        return;
+      }
+
+      // Immediate coordinate-based selection (instant feedback, no waiting)
+      const coordName = `${formatRaString(ra)} ${formatDecString(dec)}`;
+      cb({
+        names: [coordName],
+        ra: formatRaString(ra),
+        dec: formatDecString(dec),
+        raDeg: ra,
+        decDeg: dec,
+      });
+
+      // Cancel any in-flight SIMBAD query from a previous click
+      simbadAbortRef.current?.abort();
+      const abortController = new AbortController();
+      simbadAbortRef.current = abortController;
+
+      // Adaptive search radius based on FOV-to-pixel ratio.
+      // At any zoom, ~10 px click tolerance ≈ currentFov / viewWidth * 10.
+      // Clamp between 0.003° (~10 arcsec) and 0.15° (9 arcmin).
+      const currentFov = getFoVCompat(aladin) ?? 60;
+      const viewSize = typeof aladin.getSize === 'function'
+        ? aladin.getSize()
+        : [800, 600];
+      const viewWidth = Array.isArray(viewSize) ? (viewSize[0] as number) : 800;
+      const pixelScale = currentFov / viewWidth; // degrees per pixel
+      const clickTolerancePx = 12;
+      const searchRadius = Math.max(0.003, Math.min(0.15, pixelScale * clickTolerancePx));
+
+      // Async SIMBAD lookup to enrich the selection with object name/type/mag
+      searchOnlineByCoordinates(
+        { ra, dec, radius: searchRadius },
+        { sources: ['simbad'], limit: 3, timeout: 6000, signal: abortController.signal }
+      )
+        .then((response) => {
+          // Bail if this query was superseded
+          if (abortController.signal.aborted) return;
+
+          // Find the closest result that is within an acceptable angular
+          // distance from the click point.
+          const maxSep = Math.min(MAX_MATCH_SEPARATION_DEG, searchRadius * 2);
+          let best: (typeof response.results)[number] | undefined;
+          let bestDist = Infinity;
+          for (const r of response.results) {
+            const d = angularSeparation(ra!, dec!, r.ra, r.dec);
+            if (d < bestDist && d <= maxSep) {
+              bestDist = d;
+              best = r;
+            }
+          }
+
+          if (!best) return; // No close-enough object — keep coordinate selection
+
+          const enriched: SelectedObjectData = {
+            names: best.alternateNames
+              ? [best.name, ...best.alternateNames]
+              : [best.name],
+            ra: best.raString ?? formatRaString(best.ra),
+            dec: best.decString ?? formatDecString(best.dec),
+            raDeg: best.ra,
+            decDeg: best.dec,
+            type: best.type !== 'Unknown' ? best.type : undefined,
+            magnitude: best.magnitude,
+          };
+
+          // Only update if the callback ref is still alive
+          onSelectionChangeRef.current?.(enriched);
+          logger.debug(
+            `Resolved click → ${best.name} (${best.type}, dist=${bestDist.toFixed(4)}°)`
+          );
+        })
+        .catch((err) => {
+          if ((err as Error).name === 'AbortError') return;
+          logger.debug('SIMBAD coordinate lookup failed (keeping coordinate selection)', err);
+        });
     });
 
     // Position changed → update store view direction in real-time (replaces polling)
@@ -124,8 +253,28 @@ export function useAladinEvents({
       const pos = position as Record<string, unknown>;
       const ra = typeof pos.ra === 'number' ? pos.ra : 0;
       const dec = typeof pos.dec === 'number' ? pos.dec : 0;
+      const location = useMountStore.getState().profileInfo.AstrometrySettings;
+      const hasValidLocation = Number.isFinite(location.Latitude) && Number.isFinite(location.Longitude);
+      let altDeg = Number.NaN;
+      let azDeg = Number.NaN;
+      if (hasValidLocation) {
+        const altAz = raDecToAltAzAtTime(
+          ra,
+          dec,
+          location.Latitude,
+          location.Longitude,
+          new Date()
+        );
+        altDeg = altAz.altitude;
+        azDeg = altAz.azimuth;
+      }
       useStellariumStore.setState({
-        viewDirection: { ra: ra * D2R, dec: dec * D2R, alt: 0, az: 0 },
+        viewDirection: {
+          ra: ra * D2R,
+          dec: dec * D2R,
+          alt: altDeg * D2R,
+          az: azDeg * D2R,
+        },
       });
     });
 
@@ -148,6 +297,9 @@ export function useAladinEvents({
     return () => {
       // On unmount, clear the tracked instance so a new mount can re-register
       registeredAladinRef.current = null;
+      // Cancel any pending SIMBAD query
+      simbadAbortRef.current?.abort();
+      if (objectClickedTimerRef.current) clearTimeout(objectClickedTimerRef.current);
     };
   }, [aladinRef, engineReady]);
 

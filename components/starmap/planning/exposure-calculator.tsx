@@ -66,7 +66,13 @@ import {
   calculateTotalIntegration,
   formatDuration,
 } from '@/lib/astronomy/astro-utils';
-import { calculateSNR, estimateFileSize, calculateOptimalSubExposure, estimateSessionTime } from '@/lib/astronomy/exposure-utils';
+import {
+  calculateSNR,
+  estimateFileSize,
+  calculateOptimalSubExposure,
+  estimateSessionTime,
+  calculateSmartExposure,
+} from '@/lib/astronomy/exposure-utils';
 import { checkSampling } from '@/lib/astronomy/imaging/exposure';
 import { COMMON_FILTERS, BINNING_OPTIONS, IMAGE_TYPES, FILTER_SEQUENCE_PRESETS } from '@/lib/core/constants/planning';
 import type { ExposurePlan, ExposureCalculatorProps } from '@/types/starmap/planning';
@@ -144,6 +150,12 @@ function ExposureTimeSlider({
   );
 }
 
+const GAIN_STRATEGY_OPTIONS = [
+  { value: 'unity' as const, labelKey: 'exposure.gainStrategyUnity' },
+  { value: 'max_dynamic_range' as const, labelKey: 'exposure.gainStrategyMaxDynamicRange' },
+  { value: 'manual' as const, labelKey: 'exposure.gainStrategyManual' },
+];
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -189,12 +201,36 @@ export function ExposureCalculator({
   
   // UI state
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Professional model defaults (Smart Histogram style)
+  const [sqmOverride, setSqmOverride] = useState<number | undefined>(exposureDefaults.sqmOverride);
+  const [filterBandwidthNm, setFilterBandwidthNm] = useState(
+    exposureDefaults.filterBandwidthNm
+      ?? COMMON_FILTERS.find((f) => f.id === exposureDefaults.filter)?.bandwidthNm
+      ?? 300
+  );
+  const [readNoiseLimitPercent, setReadNoiseLimitPercent] = useState(exposureDefaults.readNoiseLimitPercent ?? 5);
+  const [gainStrategy, setGainStrategy] = useState<'unity' | 'max_dynamic_range' | 'manual'>(
+    exposureDefaults.gainStrategy ?? 'unity'
+  );
+  const [manualGain, setManualGain] = useState(exposureDefaults.manualGain ?? exposureDefaults.gain);
+  const [manualReadNoiseEnabled, setManualReadNoiseEnabled] = useState(exposureDefaults.manualReadNoiseEnabled ?? false);
+  const [manualReadNoise, setManualReadNoise] = useState(exposureDefaults.manualReadNoise ?? 1.8);
+  const [manualDarkCurrent, setManualDarkCurrent] = useState(exposureDefaults.manualDarkCurrent ?? 0.002);
+  const [manualFullWell, setManualFullWell] = useState(exposureDefaults.manualFullWell ?? 50000);
+  const [manualQE, setManualQE] = useState(exposureDefaults.manualQE ?? 0.8);
+  const [manualEPeraDu, setManualEPeraDu] = useState(exposureDefaults.manualEPeraDu ?? 1);
+  const [targetSurfaceBrightness, setTargetSurfaceBrightness] = useState(exposureDefaults.targetSurfaceBrightness ?? 22);
+  const [targetSignalRate, setTargetSignalRate] = useState(exposureDefaults.targetSignalRate ?? 0);
   
   // Calculations
-  const isNarrowband = useMemo(() => {
-    const filterInfo = COMMON_FILTERS.find(f => f.id === filter);
-    return filterInfo?.type === 'narrowband';
+  const selectedFilterInfo = useMemo(() => {
+    return COMMON_FILTERS.find((f) => f.id === filter);
   }, [filter]);
+
+  const isNarrowband = useMemo(() => {
+    return selectedFilterInfo?.type === 'narrowband';
+  }, [selectedFilterInfo]);
   
   const exposureCalc = useMemo(() => {
     return calculateExposure({
@@ -223,6 +259,63 @@ export function ExposureCalculator({
   const optimalSub = useMemo(() => {
     return calculateOptimalSubExposure(bortle, fRatio, pixelSize, focalLength, isNarrowband, undefined, gain);
   }, [bortle, fRatio, pixelSize, focalLength, isNarrowband, gain]);
+
+  const smartExposure = useMemo(() => {
+    const maxExposureSec = tracking === 'none'
+      ? Math.max(10, Math.floor(exposureCalc.maxUntracked))
+      : 600;
+
+    return calculateSmartExposure({
+      camera: manualReadNoiseEnabled
+        ? {
+            readNoise: manualReadNoise,
+            darkCurrent: manualDarkCurrent,
+            fullWell: manualFullWell,
+            qe: manualQE,
+            ePerAdu: manualEPeraDu,
+          }
+        : undefined,
+      sky: {
+        bortle,
+        sqm: sqmOverride,
+        filterBandwidthNm,
+        isNarrowband,
+        fRatio,
+        pixelSize,
+        focalLength,
+        targetSurfaceBrightness,
+        targetSignalRate: targetSignalRate > 0 ? targetSignalRate : undefined,
+      },
+      readNoiseLimitPercent,
+      gainStrategy,
+      manualGain,
+      minExposureSec: 2,
+      maxExposureSec,
+      targetSNR: 10,
+      targetTimeNoiseRatio: 80,
+    });
+  }, [
+    exposureCalc.maxUntracked,
+    manualReadNoiseEnabled,
+    manualReadNoise,
+    manualDarkCurrent,
+    manualFullWell,
+    manualQE,
+    manualEPeraDu,
+    bortle,
+    sqmOverride,
+    filterBandwidthNm,
+    isNarrowband,
+    fRatio,
+    pixelSize,
+    focalLength,
+    targetSurfaceBrightness,
+    targetSignalRate,
+    readNoiseLimitPercent,
+    gainStrategy,
+    manualGain,
+    tracking,
+  ]);
   
   const totalIntegrationMinutes = useMemo(() => {
     return (exposureTime * frameCount) / 60;
@@ -263,12 +356,64 @@ export function ExposureCalculator({
     totalFrames: frameCount,
     estimatedFileSize: fileSize,
     estimatedTime: formatDuration(totalIntegrationMinutes),
-  }), [exposureTime, gain, offset, binning, imageType, frameCount, filter, ditherEvery, ditherEnabled, totalIntegrationMinutes, fileSize]);
+    advanced: {
+      sqm: sqmOverride ?? bortleInfo?.sqm,
+      filterBandwidthNm,
+      readNoiseLimitPercent,
+      gainStrategy: smartExposure.gainStrategyUsed,
+      recommendedGain: smartExposure.recommendedGain,
+      recommendedExposureSec: smartExposure.recommendedExposureSec,
+      skyFluxPerPixel: smartExposure.skyFluxPerPixel,
+      targetSignalPerPixelPerSec: smartExposure.targetSignalPerPixelPerSec,
+      dynamicRangeScore: smartExposure.dynamicRangeScore,
+      dynamicRangeStops: smartExposure.dynamicRangeStops,
+      readNoiseUsed: smartExposure.readNoiseUsed,
+      darkCurrentUsed: smartExposure.darkCurrentUsed,
+      noiseFractions: {
+        read: smartExposure.noiseBreakdown.readFraction,
+        sky: smartExposure.noiseBreakdown.skyFraction,
+        dark: smartExposure.noiseBreakdown.darkFraction,
+      },
+      stackEstimate: {
+        recommendedFrameCount: smartExposure.stackEstimate.recommendedFrameCount,
+        estimatedTotalMinutes: smartExposure.stackEstimate.estimatedTotalMinutes,
+        framesForTargetSNR: smartExposure.stackEstimate.framesForTargetSNR,
+        framesForTimeNoise: smartExposure.stackEstimate.framesForTimeNoise,
+        targetSNR: smartExposure.stackEstimate.targetSNR,
+        targetTimeNoiseRatio: smartExposure.stackEstimate.targetTimeNoiseRatio,
+      },
+    },
+  }), [
+    exposureTime,
+    gain,
+    offset,
+    binning,
+    imageType,
+    frameCount,
+    filter,
+    ditherEvery,
+    ditherEnabled,
+    totalIntegrationMinutes,
+    fileSize,
+    sqmOverride,
+    bortleInfo?.sqm,
+    filterBandwidthNm,
+    readNoiseLimitPercent,
+    smartExposure,
+  ]);
   
   const handleApply = useCallback(() => {
     onExposurePlanChange?.(plan);
     setOpen(false);
   }, [plan, onExposurePlanChange]);
+
+  const handleFilterChange = useCallback((nextFilter: string) => {
+    setFilter(nextFilter);
+    const matched = COMMON_FILTERS.find((f) => f.id === nextFilter);
+    if (matched?.bandwidthNm) {
+      setFilterBandwidthNm(matched.bandwidthNm);
+    }
+  }, []);
   
   const handleReset = useCallback(() => {
     setFocalLength(propFocalLength ?? equipmentStore.focalLength);
@@ -281,11 +426,26 @@ export function ExposureCalculator({
     setBinning(exposureDefaults.binning);
     setImageType('LIGHT');
     setFilter(exposureDefaults.filter);
+    setFilterBandwidthNm(
+      exposureDefaults.filterBandwidthNm ?? COMMON_FILTERS.find((f) => f.id === exposureDefaults.filter)?.bandwidthNm ?? 300
+    );
     setFrameCount(exposureDefaults.frameCount);
     setDitherEnabled(exposureDefaults.ditherEnabled);
     setDitherEvery(exposureDefaults.ditherEvery);
     setTargetType(exposureDefaults.targetType);
     setTracking(exposureDefaults.tracking);
+    setSqmOverride(exposureDefaults.sqmOverride);
+    setReadNoiseLimitPercent(exposureDefaults.readNoiseLimitPercent ?? 5);
+    setGainStrategy(exposureDefaults.gainStrategy ?? 'unity');
+    setManualGain(exposureDefaults.manualGain ?? exposureDefaults.gain);
+    setManualReadNoiseEnabled(exposureDefaults.manualReadNoiseEnabled ?? false);
+    setManualReadNoise(exposureDefaults.manualReadNoise ?? 1.8);
+    setManualDarkCurrent(exposureDefaults.manualDarkCurrent ?? 0.002);
+    setManualFullWell(exposureDefaults.manualFullWell ?? 50000);
+    setManualQE(exposureDefaults.manualQE ?? 0.8);
+    setManualEPeraDu(exposureDefaults.manualEPeraDu ?? 1);
+    setTargetSurfaceBrightness(exposureDefaults.targetSurfaceBrightness ?? 22);
+    setTargetSignalRate(exposureDefaults.targetSignalRate ?? 0);
     setShowAdvanced(false);
   }, [propFocalLength, propAperture, propPixelSize, equipmentStore, exposureDefaults]);
 
@@ -409,7 +569,7 @@ export function ExposureCalculator({
                   <Filter className="h-3 w-3" />
                   {t('exposure.filter')}
                 </Label>
-                <Select value={filter} onValueChange={setFilter}>
+                <Select value={filter} onValueChange={handleFilterChange}>
                   <SelectTrigger className="h-8">
                     <SelectValue />
                   </SelectTrigger>
@@ -564,6 +724,170 @@ export function ExposureCalculator({
                     ))}
                   </ToggleGroup>
                 </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <p className="text-xs font-medium">{t('exposure.professionalParameters')}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.sqmOverride')}</Label>
+                      <Input
+                        type="number"
+                        value={sqmOverride ?? ''}
+                        placeholder="Auto"
+                        onChange={(e) => {
+                          const raw = e.target.value.trim();
+                          setSqmOverride(raw ? Math.max(16, Math.min(23, parseFloat(raw) || 0)) : undefined);
+                        }}
+                        step={0.01}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.filterBandwidthNm')}</Label>
+                      <Input
+                        type="number"
+                        value={filterBandwidthNm}
+                        onChange={(e) => setFilterBandwidthNm(Math.max(2, Math.min(300, parseFloat(e.target.value) || 300)))}
+                        className="h-8"
+                        min={2}
+                        max={300}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.readNoiseLimitPercent')}</Label>
+                      <div className="flex items-center gap-2">
+                        <Slider
+                          value={[readNoiseLimitPercent]}
+                          onValueChange={([v]) => setReadNoiseLimitPercent(Math.max(2, Math.min(20, v)))}
+                          min={2}
+                          max={20}
+                          step={1}
+                          className="flex-1"
+                        />
+                        <Badge variant="outline" className="min-w-10 justify-center">
+                          {readNoiseLimitPercent}%
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.gainStrategy')}</Label>
+                      <Select
+                        value={gainStrategy}
+                        onValueChange={(value) => setGainStrategy(value as typeof gainStrategy)}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GAIN_STRATEGY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {t(option.labelKey)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {gainStrategy === 'manual' && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t('exposure.manualGain')}</Label>
+                        <Input
+                          type="number"
+                          value={manualGain}
+                          onChange={(e) => setManualGain(Math.max(0, Math.min(300, parseInt(e.target.value) || 0)))}
+                          className="h-8"
+                          min={0}
+                          max={300}
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.targetSurfaceBrightness')}</Label>
+                      <Input
+                        type="number"
+                        value={targetSurfaceBrightness}
+                        onChange={(e) => setTargetSurfaceBrightness(Math.max(10, Math.min(30, parseFloat(e.target.value) || 22)))}
+                        className="h-8"
+                        step={0.1}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.targetSignalRate')}</Label>
+                      <Input
+                        type="number"
+                        value={targetSignalRate}
+                        onChange={(e) => setTargetSignalRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="h-8"
+                        step={0.01}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">{t('exposure.manualCameraNoise')}</Label>
+                    <p className="text-[10px] text-muted-foreground">{t('exposure.manualCameraNoiseDescription')}</p>
+                  </div>
+                  <Switch checked={manualReadNoiseEnabled} onCheckedChange={setManualReadNoiseEnabled} />
+                </div>
+
+                {manualReadNoiseEnabled && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.readNoiseE')}</Label>
+                      <Input
+                        type="number"
+                        value={manualReadNoise}
+                        onChange={(e) => setManualReadNoise(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                        className="h-8"
+                        step={0.1}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.darkCurrentE')}</Label>
+                      <Input
+                        type="number"
+                        value={manualDarkCurrent}
+                        onChange={(e) => setManualDarkCurrent(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="h-8"
+                        step={0.0001}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.fullWellE')}</Label>
+                      <Input
+                        type="number"
+                        value={manualFullWell}
+                        onChange={(e) => setManualFullWell(Math.max(1000, parseFloat(e.target.value) || 1000))}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.quantumEfficiency')}</Label>
+                      <Input
+                        type="number"
+                        value={manualQE}
+                        onChange={(e) => setManualQE(Math.max(0.05, Math.min(1, parseFloat(e.target.value) || 0.8)))}
+                        className="h-8"
+                        step={0.01}
+                        min={0.05}
+                        max={1}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('exposure.ePerAdu')}</Label>
+                      <Input
+                        type="number"
+                        value={manualEPeraDu}
+                        onChange={(e) => setManualEPeraDu(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                        className="h-8"
+                        step={0.01}
+                      />
+                    </div>
+                  </div>
+                )}
               </CollapsibleContent>
             </Collapsible>
           </TabsContent>
@@ -678,6 +1002,69 @@ export function ExposureCalculator({
                 <p className="text-[10px] text-muted-foreground">
                   {t('exposure.optimalSubDescription', { readNoise: optimalSub.readNoiseUsed.toFixed(1), skyFlux: optimalSub.skyFluxPerPixel.toFixed(2) })}
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">{t('exposure.professionalRecommendation')}</CardTitle>
+              </CardHeader>
+              <CardContent className="py-2 space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2 rounded-lg border border-primary/40 bg-primary/5">
+                    <p className="text-muted-foreground">{t('exposure.recommendedSubExposure')}</p>
+                    <p className="font-mono text-sm font-medium">{smartExposure.recommendedExposureSec.toFixed(0)}s</p>
+                  </div>
+                  <div className="p-2 rounded-lg border border-border">
+                    <p className="text-muted-foreground">{t('exposure.gain')}</p>
+                    <p className="font-mono text-sm font-medium">{smartExposure.recommendedGain.toFixed(0)}</p>
+                  </div>
+                  <div className="p-2 rounded-lg border border-border">
+                    <p className="text-muted-foreground">{t('exposure.usableExposureRange')}</p>
+                    <p className="font-mono text-sm">
+                      {smartExposure.exposureRangeSec.min.toFixed(0)}s - {smartExposure.exposureRangeSec.max.toFixed(0)}s
+                    </p>
+                  </div>
+                  <div className="p-2 rounded-lg border border-border">
+                    <p className="text-muted-foreground">{t('exposure.dynamicRange')}</p>
+                    <p className="font-mono text-sm">{smartExposure.dynamicRangeStops.toFixed(1)} stops</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                  <div className="p-2 rounded border border-border">
+                    <p className="text-muted-foreground">{t('exposure.readNoiseShort')}</p>
+                    <p className="font-mono">{(smartExposure.noiseBreakdown.readFraction * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="p-2 rounded border border-border">
+                    <p className="text-muted-foreground">{t('exposure.skyNoiseShort')}</p>
+                    <p className="font-mono">{(smartExposure.noiseBreakdown.skyFraction * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="p-2 rounded border border-border">
+                    <p className="text-muted-foreground">{t('exposure.darkNoiseShort')}</p>
+                    <p className="font-mono">{(smartExposure.noiseBreakdown.darkFraction * 100).toFixed(1)}%</p>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <p>
+                    {t('exposure.recommendedGainStrategy')}: {t(`exposure.gainStrategy${smartExposure.gainStrategyUsed === 'unity' ? 'Unity' : smartExposure.gainStrategyUsed === 'max_dynamic_range' ? 'MaxDynamicRange' : 'Manual'}`)}
+                  </p>
+                  <p>{smartExposure.recommendedGainReason}</p>
+                  <p>
+                    {t('exposure.stackPlan')}: {smartExposure.stackEstimate.recommendedFrameCount} {t('exposure.subs')} ·{' '}
+                    {formatDuration(smartExposure.stackEstimate.estimatedTotalMinutes)}
+                  </p>
+                  {smartExposure.stackEstimate.framesForTargetSNR && (
+                    <p>
+                      {t('exposure.framesForTargetSNR')}: {smartExposure.stackEstimate.framesForTargetSNR}
+                    </p>
+                  )}
+                  <p>{t('exposure.framesForTimeNoise')}: {smartExposure.stackEstimate.framesForTimeNoise}</p>
+                  <p>
+                    {t('exposure.constraints')}: {smartExposure.constraintHits.join(', ')}
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

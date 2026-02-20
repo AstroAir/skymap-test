@@ -27,5 +27,5 @@ pub use events::{
     AstroEvent, AstroEventType, MeteorShowerInfo, MoonPhaseEvent,
     // Tauri commands
     get_astro_events, get_meteor_showers, get_moon_phases_for_month, get_seasonal_events,
-    get_tonight_highlights,
+    get_daily_astro_events, get_tonight_highlights,
 };

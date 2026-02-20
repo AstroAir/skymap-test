@@ -14,7 +14,7 @@ test.describe('Marker Manager', () => {
     test('should have marker manager button', async ({ page }) => {
       const markerButton = page.getByRole('button', { name: /marker|标记/i })
         .or(page.locator('[data-testid="marker-manager-button"]'));
-      expect(await markerButton.count()).toBeGreaterThanOrEqual(0);
+      await expect(markerButton.first()).toBeVisible({ timeout: 3000 });
     });
 
     test('should open marker manager panel', async ({ page }) => {
@@ -22,10 +22,8 @@ test.describe('Marker Manager', () => {
       
       if (await markerButton.isVisible().catch(() => false)) {
         await markerButton.click();
-        await page.waitForTimeout(500);
-        
-        const panel = page.locator('[role="dialog"], [data-state="open"]');
-        expect(await panel.count()).toBeGreaterThanOrEqual(0);
+        const panel = page.getByRole('dialog').filter({ hasText: /sky markers|天空标注/i }).first();
+        await expect(panel).toBeVisible({ timeout: 3000 });
       }
     });
 
@@ -94,10 +92,12 @@ test.describe('Marker Manager', () => {
         );
         await page.waitForTimeout(500);
         
-        const addMarkerOption = page.locator('text=/add.*marker.*here|在此添加标记/i');
+        const addMarkerOption = page.getByRole('menuitem').filter({ hasText: /add.*marker.*here|在此添加标注|在此添加标记/i }).first();
         if (await addMarkerOption.isVisible().catch(() => false)) {
           await addMarkerOption.click();
-          await page.waitForTimeout(300);
+          const markerDialog = page.getByRole('dialog').filter({ hasText: /add marker|添加标注/i }).first();
+          await expect(markerDialog).toBeVisible({ timeout: 3000 });
+          await expect(markerDialog.locator('input#name')).toBeVisible({ timeout: 3000 });
         }
       }
     });

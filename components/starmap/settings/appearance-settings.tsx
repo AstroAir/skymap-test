@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useTheme } from 'next-themes';
 import { useTranslations } from 'next-intl';
 import {
@@ -11,8 +12,11 @@ import {
   Sparkles,
   Type,
   Circle,
+  Paintbrush,
+  WandSparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -25,23 +29,99 @@ import {
 } from '@/components/ui/select';
 import {
   useThemeStore,
+  customizableThemeColorKeys,
   themePresets,
   type ThemeCustomization,
+  type ThemeColors,
 } from '@/lib/stores/theme-store';
 import { cn } from '@/lib/utils';
-import { SettingsSection } from './settings-shared';
+import { SettingsSection, ToggleItem } from './settings-shared';
+
+function isValidCssColor(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (typeof window !== 'undefined' && window.CSS && typeof window.CSS.supports === 'function') {
+    return window.CSS.supports('color', normalized);
+  }
+
+  if (typeof document !== 'undefined') {
+    const tester = document.createElement('span').style;
+    tester.color = '';
+    tester.color = normalized;
+    return tester.color !== '';
+  }
+
+  return true;
+}
 
 export function AppearanceSettings() {
   const t = useTranslations();
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const [editingMode, setEditingMode] = useState<'light' | 'dark'>(resolvedTheme === 'dark' ? 'dark' : 'light');
+  const [drafts, setDrafts] = useState<Partial<Record<keyof ThemeColors, string>>>({});
+  const [invalidKey, setInvalidKey] = useState<keyof ThemeColors | null>(null);
 
   const {
     customization,
     setRadius,
     setFontFamily,
     setFontSize,
+    setAnimationsEnabled,
     setActivePreset,
+    setCustomColor,
+    clearCustomColor,
   } = useThemeStore();
+
+  const activePreset = themePresets.find((preset) => preset.id === customization.activePreset);
+  const presetColors = activePreset ? activePreset.colors[editingMode] : {};
+  const modeCustomColors = customization.customColors[editingMode];
+
+  const getCurrentInputValue = (key: keyof ThemeColors): string => (
+    drafts[key] ?? modeCustomColors[key] ?? presetColors[key] ?? ''
+  );
+
+  const updateDraft = (key: keyof ThemeColors, value: string) => {
+    setDrafts((prev) => ({ ...prev, [key]: value }));
+    if (invalidKey === key) {
+      setInvalidKey(null);
+    }
+  };
+
+  const commitColor = (key: keyof ThemeColors) => {
+    if (!Object.prototype.hasOwnProperty.call(drafts, key)) {
+      return;
+    }
+
+    const rawValue = (drafts[key] ?? '').trim();
+    if (!rawValue) {
+      clearCustomColor(editingMode, key);
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      if (invalidKey === key) {
+        setInvalidKey(null);
+      }
+      return;
+    }
+
+    if (!isValidCssColor(rawValue)) {
+      setInvalidKey(key);
+      return;
+    }
+
+    setCustomColor(editingMode, key, rawValue);
+    setInvalidKey(null);
+    setDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -128,6 +208,111 @@ export function AppearanceSettings() {
 
       <Separator />
 
+      {/* Color Customization */}
+      <SettingsSection
+        title={t('settingsNew.appearance.colors')}
+        icon={<Paintbrush className="h-4 w-4" />}
+        defaultOpen={false}
+      >
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs text-muted-foreground">{t('settingsNew.appearance.colorMode')}</Label>
+            <div className="inline-flex rounded-md border border-border p-0.5">
+              <Button
+                type="button"
+                variant={editingMode === 'light' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setEditingMode('light');
+                  setDrafts({});
+                  setInvalidKey(null);
+                }}
+              >
+                <Sun className="h-3 w-3 mr-1" />
+                {t('settingsNew.appearance.light')}
+              </Button>
+              <Button
+                type="button"
+                variant={editingMode === 'dark' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setEditingMode('dark');
+                  setDrafts({});
+                  setInvalidKey(null);
+                }}
+              >
+                <Moon className="h-3 w-3 mr-1" />
+                {t('settingsNew.appearance.dark')}
+              </Button>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">{t('theme.customOverridesPreset')}</p>
+
+          <div className="space-y-2">
+            {customizableThemeColorKeys.map((key) => {
+              const previewColor = modeCustomColors[key] ?? presetColors[key] ?? `var(--${key})`;
+              const value = getCurrentInputValue(key);
+              const isInvalid = invalidKey === key;
+
+              return (
+                <div key={key} className="rounded-md border border-border/70 p-2">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-6 w-6 rounded border border-border shrink-0"
+                      style={{ background: previewColor }}
+                    />
+                    <Label className="w-24 shrink-0 text-xs capitalize">
+                      {t(`theme.${key}`)}
+                    </Label>
+                    <Input
+                      value={value}
+                      onChange={(event) => updateDraft(key, event.target.value)}
+                      onBlur={() => commitColor(key)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      placeholder={t('theme.colorValuePlaceholder')}
+                      aria-invalid={isInvalid}
+                      className="h-8 font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => {
+                        clearCustomColor(editingMode, key);
+                        setDrafts((prev) => {
+                          const next = { ...prev };
+                          delete next[key];
+                          return next;
+                        });
+                        if (invalidKey === key) {
+                          setInvalidKey(null);
+                        }
+                      }}
+                      disabled={!modeCustomColors[key]}
+                    >
+                      {t('theme.clearColor')}
+                    </Button>
+                  </div>
+                  {isInvalid && (
+                    <p className="mt-1 text-[11px] text-destructive">{t('theme.invalidColor')}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </SettingsSection>
+
+      <Separator />
+
       {/* Border Radius */}
       <SettingsSection
         title={t('settingsNew.appearance.borderRadius')}
@@ -165,6 +350,25 @@ export function AppearanceSettings() {
               {t('settingsNew.appearance.preview')}
             </div>
           </div>
+        </div>
+      </SettingsSection>
+
+      <Separator />
+
+      {/* Animations */}
+      <SettingsSection
+        title={t('theme.animations')}
+        icon={<WandSparkles className="h-4 w-4" />}
+        defaultOpen={false}
+      >
+        <div className="space-y-2">
+          <ToggleItem
+            id="theme-animations-enabled"
+            label={t('theme.animations')}
+            description={t('settingsNew.appearance.enableAnimationsDesc')}
+            checked={customization.animationsEnabled}
+            onCheckedChange={setAnimationsEnabled}
+          />
         </div>
       </SettingsSection>
 

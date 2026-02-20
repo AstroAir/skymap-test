@@ -6,6 +6,28 @@
 
 天文计算模块位于 `lib/astronomy/`，提供纯函数的天文计算能力，无副作用，便于测试和复用。
 
+## 2026 架构更新（重要）
+
+当前版本已引入“**高精度核心 + 实时轻量显示**”双层策略，并将坐标/时制计算统一到单一管线：
+
+- `lib/astronomy/time-scales.ts`：UTC/UT1/TT 时间尺度上下文、EOP（ΔUT1）数据新鲜度、离线回退策略
+- `lib/astronomy/frames.ts`：`ICRF` / `CIRS` / `OBSERVED` / `VIEW` 帧语义与归一化工具
+- `lib/astronomy/pipeline.ts`：统一入口 `transformCoordinate()`，输出带元数据的坐标结果
+- `lib/astronomy/engine/`：统一天文计算引擎（Tauri 优先 + `astronomy-engine` 回退）
+
+### 坐标契约
+
+- 经度采用 **东经为正**（East-positive）
+- 方位角采用 **北=0°，东=90°**
+- RA/Dec 结果必须附带：`frame`、`timeScale`、`qualityFlag`、`dataFreshness`、`epochJd`
+
+### EOP 策略
+
+- 默认策略：`auto_with_offline_fallback`
+- 内置基线 EOP 数据始终可用（离线不失效）
+- 网络可用时后台拉取更新；失败不阻塞功能
+- 新鲜度分级：`fresh` / `stale` / `fallback`
+
 ## 模块结构
 
 ```
@@ -13,6 +35,15 @@ lib/astronomy/
 ├── index.ts                 # 模块入口
 ├── astro-utils.ts           # 通用天文工具
 ├── starmap-utils.ts         # 星图相关工具
+├── time-scales.ts           # UTC/UT1/TT + EOP 管理
+├── frames.ts                # 帧语义与元数据工具
+├── pipeline.ts              # 统一坐标变换入口
+├── engine/                  # 统一天文计算引擎
+│   ├── index.ts             # getAstronomyEngine + 公开 API
+│   ├── backend-tauri.ts     # 桌面 Tauri 后端
+│   ├── backend-fallback.ts  # Web/离线回退后端
+│   ├── cache.ts             # 结果缓存
+│   └── types.ts             # 统一类型
 ├── coordinates/             # 坐标系统
 │   ├── index.ts
 │   ├── conversions.ts       # 坐标转换
@@ -46,6 +77,66 @@ lib/astronomy/
     └── custom-horizon.ts    # 地平线轮廓
 ```
 
+## 曝光计算器双层模型（2026 更新）
+
+`lib/astronomy/exposure-utils.ts` 现同时提供：
+
+- **快速估算层**（兼容旧接口）  
+  `calculateSNR()`、`calculateOptimalSubExposure()`、`estimateSessionTime()` 等函数保持不变。
+- **专业计算层**（Smart Histogram 风格）  
+  新增 `calculateSmartExposure(input)`，面向“读噪限制 + 天空背景 + 堆栈效率”联合优化。
+
+### 新增核心类型
+
+- `CameraNoiseProfile`：`readNoise` / `darkCurrent` / `fullWell` / `qe` / `bitDepth` / `ePerAdu`
+- `SkyModelInput`：`bortle` / `sqm` / `filterBandwidthNm` / `skyFluxOverride`
+- `SmartExposureInput`：`readNoiseLimitPercent` / `gainStrategy` / `minExposureSec` / `maxExposureSec`
+- `SmartExposureResult`：推荐曝光、曝光区间、噪声构成、动态范围、约束命中与堆栈估计
+
+### 关键公式（实现对应）
+
+1. **读噪限制曝光（单帧）**
+
+\[
+t = \frac{RN^2}{SkyFlux \cdot ((1+r)^2 - 1)}
+\]
+
+- `RN`：读出噪声（e⁻）
+- `SkyFlux`：天空背景信号率（e⁻/px/s）
+- `r`：读噪容忍比例（默认 `0.05`，即 5%）
+
+2. **单帧总噪声**
+
+\[
+\sigma = \sqrt{S + B + D + RN^2}
+\]
+
+- `S` 目标信号电子数，`B` 天空背景电子数，`D` 暗电流电子数
+
+3. **堆栈提升**
+
+- 总 SNR 随帧数按 `sqrt(N)` 增长
+- 目标帧数估算使用：`N = ceil((target / perFrame)^2)`
+
+4. **动态范围评分（相对）**
+
+\[
+DR \propto \frac{FullWell}{NoiseFloor}, \quad Stops = log_2(DR)
+\]
+
+### 默认值与边界
+
+- `readNoiseLimitPercent` 默认 **5%**（主流 Smart Histogram 建议）
+- 曝光限制默认：`minExposureSec=2`，`maxExposureSec=600`（无跟踪时受 500 规则上限约束）
+- 带宽边界：`2 ~ 300nm`
+- 所有新增输出通过 `ExposurePlan.advanced?` 传递，保持旧数据结构兼容。
+
+### 兼容策略
+
+- 旧调用方仍可只使用原始字段（`settings/totalExposure/...`）
+- 新增高级结果仅在 `advanced` 可选字段中提供
+- Tauri Rust 端通过 `Option<T> + #[serde(default)]` 保证历史 JSON 可反序列化。
+
 ## 坐标系统 (coordinates/)
 
 ### 坐标转换
@@ -53,7 +144,9 @@ lib/astronomy/
 ```typescript
 import {
   raDecToAltAz,
+  raDecToAltAzAtTime,
   altAzToRaDec,
+  altAzToRaDecAtTime,
   raDecToGalactic,
   galacticToRaDec,
   raDecToEcliptic,
@@ -61,7 +154,7 @@ import {
 } from '@/lib/astronomy';
 
 // 赤道坐标转地平坐标
-const { alt, az } = raDecToAltAz(
+const { altitude, azimuth } = raDecToAltAzAtTime(
   ra,      // 赤经 (度)
   dec,     // 赤纬 (度)
   lat,     // 观测纬度
@@ -70,13 +163,39 @@ const { alt, az } = raDecToAltAz(
 );
 
 // 地平坐标转赤道坐标
-const { ra, dec } = altAzToRaDec(alt, az, lat, lon, date);
+const { ra, dec } = altAzToRaDecAtTime(altitude, azimuth, lat, lon, date);
 
 // 赤道坐标转银道坐标
 const { l, b } = raDecToGalactic(ra, dec);
 
 // 赤道坐标转黄道坐标
-const { lambda, beta } = raDecToEcliptic(ra, dec, date);
+const { longitude, latitude } = raDecToEcliptic(ra, dec, date);
+```
+
+## 统一引擎 API（新增）
+
+```typescript
+import {
+  computeCoordinates,
+  computeEphemeris,
+  computeRiseTransitSet,
+  searchPhenomena,
+  computeAlmanac,
+} from '@/lib/astronomy';
+
+const coordinates = await computeCoordinates({
+  coordinate: { ra: 10.684708, dec: 41.26875 },
+  observer: { latitude: 39.9, longitude: 116.4 },
+  date: new Date(),
+});
+
+const ephemeris = await computeEphemeris({
+  body: 'Mars',
+  observer: { latitude: 39.9, longitude: 116.4 },
+  startDate: new Date(),
+  stepHours: 1,
+  steps: 24,
+});
 ```
 
 ### 坐标格式化

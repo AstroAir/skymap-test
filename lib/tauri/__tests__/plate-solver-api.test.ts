@@ -21,6 +21,7 @@ import type {
   ImageAnalysisResult,
   OnlineSolveConfig,
   OnlineSolveResult,
+  OnlineWcsResult,
   StarDetection,
   OnlineAnnotation,
 } from '../plate-solver-api';
@@ -349,6 +350,7 @@ describe('plate-solver-api', () => {
           objects_in_field: ['M31', 'NGC 224'],
           annotations: [],
           job_id: 12345,
+          wcs: null,
           solve_time_ms: 30000,
           error_message: null,
         };
@@ -360,6 +362,42 @@ describe('plate-solver-api', () => {
         expect(result).toEqual(mockResult);
         expect(result.objects_in_field).toContain('M31');
       });
+    });
+  });
+
+  describe('online solve types', () => {
+    it('OnlineWcsResult should support SIP payload', () => {
+      const wcs: OnlineWcsResult = {
+        crpix1: 1500.5,
+        crpix2: 1000.5,
+        crval1: 83.633,
+        crval2: 22.014,
+        cdelt1: null,
+        cdelt2: null,
+        crota1: null,
+        crota2: null,
+        cd1_1: -0.00012,
+        cd1_2: 0,
+        cd2_1: 0,
+        cd2_2: 0.00012,
+        ctype1: 'RA---TAN-SIP',
+        ctype2: 'DEC--TAN-SIP',
+        naxis1: 3000,
+        naxis2: 2000,
+        sip: {
+          a_order: 2,
+          b_order: 2,
+          ap_order: null,
+          bp_order: null,
+          a_coeffs: { A_0_2: 1e-5 },
+          b_coeffs: { B_1_1: -2e-5 },
+          ap_coeffs: {},
+          bp_coeffs: {},
+        },
+      };
+
+      expect(wcs.sip?.a_order).toBe(2);
+      expect(wcs.naxis1).toBe(3000);
     });
   });
 

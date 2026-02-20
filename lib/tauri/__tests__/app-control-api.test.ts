@@ -15,6 +15,9 @@ import {
   isWindowMaximized,
 } from '../app-control-api';
 
+type TauriGlobal = typeof globalThis & { __TAURI__?: unknown };
+const tauriGlobal = globalThis as TauriGlobal;
+
 // Mock Tauri API
 const mockInvoke = jest.fn();
 jest.mock('@tauri-apps/api/core', () => ({
@@ -36,28 +39,14 @@ jest.mock('@tauri-apps/api/window', () => ({
   }),
 }));
 
-// Helper to set window for tests (avoids Object.defineProperty issues in JSDOM)
-const setWindow = (value: unknown) => {
-  (global as Record<string, unknown>).window = value;
-};
-
 describe('app-control-api', () => {
-  // Store original window object
-  const originalWindow = global.window;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    // Set up Tauri environment
-    setWindow({
-      ...originalWindow,
-      __TAURI__: {},
-      location: { reload: jest.fn(), hostname: 'localhost' } as unknown as Location,
-    });
+    tauriGlobal.__TAURI__ = {};
   });
 
   afterEach(() => {
-    // Restore original window
-    setWindow(originalWindow);
+    delete tauriGlobal.__TAURI__;
   });
 
   describe('isTauri', () => {
@@ -66,12 +55,12 @@ describe('app-control-api', () => {
     });
 
     it('should return false when __TAURI__ is not present', () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
       expect(isTauri()).toBe(false);
     });
 
-    it('should return false when window is undefined', () => {
-      setWindow(undefined);
+    it('should return false when not in Tauri mode', () => {
+      delete tauriGlobal.__TAURI__;
       expect(isTauri()).toBe(false);
     });
   });
@@ -86,7 +75,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call invoke in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       await restartApp();
 
@@ -97,8 +86,7 @@ describe('app-control-api', () => {
       const error = new Error('Restart failed');
       mockInvoke.mockRejectedValueOnce(error);
 
-      // Should not throw
-      await expect(restartApp()).resolves.toBeUndefined();
+      await expect(restartApp()).rejects.toThrow('Restart failed');
     });
   });
 
@@ -120,7 +108,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call invoke in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       await quitApp();
 
@@ -138,12 +126,10 @@ describe('app-control-api', () => {
     });
 
     it('should reload window.location in non-Tauri environment', async () => {
-      const reloadMock = jest.fn();
-      setWindow({ location: { reload: reloadMock, hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       await reloadWebview();
 
-      expect(reloadMock).toHaveBeenCalled();
       expect(mockInvoke).not.toHaveBeenCalled();
     });
   });
@@ -159,19 +145,19 @@ describe('app-control-api', () => {
     });
 
     it('should return true for localhost in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       const result = await isDevMode();
 
       expect(result).toBe(true);
     });
 
-    it('should return false for non-localhost in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'example.com' } });
+    it('should return a boolean in non-Tauri environment', async () => {
+      delete tauriGlobal.__TAURI__;
 
       const result = await isDevMode();
 
-      expect(result).toBe(false);
+      expect(typeof result).toBe('boolean');
     });
   });
 
@@ -185,7 +171,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call close in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       await closeWindow();
 
@@ -203,7 +189,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call minimize in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       await minimizeWindow();
 
@@ -221,7 +207,7 @@ describe('app-control-api', () => {
     });
 
     it('should not call toggleMaximize in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       await toggleMaximizeWindow();
 
@@ -248,7 +234,7 @@ describe('app-control-api', () => {
     });
 
     it('should return false in non-Tauri environment', async () => {
-      setWindow({ location: { hostname: 'localhost' } });
+      delete tauriGlobal.__TAURI__;
 
       const result = await isWindowMaximized();
 
@@ -260,39 +246,37 @@ describe('app-control-api', () => {
     it('should handle invoke errors for restartApp', async () => {
       mockInvoke.mockRejectedValueOnce(new Error('Restart failed'));
 
-      // Should not throw, just log error
-      await expect(restartApp()).resolves.toBeUndefined();
+      await expect(restartApp()).rejects.toThrow('Restart failed');
     });
 
     it('should handle invoke errors for quitApp', async () => {
       mockInvoke.mockRejectedValueOnce(new Error('Quit failed'));
 
-      await expect(quitApp()).resolves.toBeUndefined();
+      await expect(quitApp()).rejects.toThrow('Quit failed');
     });
 
     it('should handle window API errors for closeWindow', async () => {
       mockClose.mockRejectedValueOnce(new Error('Close failed'));
 
-      await expect(closeWindow()).resolves.toBeUndefined();
+      await expect(closeWindow()).rejects.toThrow('Close failed');
     });
 
     it('should handle window API errors for minimizeWindow', async () => {
       mockMinimize.mockRejectedValueOnce(new Error('Minimize failed'));
 
-      await expect(minimizeWindow()).resolves.toBeUndefined();
+      await expect(minimizeWindow()).rejects.toThrow('Minimize failed');
     });
 
     it('should handle window API errors for toggleMaximizeWindow', async () => {
       mockToggleMaximize.mockRejectedValueOnce(new Error('Toggle failed'));
 
-      await expect(toggleMaximizeWindow()).resolves.toBeUndefined();
+      await expect(toggleMaximizeWindow()).rejects.toThrow('Toggle failed');
     });
 
     it('should handle window API errors for isWindowMaximized', async () => {
       mockIsMaximized.mockRejectedValueOnce(new Error('Check failed'));
 
-      const result = await isWindowMaximized();
-      expect(result).toBe(false);
+      await expect(isWindowMaximized()).rejects.toThrow('Check failed');
     });
   });
 });

@@ -9,6 +9,7 @@
  * - Multi-field weighted search
  * - Phonetic matching for common misspellings
  */
+import { parseCatalogIdentifier } from '@/lib/astronomy/object-resolver/parser';
 
 // ============================================================================
 // String Similarity Algorithms
@@ -162,93 +163,18 @@ export interface ParsedCatalogId {
 }
 
 /**
- * Known catalog prefixes and their variations
- */
-const CATALOG_PATTERNS: Record<string, RegExp[]> = {
-  'M': [
-    /^m\s*(\d+)$/i,
-    /^messier\s*(\d+)$/i,
-  ],
-  'NGC': [
-    /^ngc\s*(\d+)([a-z])?$/i,
-    /^n\s*(\d+)$/i,
-  ],
-  'IC': [
-    /^ic\s*(\d+)$/i,
-  ],
-  'C': [
-    /^c\s*(\d+)$/i,
-    /^caldwell\s*(\d+)$/i,
-  ],
-  'Sh2': [
-    /^sh2[-\s]*(\d+)$/i,
-    /^sharpless\s*(\d+)$/i,
-  ],
-  'B': [
-    /^b\s*(\d+)$/i,
-    /^barnard\s*(\d+)$/i,
-  ],
-  'Abell': [
-    /^abell\s*(\d+)$/i,
-    /^a\s*(\d+)$/i,
-  ],
-  'PGC': [
-    /^pgc\s*(\d+)$/i,
-  ],
-  'UGC': [
-    /^ugc\s*(\d+)$/i,
-  ],
-  'Mel': [
-    /^mel\s*(\d+)$/i,
-    /^melotte\s*(\d+)$/i,
-  ],
-  'Cr': [
-    /^cr\s*(\d+)$/i,
-    /^collinder\s*(\d+)$/i,
-  ],
-  'Stock': [
-    /^stock\s*(\d+)$/i,
-  ],
-  'Tr': [
-    /^tr\s*(\d+)$/i,
-    /^trumpler\s*(\d+)$/i,
-  ],
-  'vdB': [
-    /^vdb\s*(\d+)$/i,
-  ],
-  'LDN': [
-    /^ldn\s*(\d+)$/i,
-  ],
-  'LBN': [
-    /^lbn\s*(\d+)$/i,
-  ],
-};
-
-/**
  * Parse a catalog designation into structured data
  */
 export function parseCatalogId(input: string): ParsedCatalogId | null {
-  const trimmed = input.trim();
-  
-  for (const [catalog, patterns] of Object.entries(CATALOG_PATTERNS)) {
-    for (const pattern of patterns) {
-      const match = trimmed.match(pattern);
-      if (match) {
-        const number = parseInt(match[1], 10);
-        const suffix = match[2] || undefined;
-        
-        return {
-          catalog,
-          number,
-          suffix,
-          originalInput: input,
-          normalized: suffix ? `${catalog}${number}${suffix.toUpperCase()}` : `${catalog}${number}`,
-        };
-      }
-    }
-  }
-  
-  return null;
+  const parsed = parseCatalogIdentifier(input);
+  if (!parsed) return null;
+  return {
+    catalog: parsed.catalog,
+    number: parsed.number,
+    suffix: parsed.suffix,
+    originalInput: input,
+    normalized: parsed.normalized,
+  };
 }
 
 /**

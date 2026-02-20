@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { AlertTriangle, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
@@ -15,180 +15,98 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import {
-  getMoonPhase,
-  getMoonPosition,
-  angularSeparation,
-  getJulianDateFromDate,
-} from '@/lib/astronomy/astro-utils';
-import type { PhenomenaEvent } from './types';
-
-// Simple planetary position approximations (mean elements)
-const PLANETS = {
-  Mercury: { period: 87.969, meanLon0: 252.251, a: 0.387 },
-  Venus: { period: 224.701, meanLon0: 181.980, a: 0.723 },
-  Mars: { period: 686.980, meanLon0: 355.453, a: 1.524 },
-  Jupiter: { period: 4332.59, meanLon0: 34.404, a: 5.203 },
-  Saturn: { period: 10759.22, meanLon0: 49.944, a: 9.537 },
-};
-
-function getPlanetPosition(planet: keyof typeof PLANETS, jd: number) {
-  const p = PLANETS[planet];
-  const d = jd - 2451545.0; // Days from J2000
-  const meanLon = (p.meanLon0 + 360 * d / p.period) % 360;
-  // Very simplified - just for demonstration
-  const ra = meanLon; // Approximate RA along ecliptic
-  const dec = Math.sin(meanLon * Math.PI / 180) * 23.4 * (1 / p.a); // Simplified dec
-  return { ra: (ra + 360) % 360, dec: Math.max(-90, Math.min(90, dec)) };
-}
+import { searchPhenomena, type PhenomenaEvent } from '@/lib/astronomy/engine';
 
 interface PhenomenaTabProps {
   latitude: number;
   longitude: number;
 }
 
-export function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: PhenomenaTabProps) {
+function getEventIcon(type: PhenomenaEvent['type']): string {
+  switch (type) {
+    case 'conjunction':
+      return '☌';
+    case 'opposition':
+      return '☍';
+    case 'elongation':
+      return '◐';
+    case 'moon_phase':
+      return '◑';
+    case 'close_approach':
+      return '↔';
+    default:
+      return '•';
+  }
+}
+
+function getImportanceColor(importance: PhenomenaEvent['importance']): string {
+  switch (importance) {
+    case 'high':
+      return 'text-amber-500';
+    case 'medium':
+      return 'text-blue-400';
+    default:
+      return 'text-muted-foreground';
+  }
+}
+
+export function PhenomenaTab({ latitude, longitude }: PhenomenaTabProps) {
   const t = useTranslations();
   const [daysAhead, setDaysAhead] = useState(30);
   const [showMinor, setShowMinor] = useState(false);
-  
-  // Calculate phenomena for the date range
-  const phenomena = useMemo(() => {
-    const events: PhenomenaEvent[] = [];
-    const now = new Date();
-    
-    for (let d = 0; d < daysAhead; d++) {
-      const date = new Date(now);
-      date.setDate(date.getDate() + d);
-      date.setHours(0, 0, 0, 0);
-      const jd = getJulianDateFromDate(date);
-      
-      // Get moon position
-      const moonPos = getMoonPosition(jd);
-      const moonPhase = getMoonPhase(jd);
-      
-      // Check moon phase events
-      if (d > 0) {
-        const prevDate = new Date(date);
-        prevDate.setDate(prevDate.getDate() - 1);
-        const prevPhase = getMoonPhase(getJulianDateFromDate(prevDate));
-        
-        // New Moon
-        if (prevPhase > 0.95 && moonPhase < 0.05) {
-          events.push({
-            date,
-            type: 'conjunction',
-            object1: 'Moon',
-            object2: 'Sun',
-            details: t('astroCalc.newMoon'),
-            importance: 'high',
-          });
+  const [events, setEvents] = useState<PhenomenaEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dateRange = useMemo(() => {
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + daysAhead);
+    return { startDate, endDate };
+  }, [daysAhead]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await searchPhenomena({
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          observer: { latitude, longitude },
+          includeMinor: showMinor,
+        });
+
+        if (!cancelled) {
+          setEvents(result.events);
         }
-        // Full Moon
-        if (prevPhase < 0.5 && moonPhase >= 0.5 && prevPhase > 0.45) {
-          events.push({
-            date,
-            type: 'opposition',
-            object1: 'Moon',
-            details: t('astroCalc.fullMoon'),
-            importance: 'high',
-          });
+      } catch (runError) {
+        if (!cancelled) {
+          setEvents([]);
+          setError(runError instanceof Error ? runError.message : t('astroCalc.calculationFailed'));
         }
-        // First Quarter
-        if (prevPhase < 0.25 && moonPhase >= 0.25 && prevPhase > 0.2) {
-          events.push({
-            date,
-            type: 'elongation',
-            object1: 'Moon',
-            separation: 90,
-            details: t('astroCalc.firstQuarter'),
-            importance: 'medium',
-          });
-        }
-        // Last Quarter
-        if (prevPhase < 0.75 && moonPhase >= 0.75 && prevPhase > 0.7) {
-          events.push({
-            date,
-            type: 'elongation',
-            object1: 'Moon',
-            separation: 90,
-            details: t('astroCalc.lastQuarter'),
-            importance: 'medium',
-          });
-        }
-      }
-      
-      // Check planetary conjunctions with moon
-      Object.keys(PLANETS).forEach(planetName => {
-        const planetPos = getPlanetPosition(planetName as keyof typeof PLANETS, jd);
-        const sep = angularSeparation(moonPos.ra, moonPos.dec, planetPos.ra, planetPos.dec);
-        
-        if (sep < 5) {
-          events.push({
-            date,
-            type: 'close_approach',
-            object1: 'Moon',
-            object2: planetName,
-            separation: sep,
-            details: t('astroCalc.moonFrom', { sep: sep.toFixed(1), planet: planetName }),
-            importance: sep < 2 ? 'high' : 'medium',
-          });
-        }
-      });
-      
-      // Check planetary conjunctions with each other
-      const planetNames = Object.keys(PLANETS) as Array<keyof typeof PLANETS>;
-      for (let i = 0; i < planetNames.length; i++) {
-        for (let j = i + 1; j < planetNames.length; j++) {
-          const pos1 = getPlanetPosition(planetNames[i], jd);
-          const pos2 = getPlanetPosition(planetNames[j], jd);
-          const sep = angularSeparation(pos1.ra, pos1.dec, pos2.ra, pos2.dec);
-          
-          if (sep < 3) {
-            events.push({
-              date,
-              type: 'conjunction',
-              object1: planetNames[i],
-              object2: planetNames[j],
-              separation: sep,
-              details: t('astroCalc.planetFrom', { planet1: planetNames[i], sep: sep.toFixed(1), planet2: planetNames[j] }),
-              importance: sep < 1 ? 'high' : 'medium',
-            });
-          }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
         }
       }
     }
-    
-    // Filter and sort
-    const filtered = showMinor ? events : events.filter(e => e.importance !== 'low');
-    return filtered.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [daysAhead, showMinor, t]);
-  
-  const getEventIcon = (type: PhenomenaEvent['type']) => {
-    switch (type) {
-      case 'conjunction': return '☌';
-      case 'opposition': return '☍';
-      case 'elongation': return '◐';
-      case 'occultation': return '◯';
-      case 'close_approach': return '↔';
-    }
-  };
-  
-  const getImportanceColor = (importance: PhenomenaEvent['importance']) => {
-    switch (importance) {
-      case 'high': return 'text-amber-500';
-      case 'medium': return 'text-blue-400';
-      case 'low': return 'text-muted-foreground';
-    }
-  };
-  
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateRange.endDate, dateRange.startDate, latitude, longitude, showMinor, t]);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <div className="space-y-1.5">
             <Label className="text-xs">{t('astroCalc.daysAhead')}</Label>
-            <Select value={daysAhead.toString()} onValueChange={(v) => setDaysAhead(parseInt(v))}>
+            <Select value={daysAhead.toString()} onValueChange={(value) => setDaysAhead(Number.parseInt(value, 10))}>
               <SelectTrigger className="h-8 w-32">
                 <SelectValue />
               </SelectTrigger>
@@ -201,50 +119,56 @@ export function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: Phe
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="flex items-center gap-2">
-            <Switch
-              id="showMinor"
-              checked={showMinor}
-              onCheckedChange={setShowMinor}
-            />
+            <Switch id="showMinor" checked={showMinor} onCheckedChange={setShowMinor} />
             <Label htmlFor="showMinor" className="text-xs">{t('astroCalc.showMinorEvents')}</Label>
           </div>
         </div>
-        
-        <Badge variant="outline">
-          {phenomena.length} {t('astroCalc.events')}
-        </Badge>
+
+        <div className="flex items-center gap-2">
+          {isLoading && <Badge variant="secondary">{t('astroCalc.calculating')}</Badge>}
+          <Badge variant="outline">{events.length} {t('astroCalc.events')}</Badge>
+        </div>
       </div>
-      
-      <ScrollArea className="h-[400px] border rounded-lg">
-        {phenomena.length === 0 ? (
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {error}
+        </div>
+      )}
+
+      <ScrollArea className="h-[390px] border rounded-lg">
+        {events.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
             <Sparkles className="h-10 w-10 mb-3 opacity-40" />
             <p className="text-sm font-medium">{t('astroCalc.noPhenomena')}</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {phenomena.map((event, i) => (
-              <div key={i} className="p-3 hover:bg-muted/50">
+            {events.map((event) => (
+              <div key={`${event.type}-${event.date.toISOString()}-${event.details}`} className="p-3 hover:bg-muted/50">
                 <div className="flex items-start gap-3">
                   <span className={cn('text-xl', getImportanceColor(event.importance))}>
                     {getEventIcon(event.type)}
                   </span>
                   <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{event.details}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm">{event.details}</span>
                       <Badge variant={event.importance === 'high' ? 'default' : 'secondary'} className="text-[10px]">
                         {t(`astroCalc.eventType.${event.type}`)}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {event.date.toLocaleDateString(undefined, {
+                      {event.date.toLocaleString(undefined, {
                         weekday: 'short',
                         month: 'short',
                         day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
                       })}
-                      {event.separation && ` • ${event.separation.toFixed(1)}° ${t('astroCalc.separation')}`}
+                      {event.separation !== undefined && ` • ${event.separation.toFixed(2)}° ${t('astroCalc.separation')}`}
                     </div>
                   </div>
                 </div>
@@ -253,12 +177,12 @@ export function PhenomenaTab({ latitude: _latitude, longitude: _longitude }: Phe
           </div>
         )}
       </ScrollArea>
-      
-      {/* Legend */}
+
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="text-[10px] gap-1 font-normal">☌ {t('astroCalc.conjunction')}</Badge>
         <Badge variant="outline" className="text-[10px] gap-1 font-normal">☍ {t('astroCalc.opposition')}</Badge>
         <Badge variant="outline" className="text-[10px] gap-1 font-normal">◐ {t('astroCalc.elongation')}</Badge>
+        <Badge variant="outline" className="text-[10px] gap-1 font-normal">◑ {t('astroCalc.moonPhase')}</Badge>
         <Badge variant="outline" className="text-[10px] gap-1 font-normal">↔ {t('astroCalc.closeApproach')}</Badge>
       </div>
     </div>

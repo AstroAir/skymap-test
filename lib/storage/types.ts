@@ -118,7 +118,10 @@ export const KNOWN_STORES = [
   'starmap-markers',
   'starmap-settings',
   'starmap-equipment',
+  'starmap-feedback',
+  'theme-customization',
   'starmap-onboarding',
+  'starmap-daily-knowledge',
   'skymap-offline',
   'skymap-locale',
 ] as const;

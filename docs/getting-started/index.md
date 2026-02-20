@@ -77,4 +77,5 @@
 
 - 查看[常见问题](../reference/faq.md)
 - 阅读[故障排除](../reference/troubleshooting.md)
-- 提交 [GitHub Issue](https://github.com/yourusername/skymap-test/issues)
+- 提交 [GitHub Issue 表单](https://github.com/AstroAir/skymap-test/issues/new)
+- 如需提供诊断信息：在应用内反馈对话框勾选诊断并下载诊断包，然后在 Issue 页面手动上传附件

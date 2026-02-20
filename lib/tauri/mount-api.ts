@@ -63,6 +63,18 @@ export interface SlewRatePreset {
   value: number;
 }
 
+export interface ObservingConditions {
+  cloudCover?: number;
+  humidity?: number;
+  windSpeed?: number;
+  dewPoint?: number;
+}
+
+export interface SafetyState {
+  isSafe: boolean;
+  source: string;
+}
+
 export const SLEW_RATE_PRESETS: SlewRatePreset[] = [
   { label: '1x', value: 1.0 },
   { label: '2x', value: 2.0 },
@@ -192,5 +204,17 @@ export const mountApi = {
   async discover(): Promise<DiscoveredDevice[]> {
     const invoke = await getInvoke();
     return invoke('mount_discover');
+  },
+
+  /** Read observing conditions from simulator or Alpaca ObservingConditions */
+  async getObservingConditions(): Promise<ObservingConditions> {
+    const invoke = await getInvoke();
+    return invoke('mount_get_observing_conditions');
+  },
+
+  /** Read safety monitor status from simulator or Alpaca SafetyMonitor */
+  async getSafetyState(): Promise<SafetyState> {
+    const invoke = await getInvoke();
+    return invoke('mount_get_safety_state');
   },
 };

@@ -158,6 +158,33 @@ describe('eventsApi', () => {
     expect(result).toEqual(mockEvents);
   });
 
+  it('should get daily astro events', async () => {
+    const mockDailyEvents = [
+      {
+        id: 'daily-window-meteor-perseids-2024-08-10',
+        event_type: 'meteor_shower',
+        name: 'Perseids (Active)',
+        description: 'Active meteor shower window',
+        date: '2024-08-10',
+        time: null,
+        timestamp: 1723248000,
+        magnitude: null,
+        visibility: 'ZHR: 100',
+        details: { occurrence_mode: 'window', starts_at: '2024-07-17', ends_at: '2024-08-24' },
+      },
+    ];
+    mockInvoke.mockResolvedValue(mockDailyEvents);
+
+    const result = await eventsApi.getDailyAstroEvents('2024-08-10', 'Etc/UTC', true);
+
+    expect(mockInvoke).toHaveBeenCalledWith('get_daily_astro_events', {
+      date: '2024-08-10',
+      timezone: 'Etc/UTC',
+      includeOngoing: true,
+    });
+    expect(result).toEqual(mockDailyEvents);
+  });
+
   it('should get tonight highlights', async () => {
     const mockHighlights = [
       'Moon rises at 21:30, 85% illuminated',

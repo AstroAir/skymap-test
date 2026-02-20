@@ -403,7 +403,7 @@ export function useTargetList() {
 // Markers Hook
 // ============================================================================
 
-import { markersApi, type MarkersData, type SkyMarker, type MarkerInput } from './markers-api';
+import { markersApi, type MarkersData, type MarkerInput, type MarkerUpdateInput } from './markers-api';
 
 export function useMarkers() {
   const [data, setData] = useState<MarkersData | null>(null);
@@ -456,7 +456,7 @@ export function useMarkers() {
     }
   }, []);
 
-  const updateMarker = useCallback(async (markerId: string, updates: Partial<SkyMarker>) => {
+  const updateMarker = useCallback(async (markerId: string, updates: MarkerUpdateInput) => {
     if (!isTauri()) return null;
     try {
       const result = await markersApi.updateMarker(markerId, updates);
@@ -696,6 +696,20 @@ export function useAstroEvents(startDate?: string, endDate?: string) {
     }
   }, []);
 
+  const getDailyEvents = useCallback(async (
+    date: string,
+    timezone: string,
+    includeOngoing: boolean = true
+  ): Promise<AstroEvent[]> => {
+    if (!isTauri()) return [];
+    try {
+      return await eventsApi.getDailyAstroEvents(date, timezone, includeOngoing);
+    } catch (e) {
+      setError((e as Error).message);
+      return [];
+    }
+  }, []);
+
   return {
     events,
     meteorShowers,
@@ -703,6 +717,7 @@ export function useAstroEvents(startDate?: string, endDate?: string) {
     error,
     refresh: load,
     getTonightHighlights,
+    getDailyEvents,
     isAvailable: isTauri(),
   };
 }

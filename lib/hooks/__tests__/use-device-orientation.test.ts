@@ -2,276 +2,343 @@
  * @jest-environment jsdom
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { altAzToRaDec } from '@/lib/astronomy/coordinates/transforms';
 import { useDeviceOrientation } from '../use-device-orientation';
 
-// Mock DeviceOrientationEvent
-const mockDeviceOrientationEvent = {
-  alpha: 45,
-  beta: 30,
-  gamma: 15,
-  absolute: true,
-};
+type RequestPermissionFn = jest.Mock<Promise<string>, [boolean?]>;
+
+function createOrientationEvent(
+  type: string,
+  payload: Partial<DeviceOrientationEvent> & {
+    webkitCompassHeading?: number;
+    webkitCompassAccuracy?: number;
+  } = {}
+): DeviceOrientationEvent {
+  const event = new Event(type) as DeviceOrientationEvent & {
+    webkitCompassHeading?: number;
+    webkitCompassAccuracy?: number;
+  };
+  Object.assign(event, payload);
+  return event;
+}
 
 describe('useDeviceOrientation', () => {
-  let originalDeviceOrientationEvent: typeof DeviceOrientationEvent;
-  let addEventListenerSpy: jest.SpyInstance;
-  let removeEventListenerSpy: jest.SpyInstance;
+  let originalDeviceOrientationEvent: unknown;
+  let originalScreenOrientation: ScreenOrientation | undefined;
+  let requestPermissionMock: RequestPermissionFn;
+  let rafSpy: jest.SpyInstance;
+  let cafSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    // Save original
-    originalDeviceOrientationEvent = global.DeviceOrientationEvent;
-    
-    // Mock DeviceOrientationEvent
-    (global as unknown as { DeviceOrientationEvent: unknown }).DeviceOrientationEvent = class MockDeviceOrientationEvent {
-      static requestPermission?: () => Promise<string>;
+    jest.clearAllMocks();
+    originalDeviceOrientationEvent = (global as unknown as { DeviceOrientationEvent?: unknown }).DeviceOrientationEvent;
+    originalScreenOrientation = window.screen.orientation;
+
+    requestPermissionMock = jest.fn().mockResolvedValue('granted');
+    (global as unknown as { DeviceOrientationEvent: unknown }).DeviceOrientationEvent = class {
+      static requestPermission = requestPermissionMock;
     };
 
-    addEventListenerSpy = jest.spyOn(window, 'addEventListener');
-    removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
+    Object.defineProperty(window.screen, 'orientation', {
+      configurable: true,
+      value: {
+        angle: 0,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      },
+    });
+
+    rafSpy = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      return window.setTimeout(() => callback(performance.now()), 0);
+    });
+    cafSpy = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation((handle) => {
+      clearTimeout(handle);
+    });
   });
 
   afterEach(() => {
-    // Restore original
-    (global as unknown as { DeviceOrientationEvent: typeof DeviceOrientationEvent }).DeviceOrientationEvent = originalDeviceOrientationEvent;
-    addEventListenerSpy.mockRestore();
-    removeEventListenerSpy.mockRestore();
+    (global as unknown as { DeviceOrientationEvent?: unknown }).DeviceOrientationEvent = originalDeviceOrientationEvent;
+    Object.defineProperty(window.screen, 'orientation', {
+      configurable: true,
+      value: originalScreenOrientation,
+    });
+    rafSpy.mockRestore();
+    cafSpy.mockRestore();
   });
 
-  describe('initialization', () => {
-    it('returns initial state', () => {
-      const { result } = renderHook(() => useDeviceOrientation());
+  it('returns the extended initial state shape', async () => {
+    const { result } = renderHook(() => useDeviceOrientation());
 
-      expect(result.current.orientation).toBeNull();
-      expect(result.current.skyDirection).toBeNull();
-      expect(result.current.error).toBeNull();
-    });
-
-    it('detects device orientation support', () => {
-      const { result } = renderHook(() => useDeviceOrientation());
-
-      // In jsdom, DeviceOrientationEvent exists
+    await waitFor(() => {
       expect(typeof result.current.isSupported).toBe('boolean');
     });
 
-    it('provides requestPermission function', () => {
-      const { result } = renderHook(() => useDeviceOrientation());
-
-      expect(typeof result.current.requestPermission).toBe('function');
-    });
+    expect(result.current.orientation).toBeNull();
+    expect(result.current.skyDirection).toBeNull();
+    expect(result.current.status).toBeDefined();
+    expect(result.current.source).toBe('none');
+    expect(result.current.accuracyDeg).toBeNull();
+    expect(result.current.calibration.required).toBe(true);
   });
 
-  describe('when enabled', () => {
-    it('adds event listener when enabled and supported', async () => {
-      const { result, rerender } = renderHook(
-        ({ enabled }) => useDeviceOrientation({ enabled }),
-        { initialProps: { enabled: false } }
-      );
+  it('requests permission with absolute preference first', async () => {
+    const { result } = renderHook(() => useDeviceOrientation());
 
-      // Initially disabled
-      expect(addEventListenerSpy).not.toHaveBeenCalledWith(
-        'deviceorientation',
-        expect.any(Function),
-        true
-      );
-
-      // Enable and wait for permission to be granted
-      await act(async () => {
-        await result.current.requestPermission();
-      });
-
-      rerender({ enabled: true });
-
-      // Should add listener after enabling
-      await waitFor(() => {
-        expect(addEventListenerSpy).toHaveBeenCalledWith(
-          'deviceorientation',
-          expect.any(Function),
-          true
-        );
-      });
+    await act(async () => {
+      await result.current.requestPermission();
     });
 
-    it('removes event listener when disabled', async () => {
-      const { result, rerender } = renderHook(
-        ({ enabled }) => useDeviceOrientation({ enabled }),
-        { initialProps: { enabled: true } }
-      );
-
-      // Grant permission first
-      await act(async () => {
-        await result.current.requestPermission();
-      });
-
-      // Disable
-      rerender({ enabled: false });
-
-      // Should remove listener
-      await waitFor(() => {
-        expect(removeEventListenerSpy).toHaveBeenCalledWith(
-          'deviceorientation',
-          expect.any(Function),
-          true
-        );
-      });
-    });
+    expect(requestPermissionMock).toHaveBeenCalled();
+    expect(requestPermissionMock.mock.calls[0][0]).toBe(true);
+    expect(result.current.isPermissionGranted).toBe(true);
   });
 
-  describe('requestPermission', () => {
-    it('returns true when no permission needed', async () => {
-      const { result } = renderHook(() => useDeviceOrientation());
+  it('handles denied permission and reports status', async () => {
+    requestPermissionMock.mockResolvedValueOnce('denied');
+    requestPermissionMock.mockResolvedValueOnce('denied');
 
-      let granted: boolean = false;
-      await act(async () => {
-        granted = await result.current.requestPermission();
-      });
+    const { result } = renderHook(() => useDeviceOrientation({ enabled: true }));
 
-      expect(granted).toBe(true);
+    await act(async () => {
+      await result.current.requestPermission();
     });
 
-    it('requests permission on iOS 13+', async () => {
-      // Mock iOS requestPermission
-      const mockRequestPermission = jest.fn().mockResolvedValue('granted');
-      (global as unknown as { DeviceOrientationEvent: { requestPermission: () => Promise<string> } }).DeviceOrientationEvent = class {
-        static requestPermission = mockRequestPermission;
-      };
-
-      const { result } = renderHook(() => useDeviceOrientation());
-
-      let granted: boolean = false;
-      await act(async () => {
-        granted = await result.current.requestPermission();
-      });
-
-      expect(mockRequestPermission).toHaveBeenCalled();
-      expect(granted).toBe(true);
-    });
-
-    it('handles permission denied', async () => {
-      // Mock iOS requestPermission with denied
-      const mockRequestPermission = jest.fn().mockResolvedValue('denied');
-      (global as unknown as { DeviceOrientationEvent: { requestPermission: () => Promise<string> } }).DeviceOrientationEvent = class {
-        static requestPermission = mockRequestPermission;
-      };
-
-      const { result } = renderHook(() => useDeviceOrientation());
-
-      let granted: boolean = true;
-      await act(async () => {
-        granted = await result.current.requestPermission();
-      });
-
-      expect(granted).toBe(false);
-      expect(result.current.error).toBe('Permission denied');
-    });
-
-    it('handles permission request error', async () => {
-      // Mock iOS requestPermission with error
-      const mockRequestPermission = jest.fn().mockRejectedValue(new Error('User cancelled'));
-      (global as unknown as { DeviceOrientationEvent: { requestPermission: () => Promise<string> } }).DeviceOrientationEvent = class {
-        static requestPermission = mockRequestPermission;
-      };
-
-      const { result } = renderHook(() => useDeviceOrientation());
-
-      let granted: boolean = true;
-      await act(async () => {
-        granted = await result.current.requestPermission();
-      });
-
-      expect(granted).toBe(false);
-      expect(result.current.error).toBe('User cancelled');
-    });
+    expect(result.current.isPermissionGranted).toBe(false);
+    expect(result.current.status).toBe('permission-denied');
   });
 
-  describe('orientation callback', () => {
-    it('calls onOrientationChange with sky direction', async () => {
-      const onOrientationChange = jest.fn();
-      
-      const { result } = renderHook(() => 
-        useDeviceOrientation({ 
-          enabled: true, 
-          onOrientationChange 
+  it('prioritizes deviceorientationabsolute source and emits active status', async () => {
+    const onOrientationChange = jest.fn();
+    const { result } = renderHook(() =>
+      useDeviceOrientation({
+        enabled: true,
+        smoothingFactor: 1,
+        calibration: {
+          azimuthOffsetDeg: 0,
+          altitudeOffsetDeg: 0,
+          required: false,
+          updatedAt: null,
+        },
+        onOrientationChange,
+      })
+    );
+
+    await act(async () => {
+      await result.current.requestPermission();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(
+        createOrientationEvent('deviceorientationabsolute', {
+          alpha: 45,
+          beta: 30,
+          gamma: 15,
+          absolute: true,
         })
       );
-
-      // Grant permission
-      await act(async () => {
-        await result.current.requestPermission();
-      });
-
-      // Simulate orientation event
-      await act(async () => {
-        const event = new Event('deviceorientation') as DeviceOrientationEvent;
-        Object.assign(event, mockDeviceOrientationEvent);
-        window.dispatchEvent(event);
-      });
-
-      // Callback should be called with sky direction
-      await waitFor(() => {
-        if (onOrientationChange.mock.calls.length > 0) {
-          const direction = onOrientationChange.mock.calls[0][0];
-          expect(direction).toHaveProperty('azimuth');
-          expect(direction).toHaveProperty('altitude');
-        }
-      });
     });
-  });
 
-  describe('smoothing', () => {
-    it('applies smoothing to orientation values', async () => {
-      const onOrientationChange = jest.fn();
-      
-      const { result } = renderHook(() => 
-        useDeviceOrientation({ 
-          enabled: true, 
-          smoothingFactor: 0.5,
-          onOrientationChange 
-        })
-      );
-
-      // Grant permission
-      await act(async () => {
-        await result.current.requestPermission();
-      });
-
-      // Simulate multiple orientation events
-      await act(async () => {
-        for (let i = 0; i < 5; i++) {
-          const event = new Event('deviceorientation') as DeviceOrientationEvent;
-          Object.assign(event, {
-            alpha: 45 + i * 10,
-            beta: 30 + i * 5,
-            gamma: 15 + i * 2,
-            absolute: true,
-          });
-          window.dispatchEvent(event);
-        }
-      });
-
-      // Values should be smoothed (not jumping directly to latest)
-      // This is a basic check - actual smoothing behavior depends on implementation
+    await waitFor(() => {
       expect(onOrientationChange).toHaveBeenCalled();
+      expect(result.current.source).toBe('deviceorientationabsolute');
+      expect(result.current.status).toBe('active');
     });
   });
 
-  describe('cleanup', () => {
-    it('cleans up event listener on unmount', async () => {
-      const { result, unmount } = renderHook(() => 
-        useDeviceOrientation({ enabled: true })
-      );
+  it('uses webkit compass heading fallback when available', async () => {
+    const { result } = renderHook(() =>
+      useDeviceOrientation({
+        enabled: true,
+        useCompassHeading: true,
+        calibration: {
+          azimuthOffsetDeg: 0,
+          altitudeOffsetDeg: 0,
+          required: false,
+          updatedAt: null,
+        },
+      })
+    );
 
-      // Grant permission
-      await act(async () => {
-        await result.current.requestPermission();
-      });
+    await act(async () => {
+      await result.current.requestPermission();
+    });
 
-      unmount();
-
-      expect(removeEventListenerSpy).toHaveBeenCalledWith(
-        'deviceorientation',
-        expect.any(Function),
-        true
+    await act(async () => {
+      window.dispatchEvent(
+        createOrientationEvent('deviceorientation', {
+          alpha: 120,
+          beta: 45,
+          gamma: 5,
+          absolute: false,
+          webkitCompassHeading: 12,
+          webkitCompassAccuracy: 6,
+        })
       );
     });
+
+    await waitFor(() => {
+      expect(result.current.source).toBe('webkitCompassHeading');
+      expect(result.current.accuracyDeg).toBe(6);
+      expect(result.current.skyDirection).not.toBeNull();
+    });
+  });
+
+  it('compensates screen orientation changes', async () => {
+    const directions: Array<{ azimuth: number; altitude: number }> = [];
+    const { result } = renderHook(() =>
+      useDeviceOrientation({
+        enabled: true,
+        smoothingFactor: 1,
+        calibration: {
+          azimuthOffsetDeg: 0,
+          altitudeOffsetDeg: 0,
+          required: false,
+          updatedAt: null,
+        },
+        onOrientationChange: (direction) => directions.push(direction),
+      })
+    );
+
+    await act(async () => {
+      await result.current.requestPermission();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(
+        createOrientationEvent('deviceorientation', {
+          alpha: 0,
+          beta: 90,
+          gamma: 0,
+          absolute: false,
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(directions.length).toBeGreaterThan(0);
+    });
+    const first = directions[directions.length - 1];
+
+    Object.defineProperty(window.screen, 'orientation', {
+      configurable: true,
+      value: {
+        angle: 90,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      },
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event('orientationchange'));
+      window.dispatchEvent(
+        createOrientationEvent('deviceorientation', {
+          alpha: 0,
+          beta: 90,
+          gamma: 0,
+          absolute: false,
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(directions.length).toBeGreaterThan(1);
+    });
+    const second = directions[directions.length - 1];
+    expect(Math.round(first.azimuth)).toBe(0);
+    expect(Math.round(second.azimuth)).toBe(90);
+  });
+
+  it('applies deadband to suppress tiny changes', async () => {
+    const onOrientationChange = jest.fn();
+    const { result } = renderHook(() =>
+      useDeviceOrientation({
+        enabled: true,
+        deadbandDeg: 1.0,
+        smoothingFactor: 1,
+        calibration: {
+          azimuthOffsetDeg: 0,
+          altitudeOffsetDeg: 0,
+          required: false,
+          updatedAt: null,
+        },
+        onOrientationChange,
+      })
+    );
+
+    await act(async () => {
+      await result.current.requestPermission();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(
+        createOrientationEvent('deviceorientation', {
+          alpha: 20,
+          beta: 60,
+          gamma: 3,
+          absolute: false,
+        })
+      );
+      window.dispatchEvent(
+        createOrientationEvent('deviceorientation', {
+          alpha: 20.2,
+          beta: 60.1,
+          gamma: 3,
+          absolute: false,
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(onOrientationChange).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('updates calibration from current view reference', async () => {
+    const { result } = renderHook(() =>
+      useDeviceOrientation({
+        enabled: true,
+        calibration: {
+          azimuthOffsetDeg: 0,
+          altitudeOffsetDeg: 0,
+          required: true,
+          updatedAt: null,
+        },
+      })
+    );
+
+    await act(async () => {
+      await result.current.requestPermission();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(
+        createOrientationEvent('deviceorientation', {
+          alpha: 90,
+          beta: 40,
+          gamma: 10,
+          absolute: false,
+        })
+      );
+    });
+
+    const latitude = 35;
+    const longitude = 120;
+    const measured = result.current.skyDirection ?? { altitude: 45, azimuth: 180 };
+    const { ra, dec } = altAzToRaDec(measured.altitude, measured.azimuth, latitude, longitude);
+
+    await act(async () => {
+      result.current.calibrateToCurrentView({
+        raDeg: ra,
+        decDeg: dec,
+        latitude,
+        longitude,
+        at: new Date(),
+      });
+    });
+
+    expect(result.current.calibration.required).toBe(false);
+    expect(Number.isFinite(result.current.calibration.azimuthOffsetDeg)).toBe(true);
+    expect(Number.isFinite(result.current.calibration.altitudeOffsetDeg)).toBe(true);
+    expect(result.current.calibration.updatedAt).not.toBeNull();
   });
 });

@@ -42,9 +42,10 @@ import { cn } from '@/lib/utils';
 import { getScoreBadgeVariant, formatPlanningTime } from '@/lib/core/constants/planning-styles';
 import type { NightTimelineProps, MoonPhaseDisplayProps } from '@/types/starmap/planning';
 import { useTonightRecommendations, useGeolocation, type RecommendedTarget } from '@/lib/hooks';
-import { useStellariumStore } from '@/lib/stores';
+import { useStellariumStore, usePlanningUiStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useMountStore } from '@/lib/stores';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 import { TranslatedName } from '../objects/translated-name';
 import { useAstronomy } from '@/lib/tauri/hooks';
 import { MoonPhaseSVG } from './moon-phase-svg';
@@ -364,6 +365,12 @@ function TargetCard({
             <Badge variant={getScoreBadgeVariant(target.score)} className="shrink-0">
               {target.score}
             </Badge>
+            <Badge variant="outline" className="shrink-0 text-[10px] uppercase">
+              {target.scoreProfile}
+            </Badge>
+            <Badge variant="outline" className="shrink-0 text-[10px]">
+              {target.scoreConfidence}
+            </Badge>
           </div>
           {target['Common names'] && (
             <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -474,13 +481,17 @@ function TargetCard({
 
 export function TonightRecommendations() {
   const t = useTranslations();
-  const [open, setOpen] = useState(false);
+  const open = usePlanningUiStore((state) => state.tonightRecommendationsOpen);
+  const setOpen = usePlanningUiStore((state) => state.setTonightRecommendationsOpen);
   const [sortBy, setSortBy] = useState<'score' | 'altitude' | 'time'>('score');
   const [filterType, setFilterType] = useState<'all' | 'galaxy' | 'nebula' | 'cluster'>('all');
+  const observationProfile = useSettingsStore((state) => state.observationProfile);
+  const setObservationProfile = useSettingsStore((state) => state.setObservationProfile);
   
-  const { recommendations, conditions, isLoading, refresh, planDate, setPlanDate } = useTonightRecommendations();
+  const { recommendations, conditions, isLoading, refresh, planDate, setPlanDate } = useTonightRecommendations(observationProfile);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const addTarget = useTargetListStore((state) => state.addTarget);
+  const setScoreProfile = useTargetListStore((state) => state.setScoreProfile);
   const setProfileInfo = useMountStore((state) => state.setProfileInfo);
   
   // Geolocation hook
@@ -527,6 +538,10 @@ export function TonightRecommendations() {
       refresh();
     }
   }, [geolocation.latitude, geolocation.longitude, geolocation.altitude, setProfileInfo, refresh]);
+
+  useEffect(() => {
+    setScoreProfile(observationProfile);
+  }, [observationProfile, setScoreProfile]);
   
   // Sort and filter recommendations
   const filteredRecommendations = useMemo(() => {
@@ -707,6 +722,23 @@ export function TonightRecommendations() {
         
         {/* Filter and Sort Controls */}
         <div className="shrink-0 flex items-center gap-2 flex-wrap overflow-x-auto">
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground mr-1">{t('tonight.profile')}:</span>
+            <ToggleGroup
+              type="single"
+              value={observationProfile}
+              onValueChange={(v) => v && setObservationProfile(v as typeof observationProfile)}
+              variant="outline"
+              size="sm"
+            >
+              {(['imaging', 'visual', 'hybrid'] as const).map((mode) => (
+                <ToggleGroupItem key={mode} value={mode} className="h-6 px-2 text-xs capitalize">
+                  {t(`tonight.profileType.${mode}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+
           {/* Filter buttons */}
           <div className="flex items-center gap-1 text-xs">
             <span className="text-muted-foreground mr-1">{t('tonight.filter')}:</span>

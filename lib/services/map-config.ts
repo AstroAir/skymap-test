@@ -1,12 +1,16 @@
 /**
  * Map API configuration management service
- * Manages API keys, provider selection, and fallback strategies
+ * Manages provider configuration and API keys (web local storage / Tauri secure storage)
  */
 
 import type { MapProviderConfig } from './map-providers/base-map-provider';
+import { mapKeysApi } from '@/lib/tauri/map-keys-api';
+import { isTauri } from '@/lib/storage/platform';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('map-config');
+
+const CURRENT_CONFIG_VERSION = 2;
 
 export interface MapApiKey {
   id: string;
@@ -30,12 +34,40 @@ export interface MapApiKey {
   lastUsed?: string;
 }
 
+export interface MapApiKeyMeta {
+  id: string;
+  provider: 'openstreetmap' | 'google' | 'mapbox';
+  label?: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+  quota?: {
+    daily?: number;
+    monthly?: number;
+    used?: number;
+    resetDate?: string;
+  };
+  restrictions?: {
+    domains?: string[];
+    ips?: string[];
+    regions?: string[];
+  };
+  createdAt: string;
+  lastUsed?: string;
+}
+
+export interface SecureKeyMigrationResult {
+  migrated: number;
+  skipped: number;
+  failed: number;
+  message?: string;
+}
+
 export interface MapProviderSettings {
   provider: 'openstreetmap' | 'google' | 'mapbox';
   priority: number;
   enabled: boolean;
   config: MapProviderConfig;
-  fallbackDelay?: number; // ms to wait before falling back
+  fallbackDelay?: number;
   maxRetries?: number;
 }
 
@@ -44,22 +76,32 @@ export interface MapConfiguration {
   providers: MapProviderSettings[];
   apiKeys: MapApiKey[];
   fallbackStrategy: 'priority' | 'fastest' | 'random' | 'round-robin';
-  healthCheckInterval: number; // ms
+  healthCheckInterval: number;
   enableAutoFallback: boolean;
   cacheResponses: boolean;
-  cacheDuration: number; // ms
+  cacheDuration: number;
   enableOfflineMode: boolean;
   offlineFallbackProvider?: 'openstreetmap';
+  policyMode: 'strict' | 'balanced' | 'legacy';
+  searchBehaviorWhenNoAutocomplete: 'submit-only' | 'disabled';
+  configVersion: number;
 }
 
 class MapConfigurationService {
   private config: MapConfiguration;
   private listeners: Array<(config: MapConfiguration) => void> = [];
   private readonly STORAGE_KEY = 'skymap-map-config';
+  private readonly MIGRATION_KEY = 'skymap-map-config-secure-keys-v2';
+  private secureKeysInitialized = false;
 
   constructor() {
     this.config = this.getDefaultConfiguration();
     this.loadConfiguration();
+    void this.initializeSecureKeys();
+  }
+
+  private isTauriEnv(): boolean {
+    return isTauri();
   }
 
   private getDefaultConfiguration(): MapConfiguration {
@@ -102,12 +144,15 @@ class MapConfigurationService {
       ],
       apiKeys: [],
       fallbackStrategy: 'priority',
-      healthCheckInterval: 300000, // 5 minutes
+      healthCheckInterval: 300000,
       enableAutoFallback: true,
       cacheResponses: true,
-      cacheDuration: 3600000, // 1 hour
+      cacheDuration: 3600000,
       enableOfflineMode: true,
       offlineFallbackProvider: 'openstreetmap',
+      policyMode: 'strict',
+      searchBehaviorWhenNoAutocomplete: 'submit-only',
+      configVersion: CURRENT_CONFIG_VERSION,
     };
   }
 
@@ -121,44 +166,68 @@ class MapConfigurationService {
     try {
       return atob(encoded);
     } catch {
-      return encoded; // Already plain text (legacy data)
+      return encoded;
     }
+  }
+
+  private normalizeConfiguration(config: Partial<MapConfiguration>): MapConfiguration {
+    return {
+      ...this.getDefaultConfiguration(),
+      ...config,
+      apiKeys: config.apiKeys ?? [],
+      configVersion: config.configVersion ?? CURRENT_CONFIG_VERSION,
+    };
   }
 
   private loadConfiguration(): void {
     if (typeof window === 'undefined') return;
-    
+
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Deobfuscate API keys on load
-        if (parsed.apiKeys) {
-          parsed.apiKeys = parsed.apiKeys.map((k: MapApiKey) => ({
-            ...k,
-            apiKey: this.deobfuscateKey(k.apiKey),
-          }));
-        }
-        this.config = { ...this.config, ...parsed };
+      if (!stored) return;
+
+      const parsed = JSON.parse(stored) as Partial<MapConfiguration>;
+      if (parsed.apiKeys) {
+        parsed.apiKeys = parsed.apiKeys.map((k: MapApiKey) => ({
+          ...k,
+          apiKey: k.apiKey ? this.deobfuscateKey(k.apiKey) : '',
+        }));
+      }
+
+      this.config = this.normalizeConfiguration(parsed);
+      if (this.config.configVersion < CURRENT_CONFIG_VERSION) {
+        this.config.configVersion = CURRENT_CONFIG_VERSION;
       }
     } catch (error) {
       logger.warn('Failed to load map configuration', error);
     }
   }
 
-  private saveConfiguration(): void {
-    if (typeof window === 'undefined') return;
-    
-    try {
-      // Obfuscate API keys before saving
-      const configToSave = {
+  private sanitizeForStorage(): MapConfiguration {
+    if (this.isTauriEnv()) {
+      return {
         ...this.config,
         apiKeys: this.config.apiKeys.map(k => ({
           ...k,
-          apiKey: this.obfuscateKey(k.apiKey),
+          apiKey: '',
         })),
       };
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(configToSave));
+    }
+
+    return {
+      ...this.config,
+      apiKeys: this.config.apiKeys.map(k => ({
+        ...k,
+        apiKey: this.obfuscateKey(k.apiKey),
+      })),
+    };
+  }
+
+  private saveConfiguration(): void {
+    if (typeof window === 'undefined') return;
+
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.sanitizeForStorage()));
       this.notifyListeners();
     } catch (error) {
       logger.error('Failed to save map configuration', error);
@@ -168,16 +237,103 @@ class MapConfigurationService {
   private notifyListeners(): void {
     this.listeners.forEach(listener => {
       try {
-        listener(this.config);
+        listener(this.getConfiguration());
       } catch (error) {
         logger.error('Error in configuration listener', error);
       }
     });
   }
 
+  private toMeta(key: MapApiKey): MapApiKeyMeta {
+    const { apiKey, ...meta } = key;
+    void apiKey;
+    return meta;
+  }
+
+  private async persistKeyToSecureStore(key: MapApiKey): Promise<void> {
+    if (!this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
+    await mapKeysApi.save({
+      ...this.toMeta(key),
+      apiKey: key.apiKey,
+    });
+  }
+
+  private async removeKeyFromSecureStore(keyId: string): Promise<void> {
+    if (!this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
+    await mapKeysApi.remove(keyId);
+  }
+
+  private setActiveKeyInSecureStore(provider: 'openstreetmap' | 'google' | 'mapbox', keyId: string): void {
+    if (!this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
+    void mapKeysApi.setActive(provider, keyId).catch(error => logger.warn('Failed to set active key in secure store', error));
+  }
+
+  private async initializeSecureKeys(): Promise<void> {
+    if (this.secureKeysInitialized || !this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
+    this.secureKeysInitialized = true;
+
+    try {
+      const metas = await mapKeysApi.listMeta();
+      const legacyKeys = this.config.apiKeys.filter(k => !!k.apiKey);
+
+      // First-run migration: move locally stored keys to secure storage.
+      if (metas.length === 0 && legacyKeys.length > 0 && typeof window !== 'undefined' && !localStorage.getItem(this.MIGRATION_KEY)) {
+        await this.migrateLegacyKeysToSecureStore(legacyKeys);
+      }
+
+      const refreshedMetas = await mapKeysApi.listMeta();
+      const secureKeys: MapApiKey[] = [];
+      for (const meta of refreshedMetas) {
+        const apiKey = await mapKeysApi.get(meta.id);
+        if (!apiKey) continue;
+        secureKeys.push({ ...meta, apiKey });
+      }
+
+      this.config.apiKeys = secureKeys;
+      this.saveConfiguration();
+    } catch (error) {
+      logger.warn('Failed to initialize secure map keys', error);
+    }
+  }
+
+  private async migrateLegacyKeysToSecureStore(legacyKeys: MapApiKey[]): Promise<SecureKeyMigrationResult> {
+    let migrated = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const key of legacyKeys) {
+      if (!key.apiKey) {
+        skipped++;
+        continue;
+      }
+      try {
+        await this.persistKeyToSecureStore(key);
+        migrated++;
+      } catch (error) {
+        failed++;
+        logger.warn(`Failed to migrate API key ${key.id}`, error);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(this.MIGRATION_KEY, new Date().toISOString());
+    }
+
+    return {
+      migrated,
+      skipped,
+      failed,
+      message: failed > 0 ? 'Some keys failed to migrate' : 'Migration completed',
+    };
+  }
+
   // Configuration getters
   getConfiguration(): MapConfiguration {
-    return { ...this.config };
+    return {
+      ...this.config,
+      providers: this.config.providers.map(p => ({ ...p, config: { ...p.config } })),
+      apiKeys: this.config.apiKeys.map(k => ({ ...k, quota: k.quota ? { ...k.quota } : undefined })),
+    };
   }
 
   getDefaultProvider(): 'openstreetmap' | 'google' | 'mapbox' {
@@ -226,9 +382,7 @@ class MapConfigurationService {
 
   // API Key management
   getApiKeys(provider?: 'openstreetmap' | 'google' | 'mapbox'): MapApiKey[] {
-    return this.config.apiKeys.filter(key => 
-      !provider || key.provider === provider
-    );
+    return this.config.apiKeys.filter(key => !provider || key.provider === provider);
   }
 
   getActiveApiKey(provider: 'openstreetmap' | 'google' | 'mapbox'): MapApiKey | undefined {
@@ -249,7 +403,6 @@ class MapConfigurationService {
       createdAt: new Date().toISOString(),
     };
 
-    // If this is the first key for the provider, make it active
     const existingKeys = this.getApiKeys(apiKey.provider);
     if (existingKeys.length === 0) {
       newKey.isActive = true;
@@ -258,17 +411,19 @@ class MapConfigurationService {
 
     this.config.apiKeys.push(newKey);
     this.saveConfiguration();
+    void this.persistKeyToSecureStore(newKey);
     return id;
   }
 
   updateApiKey(id: string, updates: Partial<MapApiKey>): void {
     const keyIndex = this.config.apiKeys.findIndex(key => key.id === id);
     if (keyIndex >= 0) {
-      this.config.apiKeys[keyIndex] = { 
-        ...this.config.apiKeys[keyIndex], 
-        ...updates 
+      this.config.apiKeys[keyIndex] = {
+        ...this.config.apiKeys[keyIndex],
+        ...updates,
       };
       this.saveConfiguration();
+      void this.persistKeyToSecureStore(this.config.apiKeys[keyIndex]);
     }
   }
 
@@ -295,12 +450,12 @@ class MapConfigurationService {
     }
 
     this.saveConfiguration();
+    void this.removeKeyFromSecureStore(id);
   }
 
   setDefaultApiKey(keyId: string): void {
     const key = this.config.apiKeys.find(k => k.id === keyId);
     if (key) {
-      // Remove default from all keys of the same provider
       this.config.apiKeys.forEach(k => {
         if (k.provider === key.provider) {
           k.isDefault = false;
@@ -311,22 +466,24 @@ class MapConfigurationService {
       key.isActive = true;
       key.lastUsed = new Date().toISOString();
       this.saveConfiguration();
+      void this.persistKeyToSecureStore(key);
+      this.setActiveKeyInSecureStore(key.provider, key.id);
     }
   }
 
   setActiveApiKey(provider: 'openstreetmap' | 'google' | 'mapbox', keyId: string): void {
-    // Deactivate all keys for this provider
     this.config.apiKeys.forEach(key => {
       if (key.provider === provider) {
         key.isActive = false;
       }
     });
 
-    // Activate the selected key
     const selectedKey = this.config.apiKeys.find(key => key.id === keyId);
     if (selectedKey && selectedKey.provider === provider) {
       selectedKey.isActive = true;
       selectedKey.lastUsed = new Date().toISOString();
+      void this.persistKeyToSecureStore(selectedKey);
+      this.setActiveKeyInSecureStore(provider, keyId);
     }
 
     this.saveConfiguration();
@@ -338,6 +495,7 @@ class MapConfigurationService {
     if (activeKey && activeKey.quota) {
       activeKey.quota.used = (activeKey.quota.used || 0) + usage;
       this.saveConfiguration();
+      void this.persistKeyToSecureStore(activeKey);
     }
   }
 
@@ -347,6 +505,7 @@ class MapConfigurationService {
       activeKey.quota.used = 0;
       activeKey.quota.resetDate = new Date().toISOString();
       this.saveConfiguration();
+      void this.persistKeyToSecureStore(activeKey);
     }
   }
 
@@ -360,30 +519,25 @@ class MapConfigurationService {
     const now = new Date();
     const resetDate = activeKey.quota.resetDate ? new Date(activeKey.quota.resetDate) : null;
 
-    // Check if quota needs to be reset
     if (resetDate) {
       const daysSinceReset = Math.floor((now.getTime() - resetDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysSinceReset >= 1 && daily) {
-        // Reset daily quota
         this.resetQuotaUsage(provider);
         return false;
       }
 
-      const monthsSinceReset = (now.getFullYear() - resetDate.getFullYear()) * 12 + 
-                              (now.getMonth() - resetDate.getMonth());
+      const monthsSinceReset = (now.getFullYear() - resetDate.getFullYear()) * 12
+        + (now.getMonth() - resetDate.getMonth());
       if (monthsSinceReset >= 1 && monthly) {
-        // Reset monthly quota
         this.resetQuotaUsage(provider);
         return false;
       }
     }
 
-    // Check daily limit
     if (daily && used >= daily) {
       return true;
     }
 
-    // Check monthly limit
     if (monthly && used >= monthly) {
       return true;
     }
@@ -423,20 +577,25 @@ class MapConfigurationService {
     this.saveConfiguration();
   }
 
-  // Configuration listeners
+  setPolicyMode(mode: MapConfiguration['policyMode']): void {
+    this.config.policyMode = mode;
+    this.saveConfiguration();
+  }
+
+  setSearchBehaviorWhenNoAutocomplete(mode: MapConfiguration['searchBehaviorWhenNoAutocomplete']): void {
+    this.config.searchBehaviorWhenNoAutocomplete = mode;
+    this.saveConfiguration();
+  }
+
   addConfigurationListener(listener: (config: MapConfiguration) => void): () => void {
     this.listeners.push(listener);
-    
-    // Return unsubscribe function
     return () => {
       this.listeners = this.listeners.filter(l => l !== listener);
     };
   }
 
-  // Import/Export configuration
   exportConfiguration(): string {
-    const exportConfig = { ...this.config };
-    // Remove sensitive API keys from export
+    const exportConfig = { ...this.getConfiguration() };
     exportConfig.apiKeys = exportConfig.apiKeys.map(key => ({
       ...key,
       apiKey: '***REDACTED***',
@@ -447,16 +606,13 @@ class MapConfigurationService {
   importConfiguration(configJson: string, preserveApiKeys = true): void {
     try {
       const importedConfig = JSON.parse(configJson);
-      
-      // Validate critical fields
       this.validateImportedConfig(importedConfig);
-      
+
       if (preserveApiKeys) {
-        // Keep existing API keys
         importedConfig.apiKeys = this.config.apiKeys;
       }
-      
-      this.config = { ...this.getDefaultConfiguration(), ...importedConfig };
+
+      this.config = this.normalizeConfiguration(importedConfig);
       this.saveConfiguration();
     } catch (error) {
       throw new Error(`Invalid configuration format: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -471,6 +627,8 @@ class MapConfigurationService {
     const c = config as Record<string, unknown>;
     const validProviders = ['openstreetmap', 'google', 'mapbox'];
     const validStrategies = ['priority', 'fastest', 'random', 'round-robin'];
+    const validPolicyModes = ['strict', 'balanced', 'legacy'];
+    const validSearchBehaviors = ['submit-only', 'disabled'];
 
     if (c.defaultProvider !== undefined && !validProviders.includes(c.defaultProvider as string)) {
       throw new Error(`Invalid defaultProvider: ${c.defaultProvider}`);
@@ -478,6 +636,17 @@ class MapConfigurationService {
 
     if (c.fallbackStrategy !== undefined && !validStrategies.includes(c.fallbackStrategy as string)) {
       throw new Error(`Invalid fallbackStrategy: ${c.fallbackStrategy}`);
+    }
+
+    if (c.policyMode !== undefined && !validPolicyModes.includes(c.policyMode as string)) {
+      throw new Error(`Invalid policyMode: ${c.policyMode}`);
+    }
+
+    if (
+      c.searchBehaviorWhenNoAutocomplete !== undefined
+      && !validSearchBehaviors.includes(c.searchBehaviorWhenNoAutocomplete as string)
+    ) {
+      throw new Error(`Invalid searchBehaviorWhenNoAutocomplete: ${c.searchBehaviorWhenNoAutocomplete}`);
     }
 
     if (c.healthCheckInterval !== undefined && (typeof c.healthCheckInterval !== 'number' || c.healthCheckInterval < 5000)) {
@@ -508,5 +677,4 @@ class MapConfigurationService {
   }
 }
 
-// Singleton instance
 export const mapConfig = new MapConfigurationService();

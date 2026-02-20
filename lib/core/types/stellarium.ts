@@ -11,6 +11,8 @@ export interface StellariumEngine {
   observer: StellariumObserver;
   D2R: number;
   R2D: number;
+  on?: (eventName: 'click' | 'rectSelection', callback: (event: unknown) => void) => void;
+  onValueChanged?: (callback: (path: string, value: unknown) => void) => void;
   getObj: (name: string) => StellariumObject | null;
   createObj: (type: string, options: Record<string, unknown>) => StellariumObject;
   createLayer: (options: { id: string; z: number; visible: boolean }) => StellariumLayer;
@@ -23,6 +25,13 @@ export interface StellariumEngine {
   zoomTo: (fov: number, duration?: number) => void;
   lookAt: (pos: number[], duration?: number) => void;
   change: (callback: (obj: unknown, attr: string) => void) => void;
+  setFont?: (face: 'regular' | 'bold', url: string) => Promise<void>;
+  calendar?: (args: {
+    start: Date;
+    end: Date;
+    onEvent: (event: unknown) => void;
+    iterator?: boolean;
+  }) => unknown;
 }
 
 export interface StellariumHipsModule {
@@ -156,12 +165,16 @@ export interface StellariumSettings {
   constellationsLinesVisible: boolean;
   constellationArtVisible: boolean;
   constellationLabelsVisible: boolean;
+  constellationBoundariesVisible: boolean;
   starLabelsVisible: boolean;
   planetLabelsVisible: boolean;
   azimuthalLinesVisible: boolean;
   equatorialLinesVisible: boolean;
+  equatorialJnowLinesVisible: boolean;
   meridianLinesVisible: boolean;
   eclipticLinesVisible: boolean;
+  horizonLinesVisible: boolean;
+  galacticLinesVisible: boolean;
   atmosphereVisible: boolean;
   landscapesVisible: boolean;
   dsosVisible: boolean;
@@ -173,6 +186,15 @@ export interface StellariumSettings {
   skyCultureLanguage: SkyCultureLanguage;
   nightMode: boolean;
   sensorControl: boolean;
+  sensorAbsolutePreferred: boolean;
+  sensorUseCompassHeading: boolean;
+  sensorUpdateHz: number;
+  sensorDeadbandDeg: number;
+  sensorSmoothingFactor: number;
+  sensorCalibrationRequired: boolean;
+  sensorCalibrationAzimuthOffsetDeg: number;
+  sensorCalibrationAltitudeOffsetDeg: number;
+  sensorCalibrationUpdatedAt: number | null;
   crosshairVisible: boolean;
   crosshairColor: string;
 
@@ -185,6 +207,9 @@ export interface StellariumSettings {
   flipViewVertical: boolean;
   flipViewHorizontal: boolean;
   exposureScale: number;
+  tonemapperP: number;
+  mountFrame: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  viewYOffset: number;
 }
 
 // ============================================================================
@@ -333,6 +358,12 @@ export interface SelectedObjectData {
   dec: string;
   raDeg: number;
   decDeg: number;
+  frame?: import('./astronomy').AstronomicalFrame;
+  timeScale?: import('./astronomy').TimeScale;
+  qualityFlag?: import('./astronomy').CoordinateQualityFlag;
+  dataFreshness?: import('./astronomy').EopFreshness;
+  coordinateSource?: 'engine' | 'calculation';
+  coordinateTimestamp?: string;
   type?: string;
   magnitude?: number;
   size?: string;
@@ -352,6 +383,12 @@ export interface ClickCoords {
   dec: number;
   raStr: string;
   decStr: string;
+  frame?: import('./astronomy').AstronomicalFrame;
+  timeScale?: import('./astronomy').TimeScale;
+  qualityFlag?: import('./astronomy').CoordinateQualityFlag;
+  dataFreshness?: import('./astronomy').EopFreshness;
+  source?: 'engine' | 'calculation';
+  epochJd?: number;
 }
 
 // ============================================================================

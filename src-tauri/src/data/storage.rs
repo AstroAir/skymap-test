@@ -57,6 +57,7 @@ const KNOWN_STORES: &[&str] = &[
     "starmap-markers",
     "starmap-settings",
     "starmap-equipment",
+    "starmap-feedback",
     "starmap-onboarding",
     "starmap-locations",
     "starmap-observation-log",
@@ -666,6 +667,7 @@ mod tests {
         assert!(KNOWN_STORES.contains(&"starmap-markers"));
         assert!(KNOWN_STORES.contains(&"starmap-settings"));
         assert!(KNOWN_STORES.contains(&"starmap-equipment"));
+        assert!(KNOWN_STORES.contains(&"starmap-feedback"));
         assert!(KNOWN_STORES.contains(&"starmap-onboarding"));
         assert!(KNOWN_STORES.contains(&"starmap-locations"));
         assert!(KNOWN_STORES.contains(&"starmap-observation-log"));
@@ -680,8 +682,8 @@ mod tests {
 
     #[test]
     fn test_known_stores_count() {
-        // Should have exactly 12 known stores after the update
-        assert_eq!(KNOWN_STORES.len(), 12, "Should have exactly 12 known stores, got {}", KNOWN_STORES.len());
+        // Should have exactly 13 known stores after the update
+        assert_eq!(KNOWN_STORES.len(), 13, "Should have exactly 13 known stores, got {}", KNOWN_STORES.len());
     }
 
     #[test]

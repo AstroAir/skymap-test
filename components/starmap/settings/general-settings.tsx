@@ -1,7 +1,6 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useRouter, usePathname } from 'next/navigation';
 import {
   Globe,
   Clock,
@@ -11,6 +10,7 @@ import {
   Power,
   XCircle,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useSettingsStore } from '@/lib/stores';
+import { useDailyKnowledgeStore, useSettingsStore } from '@/lib/stores';
 import type {
   AppLocale,
   TimeFormat,
@@ -30,26 +30,20 @@ import type {
   TemperatureUnit,
   StartupView,
 } from '@/lib/stores/settings-store';
+import { useLocaleStore } from '@/lib/i18n/locale-store';
 import { SettingsSection, ToggleItem } from './settings-shared';
 
 export function GeneralSettings() {
   const t = useTranslations();
-  const router = useRouter();
-  const pathname = usePathname();
-  
+
   const preferences = useSettingsStore((state) => state.preferences);
   const setPreference = useSettingsStore((state) => state.setPreference);
+  const setLocale = useLocaleStore((state) => state.setLocale);
+  const openDailyKnowledge = useDailyKnowledgeStore((state) => state.openDialog);
 
   const handleLocaleChange = (locale: AppLocale) => {
     setPreference('locale', locale);
-    // Navigate to the new locale path
-    const segments = pathname.split('/').filter(Boolean);
-    if (segments[0] === 'en' || segments[0] === 'zh') {
-      segments[0] = locale;
-    } else {
-      segments.unshift(locale);
-    }
-    router.push('/' + segments.join('/'));
+    setLocale(locale);
   };
 
   return (
@@ -255,6 +249,38 @@ export function GeneralSettings() {
             checked={preferences.autoConnectBackend}
             onCheckedChange={(checked) => setPreference('autoConnectBackend', checked)}
           />
+          <ToggleItem
+            id="daily-knowledge-enabled"
+            label={t('settingsNew.general.dailyKnowledgeEnabled')}
+            description={t('settingsNew.general.dailyKnowledgeEnabledDesc')}
+            checked={preferences.dailyKnowledgeEnabled}
+            onCheckedChange={(checked) => setPreference('dailyKnowledgeEnabled', checked)}
+          />
+          <ToggleItem
+            id="daily-knowledge-auto-show"
+            label={t('settingsNew.general.dailyKnowledgeAutoShow')}
+            description={t('settingsNew.general.dailyKnowledgeAutoShowDesc')}
+            checked={preferences.dailyKnowledgeAutoShow}
+            onCheckedChange={(checked) => setPreference('dailyKnowledgeAutoShow', checked)}
+          />
+          <ToggleItem
+            id="daily-knowledge-online-enhancement"
+            label={t('settingsNew.general.dailyKnowledgeOnlineEnhancement')}
+            description={t('settingsNew.general.dailyKnowledgeOnlineEnhancementDesc')}
+            checked={preferences.dailyKnowledgeOnlineEnhancement}
+            onCheckedChange={(checked) => setPreference('dailyKnowledgeOnlineEnhancement', checked)}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={!preferences.dailyKnowledgeEnabled}
+            onClick={() => {
+              void openDailyKnowledge('manual');
+            }}
+          >
+            {t('settingsNew.general.openDailyKnowledgeNow')}
+          </Button>
         </div>
       </SettingsSection>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Search, X, Menu, RotateCcw, PanelLeftClose, PanelLeft, LogOut, Compass, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -47,8 +47,14 @@ import { QuickActionsPanel } from '../controls/quick-actions-panel';
 import { NavigationHistory } from '../controls/navigation-history';
 import { ViewBookmarks } from '../controls/view-bookmarks';
 import { ObjectTypeLegend } from '../objects/object-type-legend';
+import { DailyKnowledgeButton } from '../knowledge/daily-knowledge-button';
 
 import { isTauri, quitApp, toggleMaximizeWindow } from '@/lib/tauri/app-control-api';
+import { useOnboardingBridgeStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
+import {
+  DEFAULT_MOBILE_PRIORITIZED_TOOLS,
+  sortByMobileToolPriority,
+} from '@/lib/constants/mobile-tools';
 import type { TopToolbarProps } from '@/types/starmap/view';
 
 export const TopToolbar = memo(function TopToolbar({
@@ -66,6 +72,34 @@ export const TopToolbar = memo(function TopToolbar({
   onGoToCoordinates,
 }: TopToolbarProps) {
   const t = useTranslations();
+  const openSearchRequestId = useOnboardingBridgeStore((state) => state.openSearchRequestId);
+  const closeTransientPanelsRequestId = useOnboardingBridgeStore((state) => state.closeTransientPanelsRequestId);
+  const handledSearchRequestRef = useRef(0);
+  const handledCloseTransientRef = useRef(0);
+
+  useEffect(() => {
+    if (
+      openSearchRequestId > 0 &&
+      openSearchRequestId !== handledSearchRequestRef.current
+    ) {
+      handledSearchRequestRef.current = openSearchRequestId;
+      if (!isSearchOpen) {
+        onToggleSearch();
+      }
+    }
+  }, [isSearchOpen, onToggleSearch, openSearchRequestId]);
+
+  useEffect(() => {
+    if (
+      closeTransientPanelsRequestId > 0 &&
+      closeTransientPanelsRequestId !== handledCloseTransientRef.current
+    ) {
+      handledCloseTransientRef.current = closeTransientPanelsRequestId;
+      if (isSearchOpen) {
+        onToggleSearch();
+      }
+    }
+  }, [closeTransientPanelsRequestId, isSearchOpen, onToggleSearch]);
 
   return (
     <div className="absolute top-0 left-0 right-0 pointer-events-none safe-area-top animate-fade-in">
@@ -85,25 +119,32 @@ export const TopToolbar = memo(function TopToolbar({
         {/* Left: Menu, Search, Discovery & Navigation */}
         <div className="flex items-center gap-1.5 pointer-events-auto">
           {/* Mobile Menu */}
-          <MobileMenuDrawer stel={stel} />
+          <MobileMenuDrawer stel={stel} onSetFov={onSetFov} currentFov={currentFov} />
+
+          {/* Mobile Sensor Quick Access */}
+          <div className="md:hidden">
+            <SensorControlToggle />
+          </div>
 
           {/* Search Button */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                data-tour-id="search-button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-9 w-9 backdrop-blur-md border border-border/50 touch-target toolbar-btn",
-                  isSearchOpen
-                    ? "bg-primary/20 text-primary border-primary/50"
-                    : "bg-card/60 text-foreground/80 hover:text-foreground hover:bg-accent"
-                )}
-                onClick={onToggleSearch}
-              >
-                {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-              </Button>
+              <div data-tour-id="search">
+                <Button
+                  data-tour-id="search-button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-9 w-9 backdrop-blur-md border border-border/50 touch-target toolbar-btn",
+                    isSearchOpen
+                      ? "bg-primary/20 text-primary border-primary/50"
+                      : "bg-card/60 text-foreground/80 hover:text-foreground hover:bg-accent"
+                  )}
+                  onClick={onToggleSearch}
+                >
+                  {isSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               <p>{t('starmap.searchObjects')}</p>
@@ -113,23 +154,36 @@ export const TopToolbar = memo(function TopToolbar({
           {/* Discovery Group - "What to observe" */}
           <div className="hidden md:flex items-center gap-1.5">
             <ToolbarGroup gap="none" className="p-0.5" data-tour-id="tonight-button">
-              <TonightRecommendations />
-              <SkyAtlasPanel />
+              <div data-tour-id="tonight">
+                <TonightRecommendations />
+              </div>
+              <div data-tour-id="daily-knowledge">
+                <DailyKnowledgeButton />
+              </div>
+              <div data-tour-id="sky-atlas">
+                <SkyAtlasPanel />
+              </div>
             </ToolbarGroup>
 
             {/* Navigation Group - "Where to look" */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <QuickActionsPanel
-                onZoomToFov={onSetFov}
-                onResetView={onResetView}
-              />
-              <NavigationHistory onNavigate={onNavigate} />
-              <ViewBookmarks
-                currentRa={viewCenterRaDec.ra}
-                currentDec={viewCenterRaDec.dec}
-                currentFov={currentFov}
-                onNavigate={onNavigate}
-              />
+              <div data-tour-id="quick-actions">
+                <QuickActionsPanel
+                  onZoomToFov={onSetFov}
+                  onResetView={onResetView}
+                />
+              </div>
+              <div data-tour-id="navigation-history">
+                <NavigationHistory onNavigate={onNavigate} />
+              </div>
+              <div data-tour-id="view-bookmarks">
+                <ViewBookmarks
+                  currentRa={viewCenterRaDec.ra}
+                  currentDec={viewCenterRaDec.dec}
+                  currentFov={currentFov}
+                  onNavigate={onNavigate}
+                />
+              </div>
             </ToolbarGroup>
           </div>
         </div>
@@ -145,35 +199,57 @@ export const TopToolbar = memo(function TopToolbar({
           <div className="hidden md:flex items-center gap-1.5">
             {/* Observation Planning Group */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <SessionPlanner />
-              <AstroEventsCalendar />
-              <AstroCalculatorDialog />
+              <div data-tour-id="session-planner">
+                <SessionPlanner />
+              </div>
+              <div data-tour-id="astro-events">
+                <AstroEventsCalendar />
+              </div>
+              <div data-tour-id="astro-calculator">
+                <AstroCalculatorDialog />
+              </div>
             </ToolbarGroup>
 
             {/* Instruments & Analysis Group */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />
-              <OcularSimulator />
-              <SatelliteTracker />
+              <div data-tour-id="plate-solver">
+                <PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />
+              </div>
+              <div data-tour-id="ocular">
+                <OcularSimulator onApplyFov={onSetFov} currentFov={currentFov} />
+              </div>
+              <div data-tour-id="satellite">
+                <SatelliteTracker />
+              </div>
             </ToolbarGroup>
 
             {/* Configuration Group */}
             <ToolbarGroup gap="none" className="p-0.5" data-tour-id="settings-button">
-              <UnifiedSettings />
-              <EquipmentManager />
+              <div data-tour-id="settings">
+                <UnifiedSettings />
+              </div>
+              <div data-tour-id="equipment-manager">
+                <EquipmentManager />
+              </div>
             </ToolbarGroup>
 
             {/* Display Mode Group */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <NightModeToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              <div data-tour-id="night-mode">
+                <NightModeToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              </div>
               <SensorControlToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
               <ObjectTypeLegend variant="popover" />
             </ToolbarGroup>
 
             {/* UI Preferences Group */}
             <ToolbarGroup gap="none" className="p-0.5">
-              <ThemeToggle variant="icon" className="h-9 w-9" />
-              <LanguageSwitcher className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              <div data-tour-id="theme">
+                <ThemeToggle variant="icon" className="h-9 w-9" />
+              </div>
+              <div data-tour-id="language">
+                <LanguageSwitcher className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              </div>
             </ToolbarGroup>
           </div>
 
@@ -192,8 +268,12 @@ export const TopToolbar = memo(function TopToolbar({
               iconOnly
               onClick={onResetView}
             />
-            <KeyboardShortcutsDialog />
-            <AboutDialog />
+            <div data-tour-id="keyboard-shortcuts">
+              <KeyboardShortcutsDialog />
+            </div>
+            <div data-tour-id="about">
+              <AboutDialog />
+            </div>
           </ToolbarGroup>
 
           {/* Window Controls Group */}
@@ -217,13 +297,156 @@ export const TopToolbar = memo(function TopToolbar({
 TopToolbar.displayName = 'TopToolbar';
 
 // Mobile Menu Drawer Sub-component - memoized
-const MobileMenuDrawer = memo(function MobileMenuDrawer({ stel }: { stel: boolean }) {
+const MobileMenuDrawer = memo(function MobileMenuDrawer({
+  stel,
+  onSetFov,
+  currentFov,
+}: {
+  stel: boolean;
+  onSetFov: (fov: number) => void;
+  currentFov: number;
+}) {
   const t = useTranslations();
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
+  const prioritizedTools = useSettingsStore(
+    (state) => state.mobileFeaturePreferences.prioritizedTools ?? DEFAULT_MOBILE_PRIORITIZED_TOOLS,
+  );
+  const setSkyEngine = useSettingsStore((state) => state.setSkyEngine);
+  const setViewDirection = useStellariumStore((state) => state.setViewDirection);
+  const openMobileDrawerRequestId = useOnboardingBridgeStore((state) => state.openMobileDrawerRequestId);
+  const closeTransientPanelsRequestId = useOnboardingBridgeStore((state) => state.closeTransientPanelsRequestId);
+  const mobileDrawerSection = useOnboardingBridgeStore((state) => state.mobileDrawerSection);
+  const isStellarium = skyEngine === 'stellarium';
+  const [open, setOpen] = useState(false);
+  const handledOpenRequestRef = useRef(0);
+  const handledCloseRequestRef = useRef(0);
+
+  const mobileFeatureRegistry = [
+    {
+      id: 'tonight',
+      label: t('tonight.title'),
+      element: <TonightRecommendations />,
+    },
+    {
+      id: 'daily-knowledge',
+      label: t('dailyKnowledge.open'),
+      element: <DailyKnowledgeButton />,
+    },
+    {
+      id: 'sky-atlas',
+      label: t('skyAtlas.title'),
+      element: <SkyAtlasPanel />,
+    },
+    {
+      id: 'astro-events',
+      label: t('events.calendar'),
+      element: <AstroEventsCalendar />,
+    },
+    {
+      id: 'satellite',
+      label: t('satellites.tracker'),
+      element: <SatelliteTracker />,
+    },
+    {
+      id: 'session-planner',
+      label: t('sessionPlanner.title'),
+      element: <SessionPlanner />,
+    },
+    {
+      id: 'astro-calculator',
+      label: t('settingsNew.mobile.tools.astro-calculator'),
+      element: <AstroCalculatorDialog />,
+    },
+    {
+      id: 'plate-solver',
+      label: t('settingsNew.mobile.tools.plate-solver'),
+      element: (
+        <PlateSolverUnified
+          onGoToCoordinates={(ra, dec) => setViewDirection?.(ra, dec)}
+        />
+      ),
+    },
+    {
+      id: 'ocular',
+      label: t('ocular.title'),
+      element: <OcularSimulator onApplyFov={onSetFov} currentFov={currentFov} />,
+    },
+    {
+      id: 'equipment-manager',
+      label: t('equipment.title'),
+      element: <EquipmentManager />,
+    },
+    {
+      id: 'settings',
+      label: t('settings.allSettings'),
+      element: <UnifiedSettings />,
+    },
+    {
+      id: 'offline-cache',
+      label: t('cache.offlineStorage'),
+      element: <OfflineCacheManager />,
+    },
+    {
+      id: 'keyboard-shortcuts',
+      label: t('settingsNew.mobile.tools.keyboard-shortcuts'),
+      element: <KeyboardShortcutsDialog />,
+    },
+    {
+      id: 'about',
+      label: t('about.title'),
+      element: <AboutDialog />,
+    },
+  ];
+
+  const orderedMobileFeatures = sortByMobileToolPriority(
+    mobileFeatureRegistry,
+    prioritizedTools,
+  );
+
+  useEffect(() => {
+    if (
+      openMobileDrawerRequestId > 0 &&
+      openMobileDrawerRequestId !== handledOpenRequestRef.current
+    ) {
+      handledOpenRequestRef.current = openMobileDrawerRequestId;
+      const openTimer = window.setTimeout(() => {
+        setOpen(true);
+      }, 0);
+      const scrollTimer = mobileDrawerSection
+        ? window.setTimeout(() => {
+            const target = document.querySelector(
+              `[data-tour-id="${mobileDrawerSection}"]`,
+            ) as HTMLElement | null;
+            target?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+          }, 220)
+        : null;
+      return () => {
+        window.clearTimeout(openTimer);
+        if (scrollTimer !== null) {
+          window.clearTimeout(scrollTimer);
+        }
+      };
+    }
+  }, [mobileDrawerSection, openMobileDrawerRequestId]);
+
+  useEffect(() => {
+    if (
+      closeTransientPanelsRequestId > 0 &&
+      closeTransientPanelsRequestId !== handledCloseRequestRef.current
+    ) {
+      handledCloseRequestRef.current = closeTransientPanelsRequestId;
+      const timer = window.setTimeout(() => {
+        setOpen(false);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [closeTransientPanelsRequestId]);
 
   return (
-    <Drawer direction="left">
+    <Drawer direction="left" open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
         <Button
+          data-tour-id="mobile-menu"
           variant="ghost"
           size="icon"
           className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground/80 hover:text-foreground hover:bg-accent md:hidden touch-target toolbar-btn"
@@ -250,52 +473,30 @@ const MobileMenuDrawer = memo(function MobileMenuDrawer({ stel }: { stel: boolea
             
             {/* Quick Actions */}
             <div className="grid grid-cols-4 gap-2">
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center" data-tour-id="night-mode">
                 <NightModeToggle />
                 <span className="text-[10px] text-muted-foreground mt-1">{t('settings.nightMode')}</span>
               </div>
               <div className="flex flex-col items-center">
-                <SensorControlToggle />
-                <span className="text-[10px] text-muted-foreground mt-1">{t('settings.sensorControl')}</span>
+                <SensorControlToggle showStatusLabel />
               </div>
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center" data-tour-id="theme">
                 <ThemeToggle />
                 <span className="text-[10px] text-muted-foreground mt-1">{t('common.darkMode')}</span>
               </div>
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center" data-tour-id="language">
                 <LanguageSwitcher className="h-10 w-10" />
                 <span className="text-[10px] text-muted-foreground mt-1">{t('common.language')}</span>
               </div>
             </div>
             
             <div className="grid grid-cols-4 gap-2">
-              <div className="flex flex-col items-center">
-                <TonightRecommendations />
-                <span className="text-[10px] text-muted-foreground mt-1">{t('tonight.title')}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <SkyAtlasPanel />
-                <span className="text-[10px] text-muted-foreground mt-1">{t('skyAtlas.title')}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <AstroEventsCalendar />
-                <span className="text-[10px] text-muted-foreground mt-1">{t('events.calendar')}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <SatelliteTracker />
-                <span className="text-[10px] text-muted-foreground mt-1">{t('satellites.tracker')}</span>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-4 gap-2">
-              <div className="flex flex-col items-center">
-                <EquipmentManager />
-                <span className="text-[10px] text-muted-foreground mt-1">{t('equipment.title')}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <AboutDialog />
-                <span className="text-[10px] text-muted-foreground mt-1">{t('about.title')}</span>
-              </div>
+              {orderedMobileFeatures.map((feature) => (
+                <div key={feature.id} className="flex flex-col items-center" data-tour-id={feature.id}>
+                  {feature.element}
+                  <span className="text-[10px] text-muted-foreground mt-1">{feature.label}</span>
+                </div>
+              ))}
               {isTauri() && (
                 <div className="flex flex-col items-center">
                   <Button
@@ -316,7 +517,21 @@ const MobileMenuDrawer = memo(function MobileMenuDrawer({ stel }: { stel: boolea
             {/* Display Settings */}
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">{t('settings.displaySettings')}</h3>
-              <StellariumSettings />
+              {isStellarium ? (
+                <StellariumSettings />
+              ) : (
+                <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground space-y-2">
+                  <p>{t('settings.stellariumFeatureUnavailable')}</p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSkyEngine('stellarium')}
+                  >
+                    {t('settings.switchToStellarium')}
+                  </Button>
+                </div>
+              )}
             </div>
             
             <Separator />

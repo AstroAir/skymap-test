@@ -9,7 +9,11 @@ A modern desktop star map and astronomy planning application built with **Next.j
 - **Star Map Visualization** - Integrated Stellarium Web Engine for real-time sky rendering
 - **Observation Planning** - Tools for planning astronomy sessions and tracking targets
 - **Equipment Management** - Manage telescopes, cameras, and eyepieces with FOV calculation
-- **Astronomical Calculations** - Coordinate transforms, visibility prediction, twilight times
+- **Astronomical Calculations** - 9-tab Astro Calculator (WUT, Positions, RTS, Ephemeris, Almanac, Phenomena, Coordinate, Time, Solar System)
+- **Unified Engine** - `lib/astronomy/engine` with Tauri-first backend and `astronomy-engine` fallback for web/offline parity
+- **Frame/Timescale Contract** - Unified ICRF/CIRS/OBSERVED pipeline with UTC/UT1/TT metadata
+- **Adaptive Recommendations** - Imaging / visual / hybrid target scoring with confidence indicators
+- **Offline Precision Fallback** - Built-in EOP baseline with background refresh when online
 - **Desktop Native** - Built with Tauri 2.9 for high performance and system integration
 - **Modern UI** - Tailwind CSS v4 with Geist font and dark mode support
 - **shadcn/ui** - High-quality accessible components built on Radix UI
@@ -115,10 +119,14 @@ skymap/
 │   ├── astronomy/         # Astronomical calculations
 │   │   ├── coordinates/   # Coordinate conversions
 │   │   ├── time/          # Julian date, sidereal time
+│   │   ├── time-scales.ts # UTC/UT1/TT and EOP freshness
+│   │   ├── frames.ts      # Coordinate frame contracts
+│   │   ├── pipeline.ts    # Unified coordinate transform pipeline
 │   │   ├── celestial/     # Sun, Moon calculations
 │   │   ├── visibility/    # Target visibility
 │   │   ├── twilight/      # Twilight times
-│   │   └── imaging/       # Exposure calculations
+│   │   ├── imaging/       # Exposure calculations
+│   │   └── engine/        # Unified Tauri/fallback astronomy engine
 │   ├── stores/            # Zustand state management
 │   └── tauri/             # Tauri API wrappers
 ├── src-tauri/             # Rust backend

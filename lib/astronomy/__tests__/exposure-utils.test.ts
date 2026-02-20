@@ -10,6 +10,7 @@ import {
   calculateSNR,
   calculateSNRFull,
   calculateOptimalSubExposure,
+  calculateSmartExposure,
   estimateFileSize,
   estimateSessionTime,
 } from '../exposure-utils';
@@ -200,6 +201,86 @@ describe('calculateOptimalSubExposure', () => {
     const autoRN = calculateOptimalSubExposure(5, 5, 3.76, 400, false, undefined, 100);
     const highRN = calculateOptimalSubExposure(5, 5, 3.76, 400, false, 8.0, 100);
     expect(highRN.balanced).toBeGreaterThan(autoRN.balanced);
+  });
+});
+
+// ============================================================================
+// calculateSmartExposure
+// ============================================================================
+
+describe('calculateSmartExposure', () => {
+  it('recommends longer exposure with stricter read-noise limit', () => {
+    const loose = calculateSmartExposure({
+      sky: { bortle: 5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 20,
+      gainStrategy: 'unity',
+    });
+    const strict = calculateSmartExposure({
+      sky: { bortle: 5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 2,
+      gainStrategy: 'unity',
+    });
+    expect(strict.recommendedExposureSec).toBeGreaterThan(loose.recommendedExposureSec);
+  });
+
+  it('recommends shorter exposure for brighter sky background', () => {
+    const darkSky = calculateSmartExposure({
+      sky: { sqm: 21.5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'unity',
+    });
+    const brightSky = calculateSmartExposure({
+      sky: { sqm: 18.5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'unity',
+    });
+    expect(brightSky.recommendedExposureSec).toBeLessThan(darkSky.recommendedExposureSec);
+  });
+
+  it('uses manual camera profile when provided', () => {
+    const auto = calculateSmartExposure({
+      sky: { bortle: 5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'unity',
+    });
+    const manual = calculateSmartExposure({
+      sky: { bortle: 5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      camera: { readNoise: 4.2, darkCurrent: 0.02, fullWell: 30000, qe: 0.6, ePerAdu: 1.7 },
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'unity',
+    });
+    expect(manual.readNoiseUsed).toBeCloseTo(4.2, 6);
+    expect(manual.darkCurrentUsed).toBeCloseTo(0.02, 6);
+    expect(manual.recommendedExposureSec).not.toBeCloseTo(auto.recommendedExposureSec, 2);
+  });
+
+  it('produces strategy-dependent gain recommendations', () => {
+    const unity = calculateSmartExposure({
+      sky: { bortle: 5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'unity',
+    });
+    const maxDynamicRange = calculateSmartExposure({
+      sky: { bortle: 5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'max_dynamic_range',
+    });
+    expect(unity.gainStrategyUsed).toBe('unity');
+    expect(maxDynamicRange.gainStrategyUsed).toBe('max_dynamic_range');
+    expect(maxDynamicRange.recommendedGainReason).not.toEqual(unity.recommendedGainReason);
+    expect(unity.constraintHits).toContain('unity_gain');
+    expect(maxDynamicRange.constraintHits).toContain('max_dynamic_range');
+  });
+
+  it('keeps legacy helpers deterministic after advanced calculations', () => {
+    const before = calculateOptimalSubExposure(5, 5, 3.76, 400, false, undefined, 100);
+    calculateSmartExposure({
+      sky: { bortle: 5, fRatio: 5, pixelSize: 3.76, filterBandwidthNm: 300 },
+      readNoiseLimitPercent: 5,
+      gainStrategy: 'unity',
+    });
+    const after = calculateOptimalSubExposure(5, 5, 3.76, 400, false, undefined, 100);
+    expect(after).toEqual(before);
   });
 });
 

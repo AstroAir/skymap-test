@@ -69,6 +69,8 @@ impl AlpacaVoidResponse {
 pub struct AlpacaClient {
     client: Client,
     base_url: String,
+    host: String,
+    port: u16,
     device_id: u32,
 }
 
@@ -82,6 +84,8 @@ impl AlpacaClient {
         Self {
             client,
             base_url: format!("http://{}:{}/api/v1/telescope/{}", host, port, device_id),
+            host: host.to_string(),
+            port,
             device_id,
         }
     }
@@ -108,6 +112,36 @@ impl AlpacaClient {
         let url = format!("{}/{}?ClientID={}&ClientTransactionID={}",
             self.base_url, property, CLIENT_ID, next_transaction_id());
         let resp: AlpacaResponse<i32> = self.client.get(&url).send().await?.json().await?;
+        resp.into_result()
+    }
+
+    async fn get_f64_device(&self, device_type: &str, property: &str) -> Result<f64, MountError> {
+        let url = format!(
+            "http://{}:{}/api/v1/{}/{}/{}?ClientID={}&ClientTransactionID={}",
+            self.host,
+            self.port,
+            device_type,
+            self.device_id,
+            property,
+            CLIENT_ID,
+            next_transaction_id()
+        );
+        let resp: AlpacaResponse<f64> = self.client.get(&url).send().await?.json().await?;
+        resp.into_result()
+    }
+
+    async fn get_bool_device(&self, device_type: &str, property: &str) -> Result<bool, MountError> {
+        let url = format!(
+            "http://{}:{}/api/v1/{}/{}/{}?ClientID={}&ClientTransactionID={}",
+            self.host,
+            self.port,
+            device_type,
+            self.device_id,
+            property,
+            CLIENT_ID,
+            next_transaction_id()
+        );
+        let resp: AlpacaResponse<bool> = self.client.get(&url).send().await?.json().await?;
         resp.into_result()
     }
 
@@ -292,6 +326,28 @@ impl AlpacaClient {
             TrackingRate::Stopped => 0, // Stopped is handled via tracking=false
         };
         self.put_void("trackingrate", &[("TrackingRate", val.to_string())]).await
+    }
+
+    pub async fn get_observing_conditions(&self) -> Result<ObservingConditions, MountError> {
+        let cloud_cover = self.get_f64_device("observingconditions", "cloudcover").await.ok();
+        let humidity = self.get_f64_device("observingconditions", "humidity").await.ok();
+        let wind_speed = self.get_f64_device("observingconditions", "windspeed").await.ok();
+        let dew_point = self.get_f64_device("observingconditions", "dewpoint").await.ok();
+
+        Ok(ObservingConditions {
+            cloud_cover,
+            humidity,
+            wind_speed,
+            dew_point,
+        })
+    }
+
+    pub async fn get_safety_state(&self) -> Result<SafetyState, MountError> {
+        let is_safe = self.get_bool_device("safetymonitor", "issafe").await?;
+        Ok(SafetyState {
+            is_safe,
+            source: "alpaca".to_string(),
+        })
     }
 
     /// Move axis at given rate (degrees/sec)

@@ -18,10 +18,22 @@ import {
   RETRY_DELAY_MS,
 } from '@/lib/core/constants/stellarium-canvas';
 import { withTimeout, prefetchWasm, fovToRad } from '@/lib/core/stellarium-canvas-utils';
+import { pointAndLockTargetAt } from './target-object-pool';
 import type { StellariumEngine, SelectedObjectData } from '@/lib/core/types';
 import type { LoadingState } from '@/types/stellarium-canvas';
 
 const logger = createLogger('stellarium-loader');
+const TWO_PI = 2 * Math.PI;
+
+function normalizeRadians(angle: number): number {
+  return ((angle % TWO_PI) + TWO_PI) % TWO_PI;
+}
+
+function angularErrorArcsec(targetRad: number, actualRad: number): number {
+  const delta = Math.abs(targetRad - actualRad);
+  const wrapped = Math.min(delta, TWO_PI - delta);
+  return wrapped * (180 / Math.PI) * 3600;
+}
 
 interface UseStellariumLoaderOptions {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -39,6 +51,12 @@ interface UseStellariumLoaderResult {
   reloadEngine: () => void;
 }
 
+type LoaderStage = 'script' | 'engine';
+
+interface LoaderStageError extends Error {
+  stage: LoaderStage;
+}
+
 /**
  * Hook for loading and initializing the Stellarium engine
  */
@@ -54,6 +72,8 @@ export function useStellariumLoader({
   const initializingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const retryCountRef = useRef(0);
+  const retryTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
   
   const [isLoading, setIsLoading] = useState(true);
   const [loadingStatus, setLoadingStatus] = useState('');
@@ -70,6 +90,15 @@ export function useStellariumLoader({
   const onFovChangeRef = useRef(onFovChange);
   useEffect(() => { onSelectionChangeRef.current = onSelectionChange; }, [onSelectionChange]);
   useEffect(() => { onFovChangeRef.current = onFovChange; }, [onFovChange]);
+  useEffect(() => () => {
+    mountedRef.current = false;
+    abortControllerRef.current?.abort();
+    if (retryTimeoutRef.current !== null) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    initializingRef.current = false;
+  }, []);
   
   // Initialize Stellarium engine with all data sources
   const initStellarium = useCallback((stel: StellariumEngine) => {
@@ -102,16 +131,20 @@ export function useStellariumLoader({
     const getCurrentViewDirection = () => {
       const obs = stel.core.observer;
       const viewVec = [0, 0, -1];
-      const cirsVec = stel.convertFrame(stel.observer, 'VIEW', 'CIRS', viewVec);
-      const raDecSpherical = stel.c2s(cirsVec);
+      const icrfVec = stel.convertFrame(stel.observer, 'VIEW', 'ICRF', viewVec);
+      const raDecSpherical = stel.c2s(icrfVec);
       const alt = obs.azalt[0];
       const az = obs.azalt[1];
 
       return {
-        ra: raDecSpherical[0],
-        dec: raDecSpherical[1],
+        ra: normalizeRadians(raDecSpherical[0]),
+        dec: stel.anpm(raDecSpherical[1]),
         alt,
         az,
+        frame: 'ICRF' as const,
+        timeScale: 'UTC' as const,
+        qualityFlag: 'precise' as const,
+        dataFreshness: 'fallback' as const,
       };
     };
 
@@ -122,18 +155,19 @@ export function useStellariumLoader({
         const decRad = decDeg * stel.D2R;
         const icrfVec = stel.s2c(raRad, decRad);
         const cirsVec = stel.convertFrame(stel.observer, 'ICRF', 'CIRS', icrfVec);
+        pointAndLockTargetAt(stel, cirsVec);
 
-        const targetCircle = stel.createObj('circle', {
-          id: 'framingTarget',
-          pos: cirsVec,
-          color: [0, 0, 0, 0.1],
-          size: [0.05, 0.05],
+        const actual = getCurrentViewDirection();
+        const raErrArcsec = angularErrorArcsec(normalizeRadians(raRad), normalizeRadians(actual.ra));
+        const decErrArcsec = Math.abs(decRad - actual.dec) * (180 / Math.PI) * 3600;
+        logger.debug('setViewDirection roundtrip', {
+          target: { raDeg, decDeg },
+          actual: { raDeg: rad2deg(actual.ra), decDeg: rad2deg(actual.dec) },
+          errorArcsec: {
+            ra: Number(raErrArcsec.toFixed(3)),
+            dec: Number(decErrArcsec.toFixed(3)),
+          },
         });
-
-        targetCircle.pos = cirsVec;
-        targetCircle.update();
-        stel.core.selection = targetCircle;
-        stel.pointAndLock(targetCircle);
       } catch (error) {
         logger.error('Error setting view direction', error);
       }
@@ -196,10 +230,11 @@ export function useStellariumLoader({
         }
 
         const selectedDesignations = selection.designations();
-        const raDec = selection.getInfo('RADEC') as number[];
-        const radecCIRS = stel.c2s(raDec);
-        const ra = stel.anp(radecCIRS[0]);
-        const dec = stel.anpm(radecCIRS[1]);
+        const radecVector = selection.getInfo('RADEC') as number[];
+        const radecIcrfVec = stel.convertFrame(stel.observer, 'CIRS', 'ICRF', radecVector);
+        const radecIcrf = stel.c2s(radecIcrfVec);
+        const ra = normalizeRadians(radecIcrf[0]);
+        const dec = stel.anpm(radecIcrf[1]);
 
         onSelectionChangeRef.current?.({
           names: selectedDesignations,
@@ -207,6 +242,12 @@ export function useStellariumLoader({
           dec: degreesToDMS(rad2deg(dec)),
           raDeg: rad2deg(ra),
           decDeg: rad2deg(dec),
+          frame: 'ICRF',
+          timeScale: 'UTC',
+          qualityFlag: 'precise',
+          dataFreshness: 'fallback',
+          coordinateSource: 'engine',
+          coordinateTimestamp: new Date().toISOString(),
         });
       }
     });
@@ -314,32 +355,58 @@ export function useStellariumLoader({
     });
   }, [canvasRef, initStellarium, t]);
 
+  const createStageError = useCallback((stage: LoaderStage, error: unknown): LoaderStageError => {
+    const message = error instanceof Error ? error.message : t('loadFailed');
+    const stagedError = new Error(message) as LoaderStageError;
+    stagedError.stage = stage;
+    return stagedError;
+  }, [t]);
+
   // Main loading function with retry support
   const startLoading = useCallback(async () => {
+    if (!mountedRef.current) return;
+
     // Prevent concurrent initialization
     if (initializingRef.current) return;
     initializingRef.current = true;
 
+    if (retryTimeoutRef.current !== null) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
     // Create abort controller for this load attempt
     abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
+    const loadAbortController = new AbortController();
+    abortControllerRef.current = loadAbortController;
 
-    setErrorMessage(null);
-    setIsLoading(true);
+    if (mountedRef.current) {
+      setErrorMessage(null);
+      setIsLoading(true);
+      setLoadingStatus(t('preparingResources'));
+    }
 
     let shouldRetry = false;
 
     try {
       // Step 1: Setup canvas
       if (!canvasRef.current || !containerRef.current) {
-        throw new Error(t('canvasContainerNotReady'));
+        setLoadingStatus(t('canvasContainerNotReady'));
+        shouldRetry = true;
+        return;
       }
 
       const canvas = canvasRef.current;
       const container = containerRef.current;
       const rect = container.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
+      if (rect.width <= 0 || rect.height <= 0) {
+        setLoadingStatus(t('canvasContainerNotReady'));
+        shouldRetry = true;
+        return;
+      }
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
 
       // Step 2: Prefetch WASM into cache (non-blocking)
       setLoadingStatus(t('preparingResources'));
@@ -349,32 +416,49 @@ export function useStellariumLoader({
 
       // Step 3: Load script
       setLoadingStatus(t('loadingScript'));
-      await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, t('engineScriptTimedOut'));
+      try {
+        await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, t('engineScriptTimedOut'));
+      } catch (error) {
+        throw createStageError('script', error);
+      }
 
       // Check if aborted
-      if (abortControllerRef.current?.signal.aborted) {
+      if (loadAbortController.signal.aborted || !mountedRef.current) {
         return;
       }
 
       // Step 4: Initialize WASM engine
       setLoadingStatus(t('initializingStarmap'));
-      await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, t('starmapInitTimedOut'));
+      try {
+        await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, t('starmapInitTimedOut'));
+      } catch (error) {
+        throw createStageError('engine', error);
+      }
 
       // Check if aborted
-      if (abortControllerRef.current?.signal.aborted) {
+      if (loadAbortController.signal.aborted || !mountedRef.current) {
         return;
       }
 
       // Success
-      setIsLoading(false);
-      setErrorMessage(null);
+      if (mountedRef.current) {
+        setIsLoading(false);
+        setErrorMessage(null);
+      }
       retryCountRef.current = 0;
 
     } catch (err) {
-      logger.error('Error loading star map', err);
+      const stage = err instanceof Error && 'stage' in err
+        ? (err as LoaderStageError).stage
+        : null;
+      if (stage === 'script' || stage === 'engine') {
+        logger.error('Error loading star map', err);
+      } else {
+        logger.warn('Stellarium loader waiting for runtime readiness', err);
+      }
       
       // Check if aborted (component unmounted)
-      if (abortControllerRef.current?.signal.aborted) {
+      if (loadAbortController.signal.aborted || !mountedRef.current) {
         return;
       }
 
@@ -387,21 +471,24 @@ export function useStellariumLoader({
         shouldRetry = true;
       } else {
         // Max retries reached
-        setErrorMessage(errorMsg);
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setErrorMessage(errorMsg);
+          setIsLoading(false);
+        }
       }
     } finally {
       initializingRef.current = false;
     }
 
-    // Handle retry outside try-catch-finally to avoid race condition
-    if (shouldRetry && !abortControllerRef.current?.signal.aborted) {
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-      if (!abortControllerRef.current?.signal.aborted) {
-        startLoading();
-      }
+    if (shouldRetry && mountedRef.current && !loadAbortController.signal.aborted) {
+      retryTimeoutRef.current = window.setTimeout(() => {
+        retryTimeoutRef.current = null;
+        if (mountedRef.current && !loadAbortController.signal.aborted) {
+          void startLoading();
+        }
+      }, RETRY_DELAY_MS);
     }
-  }, [containerRef, canvasRef, loadScript, initializeEngine, t]);
+  }, [containerRef, canvasRef, createStageError, loadScript, initializeEngine, t]);
 
   // Retry loading (user-triggered)
   const handleRetry = useCallback(() => {

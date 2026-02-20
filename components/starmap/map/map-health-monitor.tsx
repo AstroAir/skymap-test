@@ -37,9 +37,10 @@ import { formatResponseTime } from '@/lib/utils/map-utils';
 interface MapHealthMonitorProps {
   className?: string;
   compact?: boolean;
+  refreshToken?: number;
 }
 
-function MapHealthMonitorComponent({ className, compact = false }: MapHealthMonitorProps) {
+function MapHealthMonitorComponent({ className, compact = false, refreshToken = 0 }: MapHealthMonitorProps) {
   const t = useTranslations();
   const [providerHealth, setProviderHealth] = useState<ProviderHealthStatus[]>([]);
   const [networkQuality, setNetworkQuality] = useState<NetworkQualityMetrics | null>(null);
@@ -73,10 +74,14 @@ function MapHealthMonitorComponent({ className, compact = false }: MapHealthMoni
     return unsubscribe;
   }, [loadHealthData]);
 
+  useEffect(() => {
+    loadHealthData();
+  }, [refreshToken, loadHealthData]);
+
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await connectivityChecker.quickConnectivityTest();
+      await connectivityChecker.checkAllProvidersHealth();
       loadHealthData();
     } finally {
       setIsRefreshing(false);

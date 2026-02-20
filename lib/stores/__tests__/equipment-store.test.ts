@@ -18,6 +18,12 @@ describe('useEquipmentStore', () => {
         customEyepieces: [],
         customBarlows: [],
         customOcularTelescopes: [],
+        ocularDisplay: {
+          enabled: false,
+          opacity: 70,
+          showCrosshair: true,
+          appliedFov: null,
+        },
         selectedOcularTelescopeId: 't1',
         selectedEyepieceId: 'e1',
         selectedBarlowId: 'b0',
@@ -284,6 +290,24 @@ describe('useEquipmentStore', () => {
       });
       
       expect(result.current.fovDisplay.gridType).toBe('thirds');
+    });
+
+    it('should update ocular display settings', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+
+      act(() => {
+        result.current.setOcularDisplay({
+          enabled: true,
+          opacity: 85,
+          appliedFov: 1.25,
+          showCrosshair: false,
+        });
+      });
+
+      expect(result.current.ocularDisplay.enabled).toBe(true);
+      expect(result.current.ocularDisplay.opacity).toBe(85);
+      expect(result.current.ocularDisplay.appliedFov).toBe(1.25);
+      expect(result.current.ocularDisplay.showCrosshair).toBe(false);
     });
   });
 
@@ -824,6 +848,8 @@ describe('useEquipmentStore', () => {
       expect(result.current.sensorWidth).toBe(23.5);
       expect(result.current.focalLength).toBe(400);
       expect(result.current.mosaic.enabled).toBe(false);
+      expect(result.current.ocularDisplay.enabled).toBe(false);
+      expect(result.current.ocularDisplay.appliedFov).toBeNull();
     });
   });
 

@@ -54,7 +54,7 @@ const DEFAULT_SOURCES: EventSourceConfig[] = [
   {
     id: 'nasa',
     name: 'NASA Eclipse',
-    apiUrl: 'https://eclipse.gsfc.nasa.gov/eclipse/api',
+    apiUrl: 'https://eclipse.gsfc.nasa.gov',
     apiKey: '',
     enabled: true,
     priority: 3,

@@ -1,8 +1,13 @@
 /**
  * Sidereal Time calculations
+ * Aligned with standard UT1-driven Earth rotation conventions.
  */
 
-import { getJulianDate, dateToJulianDate } from './julian';
+import { getJulianDate } from './julian';
+import { buildTimeScaleContext } from '../time-scales';
+
+const DJ00 = 2451545.0;
+const DAYS_PER_CENTURY = 36525;
 
 // ============================================================================
 // Greenwich Sidereal Time
@@ -27,7 +32,74 @@ export function getGST(jd?: number): number {
  * @returns GST in degrees
  */
 export function getGSTForDate(date: Date): number {
-  return getGST(dateToJulianDate(date));
+  const context = buildTimeScaleContext(date);
+  return getGMST06(context.jdUt1, context.jdTt);
+}
+
+/**
+ * Greenwich Mean Sidereal Time (explicit naming for UT1-driven workflows)
+ */
+export function getGMST(jdUt1?: number): number {
+  if (jdUt1 === undefined) return getGST();
+  return getGST(jdUt1);
+}
+
+export function getGMSTForDate(date: Date): number {
+  const context = buildTimeScaleContext(date);
+  return getGMST06(context.jdUt1, context.jdTt);
+}
+
+function normalizeDegrees(value: number): number {
+  return ((value % 360) + 360) % 360;
+}
+
+function earthRotationAngle(jdUt1: number): number {
+  const t = jdUt1 - DJ00;
+  const f = ((jdUt1 % 1) + 1) % 1;
+  return normalizeDegrees((f + 0.7790572732640 + 0.00273781191135448 * t) * 360);
+}
+
+function getGMST06(jdUt1: number, jdTt: number): number {
+  const centuries = (jdTt - DJ00) / DAYS_PER_CENTURY;
+  const era = earthRotationAngle(jdUt1);
+  const precessionArcsec =
+    0.014506
+    + (4612.156534
+    + (1.3915817
+    + (-0.00000044
+    + (-0.000029956
+    + (-0.0000000368) * centuries) * centuries) * centuries) * centuries) * centuries;
+  return normalizeDegrees(era + precessionArcsec / 3600);
+}
+
+/**
+ * Approximate equation of the equinoxes in degrees.
+ * Uses a compact nutation model suitable for UI-level high-frequency updates.
+ */
+export function getEquationOfEquinoxes(jdTt: number): number {
+  const T = (jdTt - 2451545.0) / 36525.0;
+  const omega = normalizeDegrees(125.04452 - 1934.136261 * T);
+  const meanLongitudeSun = normalizeDegrees(280.4665 + 36000.7698 * T);
+  const meanLongitudeMoon = normalizeDegrees(218.3165 + 481267.8813 * T);
+  const epsilon = 23.439291 - 0.0130042 * T;
+
+  const toRad = Math.PI / 180;
+  const deltaPsiArcsec =
+    -17.20 * Math.sin(omega * toRad)
+    - 1.32 * Math.sin(2 * meanLongitudeSun * toRad)
+    - 0.23 * Math.sin(2 * meanLongitudeMoon * toRad)
+    + 0.21 * Math.sin(2 * omega * toRad);
+
+  return (deltaPsiArcsec * Math.cos(epsilon * toRad)) / 3600;
+}
+
+/**
+ * Greenwich Apparent Sidereal Time (GAST), degrees.
+ */
+export function getGAST(jdUt1: number, jdTt: number): number {
+  const gmst = getGMST06(jdUt1, jdTt);
+  const equation = getEquationOfEquinoxes(jdTt);
+  return normalizeDegrees(gmst + equation);
 }
 
 // ============================================================================
@@ -52,7 +124,14 @@ export function getLST(longitude: number, jd?: number): number {
  * @returns LST in degrees
  */
 export function getLSTForDate(longitude: number, date: Date): number {
-  return getLST(longitude, dateToJulianDate(date));
+  const context = buildTimeScaleContext(date);
+  return getLST(longitude, context.jdUt1);
+}
+
+export function getApparentLSTForDate(longitude: number, date: Date): number {
+  const context = buildTimeScaleContext(date);
+  const gast = getGAST(context.jdUt1, context.jdTt);
+  return normalizeDegrees(gast + longitude);
 }
 
 // ============================================================================

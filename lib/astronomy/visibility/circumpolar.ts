@@ -13,6 +13,8 @@
  * @returns True if object is circumpolar
  */
 export function isCircumpolar(dec: number, latitude: number): boolean {
+  if (latitude === 0 || dec === 0) return false;
+  if (Math.sign(dec) !== Math.sign(latitude)) return false;
   return Math.abs(dec) > (90 - Math.abs(latitude));
 }
 

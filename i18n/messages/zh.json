@@ -51,6 +51,8 @@
     "licensesTab": "许可证",
     "depsTab": "依赖",
     "sourceCode": "源代码",
+    "reportIssue": "反馈问题",
+    "reportIssueDescription": "打开结构化反馈表单",
     "madeWith": "用 ❤️ 制作",
     "dataCredits": "数据来源",
     "allRightsReserved": "保留所有权利。",
@@ -210,6 +212,7 @@
     "illuminated": "照明",
     "filter": "筛选",
     "sort": "排序",
+    "profile": "模式",
     "addTop10": "添加前10",
     "filterType": {
       "all": "全部",
@@ -221,6 +224,11 @@
       "score": "评分",
       "altitude": "高度",
       "time": "时间"
+    },
+    "profileType": {
+      "imaging": "摄影",
+      "visual": "目视",
+      "hybrid": "混合"
     },
     "clickToUpdateLocation": "点击获取浏览器位置"
   },
@@ -354,12 +362,38 @@
     "aladinContrast": "对比度",
     "aladinSaturation": "饱和度",
     "aladinGamma": "伽马",
+    "aladinCatalogLayers": "天文目录图层",
+    "aladinSearchRadius": "搜索半径",
+    "aladinCatalogLimit": "源数量上限",
+    "aladinVizierCatalogId": "VizieR 目录 ID",
+    "aladinOverlayLayers": "图像叠加图层",
+    "aladinAddOverlay": "添加 HiPS 叠加层",
+    "aladinOverlayOpacity": "图层透明度",
+    "aladinAdditiveBlend": "加法混合",
+    "aladinMocLayers": "MOC 覆盖图层",
+    "aladinAddWellKnownMoc": "常用预设",
+    "aladinAddCustomMoc": "自定义 MOC",
+    "aladinMocNamePlaceholder": "MOC 名称",
+    "aladinMocUrlPlaceholder": "MOC URL",
+    "aladinMocOpacity": "MOC 透明度",
+    "aladinMocLineWidth": "边界线宽",
+    "aladinFitsLayers": "FITS 图层",
+    "aladinAddFitsLayer": "添加 FITS 图层",
+    "aladinFitsNamePlaceholder": "FITS 图层名称",
+    "aladinFitsUrlPlaceholder": "FITS / HiPS URL",
+    "aladinFitsMode": "渲染模式",
+    "aladinFitsModeOverlay": "叠加层",
+    "aladinFitsModeBase": "底图层",
+    "aladinAttribution": "Aladin Lite 数据与渲染由 CDS（斯特拉斯堡天文台）提供。",
     "displaySettings": "显示设置",
     "constellationLines": "星座连线",
     "azimuthalGrid": "地平坐标网格",
     "equatorialGrid": "赤道坐标网格",
+    "equatorialJnowGrid": "JNow 赤道网格",
     "meridianLine": "子午线",
     "eclipticLine": "黄道线",
+    "horizonLine": "地平线",
+    "galacticLine": "银道线",
     "atmosphere": "大气",
     "landscape": "地景",
     "deepSkyObjects": "深空天体",
@@ -410,9 +444,27 @@
     "sensorControlEnable": "启用设备指向",
     "sensorControlDisable": "禁用设备指向",
     "sensorControlPermission": "点击启用设备方向",
+    "sensorAbsolutePreferred": "优先绝对方向",
+    "sensorUseCompassHeading": "使用 iOS 罗盘回退",
+    "sensorUpdateRate": "传感器更新频率",
+    "sensorSmoothingFactor": "传感器平滑",
+    "sensorDeadbandDeg": "传感器死区",
+    "sensorCalibrationRequired": "需要校准",
+    "sensorCalibrationDescription": "请将设备指向当前星图中心方向后确认校准。",
+    "sensorCalibrateNow": "立即校准",
+    "sensorRecalibrate": "重新校准",
+    "sensorResetCalibration": "重置校准",
+    "sensorCalibrationUpdated": "校准时间",
+    "sensorAccuracy": "精度",
+    "sensorStatusActive": "追踪中",
+    "sensorStatusPermissionDenied": "权限被拒绝",
+    "sensorStatusUnsupported": "不支持",
+    "stellariumFeatureUnavailable": "该功能仅在 Stellarium 模式下可用。",
+    "switchToStellarium": "切换到 Stellarium",
     "constellationArt": "星座图案",
     "constellationArtDescription": "显示星座艺术图",
     "constellationLabels": "星座名称标签",
+    "constellationBoundaries": "星座边界",
     "starLabels": "恒星名称标签",
     "planetLabels": "行星名称标签",
     "viewModes": "视图模式",
@@ -443,6 +495,18 @@
     "displayLimitMag": "星等限制",
     "magNoLimit": "无限制",
     "exposureScale": "曝光",
+    "tonemapperP": "色调映射 P",
+    "viewYOffset": "视图 Y 偏移",
+    "mountFrame": "安装坐标系",
+    "mountFrameAstrom": "天测坐标",
+    "mountFrameIcrf": "ICRF",
+    "mountFrameCirs": "CIRS",
+    "mountFrameJnow": "JNow",
+    "mountFrameObservedGeom": "观测几何",
+    "mountFrameObserved": "观测",
+    "mountFrameMount": "赤道仪",
+    "mountFrameView": "视图",
+    "mountFrameEcliptic": "黄道",
     "projection": "投影方式",
     "projectionDescription": "天空渲染的地图投影方式",
     "projStereographic": "球极平面投影",
@@ -628,6 +692,7 @@
     "search": "搜索",
     "stats": "统计",
     "newSession": "新建会话",
+    "usePlannerSession": "从计划器生成草稿",
     "activeSession": "进行中的会话",
     "endSession": "结束会话",
     "noSessions": "暂无观测会话",
@@ -662,6 +727,8 @@
     "bortle": "Bortle等级",
     "loadFailed": "加载观测日志失败",
     "sessionCreated": "会话已创建",
+    "plannerDraftCreated": "已生成会话计划草稿",
+    "noPlannerSession": "未找到可用的已保存计划",
     "createFailed": "创建会话失败",
     "observationAdded": "观测记录已添加",
     "addFailed": "添加观测失败",
@@ -743,6 +810,7 @@
     "timeout": "超时时间",
     "cacheResults": "缓存结果",
     "showSourceBadges": "显示来源标签",
+    "groupBySource": "按来源分组",
     "clearCache": "清除缓存",
     "sourceFrom": "来自 {source}",
     "searchingOnline": "正在搜索在线数据库...",
@@ -758,12 +826,20 @@
     "sesameDescription": "CDS 名称解析器",
     "vizierDescription": "VizieR 星表库",
     "nedDescription": "NASA 河外星系数据库",
+    "mpcDescription": "MPC 小天体编号与命名解析服务",
     "categories": {
       "galaxies": "星系",
       "nebulae": "星云",
       "planets": "行星",
       "clusters": "星团"
-    }
+    },
+    "sortByDistance": "距离",
+    "sortByAltitude": "高度",
+    "batchSearch": "批量搜索",
+    "batchPlaceholder": "每行一个天体，例如：\nM31\nNGC7000\n火星",
+    "importList": "导入列表",
+    "runBatchSearch": "执行批量搜索",
+    "commandModeHint": "命令模式已启用。支持前缀：m:, ngc:, ic:, hd:, hip:, @"
   },
   "exposure": {
     "exposureCalculator": "曝光计算器",
@@ -824,12 +900,43 @@
     "narrowband": "窄带",
     "applyToTarget": "应用到目标",
     "advancedOptions": "高级选项",
+    "advancedModelDefaults": "专业模型默认值",
+    "professionalParameters": "专业参数",
     "dither": "抖动",
     "ditherDescription": "在曝光间移动传感器",
+    "sqmOverride": "SQM 覆盖值",
+    "filterBandwidthNm": "滤镜带宽 (nm)",
+    "readNoiseLimitPercent": "读噪限制 (%)",
+    "gainStrategy": "增益策略",
+    "gainStrategyUnity": "Unity 增益",
+    "gainStrategyMaxDynamicRange": "最大动态范围",
+    "gainStrategyManual": "手动",
+    "manualGain": "手动增益",
+    "targetSurfaceBrightness": "目标表面亮度 (mag/arcsec²)",
+    "targetSignalRate": "目标信号率 (e⁻/px/s，可选覆盖)",
+    "manualCameraNoise": "手动相机噪声参数",
+    "manualCameraNoiseDescription": "使用实测传感器参数覆盖自动估算。",
+    "readNoiseE": "读出噪声 (e⁻)",
+    "darkCurrentE": "暗电流 (e⁻/px/s)",
+    "fullWellE": "满阱容量 (e⁻)",
+    "quantumEfficiency": "量子效率 (0-1)",
+    "ePerAdu": "e⁻/ADU",
     "calculatedValues": "计算值",
     "imageScale": "像素比例",
     "recommendedSingle": "推荐单帧",
     "recommendedTotal": "推荐总时",
+    "professionalRecommendation": "专业模型建议",
+    "recommendedSubExposure": "推荐子曝光",
+    "usableExposureRange": "可用曝光区间",
+    "dynamicRange": "动态范围",
+    "readNoiseShort": "读噪",
+    "skyNoiseShort": "天光",
+    "darkNoiseShort": "暗电流",
+    "recommendedGainStrategy": "增益策略",
+    "stackPlan": "叠加计划",
+    "framesForTargetSNR": "达到目标 SNR 帧数",
+    "framesForTimeNoise": "达到时间噪声目标帧数",
+    "constraints": "约束命中",
     "sessionSummary": "会话摘要",
     "storageRequired": "所需存储",
     "sessionDuration": "拍摄总时长",
@@ -1166,6 +1273,13 @@
     "comets": "彗星",
     "seasons": "节气",
     "noEvents": "本月无事件",
+    "noEventsToday": "当天无事件",
+    "todayExact": "当天精确时刻事件",
+    "todayOngoing": "当天进行中事件",
+    "ongoing": "进行中",
+    "endsToday": "今日结束",
+    "ongoingWindow": "窗口事件",
+    "instantEvent": "瞬时事件",
     "goToRadiant": "前往辐射点",
     "excellent": "极佳",
     "good": "良好",
@@ -1179,16 +1293,20 @@
     "eventsFound": "个事件",
     "peak": "峰值: {time}",
     "until": "持续至 {date}",
-    "planetaryEvents": "行星事件"
+    "planetaryEvents": "行星事件",
+    "timezone": "时区",
+    "monthOverview": "本月概览"
   },
   "eventDetail": {
     "visibility": "可见性",
+    "startTime": "开始时间",
     "peakTime": "峰值时间",
     "activeUntil": "活跃至",
     "description": "描述",
     "coordinates": "坐标",
     "magnitude": "星等",
     "source": "数据来源",
+    "sourcePriority": "优先级",
     "goToLocation": "前往位置"
   },
   "eventSources": {
@@ -1207,6 +1325,7 @@
     "connectionFailed": "连接失败"
   },
   "ocular": {
+    "title": "目镜模拟器",
     "simulator": "目镜模拟器",
     "eyepieceSimulator": "目镜模拟器",
     "telescope": "望远镜",
@@ -1216,7 +1335,12 @@
     "addCustom": "添加自定义",
     "deleteCustom": "删除自定义",
     "builtinPresets": "内置预设",
+    "desktopPresets": "桌面设备库",
     "customPresets": "自定义",
+    "sourceBuiltin": "内置",
+    "sourceDesktop": "桌面",
+    "sourceCustom": "自定义",
+    "desktopMergeHint": "桌面模式会合并 Tauri 设备与本地预设；桌面来源条目在此为只读。",
     "telescopeName": "望远镜名称",
     "eyepieceName": "目镜名称",
     "barlowName": "增倍镜/减焦镜名称",
@@ -1243,6 +1367,15 @@
     "suggestAllround": "通用观测",
     "suggestPlanetary": "行星观测",
     "suggestOverlimit": "超限",
+    "applyToMap": "应用到星图",
+    "restoreFov": "恢复应用前视场",
+    "overlayEnabled": "显示目镜遮罩",
+    "overlayOpacity": "遮罩透明度",
+    "overlayCrosshair": "中心十字线",
+    "overlayExceedsFov": "目镜真实视场大于当前星图视场",
+    "validationTelescope": "请填写名称，焦距 50–10000 mm，口径 20–1000 mm。",
+    "validationEyepiece": "请填写名称，焦距 2–80 mm，视场角 30–120°，并确保视场光阑有效。",
+    "validationBarlow": "请填写名称，倍率范围需在 0.2x 到 8x 之间。",
     "overMagnifiedWarning": "放大倍率超过有效极限，图像可能暗淡模糊。",
     "underMagnifiedWarning": "低于最小有效倍率，出瞳直径超过7mm，部分光线被浪费。",
     "largePupilWarning": "出瞳直径超过暗适应瞳孔，部分光线可能浪费。"
@@ -1714,6 +1847,51 @@
         }
       }
     },
+    "tours": {
+      "first-run-core": {
+        "title": "核心快速入门",
+        "description": "先掌握关键控件，立即开始观测。"
+      },
+      "module-discovery": {
+        "title": "发现工具集",
+        "description": "围绕今晚目标的搜索与发现流程。"
+      },
+      "module-planning": {
+        "title": "规划流程",
+        "description": "会话规划、天象事件与观测记录。"
+      },
+      "module-imaging": {
+        "title": "摄影流程",
+        "description": "覆盖 FOV、曝光与拍摄工具链。"
+      },
+      "module-controls": {
+        "title": "控制面板",
+        "description": "导航控制与显示模式偏好。"
+      },
+      "module-settings-help": {
+        "title": "设置与帮助",
+        "description": "设置抽屉、快捷键与帮助入口。"
+      },
+      "module-advanced": {
+        "title": "高级工具集",
+        "description": "高级设备、校准与分析能力。"
+      }
+    },
+    "hub": {
+      "title": "导览中心",
+      "description": "继续专题导览，或重新开始任意已完成模块。",
+      "start": "开始模块",
+      "restart": "重新导览",
+      "completed": "已完成",
+      "progress": "{current} / {total}",
+      "finishLater": "稍后再看"
+    },
+    "skipReasons": {
+      "unavailable": "该功能在当前环境不可用，已自动跳过。",
+      "missing-selector": "导览目标当前不可见，已自动跳过该步骤。",
+      "hidden-by-platform": "该功能在当前平台隐藏，已自动跳过。",
+      "unsupported-engine": "该功能不支持当前星图引擎，已自动跳过。"
+    },
     "steps": {
       "welcome": {
         "title": "欢迎来到星图",
@@ -1754,6 +1932,94 @@
       "complete": {
         "title": "准备就绪！",
         "description": "您已完成引导教程。现在可以自由探索宇宙了！您可以随时从设置菜单重新开始此引导。"
+      },
+      "sky-atlas": {
+        "title": "星图图集",
+        "description": "打开精选天区目标，快速在常用区域间切换。"
+      },
+      "quick-actions": {
+        "title": "快捷操作",
+        "description": "一键执行常用构图与导航动作。"
+      },
+      "navigation-history": {
+        "title": "导航历史",
+        "description": "在已访问视图之间前进/后退。"
+      },
+      "view-bookmarks": {
+        "title": "视角书签",
+        "description": "保存并快速返回常用天区视角与 FOV 状态。"
+      },
+      "session-planner": {
+        "title": "会话规划",
+        "description": "规划今晚目标、约束条件与拍摄顺序。"
+      },
+      "astro-events": {
+        "title": "天文事件",
+        "description": "查看与观测地相关的近期天象事件。"
+      },
+      "astro-calculator": {
+        "title": "天文计算器",
+        "description": "打开天文计算工作台进行历表与观测参数计算。"
+      },
+      "equipment-manager": {
+        "title": "设备管理",
+        "description": "管理望远镜与相机预设，提升模拟准确性。"
+      },
+      "exposure": {
+        "title": "曝光计算器",
+        "description": "基于设备与目标条件估算曝光参数。"
+      },
+      "observation-log": {
+        "title": "观测日志",
+        "description": "记录已完成观测与现场笔记。"
+      },
+      "markers": {
+        "title": "星图标记",
+        "description": "在星图上添加和管理临时标记。"
+      },
+      "location": {
+        "title": "位置管理",
+        "description": "管理观测地点并快速切换。"
+      },
+      "satellite": {
+        "title": "卫星追踪",
+        "description": "追踪卫星过境与可见窗口。"
+      },
+      "ocular": {
+        "title": "目镜模拟",
+        "description": "预览目镜构图与放大倍率表现。"
+      },
+      "plate-solver": {
+        "title": "盲解算",
+        "description": "解算影像坐标并同步指向校准。"
+      },
+      "mount": {
+        "title": "赤道仪控制",
+        "description": "连接并控制赤道仪相关操作。"
+      },
+      "theme": {
+        "title": "主题",
+        "description": "切换界面视觉主题风格。"
+      },
+      "language": {
+        "title": "语言",
+        "description": "切换界面语言与本地化选项。"
+      },
+      "night-mode": {
+        "title": "夜视模式",
+        "description": "启用红光滤镜，保护暗适应。"
+      },
+      "keyboard-shortcuts": {
+        "title": "快捷键",
+        "description": "查看快捷键参考以提升操作效率。"
+      },
+      "about": {
+        "title": "关于",
+        "description": "查看版本、致谢与项目信息。"
+      },
+      "daily-knowledge": {
+        "title": "每日知识",
+        "description": "打开每日天文知识面板，进行阅读、收藏并跳转到关联天体。"
       }
     }
   },
@@ -1764,6 +2030,12 @@
     "skipSetup": "跳过设置",
     "getStarted": "开始使用",
     "restartSetup": "重新设置",
+    "softGuard": {
+      "title": "未完成配置也要继续吗？",
+      "locationImpact": "跳过位置配置会降低推荐与可见性计算精度。",
+      "equipmentImpact": "跳过设备配置会降低视场与摄影模拟精度。",
+      "continueAnyway": "仍然继续"
+    },
     "steps": {
       "welcome": {
         "title": "欢迎设置",
@@ -1891,7 +2163,15 @@
     "secondary": "次要色",
     "accent": "强调色",
     "background": "背景色",
-    "foreground": "前景色"
+    "foreground": "前景色",
+    "muted": "柔和色",
+    "card": "卡片色",
+    "border": "边框色",
+    "destructive": "警示色",
+    "colorValuePlaceholder": "例如 #1a1a1a / oklch(...)",
+    "clearColor": "清除",
+    "invalidColor": "无效的 CSS 颜色值",
+    "customOverridesPreset": "自定义颜色会覆盖当前预设中同名颜色。"
   },
   "plateSolving": {
     "title": "天体定位",
@@ -2133,6 +2413,8 @@
       "performanceShort": "性能",
       "accessibility": "无障碍",
       "accessibilityShort": "无障碍",
+      "mobile": "移动端",
+      "mobileShort": "移动端",
       "about": "关于",
       "aboutShort": "关于"
     },
@@ -2174,14 +2456,24 @@
       "autoConnectDesc": "启动时自动连接后端服务",
       "behavior": "行为",
       "skipCloseConfirmation": "跳过关闭确认",
-      "skipCloseConfirmationDesc": "关闭应用时不弹出确认对话框"
+      "skipCloseConfirmationDesc": "关闭应用时不弹出确认对话框",
+      "dailyKnowledgeEnabled": "启用每日知识",
+      "dailyKnowledgeEnabledDesc": "开启或关闭每日知识功能。",
+      "dailyKnowledgeAutoShow": "每天自动弹出一次",
+      "dailyKnowledgeAutoShowDesc": "每天首次启动时自动打开每日知识。",
+      "dailyKnowledgeOnlineEnhancement": "在线增强",
+      "dailyKnowledgeOnlineEnhancementDesc": "联网时使用 APOD 与 Wikimedia 元数据增强今日内容。",
+      "openDailyKnowledgeNow": "立即打开每日知识"
     },
     "appearance": {
+      "title": "外观",
       "themeMode": "主题模式",
       "light": "浅色",
       "dark": "深色",
       "system": "跟随系统",
       "colorPresets": "配色方案",
+      "colors": "颜色自定义",
+      "colorMode": "编辑调色板",
       "borderRadius": "圆角",
       "roundness": "圆角程度",
       "square": "方形",
@@ -2293,6 +2585,43 @@
       "other": "其他",
       "closePanel": "关闭面板"
     },
+    "mobile": {
+      "title": "移动端",
+      "compactBottomBar": "紧凑底栏",
+      "compactBottomBarDesc": "仅显示优先工具，其余工具收纳到“更多”抽屉。",
+      "oneHandMode": "单手模式",
+      "oneHandModeDesc": "将移动端高频控件靠近右手拇指易触达区域。",
+      "prioritizedTools": "优先工具顺序与显隐",
+      "prioritizedToolsDesc": "紧凑模式优先显示可见工具，隐藏工具仍可在“更多”中访问。",
+      "hiddenHint": "紧凑底栏隐藏，可在“更多”中访问",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "accessHint": "紧凑底栏只调整入口形态，不会移除任何功能。",
+      "moreToolsTitle": "更多工具",
+      "tools": {
+        "markers": "标记",
+        "location": "位置",
+        "fov": "视场模拟",
+        "exposure": "曝光计算",
+        "daily-knowledge": "每日知识",
+        "tonight": "今晚推荐",
+        "session-planner": "会话规划",
+        "astro-events": "天文事件",
+        "astro-calculator": "天文计算器",
+        "shotlist": "拍摄清单",
+        "observation-log": "观测日志",
+        "mount": "赤道仪",
+        "plate-solver": "解算",
+        "ocular": "目镜模拟",
+        "sky-atlas": "星图图集",
+        "equipment-manager": "设备",
+        "offline-cache": "离线存储",
+        "satellite": "卫星跟踪",
+        "settings": "设置",
+        "keyboard-shortcuts": "快捷键",
+        "about": "关于"
+      }
+    },
     "exportImport": {
       "title": "设置备份",
       "description": "将设置导出到文件，或从之前的备份中导入",
@@ -2315,12 +2644,60 @@
       "links": "链接",
       "sourceCode": "源代码",
       "documentation": "文档",
+      "reportIssue": "反馈问题",
+      "reportIssueDescription": "打开反馈表单并提交到 GitHub",
       "dataCredits": "数据来源",
       "systemInfo": "系统信息",
       "os": "操作系统",
       "arch": "架构",
       "tauriVersion": "Tauri 版本",
       "systemInfoUnavailable": "系统信息不可用"
+    }
+  },
+  "feedback": {
+    "title": "提交反馈",
+    "description": "创建结构化 Issue，可按需附带诊断信息。",
+    "type": "反馈类型",
+    "typeBug": "缺陷反馈",
+    "typeFeature": "功能建议",
+    "typeBugHint": "用于崩溃、异常行为或回归问题。",
+    "typeFeatureHint": "用于改进建议或新增能力。",
+    "titleField": "标题",
+    "titlePlaceholder": "简洁明确的问题标题",
+    "descriptionField": "问题描述",
+    "descriptionPlaceholder": "请详细描述问题或需求。",
+    "stepsField": "复现步骤 / 使用场景",
+    "stepsPlaceholder": "如何复现该问题或场景？",
+    "expectedField": "预期结果 / 方案",
+    "expectedPlaceholder": "你期望发生什么？",
+    "additionalField": "附加说明",
+    "additionalPlaceholder": "可补充 workaround、备注或参考链接。",
+    "diagnosticsTitle": "诊断信息（可选）",
+    "includeSystemInfo": "包含系统信息",
+    "includeSystemInfoDesc": "操作系统、架构、应用/运行时版本、浏览器上下文。",
+    "includeLogs": "包含最近日志",
+    "includeLogsDesc": "附带最近日志，并自动脱敏敏感字段。",
+    "privacyHint": "诊断信息默认关闭，只有你主动开启时才会附加。",
+    "copyMarkdown": "复制 Markdown",
+    "downloadDiagnostics": "下载诊断包",
+    "submitToGitHub": "提交到 GitHub",
+    "toast": {
+      "markdownCopied": "已复制 Markdown",
+      "copyFailed": "复制 Markdown 失败",
+      "enableDiagnosticsForExport": "导出诊断前请先开启系统信息或日志",
+      "noDiagnosticsCollected": "没有可导出的诊断信息",
+      "diagnosticsExported": "诊断包已导出",
+      "downloadCancelled": "已取消下载",
+      "exportFailed": "导出诊断包失败",
+      "urlTruncated": "由于 URL 长度限制，Issue 内容已自动精简",
+      "openedInBrowser": "已在浏览器中打开 GitHub Issue 表单",
+      "submitFailed": "打开 GitHub Issue 表单失败"
+    },
+    "errors": {
+      "titleRequired": "请输入标题",
+      "descriptionRequired": "请输入问题描述",
+      "stepsRequired": "请填写复现步骤",
+      "expectedRequired": "请填写预期结果"
     }
   },
   "updater": {
@@ -2443,9 +2820,13 @@
   },
   "sessionPlanner": {
     "title": "观测计划",
+    "dialogDescription": "按约束构建、编辑并导出今晚拍摄会话。",
     "darkTime": "暗夜时长",
     "night": "夜间",
     "daylight": "白天",
+    "mode": "模式",
+    "modeAuto": "自动排程",
+    "modeManual": "手动排程",
     "optimizationSettings": "优化设置",
     "strategy": "策略",
     "strategyBalanced": "平衡模式（推荐）",
@@ -2483,12 +2864,46 @@
     "restore": "恢复",
     "savePlan": "保存计划",
     "savePlanTooltip": "保存当前计划以便日后使用",
+    "planSaved": "计划已保存",
     "loadPlan": "加载计划",
+    "templates": "模板",
+    "saveTemplate": "保存为模板",
+    "templateSaved": "模板已保存",
+    "templateSaveFailed": "模板同步到桌面失败",
+    "templateLoaded": "模板已加载",
+    "templatePrefix": "模板",
+    "noTemplates": "暂无模板",
+    "importPlan": "导入计划",
+    "importSuccess": "计划草稿导入成功",
+    "importFailed": "计划草稿导入失败",
+    "importDesktopOnly": "仅桌面模式支持导入",
+    "notes": "会话备注",
+    "notesPlaceholder": "可记录天气、设备准备与执行提醒…",
+    "weatherSourceLabel": "天气来源",
+    "weatherSourceDevice": "设备 (Alpaca)",
+    "weatherSourceManual": "手动输入",
+    "weatherSourceNone": "仅天文约束（无天气约束）",
+    "weatherCloudCover": "云量 (%)",
+    "weatherHumidity": "湿度 (%)",
+    "weatherWindSpeed": "风速 (km/h)",
+    "weatherDewPoint": "露点 (°C)",
+    "refreshWeather": "刷新",
+    "safetySafe": "安全：正常",
+    "safetyUnsafe": "安全：风险",
+    "safetyWarning": "安全监控报告当前不安全。排程会保留天文结果，但会标记天气/安全冲突。",
+    "startTime": "开始时间",
+    "durationMinutes": "时长 (分钟)",
+    "lockTarget": "锁定目标",
+    "locked": "已锁定",
+    "unlocked": "未锁定",
+    "exportSaved": "已导出到文件",
     "exportFormat": {
       "text": "纯文本",
       "markdown": "Markdown",
       "json": "JSON",
-      "nina-xml": "NINA 序列 XML"
+      "nina-xml": "NINA 序列 XML",
+      "csv": "CSV",
+      "sgp-csv": "SGP CSV"
     }
   },
   "mountSafety": {
@@ -2561,6 +2976,7 @@
     "addMoreTargets": "考虑添加更多目标以充分利用夜间时间",
     "tooManyForOneNight": "一夜内目标过多 — 建议分散到多个观测夜",
     "brightMoon": "今晚月光较亮 — 建议使用窄带滤镜拍摄",
+    "weatherNotIdeal": "天气条件超出设定阈值",
     "prioritize": "优先拍摄: {names}",
     "unusedDarkTime": "{duration} 的暗夜时间未被利用 — 考虑添加目标",
     "tooManyTargets": "目标过多 — 建议分散到多个夜晚",
@@ -2698,7 +3114,8 @@
       "opposition": "冲",
       "elongation": "大距",
       "occultation": "掩",
-      "close_approach": "接近"
+      "close_approach": "接近",
+      "moon_phase": "月相"
     },
     "advancedFilters": "高级筛选",
     "minSize": "最小大小",
@@ -2706,7 +3123,52 @@
     "noObjectsFound": "未找到天体",
     "adjustFilters": "尝试调整筛选条件或扩大搜索范围",
     "enterCoordinates": "请输入目标坐标",
-    "enterCoordinatesHint": "输入赤经和赤纬（度）进行计算"
+    "enterCoordinatesHint": "输入赤经和赤纬（度）进行计算",
+    "targetType": "目标类型",
+    "invalidCoordinates": "坐标格式无效",
+    "calculationFailed": "计算失败",
+    "days": "天",
+    "time": "时间",
+    "calculating": "计算中...",
+    "noData": "暂无数据",
+    "neverRises": "永不升起",
+    "coordinate": "坐标",
+    "timeCalc": "时间",
+    "solarSystem": "太阳系",
+    "coordinateOutput": "输出坐标系",
+    "entries": "条",
+    "showGalactic": "银道",
+    "showEcliptic": "黄道",
+    "galacticL": "银经 l",
+    "galacticB": "银纬 b",
+    "eclipticLon": "黄经 λ",
+    "eclipticLat": "黄纬 β",
+    "moonDistance": "月距",
+    "moonPhase": "月相",
+    "sourceSystem": "源坐标系",
+    "refraction": "折射",
+    "refractionNormal": "标准",
+    "refractionNone": "无",
+    "latitude": "纬度",
+    "longitude": "经度",
+    "roundTripError": "往返误差",
+    "coordinateModes": {
+      "equatorial": "赤道",
+      "horizontal": "地平",
+      "galactic": "银道",
+      "ecliptic": "黄道"
+    },
+    "timeInputMode": "输入模式",
+    "utcLocal": "UTC/本地",
+    "invalidLongitude": "经度无效",
+    "invalidTimeInput": "时间输入无效",
+    "raForHourAngle": "用于时角的赤经",
+    "utc": "UTC",
+    "local": "本地",
+    "timeScales": "时间尺度",
+    "hourAngle": "时角",
+    "includePluto": "包含冥王星",
+    "solarNoon": "太阳中天"
   },
   "system": {
     "online": "在线",
@@ -3044,6 +3506,53 @@
       "madeWith": "用",
       "forAstronomers": "为天文爱好者制作",
       "backToTop": "回到顶部"
+    }
+  },
+  "dailyKnowledge": {
+    "title": "每日知识",
+    "subtitle": "参考 KStars 与 Stellarium 工作流的每日天文知识内容。",
+    "open": "每日知识",
+    "searchPlaceholder": "搜索标题、摘要或标签...",
+    "categoryAll": "全部分类",
+    "categoryObject": "天体",
+    "categoryEvent": "事件",
+    "categoryHistory": "历史",
+    "categoryMission": "任务",
+    "categoryTechnique": "技巧",
+    "categoryCulture": "文化",
+    "sourceAll": "全部来源",
+    "sourceCurated": "本地策展",
+    "sourceApod": "NASA APOD",
+    "sourceWikimedia": "Wikimedia",
+    "favorites": "收藏",
+    "favorite": "收藏",
+    "favorited": "已收藏",
+    "noHistory": "暂无历史记录。",
+    "resultCount": "{count} 条结果",
+    "loading": "正在加载每日知识...",
+    "noResults": "没有匹配的每日知识条目。",
+    "attribution": "来源与版权",
+    "copy": "复制",
+    "share": "分享",
+    "openSource": "打开来源",
+    "dontShowToday": "今天不再显示",
+    "copySuccess": "已复制到剪贴板。",
+    "copyFailed": "复制失败。",
+    "shareFailed": "分享失败。",
+    "loadFailed": "加载每日知识失败。",
+    "videoEntry": "该条目为视频内容，可点击“打开来源”查看原视频。",
+    "sourceBadge": {
+      "curated": "本地策展",
+      "nasa-apod": "NASA APOD",
+      "wikimedia": "Wikimedia"
+    },
+    "categoryBadge": {
+      "object": "天体",
+      "event": "事件",
+      "history": "历史",
+      "mission": "任务",
+      "technique": "技巧",
+      "culture": "文化"
     }
   }
 }

@@ -118,8 +118,8 @@
 
 ### 社区支持
 
-- [GitHub Issues](https://github.com/yourusername/skymap-test/issues) - 报告问题
-- [GitHub Discussions](https://github.com/yourusername/skymap-test/discussions) - 讨论交流
+- [GitHub Issue 表单](https://github.com/AstroAir/skymap-test/issues/new) - 报告问题
+- [GitHub Discussions](https://github.com/AstroAir/skymap-test/discussions) - 讨论交流
 
 ## 反馈和建议
 
@@ -132,7 +132,8 @@
 
 您可以通过以下方式反馈：
 
-- 提交 GitHub Issue
+- 提交 GitHub Issue 表单（建议通过应用内反馈对话框生成内容）
+- 若包含诊断信息，请先下载诊断包并在 GitHub 页面手动上传附件
 - 参与 Discussions
 - 发送邮件
 

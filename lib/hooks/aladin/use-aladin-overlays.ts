@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, useCallback, type RefObject } from 'react';
 import type A from 'aladin-lite';
 import { useMarkerStore, type SkyMarker } from '@/lib/stores/marker-store';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
@@ -27,22 +27,197 @@ export function useAladinOverlays({
 }: UseAladinOverlaysOptions): void {
   const skyEngine = useSettingsStore((state) => state.skyEngine);
 
+  const addMarkerShapes = useCallback((
+    overlay: AladinGraphicOverlay,
+    marker: SkyMarker,
+    AStatic: typeof A
+  ) => {
+    // The typings in different aladin-lite versions are incomplete.
+    const api = AStatic as unknown as {
+      circle: (ra: number, dec: number, radiusDeg: number, options?: Record<string, unknown>) => unknown;
+      marker?: (ra: number, dec: number, options?: Record<string, unknown>, data?: Record<string, unknown>) => unknown;
+      polyline?: (radecArray: number[][], options?: Record<string, unknown>) => unknown;
+      polygon?: (radecArray: number[][], options?: Record<string, unknown>) => unknown;
+    };
+
+    const radiusDeg = Math.max(0.02, marker.size ? marker.size / 60 : 0.05);
+    const delta = Math.max(0.02, radiusDeg * 0.7);
+    const style = { color: marker.color, lineWidth: 2 };
+
+    const safeAdd = (shape: unknown) => {
+      if (shape) {
+        overlay.add(shape as Parameters<AladinGraphicOverlay['add']>[0]);
+      }
+    };
+
+    switch (marker.icon) {
+      case 'pin': {
+        if (api.marker) {
+          safeAdd(api.marker(marker.ra, marker.dec, { color: marker.color }, { name: marker.name }));
+        } else {
+          safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        }
+        return;
+      }
+      case 'circle': {
+        safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        return;
+      }
+      case 'square': {
+        if (api.polygon) {
+          safeAdd(api.polygon([
+            [marker.ra - delta, marker.dec - delta],
+            [marker.ra + delta, marker.dec - delta],
+            [marker.ra + delta, marker.dec + delta],
+            [marker.ra - delta, marker.dec + delta],
+          ], style));
+        } else {
+          safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        }
+        return;
+      }
+      case 'diamond': {
+        if (api.polygon) {
+          safeAdd(api.polygon([
+            [marker.ra, marker.dec + delta],
+            [marker.ra + delta, marker.dec],
+            [marker.ra, marker.dec - delta],
+            [marker.ra - delta, marker.dec],
+          ], style));
+        } else {
+          safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        }
+        return;
+      }
+      case 'triangle': {
+        if (api.polygon) {
+          safeAdd(api.polygon([
+            [marker.ra, marker.dec + delta],
+            [marker.ra + delta, marker.dec - delta],
+            [marker.ra - delta, marker.dec - delta],
+          ], style));
+        } else {
+          safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        }
+        return;
+      }
+      case 'crosshair': {
+        if (api.polyline) {
+          safeAdd(api.polyline([
+            [marker.ra - delta, marker.dec],
+            [marker.ra + delta, marker.dec],
+          ], style));
+          safeAdd(api.polyline([
+            [marker.ra, marker.dec - delta],
+            [marker.ra, marker.dec + delta],
+          ], style));
+        } else {
+          safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        }
+        return;
+      }
+      case 'flag': {
+        if (api.polyline) {
+          safeAdd(api.polyline([
+            [marker.ra, marker.dec - delta],
+            [marker.ra, marker.dec + delta],
+          ], style));
+          safeAdd(api.polyline([
+            [marker.ra, marker.dec + delta],
+            [marker.ra + delta, marker.dec + (delta * 0.6)],
+            [marker.ra, marker.dec + (delta * 0.2)],
+          ], style));
+        } else {
+          safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        }
+        return;
+      }
+      case 'star':
+      default: {
+        if (api.polyline) {
+          safeAdd(api.polyline([
+            [marker.ra - delta, marker.dec],
+            [marker.ra + delta, marker.dec],
+          ], style));
+          safeAdd(api.polyline([
+            [marker.ra, marker.dec - delta],
+            [marker.ra, marker.dec + delta],
+          ], style));
+          safeAdd(api.polyline([
+            [marker.ra - delta * 0.7, marker.dec - delta * 0.7],
+            [marker.ra + delta * 0.7, marker.dec + delta * 0.7],
+          ], style));
+          safeAdd(api.polyline([
+            [marker.ra + delta * 0.7, marker.dec - delta * 0.7],
+            [marker.ra - delta * 0.7, marker.dec + delta * 0.7],
+          ], style));
+        } else {
+          safeAdd(api.circle(marker.ra, marker.dec, radiusDeg, style));
+        }
+      }
+    }
+  }, []);
+
   // Overlay refs — one for markers, one for targets
   const markerOverlayRef = useRef<AladinGraphicOverlay | null>(null);
   const targetOverlayRef = useRef<AladinGraphicOverlay | null>(null);
+  const renderMarkersRef = useRef<() => void>(() => {});
+  const renderTargetsRef = useRef<() => void>(() => {});
 
   // Aladin static API ref for shape factories
   const aladinStaticRef = useRef<typeof A | null>(null);
+
+  const clearOverlays = useCallback(() => {
+    const aladin = aladinRef.current as (AladinInstance & { removeOverlay?: (overlay: unknown) => void }) | null;
+
+    if (markerOverlayRef.current) {
+      try {
+        markerOverlayRef.current.removeAll();
+      } catch {
+        // ignore cleanup failures
+      }
+      try {
+        aladin?.removeOverlay?.(markerOverlayRef.current);
+      } catch {
+        // ignore optional API failures
+      }
+      markerOverlayRef.current = null;
+    }
+
+    if (targetOverlayRef.current) {
+      try {
+        targetOverlayRef.current.removeAll();
+      } catch {
+        // ignore cleanup failures
+      }
+      try {
+        aladin?.removeOverlay?.(targetOverlayRef.current);
+      } catch {
+        // ignore optional API failures
+      }
+      targetOverlayRef.current = null;
+    }
+  }, [aladinRef]);
 
   // Load static API once
   useEffect(() => {
     if (!engineReady || skyEngine !== 'aladin') return;
 
-    import('aladin-lite').then((m) => {
-      aladinStaticRef.current = m.default;
-    }).catch((err) => {
-      logger.warn('Failed to load aladin-lite static API for overlays', err);
-    });
+    let cancelled = false;
+    import('aladin-lite')
+      .then((m) => {
+        if (cancelled) return;
+        aladinStaticRef.current = m.default;
+        renderMarkersRef.current();
+        renderTargetsRef.current();
+      })
+      .catch((err) => {
+        logger.warn('Failed to load aladin-lite static API for overlays', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [engineReady, skyEngine]);
 
   // Subscribe to marker store changes and render native overlays
@@ -67,20 +242,21 @@ export function useAladinOverlays({
       const overlay = markerOverlayRef.current;
       overlay.removeAll();
 
-      const markers = useMarkerStore.getState().markers;
+      const { markers, showMarkers } = useMarkerStore.getState();
+      if (!showMarkers) {
+        logger.debug('Markers disabled globally, skipped Aladin marker overlay render');
+        return;
+      }
+
       for (const marker of markers) {
         if (!marker.visible) continue;
-        const shape = AStatic.circle(
-          marker.ra,
-          marker.dec,
-          marker.size ? marker.size / 60 : 0.05, // size in degrees
-          { color: marker.color, lineWidth: 2 }
-        );
-        overlay.add(shape);
+        addMarkerShapes(overlay, marker, AStatic);
       }
 
       logger.debug(`Rendered ${markers.filter((m: SkyMarker) => m.visible).length} marker overlays`);
     };
+
+    renderMarkersRef.current = renderMarkers;
 
     // Initial render
     const timer = setTimeout(renderMarkers, 500);
@@ -91,8 +267,11 @@ export function useAladinOverlays({
     return () => {
       clearTimeout(timer);
       unsub();
+      if (renderMarkersRef.current === renderMarkers) {
+        renderMarkersRef.current = () => {};
+      }
     };
-  }, [aladinRef, engineReady, skyEngine]);
+  }, [addMarkerShapes, aladinRef, engineReady, skyEngine]);
 
   // Subscribe to target list and render target position overlays
   useEffect(() => {
@@ -134,6 +313,8 @@ export function useAladinOverlays({
       logger.debug(`Rendered ${targets.length} target overlays`);
     };
 
+    renderTargetsRef.current = renderTargets;
+
     // Initial render
     const timer = setTimeout(renderTargets, 600);
 
@@ -143,20 +324,18 @@ export function useAladinOverlays({
     return () => {
       clearTimeout(timer);
       unsub();
+      if (renderTargetsRef.current === renderTargets) {
+        renderTargetsRef.current = () => {};
+      }
     };
   }, [aladinRef, engineReady, skyEngine]);
 
-  // Cleanup overlays on engine switch
+  // Cleanup overlays on engine switch/unmount.
   useEffect(() => {
-    return () => {
-      if (markerOverlayRef.current) {
-        try { markerOverlayRef.current.removeAll(); } catch { /* ignore */ }
-        markerOverlayRef.current = null;
-      }
-      if (targetOverlayRef.current) {
-        try { targetOverlayRef.current.removeAll(); } catch { /* ignore */ }
-        targetOverlayRef.current = null;
-      }
-    };
-  }, []);
+    if (!engineReady || skyEngine !== 'aladin') {
+      clearOverlays();
+    }
+
+    return clearOverlays;
+  }, [clearOverlays, engineReady, skyEngine]);
 }

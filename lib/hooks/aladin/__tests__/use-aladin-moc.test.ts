@@ -3,6 +3,7 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
+import { useAladinStore } from '@/lib/stores/aladin-store';
 
 // Mock logger
 jest.mock('@/lib/logger', () => ({
@@ -31,6 +32,8 @@ describe('useAladinMOC', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSkyEngine = 'aladin';
+    window.localStorage.removeItem('aladin-layers-store');
+    useAladinStore.getState().resetAladinLayers();
   });
 
   it('exports the hook and WELL_KNOWN_MOCS', async () => {
@@ -73,7 +76,13 @@ describe('useAladinMOC', () => {
       result.current.addMOC('https://example.com/moc', 'Test MOC');
     });
 
-    expect(result.current.mocLayers).toEqual([]);
+    expect(result.current.mocLayers).toHaveLength(1);
+    expect(result.current.mocLayers[0]).toEqual(
+      expect.objectContaining({
+        name: 'Test MOC',
+        visible: true,
+      })
+    );
     expect(aladinMock.MOCFromURL).not.toHaveBeenCalled();
   });
 });

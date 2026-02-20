@@ -118,6 +118,12 @@ export const CACHEABLE_URL_PATTERNS = [
   // Simbad/Vizier
   'simbad.u-strasbg.fr',
   'vizier.u-strasbg.fr',
+  'celestrak.org',
+  // Daily knowledge online sources
+  'api.nasa.gov',
+  'en.wikipedia.org',
+  'upload.wikimedia.org',
+  'wikimedia.org',
 ] as const;
 
 /**

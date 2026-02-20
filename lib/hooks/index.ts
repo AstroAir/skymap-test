@@ -22,6 +22,10 @@ export {
   useDeviceOrientation,
   type DeviceOrientation,
   type SkyDirection,
+  type SensorStatus,
+  type OrientationSource,
+  type SensorCalibrationState,
+  type CalibrationReference,
 } from './use-device-orientation';
 
 export { useCacheInit } from './use-cache-init';
@@ -190,6 +194,7 @@ export {
   useTargetAstroData,
   type AstroEnvironmentData,
   type TargetAstroData,
+  type ObjectAstroDataV2,
 } from './use-object-astro-data';
 
 // Camera capture hook

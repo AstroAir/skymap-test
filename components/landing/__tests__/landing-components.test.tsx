@@ -80,6 +80,7 @@ describe('Navbar', () => {
     expect(screen.getByText('nav.features')).toBeInTheDocument();
     expect(screen.getByText('nav.screenshots')).toBeInTheDocument();
     expect(screen.getByText('nav.technology')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'nav.github' })[0]).toHaveAttribute('href', 'https://github.com/AstroAir/skymap-test');
   });
 
   it('renders launch app button', () => {
@@ -191,6 +192,8 @@ describe('CTASection', () => {
     expect(screen.getByText('launchButton')).toBeInTheDocument();
     expect(screen.getByText('downloadButton')).toBeInTheDocument();
     expect(screen.getByText('githubButton')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'downloadButton' })).toHaveAttribute('href', 'https://github.com/AstroAir/skymap-test/releases');
+    expect(screen.getByRole('link', { name: 'githubButton' })).toHaveAttribute('href', 'https://github.com/AstroAir/skymap-test');
   });
 
   it('renders section header with id', () => {
@@ -263,6 +266,7 @@ describe('Footer', () => {
     expect(screen.getByText('starmap')).toBeInTheDocument();
     expect(screen.getByText('github')).toBeInTheDocument();
     expect(screen.getByText('stellarium')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'github' })).toHaveAttribute('href', 'https://github.com/AstroAir/skymap-test');
   });
 
   it('renders credits section', () => {
@@ -278,6 +282,8 @@ describe('Footer', () => {
     expect(screen.getByText('community')).toBeInTheDocument();
     expect(screen.getByText('discussions')).toBeInTheDocument();
     expect(screen.getByText('reportIssue')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'discussions' })).toHaveAttribute('href', 'https://github.com/AstroAir/skymap-test/discussions');
+    expect(screen.getByRole('link', { name: 'reportIssue' })).toHaveAttribute('href', 'https://github.com/AstroAir/skymap-test/issues/new');
   });
 
   it('renders back to top button', () => {

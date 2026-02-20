@@ -21,12 +21,16 @@ const DEFAULT_STELLARIUM = {
   constellationsLinesVisible: true,
   constellationArtVisible: false,
   constellationLabelsVisible: true,
+  constellationBoundariesVisible: false,
   starLabelsVisible: true,
   planetLabelsVisible: true,
   azimuthalLinesVisible: false,
   equatorialLinesVisible: false,
+  equatorialJnowLinesVisible: false,
   meridianLinesVisible: false,
   eclipticLinesVisible: false,
+  horizonLinesVisible: false,
+  galacticLinesVisible: false,
   atmosphereVisible: false,
   landscapesVisible: false,
   dsosVisible: true,
@@ -38,6 +42,15 @@ const DEFAULT_STELLARIUM = {
   skyCultureLanguage: 'native' as const,
   nightMode: false,
   sensorControl: false,
+  sensorAbsolutePreferred: true,
+  sensorUseCompassHeading: true,
+  sensorUpdateHz: 30,
+  sensorDeadbandDeg: 0.35,
+  sensorSmoothingFactor: 0.2,
+  sensorCalibrationRequired: true,
+  sensorCalibrationAzimuthOffsetDeg: 0,
+  sensorCalibrationAltitudeOffsetDeg: 0,
+  sensorCalibrationUpdatedAt: null,
   crosshairVisible: true,
   crosshairColor: 'rgba(255, 255, 255, 0.3)',
   projectionType: 'stereographic' as const,
@@ -48,6 +61,9 @@ const DEFAULT_STELLARIUM = {
   flipViewVertical: false,
   flipViewHorizontal: false,
   exposureScale: 2,
+  tonemapperP: 0.5,
+  mountFrame: 5 as const,
+  viewYOffset: 0,
 };
 
 const DEFAULT_PREFERENCES = {
@@ -62,6 +78,9 @@ const DEFAULT_PREFERENCES = {
   startupView: 'last' as const,
   showSplash: true,
   autoConnectBackend: true,
+  dailyKnowledgeEnabled: true,
+  dailyKnowledgeAutoShow: true,
+  dailyKnowledgeOnlineEnhancement: true,
 };
 
 const DEFAULT_PERFORMANCE = {
@@ -98,18 +117,45 @@ const DEFAULT_SEARCH = {
   maxHistoryItems: 20,
 };
 
+const DEFAULT_MOBILE_FEATURES = {
+  compactBottomBar: false,
+  oneHandMode: false,
+  prioritizedTools: ['markers', 'location', 'fov', 'shotlist', 'tonight', 'daily-knowledge'],
+};
+
 describe('Settings Store', () => {
   beforeEach(() => {
     // Reset store state before each test
     useSettingsStore.setState({
       connection: { ip: 'localhost', port: '1888' },
       backendProtocol: 'http',
+      skyEngine: 'stellarium',
       stellarium: DEFAULT_STELLARIUM,
       preferences: DEFAULT_PREFERENCES,
       performance: DEFAULT_PERFORMANCE,
       accessibility: DEFAULT_ACCESSIBILITY,
       notifications: DEFAULT_NOTIFICATIONS,
       search: DEFAULT_SEARCH,
+      aladinDisplay: {
+        showCooGrid: false,
+        cooGridColor: 'rgb(178, 50, 178)',
+        cooGridOpacity: 0.6,
+        cooGridLabelSize: 12,
+        showReticle: false,
+        reticleColor: '#ff0000',
+        reticleSize: 22,
+        cooFrame: 'ICRSd',
+        colormap: 'native',
+        colormapReversed: false,
+        brightness: 0,
+        contrast: 1,
+        saturation: 1,
+        gamma: 1,
+      },
+      observationProfile: 'imaging',
+      precisionMode: 'core_high_precision',
+      eopUpdatePolicy: 'auto_with_offline_fallback',
+      mobileFeaturePreferences: DEFAULT_MOBILE_FEATURES,
     });
   });
 
@@ -144,6 +190,26 @@ describe('Settings Store', () => {
     it('has default sky culture language', () => {
       const state = useSettingsStore.getState();
       expect(state.stellarium.skyCultureLanguage).toBe('native');
+    });
+
+    it('has defaults for extended Stellarium capability fields', () => {
+      const state = useSettingsStore.getState();
+      expect(state.stellarium.constellationBoundariesVisible).toBe(false);
+      expect(state.stellarium.equatorialJnowLinesVisible).toBe(false);
+      expect(state.stellarium.horizonLinesVisible).toBe(false);
+      expect(state.stellarium.galacticLinesVisible).toBe(false);
+      expect(state.stellarium.tonemapperP).toBe(0.5);
+      expect(state.stellarium.mountFrame).toBe(5);
+      expect(state.stellarium.viewYOffset).toBe(0);
+      expect(state.stellarium.sensorAbsolutePreferred).toBe(true);
+      expect(state.stellarium.sensorUseCompassHeading).toBe(true);
+      expect(state.stellarium.sensorUpdateHz).toBe(30);
+      expect(state.stellarium.sensorDeadbandDeg).toBe(0.35);
+      expect(state.stellarium.sensorSmoothingFactor).toBe(0.2);
+      expect(state.stellarium.sensorCalibrationRequired).toBe(true);
+      expect(state.stellarium.sensorCalibrationAzimuthOffsetDeg).toBe(0);
+      expect(state.stellarium.sensorCalibrationAltitudeOffsetDeg).toBe(0);
+      expect(state.stellarium.sensorCalibrationUpdatedAt).toBeNull();
     });
   });
 
@@ -227,12 +293,16 @@ describe('Settings Store', () => {
         constellationsLinesVisible: false,
         constellationArtVisible: true,
         constellationLabelsVisible: false,
+        constellationBoundariesVisible: true,
         starLabelsVisible: false,
         planetLabelsVisible: false,
         azimuthalLinesVisible: true,
         equatorialLinesVisible: true,
+        equatorialJnowLinesVisible: true,
         meridianLinesVisible: true,
         eclipticLinesVisible: true,
+        horizonLinesVisible: true,
+        galacticLinesVisible: true,
         atmosphereVisible: true,
         landscapesVisible: true,
         dsosVisible: false,
@@ -244,6 +314,15 @@ describe('Settings Store', () => {
         skyCultureLanguage: 'en' as const,
         nightMode: true,
         sensorControl: true,
+        sensorAbsolutePreferred: true,
+        sensorUseCompassHeading: true,
+        sensorUpdateHz: 45,
+        sensorDeadbandDeg: 0.4,
+        sensorSmoothingFactor: 0.25,
+        sensorCalibrationRequired: false,
+        sensorCalibrationAzimuthOffsetDeg: 2.5,
+        sensorCalibrationAltitudeOffsetDeg: -1.2,
+        sensorCalibrationUpdatedAt: 1700000000000,
         crosshairVisible: false,
         crosshairColor: '#ff0000',
         projectionType: 'stereographic' as const,
@@ -254,6 +333,9 @@ describe('Settings Store', () => {
         flipViewVertical: true,
         flipViewHorizontal: false,
         exposureScale: 3,
+        tonemapperP: 0.8,
+        mountFrame: 6 as const,
+        viewYOffset: 0.2,
       };
 
       useSettingsStore.getState().setStellariumSettings(newSettings);
@@ -301,6 +383,9 @@ describe('Settings Store', () => {
       expect(state.preferences.startupView).toBe('last');
       expect(state.preferences.showSplash).toBe(true);
       expect(state.preferences.autoConnectBackend).toBe(true);
+      expect(state.preferences.dailyKnowledgeEnabled).toBe(true);
+      expect(state.preferences.dailyKnowledgeAutoShow).toBe(true);
+      expect(state.preferences.dailyKnowledgeOnlineEnhancement).toBe(true);
       expect(state.preferences.skipCloseConfirmation).toBe(false);
     });
 
@@ -455,6 +540,47 @@ describe('Settings Store', () => {
   });
 
   // ============================================================================
+  // Observation profile & precision policy
+  // ============================================================================
+  describe('observation policy', () => {
+    it('updates observation profile', () => {
+      useSettingsStore.getState().setObservationProfile('visual');
+      expect(useSettingsStore.getState().observationProfile).toBe('visual');
+    });
+
+    it('updates precision mode and EOP policy', () => {
+      useSettingsStore.getState().setPrecisionMode('realtime_lightweight');
+      useSettingsStore.getState().setEopUpdatePolicy('embedded_only');
+      const state = useSettingsStore.getState();
+      expect(state.precisionMode).toBe('realtime_lightweight');
+      expect(state.eopUpdatePolicy).toBe('embedded_only');
+    });
+
+    it('merges mobile feature preferences', () => {
+      useSettingsStore.getState().setMobileFeaturePreferences({ oneHandMode: true });
+      const state = useSettingsStore.getState();
+      expect(state.mobileFeaturePreferences.oneHandMode).toBe(true);
+      expect(state.mobileFeaturePreferences.compactBottomBar).toBe(false);
+    });
+
+    it('normalizes prioritized tools to valid unique ids', () => {
+      useSettingsStore.getState().setMobileFeaturePreferences({
+        prioritizedTools: ['fov', 'invalid-tool', 'fov', 'location'],
+      });
+      const state = useSettingsStore.getState();
+      expect(state.mobileFeaturePreferences.prioritizedTools).toEqual(['fov', 'location']);
+    });
+
+    it('restores default priorities when prioritized tools become empty', () => {
+      useSettingsStore.getState().setMobileFeaturePreferences({
+        prioritizedTools: [],
+      });
+      const state = useSettingsStore.getState();
+      expect(state.mobileFeaturePreferences.prioritizedTools).toEqual(DEFAULT_MOBILE_FEATURES.prioritizedTools);
+    });
+  });
+
+  // ============================================================================
   // resetToDefaults
   // ============================================================================
   describe('resetToDefaults', () => {
@@ -466,6 +592,8 @@ describe('Settings Store', () => {
       useSettingsStore.getState().setNotificationSetting('enableSounds', true);
       useSettingsStore.getState().setSearchSetting('maxSearchResults', 200);
       useSettingsStore.getState().setStellariumSetting('atmosphereVisible', true);
+      useSettingsStore.getState().setObservationProfile('visual');
+      useSettingsStore.getState().setPrecisionMode('realtime_lightweight');
 
       // Reset
       useSettingsStore.getState().resetToDefaults();
@@ -478,6 +606,8 @@ describe('Settings Store', () => {
       expect(state.notifications.enableSounds).toBe(false);
       expect(state.search.maxSearchResults).toBe(50);
       expect(state.stellarium.atmosphereVisible).toBe(false);
+      expect(state.observationProfile).toBe('imaging');
+      expect(state.precisionMode).toBe('core_high_precision');
     });
 
     it('does not reset connection settings', () => {

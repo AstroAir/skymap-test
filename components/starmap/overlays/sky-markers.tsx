@@ -30,6 +30,7 @@ import {
 export function SkyMarkers({
   containerWidth,
   containerHeight,
+  interactionOnly = false,
   onMarkerClick,
   onMarkerDoubleClick,
   onMarkerEdit,
@@ -111,6 +112,7 @@ export function SkyMarkers({
           isActive={marker.id === activeMarkerId}
           showLabel={showLabels}
           markerSize={marker.size || globalMarkerSize}
+          interactionOnly={interactionOnly}
           onSetActive={setActiveMarker}
           onClick={onMarkerClick}
           onDoubleClick={onMarkerDoubleClick}
@@ -132,6 +134,7 @@ interface MarkerItemProps {
   isActive: boolean;
   showLabel: boolean;
   markerSize: number;
+  interactionOnly: boolean;
   onSetActive: (id: string | null) => void;
   onClick?: (marker: SkyMarker) => void;
   onDoubleClick?: (marker: SkyMarker) => void;
@@ -149,6 +152,7 @@ const MarkerItem = memo(function MarkerItem({
   isActive,
   showLabel,
   markerSize,
+  interactionOnly,
   onSetActive,
   onClick,
   onDoubleClick,
@@ -161,6 +165,7 @@ const MarkerItem = memo(function MarkerItem({
   const IconComponent = MarkerIconDisplay[marker.icon];
   const activeSize = Math.round(markerSize * 1.4);
   const size = isActive ? activeSize : markerSize;
+  const hitAreaSize = Math.max(18, markerSize + 8);
 
   return (
     <ContextMenu>
@@ -184,24 +189,37 @@ const MarkerItem = memo(function MarkerItem({
                 onDoubleClick?.(marker);
               }}
             >
-              <IconComponent
-                className="drop-shadow-lg"
-                style={{
-                  color: marker.color,
-                  width: size,
-                  height: size,
-                  filter: `drop-shadow(0 0 ${isActive ? 4 : 2}px ${marker.color})`,
-                }}
-              />
-              {isActive && (
+              {interactionOnly ? (
                 <div
-                  className="absolute inset-0 rounded-full animate-ping"
+                  className="rounded-full"
                   style={{
-                    backgroundColor: marker.color,
-                    opacity: 0.3,
-                    transform: 'scale(1.5)',
+                    width: hitAreaSize,
+                    height: hitAreaSize,
+                    background: 'transparent',
                   }}
                 />
+              ) : (
+                <>
+                  <IconComponent
+                    className="drop-shadow-lg"
+                    style={{
+                      color: marker.color,
+                      width: size,
+                      height: size,
+                      filter: `drop-shadow(0 0 ${isActive ? 4 : 2}px ${marker.color})`,
+                    }}
+                  />
+                  {isActive && (
+                    <div
+                      className="absolute inset-0 rounded-full animate-ping"
+                      style={{
+                        backgroundColor: marker.color,
+                        opacity: 0.3,
+                        transform: 'scale(1.5)',
+                      }}
+                    />
+                  )}
+                </>
               )}
               {showLabel && (
                 <div

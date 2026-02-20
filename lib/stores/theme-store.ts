@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getZustandStorage } from '@/lib/storage';
 
 export interface ThemeColors {
   primary: string;
@@ -38,12 +39,14 @@ export interface ThemeCustomization {
 
 interface ThemeStore {
   customization: ThemeCustomization;
+  setCustomization: (customization: Partial<ThemeCustomization>) => void;
   setRadius: (radius: number) => void;
   setFontFamily: (font: ThemeCustomization['fontFamily']) => void;
   setFontSize: (size: ThemeCustomization['fontSize']) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
   setActivePreset: (presetId: string | null) => void;
   setCustomColor: (mode: 'light' | 'dark', key: keyof ThemeColors, value: string) => void;
+  clearCustomColor: (mode: 'light' | 'dark', key: keyof ThemeColors) => void;
   resetCustomization: () => void;
   applyCustomization: () => void;
 }
@@ -59,6 +62,22 @@ const defaultCustomization: ThemeCustomization = {
     dark: {},
   },
 };
+
+const fontFamilyOptions = ['default', 'serif', 'mono', 'system'] as const;
+const fontSizeOptions = ['small', 'default', 'large'] as const;
+const themeColorKeys: (keyof ThemeColors)[] = [
+  'primary',
+  'secondary',
+  'accent',
+  'background',
+  'foreground',
+  'muted',
+  'card',
+  'border',
+  'destructive',
+];
+
+export const customizableThemeColorKeys = [...themeColorKeys] as const;
 
 export const themePresets: ThemePreset[] = [
   {
@@ -172,6 +191,105 @@ const fontSizeScale: Record<ThemeCustomization['fontSize'], number> = {
   large: 1.125,
 };
 
+function hasOwn<T extends object>(obj: T, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function clampRadius(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function sanitizeModeColors(value: unknown): Partial<ThemeColors> {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  const raw = value as Partial<Record<keyof ThemeColors, unknown>>;
+  const next: Partial<ThemeColors> = {};
+
+  for (const key of themeColorKeys) {
+    const color = raw[key];
+    if (typeof color === 'string' && color.trim()) {
+      next[key] = color.trim();
+    }
+  }
+
+  return next;
+}
+
+function sanitizeThemeCustomization(
+  incoming: Partial<ThemeCustomization> | undefined,
+  base: ThemeCustomization
+): ThemeCustomization {
+  const source = incoming ?? {};
+
+  const radius = hasOwn(source, 'radius')
+    ? (typeof source.radius === 'number' && Number.isFinite(source.radius)
+      ? clampRadius(source.radius)
+      : defaultCustomization.radius)
+    : base.radius;
+
+  const fontFamily = hasOwn(source, 'fontFamily')
+    ? (fontFamilyOptions.includes(source.fontFamily as ThemeCustomization['fontFamily'])
+      ? source.fontFamily as ThemeCustomization['fontFamily']
+      : defaultCustomization.fontFamily)
+    : base.fontFamily;
+
+  const fontSize = hasOwn(source, 'fontSize')
+    ? (fontSizeOptions.includes(source.fontSize as ThemeCustomization['fontSize'])
+      ? source.fontSize as ThemeCustomization['fontSize']
+      : defaultCustomization.fontSize)
+    : base.fontSize;
+
+  const animationsEnabled = hasOwn(source, 'animationsEnabled')
+    ? (typeof source.animationsEnabled === 'boolean'
+      ? source.animationsEnabled
+      : defaultCustomization.animationsEnabled)
+    : base.animationsEnabled;
+
+  let activePreset = base.activePreset;
+  if (hasOwn(source, 'activePreset')) {
+    const preset = source.activePreset;
+    if (preset === null) {
+      activePreset = null;
+    } else if (typeof preset === 'string' && themePresets.some((item) => item.id === preset)) {
+      activePreset = preset;
+    } else {
+      activePreset = null;
+    }
+  }
+
+  let lightColors = base.customColors.light;
+  let darkColors = base.customColors.dark;
+
+  if (hasOwn(source, 'customColors')) {
+    const incomingColors = source.customColors;
+    if (incomingColors && typeof incomingColors === 'object') {
+      if (hasOwn(incomingColors, 'light')) {
+        lightColors = sanitizeModeColors(incomingColors.light);
+      }
+      if (hasOwn(incomingColors, 'dark')) {
+        darkColors = sanitizeModeColors(incomingColors.dark);
+      }
+    } else {
+      lightColors = {};
+      darkColors = {};
+    }
+  }
+
+  return {
+    radius,
+    fontFamily,
+    fontSize,
+    animationsEnabled,
+    activePreset,
+    customColors: {
+      light: lightColors,
+      dark: darkColors,
+    },
+  };
+}
+
 // Batch DOM updates for better performance
 let pendingUpdate: number | null = null;
 
@@ -199,11 +317,7 @@ function applyThemeToDOM(customization: ThemeCustomization) {
     styleUpdates.push(['--font-size-scale', String(fontSizeScale[customization.fontSize])]);
 
     // Clear all previous color inline styles before applying new ones
-    const allColorKeys: (keyof ThemeColors)[] = [
-      'primary', 'secondary', 'accent', 'background',
-      'foreground', 'muted', 'card', 'border', 'destructive',
-    ];
-    allColorKeys.forEach(key => {
+    themeColorKeys.forEach(key => {
       root.style.removeProperty(`--${key}`);
     });
 
@@ -254,60 +368,59 @@ export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({
       customization: defaultCustomization,
-      
+
+      setCustomization: (customization) => {
+        set((state) => ({
+          customization: sanitizeThemeCustomization(customization, state.customization),
+        }));
+        get().applyCustomization();
+      },
+
       setRadius: (radius) => {
-        set((state) => ({
-          customization: { ...state.customization, radius },
-        }));
-        get().applyCustomization();
+        get().setCustomization({ radius });
       },
-      
+
       setFontFamily: (fontFamily) => {
-        set((state) => ({
-          customization: { ...state.customization, fontFamily },
-        }));
-        get().applyCustomization();
+        get().setCustomization({ fontFamily });
       },
-      
+
       setFontSize: (fontSize) => {
-        set((state) => ({
-          customization: { ...state.customization, fontSize },
-        }));
-        get().applyCustomization();
+        get().setCustomization({ fontSize });
       },
-      
+
       setAnimationsEnabled: (animationsEnabled) => {
-        set((state) => ({
-          customization: { ...state.customization, animationsEnabled },
-        }));
-        get().applyCustomization();
+        get().setCustomization({ animationsEnabled });
       },
-      
+
       setActivePreset: (activePreset) => {
-        set((state) => ({
-          customization: { ...state.customization, activePreset },
-        }));
-        get().applyCustomization();
+        get().setCustomization({ activePreset });
       },
-      
+
       setCustomColor: (mode, key, value) => {
-        set((state) => ({
-          customization: {
-            ...state.customization,
-            customColors: {
-              ...state.customization.customColors,
-              [mode]: {
-                ...state.customization.customColors[mode],
-                [key]: value,
-              },
-            },
+        const current = get().customization;
+        const modeColors = { ...current.customColors[mode], [key]: value };
+        get().setCustomization({
+          customColors: {
+            ...current.customColors,
+            [mode]: modeColors,
           },
-        }));
-        get().applyCustomization();
+        });
       },
-      
+
+      clearCustomColor: (mode, key) => {
+        const current = get().customization;
+        const modeColors = { ...current.customColors[mode] };
+        delete modeColors[key];
+        get().setCustomization({
+          customColors: {
+            ...current.customColors,
+            [mode]: modeColors,
+          },
+        });
+      },
+
       resetCustomization: () => {
-        set({ customization: defaultCustomization });
+        set({ customization: { ...defaultCustomization, customColors: { light: {}, dark: {} } } });
         // Reset CSS variables
         const root = document.documentElement;
         root.style.removeProperty('--radius');
@@ -315,11 +428,11 @@ export const useThemeStore = create<ThemeStore>()(
         root.style.removeProperty('--font-size-scale');
         root.style.fontSize = '';
         root.classList.remove('reduce-motion');
-        ['primary', 'secondary', 'accent', 'background', 'foreground', 'muted', 'card', 'border', 'destructive'].forEach(key => {
+        themeColorKeys.forEach(key => {
           root.style.removeProperty(`--${key}`);
         });
       },
-      
+
       applyCustomization: () => {
         if (typeof window !== 'undefined') {
           applyThemeToDOM(get().customization);
@@ -328,6 +441,21 @@ export const useThemeStore = create<ThemeStore>()(
     }),
     {
       name: 'theme-customization',
+      storage: getZustandStorage(),
+      version: 1,
+      migrate: (persistedState) => {
+        const raw = persistedState as { customization?: Partial<ThemeCustomization> } | Partial<ThemeCustomization> | undefined;
+        const customization = raw && typeof raw === 'object' && hasOwn(raw, 'customization')
+          ? (raw as { customization?: Partial<ThemeCustomization> }).customization
+          : raw as Partial<ThemeCustomization> | undefined;
+
+        return {
+          customization: sanitizeThemeCustomization(customization, defaultCustomization),
+        };
+      },
+      partialize: (state) => ({
+        customization: state.customization,
+      }),
       onRehydrateStorage: () => (state) => {
         if (state) {
           setTimeout(() => state.applyCustomization(), 0);

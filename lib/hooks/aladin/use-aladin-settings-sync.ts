@@ -4,6 +4,8 @@ import { useEffect, useRef, type RefObject } from 'react';
 import type A from 'aladin-lite';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import { STELLARIUM_TO_ALADIN_PROJECTION } from '@/lib/core/constants/aladin-canvas';
+import { getSurveyById } from '@/lib/core/constants/sky-surveys';
+import { updateReticleCompat } from '@/lib/aladin/aladin-compat';
 import { createLogger } from '@/lib/logger';
 
 type AladinInstance = ReturnType<typeof A.aladin>;
@@ -57,9 +59,19 @@ export function useAladinSettingsSync(
 
     if (surveyId !== prevSurveyRef.current) {
       try {
-        const survey = aladin.newImageSurvey(surveyId);
+        // Resolve the app-local survey ID to a HiPS URL that aladin-lite can load.
+        // aladin.newImageSurvey() expects a CDS registry ID or full URL, not our
+        // local IDs like 'dss', 'panstarrs', etc.
+        const surveyDef = getSurveyById(surveyId);
+        const surveyUrl = surveyDef?.url;
+        if (!surveyUrl) {
+          logger.warn(`Unknown survey ID: ${surveyId}, skipping`);
+          prevSurveyRef.current = surveyId;
+          return;
+        }
+        const survey = aladin.newImageSurvey(surveyUrl);
         aladin.setBaseImageLayer(survey);
-        logger.debug(`Survey synced: ${surveyId}`);
+        logger.debug(`Survey synced: ${surveyId} → ${surveyUrl}`);
       } catch (error) {
         logger.warn('Failed to set Aladin survey', error);
       }
@@ -96,11 +108,11 @@ export function useAladinSettingsSync(
     if (!aladin || !engineReady || skyEngine !== 'aladin') return;
 
     try {
-      aladin.showReticle(aladinDisplay.showReticle);
-      if (aladinDisplay.showReticle) {
-        aladin.setReticleColor(aladinDisplay.reticleColor);
-        aladin.setReticleSize(aladinDisplay.reticleSize);
-      }
+      updateReticleCompat(aladin, {
+        show: aladinDisplay.showReticle,
+        color: aladinDisplay.reticleColor,
+        size: aladinDisplay.reticleSize,
+      });
       logger.debug(`Reticle synced: ${aladinDisplay.showReticle}`);
     } catch (error) {
       logger.warn('Failed to sync reticle', error);

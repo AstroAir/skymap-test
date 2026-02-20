@@ -10,11 +10,19 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 // Mock the locale store
 const mockSetLocale = jest.fn();
+const mockSetPreference = jest.fn();
 jest.mock('@/lib/i18n/locale-store', () => ({
   useLocaleStore: () => ({
     locale: 'en',
     setLocale: mockSetLocale,
   }),
+}));
+
+jest.mock('@/lib/stores/settings-store', () => ({
+  useSettingsStore: (selector: (state: { setPreference: typeof mockSetPreference }) => unknown) => {
+    const state = { setPreference: mockSetPreference };
+    return selector ? selector(state) : state;
+  },
 }));
 
 // Mock the config
@@ -69,6 +77,7 @@ describe('LanguageSwitcher', () => {
     
     await user.click(zhOption);
     expect(mockSetLocale).toHaveBeenCalledWith('zh');
+    expect(mockSetPreference).toHaveBeenCalledWith('locale', 'zh');
   });
 
   it('highlights the current locale in the dropdown', async () => {

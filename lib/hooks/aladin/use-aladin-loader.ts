@@ -3,7 +3,8 @@
 import { useState, useCallback, useRef, type RefObject } from 'react';
 import type A from 'aladin-lite';
 import type { LoadingState } from '@/types/stellarium-canvas';
-import { useStellariumStore } from '@/lib/stores';
+import { raDecToAltAzAtTime } from '@/lib/astronomy/coordinates/transforms';
+import { useMountStore, useStellariumStore } from '@/lib/stores';
 import { ALADIN_INIT_TIMEOUT, ALADIN_DEFAULT_FOV, ALADIN_DEFAULT_SURVEY, ALADIN_DEFAULT_PROJECTION, ALADIN_DEFAULT_COO_FRAME, ALADIN_NAVIGATE_DURATION } from '@/lib/core/constants/aladin-canvas';
 import { createLogger } from '@/lib/logger';
 
@@ -122,11 +123,30 @@ export function useAladinLoader({
           const a = aladinRef.current;
           if (!a) return { ra: 0, dec: 0, alt: 0, az: 0 };
           const [ra, dec] = a.getRaDec();
-          // Aladin returns degrees; convert to radians to match Stellarium convention.
-          // NOTE: alt/az are always 0 — Aladin Lite is a survey browser and does not
-          // compute horizon coordinates. Consumers needing alt/az must check activeEngine.
+          const location = useMountStore.getState().profileInfo.AstrometrySettings;
+          const hasValidLocation = Number.isFinite(location.Latitude) && Number.isFinite(location.Longitude);
+          let altDeg = Number.NaN;
+          let azDeg = Number.NaN;
+          if (hasValidLocation) {
+            const altAz = raDecToAltAzAtTime(
+              ra,
+              dec,
+              location.Latitude,
+              location.Longitude,
+              new Date()
+            );
+            altDeg = altAz.altitude;
+            azDeg = altAz.azimuth;
+          }
+
+          // Aladin returns degrees; store direction in radians to match Stellarium store.
           const D2R = Math.PI / 180;
-          return { ra: ra * D2R, dec: dec * D2R, alt: 0, az: 0 };
+          return {
+            ra: ra * D2R,
+            dec: dec * D2R,
+            alt: altDeg * D2R,
+            az: azDeg * D2R,
+          };
         },
         setViewDirection: (raDeg: number, decDeg: number) => {
           const a = aladinRef.current;

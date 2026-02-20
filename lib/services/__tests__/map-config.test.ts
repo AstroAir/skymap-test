@@ -29,6 +29,9 @@ describe('mapConfig', () => {
       expect(config.fallbackStrategy).toBe('priority');
       expect(config.enableAutoFallback).toBe(true);
       expect(config.cacheResponses).toBe(true);
+      expect(config.policyMode).toBe('strict');
+      expect(config.searchBehaviorWhenNoAutocomplete).toBe('submit-only');
+      expect(config.configVersion).toBeGreaterThanOrEqual(2);
     });
 
     it('should return a copy of configuration', () => {
@@ -277,6 +280,20 @@ describe('mapConfig', () => {
       const config = mapConfig.getConfiguration();
       expect(config.healthCheckInterval).toBe(600000);
     });
+
+    it('should set policy mode', () => {
+      mapConfig.setPolicyMode('balanced');
+
+      const config = mapConfig.getConfiguration();
+      expect(config.policyMode).toBe('balanced');
+    });
+
+    it('should set search behavior when no autocomplete', () => {
+      mapConfig.setSearchBehaviorWhenNoAutocomplete('disabled');
+
+      const config = mapConfig.getConfiguration();
+      expect(config.searchBehaviorWhenNoAutocomplete).toBe('disabled');
+    });
   });
 
   describe('configuration listeners', () => {
@@ -350,6 +367,15 @@ describe('mapConfig', () => {
 
     it('should reject invalid fallbackStrategy', () => {
       expect(() => mapConfig.importConfiguration(JSON.stringify({ fallbackStrategy: 'bad' }))).toThrow('Invalid fallbackStrategy');
+    });
+
+    it('should reject invalid policyMode', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({ policyMode: 'bad' }))).toThrow('Invalid policyMode');
+    });
+
+    it('should reject invalid searchBehaviorWhenNoAutocomplete', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({ searchBehaviorWhenNoAutocomplete: 'bad' })))
+        .toThrow('Invalid searchBehaviorWhenNoAutocomplete');
     });
 
     it('should reject healthCheckInterval below minimum', () => {

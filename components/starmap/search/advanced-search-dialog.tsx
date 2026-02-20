@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useObjectSearch, type ObjectType, useSkyCultureLanguage, useSelectTarget } from '@/lib/hooks';
 import { useTargetListActions } from '@/lib/hooks/use-target-list-actions';
@@ -10,6 +10,7 @@ import { isValidRA, isValidDec } from '@/lib/astronomy/coordinate-validators';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -60,6 +61,8 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
   const [includeTargetList, setIncludeTargetList] = useState(true);
   const [autoSearch, setAutoSearch] = useState(true);
   const [activeTab, setActiveTab] = useState('filters');
+  const [batchQuery, setBatchQuery] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use shared search hook from parent, or create own instance as fallback
   const ownSearch = useObjectSearch();
@@ -128,6 +131,32 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
       setQuery(localQuery);
     }
   }, [localQuery, selectedTypes, includeTargetList, coordinateMode, raInput, decInput, minMagnitude, maxMagnitude, searchRadius, setFilters, setQuery]);
+
+  const applyBatchQuery = useCallback(() => {
+    const normalized = batchQuery
+      .split(/\r?\n|,/)
+      .map(v => v.trim())
+      .filter(Boolean)
+      .join('\n');
+    if (!normalized) return;
+    setLocalQuery(normalized);
+    setQuery(normalized);
+    setActiveTab('results');
+  }, [batchQuery, setQuery]);
+
+  const importBatchFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const normalized = text
+        .split(/\r?\n|,/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .join('\n');
+      setBatchQuery(normalized);
+    };
+    reader.readAsText(file);
+  }, []);
 
   // Auto-search effect (must be after executeSearch is declared)
   useEffect(() => {
@@ -249,6 +278,45 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
                     ))}
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>{t('search.batchSearch', { defaultValue: 'Batch Search' })}</Label>
+                  <Textarea
+                    value={batchQuery}
+                    onChange={(e) => setBatchQuery(e.target.value)}
+                    placeholder={t('search.batchPlaceholder', { defaultValue: 'One object per line, e.g.\nM31\nNGC7000\n火星' })}
+                    className="min-h-24 text-xs"
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          importBatchFile(file);
+                        }
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {t('search.importList', { defaultValue: 'Import List' })}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={applyBatchQuery}
+                      disabled={!batchQuery.trim()}
+                    >
+                      {t('search.runBatchSearch', { defaultValue: 'Run Batch Search' })}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -346,7 +414,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
             {/* Sort Options */}
             <div className="space-y-2">
               <Label>{t('search.sortBy')}</Label>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'name' | 'type' | 'ra' | 'relevance')}>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'name' | 'type' | 'ra' | 'relevance' | 'magnitude' | 'altitude' | 'distance')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -355,6 +423,9 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
                   <SelectItem value="name">{t('search.sortByName')}</SelectItem>
                   <SelectItem value="type">{t('search.sortByType')}</SelectItem>
                   <SelectItem value="ra">{t('search.sortByRA')}</SelectItem>
+                  <SelectItem value="magnitude">{t('search.sortByMagnitude', { defaultValue: 'Magnitude' })}</SelectItem>
+                  <SelectItem value="altitude">{t('search.sortByAltitude', { defaultValue: 'Altitude' })}</SelectItem>
+                  <SelectItem value="distance">{t('search.sortByDistance', { defaultValue: 'Distance' })}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

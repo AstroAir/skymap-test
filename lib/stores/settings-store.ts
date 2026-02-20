@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
-import type { StellariumSettings, SkyEngineType, AladinDisplaySettings } from '@/lib/core/types';
+import type { StellariumSettings, SkyEngineType, AladinDisplaySettings, RecommendationProfile } from '@/lib/core/types';
 import { DEFAULT_ALADIN_DISPLAY_SETTINGS } from '@/lib/core/types/stellarium';
 import { DEFAULT_STELLARIUM_SETTINGS } from '@/components/starmap/settings/settings-constants';
+import {
+  DEFAULT_MOBILE_PRIORITIZED_TOOLS,
+  normalizeMobilePrioritizedTools,
+} from '@/lib/constants/mobile-tools';
 
 // ============================================================================
 // Types
@@ -30,6 +34,9 @@ export interface AppPreferences {
   startupView: StartupView;
   showSplash: boolean;
   autoConnectBackend: boolean;
+  dailyKnowledgeEnabled: boolean;
+  dailyKnowledgeAutoShow: boolean;
+  dailyKnowledgeOnlineEnhancement: boolean;
 }
 
 export interface PerformanceSettings {
@@ -66,6 +73,15 @@ export interface SearchSettings {
   maxHistoryItems: number;
 }
 
+export type PrecisionMode = 'core_high_precision' | 'realtime_lightweight';
+export type EopUpdatePolicy = 'auto_with_offline_fallback' | 'embedded_only' | 'strict_offline';
+
+export interface MobileFeaturePreferences {
+  compactBottomBar: boolean;
+  oneHandMode: boolean;
+  prioritizedTools: string[];
+}
+
 interface SettingsState {
   // Connection settings
   connection: {
@@ -97,6 +113,12 @@ interface SettingsState {
   
   // Aladin display settings
   aladinDisplay: AladinDisplaySettings;
+
+  // Observation profile and precision policy
+  observationProfile: RecommendationProfile;
+  precisionMode: PrecisionMode;
+  eopUpdatePolicy: EopUpdatePolicy;
+  mobileFeaturePreferences: MobileFeaturePreferences;
   
   // Actions - Connection
   setConnection: (connection: Partial<SettingsState['connection']>) => void;
@@ -134,6 +156,12 @@ interface SettingsState {
   setAladinDisplaySetting: <K extends keyof AladinDisplaySettings>(key: K, value: AladinDisplaySettings[K]) => void;
   setAladinDisplaySettings: (settings: Partial<AladinDisplaySettings>) => void;
   toggleAladinDisplaySetting: (key: keyof AladinDisplaySettings) => void;
+
+  // Actions - Observation/Precision
+  setObservationProfile: (profile: RecommendationProfile) => void;
+  setPrecisionMode: (mode: PrecisionMode) => void;
+  setEopUpdatePolicy: (policy: EopUpdatePolicy) => void;
+  setMobileFeaturePreferences: (prefs: Partial<MobileFeaturePreferences>) => void;
   
   // Actions - Reset
   resetToDefaults: () => void;
@@ -155,6 +183,9 @@ const DEFAULT_PREFERENCES: AppPreferences = {
   startupView: 'last',
   showSplash: true,
   autoConnectBackend: true,
+  dailyKnowledgeEnabled: true,
+  dailyKnowledgeAutoShow: true,
+  dailyKnowledgeOnlineEnhancement: true,
 };
 
 const DEFAULT_PERFORMANCE: PerformanceSettings = {
@@ -191,7 +222,28 @@ const DEFAULT_SEARCH: SearchSettings = {
   maxHistoryItems: 20,
 };
 
+const DEFAULT_MOBILE_FEATURE_PREFERENCES: MobileFeaturePreferences = {
+  compactBottomBar: false,
+  oneHandMode: false,
+  prioritizedTools: DEFAULT_MOBILE_PRIORITIZED_TOOLS,
+};
+
 const DEFAULT_STELLARIUM: StellariumSettings = DEFAULT_STELLARIUM_SETTINGS;
+
+function normalizeMobileFeaturePreferences(
+  mobileFeaturePreferences: Partial<MobileFeaturePreferences> | undefined,
+  options: { appendDefaultOrder?: boolean } = {},
+): MobileFeaturePreferences {
+  return {
+    compactBottomBar:
+      mobileFeaturePreferences?.compactBottomBar ?? DEFAULT_MOBILE_FEATURE_PREFERENCES.compactBottomBar,
+    oneHandMode:
+      mobileFeaturePreferences?.oneHandMode ?? DEFAULT_MOBILE_FEATURE_PREFERENCES.oneHandMode,
+    prioritizedTools: normalizeMobilePrioritizedTools(mobileFeaturePreferences?.prioritizedTools, {
+      appendDefaultOrder: options.appendDefaultOrder ?? false,
+    }),
+  };
+}
 
 // ============================================================================
 // Store
@@ -214,6 +266,12 @@ export const useSettingsStore = create<SettingsState>()(
       notifications: DEFAULT_NOTIFICATIONS,
       search: DEFAULT_SEARCH,
       aladinDisplay: DEFAULT_ALADIN_DISPLAY_SETTINGS,
+      observationProfile: 'imaging',
+      precisionMode: 'core_high_precision',
+      eopUpdatePolicy: 'auto_with_offline_fallback',
+      mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+        DEFAULT_MOBILE_FEATURE_PREFERENCES,
+      ),
       
       // Actions - Connection
       setConnection: (connection) => set((state) => ({
@@ -305,6 +363,17 @@ export const useSettingsStore = create<SettingsState>()(
         }
         return state;
       }),
+
+      // Actions - Observation/Precision
+      setObservationProfile: (observationProfile) => set({ observationProfile }),
+      setPrecisionMode: (precisionMode) => set({ precisionMode }),
+      setEopUpdatePolicy: (eopUpdatePolicy) => set({ eopUpdatePolicy }),
+      setMobileFeaturePreferences: (prefs) => set((state) => ({
+        mobileFeaturePreferences: normalizeMobileFeaturePreferences({
+          ...state.mobileFeaturePreferences,
+          ...prefs,
+        }),
+      })),
       
       // Actions - Reset
       resetToDefaults: () => set({
@@ -316,12 +385,18 @@ export const useSettingsStore = create<SettingsState>()(
         notifications: DEFAULT_NOTIFICATIONS,
         search: DEFAULT_SEARCH,
         aladinDisplay: DEFAULT_ALADIN_DISPLAY_SETTINGS,
+        observationProfile: 'imaging',
+        precisionMode: 'core_high_precision',
+        eopUpdatePolicy: 'auto_with_offline_fallback',
+        mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+          DEFAULT_MOBILE_FEATURE_PREFERENCES,
+        ),
       }),
     }),
     {
       name: 'starmap-settings',
       storage: getZustandStorage(),
-      version: 9, // Add skyEngine field for dual-engine support
+      version: 14, // v14: mobile tool priority normalization
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState>;
         
@@ -354,6 +429,13 @@ export const useSettingsStore = create<SettingsState>()(
               ...DEFAULT_SEARCH,
               ...state.search,
             },
+            observationProfile: 'imaging',
+            precisionMode: 'core_high_precision',
+            eopUpdatePolicy: 'auto_with_offline_fallback',
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              DEFAULT_MOBILE_FEATURE_PREFERENCES,
+              { appendDefaultOrder: true },
+            ),
           };
         }
         
@@ -362,6 +444,16 @@ export const useSettingsStore = create<SettingsState>()(
           return {
             ...state,
             skyEngine: state.skyEngine ?? ('stellarium' as SkyEngineType),
+            observationProfile: state.observationProfile ?? 'imaging',
+            precisionMode: state.precisionMode ?? 'core_high_precision',
+            eopUpdatePolicy: state.eopUpdatePolicy ?? 'auto_with_offline_fallback',
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              {
+                ...DEFAULT_MOBILE_FEATURE_PREFERENCES,
+                ...state.mobileFeaturePreferences,
+              },
+              { appendDefaultOrder: true },
+            ),
           };
         }
         
@@ -373,10 +465,153 @@ export const useSettingsStore = create<SettingsState>()(
               ...DEFAULT_ALADIN_DISPLAY_SETTINGS,
               ...(state as Record<string, unknown>).aladinDisplay as Partial<AladinDisplaySettings> | undefined,
             },
+            observationProfile: state.observationProfile ?? 'imaging',
+            precisionMode: state.precisionMode ?? 'core_high_precision',
+            eopUpdatePolicy: state.eopUpdatePolicy ?? 'auto_with_offline_fallback',
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              {
+                ...DEFAULT_MOBILE_FEATURE_PREFERENCES,
+                ...state.mobileFeaturePreferences,
+              },
+              { appendDefaultOrder: true },
+            ),
+          };
+        }
+
+        // Migration from v9 to v10: add new Stellarium capability fields
+        if (version < 10) {
+          return {
+            ...state,
+            stellarium: {
+              ...DEFAULT_STELLARIUM,
+              ...state.stellarium,
+            },
+            observationProfile: state.observationProfile ?? 'imaging',
+            precisionMode: state.precisionMode ?? 'core_high_precision',
+            eopUpdatePolicy: state.eopUpdatePolicy ?? 'auto_with_offline_fallback',
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              {
+                ...DEFAULT_MOBILE_FEATURE_PREFERENCES,
+                ...state.mobileFeaturePreferences,
+              },
+              { appendDefaultOrder: true },
+            ),
+          };
+        }
+
+        // Migration from v10 to v11: add sensor orientation pipeline fields
+        if (version < 11) {
+          return {
+            ...state,
+            stellarium: {
+              ...DEFAULT_STELLARIUM,
+              ...state.stellarium,
+            },
+            observationProfile: state.observationProfile ?? 'imaging',
+            precisionMode: state.precisionMode ?? 'core_high_precision',
+            eopUpdatePolicy: state.eopUpdatePolicy ?? 'auto_with_offline_fallback',
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              {
+                ...DEFAULT_MOBILE_FEATURE_PREFERENCES,
+                ...state.mobileFeaturePreferences,
+              },
+              { appendDefaultOrder: true },
+            ),
+          };
+        }
+
+        // Migration from v11 to v12: add observation & precision policy fields
+        if (version < 12) {
+          return {
+            ...state,
+            observationProfile: state.observationProfile ?? 'imaging',
+            precisionMode: state.precisionMode ?? 'core_high_precision',
+            eopUpdatePolicy: state.eopUpdatePolicy ?? 'auto_with_offline_fallback',
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              {
+                ...DEFAULT_MOBILE_FEATURE_PREFERENCES,
+                ...state.mobileFeaturePreferences,
+              },
+              { appendDefaultOrder: true },
+            ),
+          };
+        }
+
+        if (version < 13) {
+          return {
+            ...state,
+            preferences: {
+              ...DEFAULT_PREFERENCES,
+              ...state.preferences,
+            },
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              state.mobileFeaturePreferences,
+              { appendDefaultOrder: true },
+            ),
+          };
+        }
+
+        if (version < 14) {
+          return {
+            ...state,
+            mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+              state.mobileFeaturePreferences,
+              { appendDefaultOrder: true },
+            ),
           };
         }
         
         return state;
+      },
+      merge: (persistedState, currentState) => {
+        const state = (persistedState as Partial<SettingsState> | undefined) ?? {};
+
+        return {
+          ...currentState,
+          ...state,
+          connection: {
+            ...currentState.connection,
+            ...state.connection,
+          },
+          stellarium: {
+            ...currentState.stellarium,
+            ...state.stellarium,
+          },
+          preferences: {
+            ...currentState.preferences,
+            ...state.preferences,
+          },
+          performance: {
+            ...currentState.performance,
+            ...state.performance,
+          },
+          accessibility: {
+            ...currentState.accessibility,
+            ...state.accessibility,
+          },
+          notifications: {
+            ...currentState.notifications,
+            ...state.notifications,
+          },
+          search: {
+            ...currentState.search,
+            ...state.search,
+          },
+          aladinDisplay: {
+            ...currentState.aladinDisplay,
+            ...state.aladinDisplay,
+          },
+          mobileFeaturePreferences: normalizeMobileFeaturePreferences(
+            {
+              ...currentState.mobileFeaturePreferences,
+              ...state.mobileFeaturePreferences,
+            },
+            { appendDefaultOrder: true },
+          ),
+          observationProfile: state.observationProfile ?? currentState.observationProfile,
+          precisionMode: state.precisionMode ?? currentState.precisionMode,
+          eopUpdatePolicy: state.eopUpdatePolicy ?? currentState.eopUpdatePolicy,
+        };
       },
       partialize: (state) => ({
         connection: state.connection,
@@ -389,6 +624,10 @@ export const useSettingsStore = create<SettingsState>()(
         notifications: state.notifications,
         search: state.search,
         aladinDisplay: state.aladinDisplay,
+        observationProfile: state.observationProfile,
+        precisionMode: state.precisionMode,
+        eopUpdatePolicy: state.eopUpdatePolicy,
+        mobileFeaturePreferences: state.mobileFeaturePreferences,
       }),
     }
   )

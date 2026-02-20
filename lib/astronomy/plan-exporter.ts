@@ -11,7 +11,7 @@ import { degreesToHMS, degreesToDMS } from './starmap-utils';
 // Export Formats
 // ============================================================================
 
-export type PlanExportFormat = 'text' | 'markdown' | 'json' | 'nina-xml';
+export type PlanExportFormat = 'text' | 'markdown' | 'json' | 'nina-xml' | 'csv' | 'sgp-csv';
 
 export interface PlanExportOptions {
   format: PlanExportFormat;
@@ -194,6 +194,60 @@ function exportAsNinaXml(plan: SessionPlan, options: PlanExportOptions): string 
 }
 
 // ============================================================================
+// CSV Export
+// ============================================================================
+
+function escapeCsv(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function exportAsCsv(plan: SessionPlan): string {
+  const rows = [
+    'order,name,ra_deg,dec_deg,ra_hms,dec_dms,start_time,end_time,duration_hours,max_altitude_deg,moon_distance_deg,feasibility_score',
+  ];
+
+  for (const target of plan.targets) {
+    rows.push([
+      target.order,
+      escapeCsv(target.target.name),
+      target.target.ra.toFixed(6),
+      target.target.dec.toFixed(6),
+      escapeCsv(degreesToHMS(target.target.ra)),
+      escapeCsv(degreesToDMS(target.target.dec)),
+      escapeCsv(target.startTime.toISOString()),
+      escapeCsv(target.endTime.toISOString()),
+      target.duration.toFixed(3),
+      target.maxAltitude.toFixed(2),
+      target.moonDistance.toFixed(2),
+      target.feasibility.score,
+    ].join(','));
+  }
+
+  return rows.join('\n');
+}
+
+// ============================================================================
+// SGP CSV Export (Import Wizard friendly)
+// ============================================================================
+
+function exportAsSgpCsv(plan: SessionPlan): string {
+  const rows = ['name,ra,dec,start,duration,filter,exposure,subframes'];
+  for (const target of plan.targets) {
+    rows.push([
+      escapeCsv(target.target.name),
+      escapeCsv(degreesToHMS(target.target.ra)),
+      escapeCsv(degreesToDMS(target.target.dec)),
+      escapeCsv(target.startTime.toISOString()),
+      Math.max(1, Math.round(target.duration * 60)),
+      'L',
+      300,
+      -1,
+    ].join(','));
+  }
+  return rows.join('\n');
+}
+
+// ============================================================================
 // Public API
 // ============================================================================
 
@@ -207,6 +261,10 @@ export function exportSessionPlan(plan: SessionPlan, options: PlanExportOptions)
       return exportAsJSON(plan, options);
     case 'nina-xml':
       return exportAsNinaXml(plan, options);
+    case 'csv':
+      return exportAsCsv(plan);
+    case 'sgp-csv':
+      return exportAsSgpCsv(plan);
     default:
       return exportAsText(plan, options);
   }
@@ -218,6 +276,8 @@ export function getExportFileExtension(format: PlanExportFormat): string {
     case 'markdown': return '.md';
     case 'json': return '.json';
     case 'nina-xml': return '.xml';
+    case 'csv': return '.csv';
+    case 'sgp-csv': return '.csv';
     default: return '.txt';
   }
 }
@@ -228,6 +288,8 @@ export function getExportMimeType(format: PlanExportFormat): string {
     case 'markdown': return 'text/markdown';
     case 'json': return 'application/json';
     case 'nina-xml': return 'application/xml';
+    case 'csv': return 'text/csv';
+    case 'sgp-csv': return 'text/csv';
     default: return 'text/plain';
   }
 }

@@ -7,6 +7,7 @@
 //! - `locations`: Observation site management
 //! - `targets`: Target list management for observation planning
 //! - `target_io`: Target import/export (CSV, JSON, Stellarium formats)
+//! - `session_io`: Session planner import/export and templates
 //! - `markers`: Sky marker annotations
 //! - `observation_log`: Observation session logging
 
@@ -15,6 +16,7 @@ pub mod equipment;
 pub mod locations;
 pub mod targets;
 pub mod target_io;
+pub mod session_io;
 pub mod markers;
 pub mod observation_log;
 
@@ -64,10 +66,15 @@ pub use targets::{
 // Re-export target I/O
 pub use target_io::{export_targets, import_targets};
 
+// Re-export session planner I/O
+pub use session_io::{
+    export_session_plan, import_session_plan, load_session_templates, save_session_template,
+};
+
 // Re-export markers types and commands
 pub use markers::{
     // Types
-    MarkerIcon, MarkerInput, MarkersData, SkyMarker,
+    MarkerIcon, MarkerInput, MarkerUpdateInput, MarkersData, SkyMarker,
     // Commands
     add_marker, add_marker_group, clear_all_markers, get_visible_markers, load_markers,
     remove_marker, remove_marker_group, remove_markers_by_group, rename_marker_group, save_markers,

@@ -253,3 +253,31 @@ pub async fn mount_set_slew_rate(index: usize) -> Result<(), MountError> {
 pub async fn mount_discover() -> Result<Vec<DiscoveredDevice>, MountError> {
     AlpacaClient::discover(3000).await
 }
+
+#[tauri::command]
+pub async fn mount_get_observing_conditions() -> Result<ObservingConditions, MountError> {
+    let guard = MOUNT.lock().await;
+    match guard.as_ref() {
+        Some(MountDriver::Simulator(_)) => Ok(ObservingConditions {
+            cloud_cover: Some(20.0),
+            humidity: Some(55.0),
+            wind_speed: Some(6.0),
+            dew_point: Some(8.0),
+        }),
+        Some(MountDriver::Alpaca(client)) => client.get_observing_conditions().await,
+        None => Err(MountError::NotConnected),
+    }
+}
+
+#[tauri::command]
+pub async fn mount_get_safety_state() -> Result<SafetyState, MountError> {
+    let guard = MOUNT.lock().await;
+    match guard.as_ref() {
+        Some(MountDriver::Simulator(_)) => Ok(SafetyState {
+            is_safe: true,
+            source: "simulator".to_string(),
+        }),
+        Some(MountDriver::Alpaca(client)) => client.get_safety_state().await,
+        None => Err(MountError::NotConnected),
+    }
+}

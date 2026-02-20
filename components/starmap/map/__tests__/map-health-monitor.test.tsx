@@ -11,6 +11,7 @@ jest.mock('@/lib/services/connectivity-checker', () => ({
     getNetworkQuality: jest.fn(() => null),
     addHealthListener: jest.fn(() => () => {}),
     quickConnectivityTest: jest.fn(),
+    checkAllProvidersHealth: jest.fn(() => Promise.resolve([])),
   },
 }));
 
@@ -115,6 +116,7 @@ describe('MapHealthMonitor', () => {
     mockConnectivityChecker.getNetworkQuality.mockReturnValue({ isOnline: false, successRate: 0, averageResponseTime: 0 });
     mockConnectivityChecker.addHealthListener.mockReturnValue(() => {});
     mockConnectivityChecker.quickConnectivityTest.mockResolvedValue(true);
+    mockConnectivityChecker.checkAllProvidersHealth.mockResolvedValue([]);
   });
 
   describe('Rendering', () => {
@@ -344,7 +346,7 @@ describe('MapHealthMonitor', () => {
   });
 
   describe('Refresh Functionality', () => {
-    it('calls quickConnectivityTest when refresh clicked', async () => {
+    it('calls checkAllProvidersHealth when refresh clicked', async () => {
       render(<MapHealthMonitor />);
 
       const refreshButton = screen.getByText(/common\.refresh|Refresh/);
@@ -353,12 +355,12 @@ describe('MapHealthMonitor', () => {
       });
 
       await waitFor(() => {
-        expect(mockConnectivityChecker.quickConnectivityTest).toHaveBeenCalled();
+        expect(mockConnectivityChecker.checkAllProvidersHealth).toHaveBeenCalled();
       });
     });
 
     it('disables refresh button while refreshing', async () => {
-      mockConnectivityChecker.quickConnectivityTest.mockImplementation(
+      mockConnectivityChecker.checkAllProvidersHealth.mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 1000))
       );
 

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
   DialogFooter,
@@ -20,6 +21,8 @@ import { StatCard } from './stat-card';
 import { Calendar } from '@/components/ui/calendar';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import {
   Select,
@@ -58,9 +61,12 @@ import {
   Save,
   FolderOpen,
   Trash2,
+  GripVertical,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useMountStore, useStellariumStore, useEquipmentStore, useSessionPlanStore } from '@/lib/stores';
+import { useMountStore, useStellariumStore, useEquipmentStore, useSessionPlanStore, usePlanningUiStore } from '@/lib/stores';
 import { useTargetListStore, type TargetItem } from '@/lib/stores/target-list-store';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import {
@@ -73,10 +79,25 @@ import {
   getJulianDateFromDate,
   type TwilightTimes,
 } from '@/lib/astronomy/astro-utils';
-import { optimizeSchedule } from '@/lib/astronomy/session-scheduler';
+import { optimizeScheduleV2 } from '@/lib/astronomy/session-scheduler-v2';
 import { exportSessionPlan } from '@/lib/astronomy/plan-exporter';
 import type { ScheduledTarget, SessionPlan, OptimizationStrategy } from '@/types/starmap/planning';
+import type {
+  ManualScheduleItem,
+  SessionConstraintSet,
+  SessionDraftV2,
+  SessionPlanV2,
+  SessionWeatherSnapshot,
+} from '@/types/starmap/session-planner-v2';
 import { MountSafetySimulator } from './mount-safety-simulator';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { toast } from 'sonner';
+import { isTauri } from '@/lib/storage/platform';
+import { tauriApi, mountApi } from '@/lib/tauri';
+import type { SavedSessionPlan, SavedSessionTemplate } from '@/lib/stores';
+import type { ObservingConditions, SafetyState } from '@/lib/tauri/mount-api';
 
 // ============================================================================
 // Timeline Component
@@ -86,9 +107,22 @@ interface TimelineProps {
   plan: SessionPlan;
   twilight: TwilightTimes;
   onTargetClick: (target: TargetItem) => void;
+  showGaps: boolean;
 }
 
-function SessionTimeline({ plan, twilight, onTargetClick }: TimelineProps) {
+function isSessionDraftV2(value: unknown): value is SessionDraftV2 {
+  if (!value || typeof value !== 'object') return false;
+  const draft = value as Partial<SessionDraftV2>;
+  return (
+    typeof draft.planDate === 'string'
+    && typeof draft.strategy === 'string'
+    && typeof draft.constraints === 'object'
+    && Array.isArray(draft.excludedTargetIds)
+    && Array.isArray(draft.manualEdits)
+  );
+}
+
+function SessionTimeline({ plan, twilight, onTargetClick, showGaps }: TimelineProps) {
   const t = useTranslations();
   
   if (!twilight.astronomicalDusk || !twilight.astronomicalDawn) {
@@ -141,7 +175,7 @@ function SessionTimeline({ plan, twilight, onTargetClick }: TimelineProps) {
       {/* Timeline bar */}
       <div className="relative h-12 bg-muted/50 rounded-lg overflow-hidden">
         {/* Twilight zones */}
-        {twilight.nauticalDusk && (
+        {twilight.nauticalDusk && twilight.astronomicalDusk && (
           <div 
             className="absolute top-0 bottom-0 bg-indigo-900/30"
             style={{ 
@@ -150,7 +184,7 @@ function SessionTimeline({ plan, twilight, onTargetClick }: TimelineProps) {
             }}
           />
         )}
-        {twilight.nauticalDawn && (
+        {twilight.nauticalDawn && twilight.astronomicalDawn && (
           <div 
             className="absolute top-0 bottom-0 bg-indigo-900/30"
             style={{ 
@@ -161,10 +195,11 @@ function SessionTimeline({ plan, twilight, onTargetClick }: TimelineProps) {
         )}
         
         {/* Gaps */}
-        {plan.gaps.map((gap, i) => (
+        {showGaps && plan.gaps.map((gap, i) => (
           <div
             key={`gap-${i}`}
             className="absolute top-0 bottom-0 bg-red-900/20 border-x border-red-500/30"
+            data-testid="session-gap"
             style={{
               left: `${getPosition(gap.start)}%`,
               width: `${getWidth(gap.start, gap.end)}%`,
@@ -381,21 +416,78 @@ function ScheduledTargetCard({ scheduled, onNavigate, onExclude }: TargetCardPro
   );
 }
 
+interface SortableTargetCardProps {
+  scheduled: ScheduledTarget;
+  children: ReactNode;
+}
+
+function SortableTargetCard({ scheduled, children }: SortableTargetCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: scheduled.target.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(isDragging && 'opacity-60')}
+      data-testid={`session-schedule-item-${scheduled.target.id}`}
+    >
+      <div className="flex items-start gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 mt-2 shrink-0 cursor-grab active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+          aria-label="Drag to reorder"
+          data-testid={`session-drag-handle-${scheduled.target.id}`}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </Button>
+        <div className="flex-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================================
 // Main Component
 // ============================================================================
 
 export function SessionPlanner() {
   const t = useTranslations();
-  const [open, setOpen] = useState(false);
+  const open = usePlanningUiStore((state) => state.sessionPlannerOpen);
+  const setOpen = usePlanningUiStore((state) => state.setSessionPlannerOpen);
+  const openShotList = usePlanningUiStore((state) => state.openShotList);
+  const openTonightRecommendations = usePlanningUiStore((state) => state.openTonightRecommendations);
   const [strategy, setStrategy] = useState<OptimizationStrategy>('balanced');
+  const [planningMode, setPlanningMode] = useState<'auto' | 'manual'>('auto');
   const [minAltitude, setMinAltitude] = useState(30);
   const [minImagingTime, setMinImagingTime] = useState(30); // minutes
   const [showGaps, setShowGaps] = useState(true);
   const [planDate, setPlanDate] = useState<Date>(new Date());
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+  const [manualEdits, setManualEdits] = useState<Record<string, ManualScheduleItem>>({});
+  const [manualOrder, setManualOrder] = useState<string[]>([]);
+  const [sessionNotes, setSessionNotes] = useState('');
+  const [weatherInput, setWeatherInput] = useState<{
+    cloudCover?: number;
+    humidity?: number;
+    windSpeed?: number;
+    dewPoint?: number;
+  }>({});
+  const [deviceWeather, setDeviceWeather] = useState<ObservingConditions | null>(null);
+  const [safetyState, setSafetyState] = useState<SafetyState | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [remoteTemplates, setRemoteTemplates] = useState<SavedSessionTemplate[]>([]);
   
   const profileInfo = useMountStore((state) => state.profileInfo);
+  const mountConnected = useMountStore((state) => state.mountInfo.Connected ?? false);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const targets = useTargetListStore((state) => state.targets);
   const setActiveTarget = useTargetListStore((state) => state.setActiveTarget);
@@ -403,8 +495,13 @@ export function SessionPlanner() {
   // Session plan persistence
   const savedPlans = useSessionPlanStore((state) => state.savedPlans);
   const savePlan = useSessionPlanStore((state) => state.savePlan);
+  const templates = useSessionPlanStore((state) => state.templates);
+  const saveTemplate = useSessionPlanStore((state) => state.saveTemplate);
+  const loadTemplate = useSessionPlanStore((state) => state.loadTemplate);
+  const importPlanV2 = useSessionPlanStore((state) => state.importPlanV2);
   const deleteSavedPlan = useSessionPlanStore((state) => state.deletePlan);
   const [showSavedPlans, setShowSavedPlans] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   
   // Equipment profile
   const focalLength = useEquipmentStore((state) => state.focalLength);
@@ -433,21 +530,235 @@ export function SessionPlanner() {
     () => targets.filter(t => !t.isArchived && t.status !== 'completed'),
     [targets]
   );
+
+  const weatherSnapshot = useMemo<SessionWeatherSnapshot | undefined>(() => {
+    const capturedAt = new Date().toISOString();
+    const hasDeviceWeather = deviceWeather
+      ? Object.values(deviceWeather).some((value) => typeof value === 'number' && Number.isFinite(value))
+      : false;
+    if (hasDeviceWeather && deviceWeather) {
+      return {
+        cloudCover: deviceWeather.cloudCover,
+        humidity: deviceWeather.humidity,
+        windSpeed: deviceWeather.windSpeed,
+        dewPoint: deviceWeather.dewPoint,
+        source: 'device',
+        capturedAt,
+      };
+    }
+
+    const hasManualWeather = Object.values(weatherInput).some(
+      (value) => typeof value === 'number' && Number.isFinite(value),
+    );
+    if (hasManualWeather) {
+      return {
+        ...weatherInput,
+        source: 'manual',
+        capturedAt,
+      };
+    }
+
+    return undefined;
+  }, [deviceWeather, weatherInput]);
+
+  const availableTemplates = useMemo<SavedSessionTemplate[]>(() => {
+    if (remoteTemplates.length === 0) return templates;
+    const byId = new Map<string, SavedSessionTemplate>();
+    for (const template of [...templates, ...remoteTemplates]) {
+      byId.set(template.id, template);
+    }
+    return Array.from(byId.values()).sort(
+      (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+    );
+  }, [remoteTemplates, templates]);
+
+  const constraints = useMemo<SessionConstraintSet>(() => ({
+    minAltitude,
+    minImagingTime,
+    minMoonDistance: 20,
+    weatherLimits: {
+      maxCloudCover: 70,
+      maxHumidity: 90,
+      maxWindSpeed: 25,
+    },
+  }), [minAltitude, minImagingTime]);
+
+  const applyDraft = useCallback((draft: SessionDraftV2) => {
+    setPlanDate(new Date(draft.planDate));
+    setStrategy(draft.strategy);
+    setMinAltitude(draft.constraints.minAltitude);
+    setMinImagingTime(draft.constraints.minImagingTime);
+    setSessionNotes(draft.notes ?? '');
+    const mappedEdits: Record<string, ManualScheduleItem> = {};
+    draft.manualEdits.forEach((edit) => {
+      mappedEdits[edit.targetId] = edit;
+    });
+    setManualEdits(mappedEdits);
+    setExcludedIds(new Set(draft.excludedTargetIds));
+    if (draft.weatherSnapshot?.source === 'manual') {
+      setWeatherInput({
+        cloudCover: draft.weatherSnapshot.cloudCover,
+        humidity: draft.weatherSnapshot.humidity,
+        windSpeed: draft.weatherSnapshot.windSpeed,
+        dewPoint: draft.weatherSnapshot.dewPoint,
+      });
+    }
+    setPlanningMode(draft.manualEdits.length > 0 ? 'manual' : 'auto');
+  }, []);
+
+  const refreshWeatherAndSafety = useCallback(async () => {
+    if (!isTauri() || !mountConnected) {
+      setDeviceWeather(null);
+      setSafetyState(null);
+      return;
+    }
+    setWeatherLoading(true);
+    try {
+      const [conditions, safety] = await Promise.all([
+        mountApi.getObservingConditions().catch(() => null),
+        mountApi.getSafetyState().catch(() => null),
+      ]);
+      setDeviceWeather(conditions);
+      setSafetyState(safety);
+    } finally {
+      setWeatherLoading(false);
+    }
+  }, [mountConnected]);
+
+  const loadTauriTemplates = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      const result = await tauriApi.sessionIo.loadSessionTemplates();
+      const converted: SavedSessionTemplate[] = [];
+      for (const entry of result) {
+        if (!isSessionDraftV2(entry.draft)) continue;
+        converted.push({
+          id: entry.id,
+          name: entry.name,
+          draft: entry.draft,
+          createdAt: entry.created_at,
+          updatedAt: entry.updated_at,
+        });
+      }
+      setRemoteTemplates(converted);
+    } catch {
+      setRemoteTemplates([]);
+    }
+  }, []);
+
+  const parseImportedDraft = useCallback((rawContent: string): SessionDraftV2 | null => {
+    try {
+      const parsed = JSON.parse(rawContent) as unknown;
+      if (!parsed || typeof parsed !== 'object') return null;
+      const maybeDraft = parsed as Partial<SessionDraftV2> & {
+        draft?: SessionDraftV2;
+        targets?: Array<{ name: string; startTime?: string; endTime?: string }>;
+      };
+      if (maybeDraft.draft) return maybeDraft.draft;
+      if (maybeDraft.constraints && maybeDraft.planDate && maybeDraft.strategy && Array.isArray(maybeDraft.manualEdits)) {
+        return {
+          planDate: maybeDraft.planDate,
+          strategy: maybeDraft.strategy,
+          constraints: maybeDraft.constraints,
+          excludedTargetIds: Array.isArray(maybeDraft.excludedTargetIds) ? maybeDraft.excludedTargetIds : [],
+          manualEdits: maybeDraft.manualEdits,
+          notes: maybeDraft.notes,
+          weatherSnapshot: maybeDraft.weatherSnapshot,
+          exportMeta: maybeDraft.exportMeta,
+        };
+      }
+      if (maybeDraft.planDate && Array.isArray(maybeDraft.targets)) {
+        const targetByName = new Map(
+          activeTargets.map((target) => [target.name.trim().toLowerCase(), target.id]),
+        );
+        const manualEdits = maybeDraft.targets
+          .map((target) => {
+            const targetId = targetByName.get(target.name.trim().toLowerCase());
+            if (!targetId || !target.startTime || !target.endTime) return null;
+            const start = new Date(target.startTime);
+            const end = new Date(target.endTime);
+            const durationMinutes = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+            return {
+              targetId,
+              startTime: start.toTimeString().slice(0, 5),
+              endTime: end.toTimeString().slice(0, 5),
+              durationMinutes,
+              locked: true,
+            };
+          })
+          .filter((edit): edit is NonNullable<typeof edit> => Boolean(edit));
+
+        return {
+          planDate: maybeDraft.planDate,
+          strategy: 'balanced',
+          constraints: {
+            minAltitude,
+            minImagingTime,
+            minMoonDistance: 20,
+          },
+          excludedTargetIds: [],
+          manualEdits,
+          notes: '',
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [activeTargets, minAltitude, minImagingTime]);
+
+  useEffect(() => {
+    if (!open) return;
+    void refreshWeatherAndSafety();
+    void loadTauriTemplates();
+  }, [loadTauriTemplates, open, refreshWeatherAndSafety]);
   
+  const manualOverrides = useMemo(
+    () => Object.values(manualEdits).filter((edit) => planningMode === 'manual' || Boolean(edit.locked)),
+    [manualEdits, planningMode],
+  );
+
   // Generate optimized plan
   const plan = useMemo(
-    () => optimizeSchedule(
+    () => optimizeScheduleV2(
       activeTargets,
       latitude,
       longitude,
       twilight,
       strategy,
-      minAltitude,
-      minImagingTime,
+      constraints,
       planDate,
-      excludedIds
+      excludedIds,
+      manualOverrides,
+      weatherSnapshot,
     ),
-    [activeTargets, latitude, longitude, twilight, strategy, minAltitude, minImagingTime, planDate, excludedIds]
+    [activeTargets, latitude, longitude, twilight, strategy, constraints, planDate, excludedIds, manualOverrides, weatherSnapshot]
+  );
+
+  useEffect(() => {
+    setManualOrder((previous) => {
+      const targetIds = plan.targets.map((target) => target.target.id);
+      const kept = previous.filter((id) => targetIds.includes(id));
+      const added = targetIds.filter((id) => !kept.includes(id));
+      return [...kept, ...added];
+    });
+  }, [plan.targets]);
+
+  const orderedTargets = useMemo(() => {
+    if (manualOrder.length === 0) return plan.targets;
+    const mapping = new Map(plan.targets.map((target) => [target.target.id, target]));
+    return manualOrder
+      .map((id) => mapping.get(id))
+      .filter((target): target is SessionPlanV2['targets'][number] => Boolean(target))
+      .map((target, index) => ({ ...target, order: index + 1 }));
+  }, [plan.targets, manualOrder]);
+
+  const displayedPlan = useMemo<SessionPlanV2>(
+    () => ({
+      ...plan,
+      targets: orderedTargets,
+    }),
+    [plan, orderedTargets],
   );
   
   // Get excluded targets for display
@@ -471,6 +782,17 @@ export function SessionPlanner() {
   const restoreAllExcluded = useCallback(() => {
     setExcludedIds(new Set());
   }, []);
+
+  const updateManualEdit = useCallback((targetId: string, updates: Partial<Omit<ManualScheduleItem, 'targetId'>>) => {
+    setManualEdits((previous) => ({
+      ...previous,
+      [targetId]: {
+        ...previous[targetId],
+        ...updates,
+        targetId,
+      },
+    }));
+  }, []);
   
   const handleTargetClick = useCallback((target: TargetItem) => {
     setActiveTarget(target.id);
@@ -480,7 +802,7 @@ export function SessionPlanner() {
   }, [setActiveTarget, setViewDirection]);
   
   const handleSavePlan = useCallback(() => {
-    if (plan.targets.length === 0) return;
+    if (displayedPlan.targets.length === 0) return;
     const dateStr = planDate.toLocaleDateString();
     savePlan({
       name: `${t('sessionPlanner.title')} - ${dateStr}`,
@@ -490,7 +812,7 @@ export function SessionPlanner() {
       strategy,
       minAltitude,
       minImagingTime,
-      targets: plan.targets.map(s => ({
+      targets: displayedPlan.targets.map(s => ({
         targetId: s.target.id,
         targetName: s.target.name,
         ra: s.target.ra,
@@ -504,23 +826,179 @@ export function SessionPlanner() {
         order: s.order,
       })),
       excludedTargetIds: Array.from(excludedIds),
-      totalImagingTime: plan.totalImagingTime,
-      nightCoverage: plan.nightCoverage,
-      efficiency: plan.efficiency,
+      totalImagingTime: displayedPlan.totalImagingTime,
+      nightCoverage: displayedPlan.nightCoverage,
+      efficiency: displayedPlan.efficiency,
+      notes: sessionNotes,
+      weatherSnapshot,
+      manualEdits: Object.values(manualEdits),
     });
-  }, [plan, planDate, latitude, longitude, strategy, minAltitude, minImagingTime, excludedIds, savePlan, t]);
+    toast.success(t('sessionPlanner.planSaved'));
+  }, [displayedPlan, planDate, latitude, longitude, strategy, minAltitude, minImagingTime, excludedIds, savePlan, t, sessionNotes, weatherSnapshot, manualEdits]);
+
+  const handleSaveTemplate = useCallback(() => {
+    const draft: SessionDraftV2 = {
+      planDate: planDate.toISOString(),
+      strategy,
+      constraints,
+      excludedTargetIds: Array.from(excludedIds),
+      manualEdits: Object.values(manualEdits),
+      notes: sessionNotes,
+      weatherSnapshot,
+    };
+    const templateName = `${t('sessionPlanner.templatePrefix')} ${new Date().toLocaleTimeString()}`;
+    saveTemplate({
+      name: templateName,
+      draft,
+    });
+    if (isTauri()) {
+      void tauriApi.sessionIo
+        .saveSessionTemplate(templateName, draft)
+        .then((entry) => {
+          setRemoteTemplates((previous) => {
+            const next = previous.filter((item) => item.id !== entry.id);
+            next.unshift({
+              id: entry.id,
+              name: entry.name,
+              draft: entry.draft as unknown as SessionDraftV2,
+              createdAt: entry.created_at,
+              updatedAt: entry.updated_at,
+            });
+            return next;
+          });
+        })
+        .catch(() => {
+          toast.error(t('sessionPlanner.templateSaveFailed'));
+        });
+    }
+    toast.success(t('sessionPlanner.templateSaved'));
+  }, [constraints, excludedIds, manualEdits, planDate, saveTemplate, sessionNotes, strategy, t, weatherSnapshot]);
+
+  const handleLoadTemplate = useCallback((templateId: string) => {
+    const template = availableTemplates.find((item) => item.id === templateId) ?? loadTemplate(templateId);
+    if (!template) return;
+    applyDraft(template.draft);
+    setShowTemplates(false);
+    toast.success(t('sessionPlanner.templateLoaded'));
+  }, [applyDraft, availableTemplates, loadTemplate, t]);
   
-  const handleLoadPlan = useCallback((saved: { planDate: string; strategy: OptimizationStrategy; minAltitude: number; minImagingTime: number; excludedTargetIds: string[] }) => {
+  const handleLoadPlan = useCallback((saved: SavedSessionPlan) => {
     setPlanDate(new Date(saved.planDate));
     setStrategy(saved.strategy);
     setMinAltitude(saved.minAltitude);
     setMinImagingTime(saved.minImagingTime);
+    setSessionNotes(saved.notes ?? '');
+    if (saved.weatherSnapshot) {
+      setWeatherInput({
+        cloudCover: saved.weatherSnapshot.cloudCover,
+        humidity: saved.weatherSnapshot.humidity,
+        windSpeed: saved.weatherSnapshot.windSpeed,
+        dewPoint: saved.weatherSnapshot.dewPoint,
+      });
+    } else {
+      setWeatherInput({});
+    }
+    const nextEdits: Record<string, ManualScheduleItem> = {};
+    saved.manualEdits?.forEach((edit) => {
+      nextEdits[edit.targetId] = edit;
+    });
+    setManualEdits(nextEdits);
+    setPlanningMode(saved.manualEdits && saved.manualEdits.length > 0 ? 'manual' : 'auto');
     // Filter out stale exclusion IDs that no longer match current targets
     const currentTargetIds = new Set(activeTargets.map(t => t.id));
     const validExcluded = saved.excludedTargetIds.filter(id => currentTargetIds.has(id));
     setExcludedIds(new Set(validExcluded));
     setShowSavedPlans(false);
   }, [activeTargets]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const onDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setManualOrder((previous) => {
+      const oldIndex = previous.indexOf(String(active.id));
+      const newIndex = previous.indexOf(String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return previous;
+      return arrayMove(previous, oldIndex, newIndex);
+    });
+    setPlanningMode('manual');
+  }, []);
+
+  const handleQuickOpenRecommendations = useCallback(() => {
+    setOpen(false);
+    openTonightRecommendations();
+  }, [openTonightRecommendations, setOpen]);
+
+  const handleQuickOpenShotList = useCallback(() => {
+    setOpen(false);
+    openShotList();
+  }, [openShotList, setOpen]);
+
+  const toInputTime = useCallback((value: Date) => value.toTimeString().slice(0, 5), []);
+
+  const handleStartTimeChange = useCallback((targetId: string, startTime: string) => {
+    updateManualEdit(targetId, { startTime, locked: true });
+    setPlanningMode('manual');
+  }, [updateManualEdit]);
+
+  const handleDurationChange = useCallback((targetId: string, durationMinutes: number) => {
+    updateManualEdit(targetId, { durationMinutes, locked: true });
+    setPlanningMode('manual');
+  }, [updateManualEdit]);
+
+  const handleToggleLock = useCallback((targetId: string, locked: boolean) => {
+    updateManualEdit(targetId, { locked });
+    setPlanningMode('manual');
+  }, [updateManualEdit]);
+
+  const handleExportPlan = useCallback(async (format: 'text' | 'markdown' | 'json' | 'nina-xml' | 'csv' | 'sgp-csv') => {
+    const exported = exportSessionPlan(displayedPlan, {
+      format,
+      planDate,
+      latitude,
+      longitude,
+    });
+
+    if (isTauri()) {
+      try {
+        await tauriApi.sessionIo.exportSessionPlan(exported, format);
+        toast.success(t('sessionPlanner.exportSaved'));
+        return;
+      } catch {
+        // fallback to clipboard below
+      }
+    }
+
+    await navigator.clipboard.writeText(exported);
+    toast.success(t('sessionPlanner.planCopied'));
+  }, [displayedPlan, planDate, latitude, longitude, t]);
+
+  const handleImportPlan = useCallback(async () => {
+    if (!isTauri()) {
+      toast.error(t('sessionPlanner.importDesktopOnly'));
+      return;
+    }
+    try {
+      const content = await tauriApi.sessionIo.importSessionPlan();
+      const draft = parseImportedDraft(content);
+      if (!draft) {
+        toast.error(t('sessionPlanner.importFailed'));
+        return;
+      }
+      importPlanV2(draft);
+      applyDraft(draft);
+      toast.success(t('sessionPlanner.importSuccess'));
+    } catch {
+      toast.error(t('sessionPlanner.importFailed'));
+    }
+  }, [applyDraft, importPlanV2, parseImportedDraft, t]);
+
+  const weatherSourceLabel = weatherSnapshot
+    ? weatherSnapshot.source === 'device'
+      ? t('sessionPlanner.weatherSourceDevice')
+      : t('sessionPlanner.weatherSourceManual')
+    : t('sessionPlanner.weatherSourceNone');
   
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -543,6 +1021,7 @@ export function SessionPlanner() {
             <CalendarClock className="h-5 w-5 text-primary" />
             {t('sessionPlanner.title')}
           </DialogTitle>
+          <DialogDescription>{t('sessionPlanner.dialogDescription')}</DialogDescription>
         </DialogHeader>
         
         {/* Night & Equipment Overview */}
@@ -607,6 +1086,19 @@ export function SessionPlanner() {
           <CollapsibleContent className="space-y-3 pt-3">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label className="text-xs">{t('sessionPlanner.mode')}</Label>
+                <Select value={planningMode} onValueChange={(value) => setPlanningMode(value as 'auto' | 'manual')}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{t('sessionPlanner.modeAuto')}</SelectItem>
+                    <SelectItem value="manual">{t('sessionPlanner.modeManual')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-xs">{t('sessionPlanner.strategy')}</Label>
                 <Select value={strategy} onValueChange={(v) => setStrategy(v as OptimizationStrategy)}>
                   <SelectTrigger className="h-8">
@@ -621,7 +1113,7 @@ export function SessionPlanner() {
                   </SelectContent>
                 </Select>
               </div>
-              
+               
               <div className="space-y-2">
                 <Label className="text-xs">{t('sessionPlanner.minAltitude')}: {minAltitude}°</Label>
                 <Slider
@@ -651,27 +1143,127 @@ export function SessionPlanner() {
             </div>
           </CollapsibleContent>
         </Collapsible>
-        
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            <span>{t('sessionPlanner.weatherSourceLabel')}: {weatherSourceLabel}</span>
+            <div className="flex items-center gap-2">
+              {safetyState && (
+                <Badge variant={safetyState.isSafe ? 'secondary' : 'destructive'} data-testid="session-weather-safety">
+                  {safetyState.isSafe ? t('sessionPlanner.safetySafe') : t('sessionPlanner.safetyUnsafe')}
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px]"
+                onClick={() => void refreshWeatherAndSafety()}
+                disabled={!isTauri() || weatherLoading || !mountConnected}
+              >
+                {weatherLoading ? t('common.loading') : t('sessionPlanner.refreshWeather')}
+              </Button>
+            </div>
+          </div>
+          {safetyState && !safetyState.isSafe && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>{t('sessionPlanner.safetyWarning')}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('sessionPlanner.weatherCloudCover')}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={weatherInput.cloudCover ?? ''}
+              onChange={(event) => setWeatherInput((previous) => ({
+                ...previous,
+                cloudCover: event.target.value === '' ? undefined : Number(event.target.value),
+              }))}
+              className="h-8"
+              data-testid="session-weather-cloud-cover"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('sessionPlanner.weatherHumidity')}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={weatherInput.humidity ?? ''}
+              onChange={(event) => setWeatherInput((previous) => ({
+                ...previous,
+                humidity: event.target.value === '' ? undefined : Number(event.target.value),
+              }))}
+              className="h-8"
+              data-testid="session-weather-humidity"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('sessionPlanner.weatherWindSpeed')}</Label>
+            <Input
+              type="number"
+              min={0}
+              value={weatherInput.windSpeed ?? ''}
+              onChange={(event) => setWeatherInput((previous) => ({
+                ...previous,
+                windSpeed: event.target.value === '' ? undefined : Number(event.target.value),
+              }))}
+              className="h-8"
+              data-testid="session-weather-wind"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('sessionPlanner.weatherDewPoint')}</Label>
+            <Input
+              type="number"
+              value={weatherInput.dewPoint ?? ''}
+              onChange={(event) => setWeatherInput((previous) => ({
+                ...previous,
+                dewPoint: event.target.value === '' ? undefined : Number(event.target.value),
+              }))}
+              className="h-8"
+              data-testid="session-weather-dew-point"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs" htmlFor="session-notes">{t('sessionPlanner.notes')}</Label>
+          <Textarea
+            id="session-notes"
+            value={sessionNotes}
+            onChange={(event) => setSessionNotes(event.target.value)}
+            className="min-h-16 text-xs"
+            placeholder={t('sessionPlanner.notesPlaceholder')}
+            data-testid="session-notes"
+          />
+        </div>
+
         <Separator />
         
         {/* Plan Summary */}
         <div className="grid grid-cols-4 gap-3">
-          <StatCard value={plan.targets.length} label={t('sessionPlanner.targets')} />
-          <StatCard value={formatDuration(plan.totalImagingTime)} label={t('sessionPlanner.imagingTime')} />
+          <StatCard value={displayedPlan.targets.length} label={t('sessionPlanner.targets')} />
+          <StatCard value={formatDuration(displayedPlan.totalImagingTime)} label={t('sessionPlanner.imagingTime')} />
           <StatCard
-            value={`${plan.nightCoverage.toFixed(0)}%`}
+            value={`${displayedPlan.nightCoverage.toFixed(0)}%`}
             label={t('sessionPlanner.nightCoverage')}
             valueClassName={cn(
-              plan.nightCoverage >= 80 ? 'text-green-500' : 
-              plan.nightCoverage >= 50 ? 'text-amber-500' : 'text-red-500'
+              displayedPlan.nightCoverage >= 80 ? 'text-green-500' : 
+              displayedPlan.nightCoverage >= 50 ? 'text-amber-500' : 'text-red-500'
             )}
           />
           <StatCard
-            value={`${plan.efficiency.toFixed(0)}%`}
+            value={`${displayedPlan.efficiency.toFixed(0)}%`}
             label={t('sessionPlanner.efficiency')}
             valueClassName={cn(
-              plan.efficiency >= 70 ? 'text-green-500' : 
-              plan.efficiency >= 50 ? 'text-amber-500' : 'text-red-500'
+              displayedPlan.efficiency >= 70 ? 'text-green-500' : 
+              displayedPlan.efficiency >= 50 ? 'text-amber-500' : 'text-red-500'
             )}
           />
         </div>
@@ -683,25 +1275,32 @@ export function SessionPlanner() {
             {t('sessionPlanner.timeline')}
           </div>
           <SessionTimeline
-            plan={plan}
+            plan={displayedPlan}
             twilight={twilight}
             onTargetClick={handleTargetClick}
+            showGaps={showGaps}
           />
         </div>
         
         {/* Recommendations & Warnings */}
-        {(plan.recommendations.length > 0 || plan.warnings.length > 0) && (
+        {(displayedPlan.recommendations.length > 0 || displayedPlan.warnings.length > 0 || displayedPlan.conflicts.length > 0) && (
           <div className="space-y-2">
-            {plan.warnings.map((warning, i) => (
+            {displayedPlan.warnings.map((warning, i) => (
               <div key={`warn-${i}`} className="flex items-start gap-2 text-sm text-amber-500 p-2 rounded-lg bg-amber-500/10">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{t(warning.key, warning.params)}</span>
               </div>
             ))}
-            {plan.recommendations.map((rec, i) => (
+            {displayedPlan.recommendations.map((rec, i) => (
               <div key={`rec-${i}`} className="flex items-start gap-2 text-sm text-muted-foreground p-2 rounded-lg bg-muted/50">
                 <Sparkles className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
                 <span>{t(rec.key, rec.params)}</span>
+              </div>
+            ))}
+            {displayedPlan.conflicts.map((conflict, index) => (
+              <div key={`conflict-${index}`} className="flex items-start gap-2 text-sm text-destructive p-2 rounded-lg bg-destructive/10" data-testid={`session-conflict-${conflict.type}`}>
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{conflict.message}</span>
               </div>
             ))}
           </div>
@@ -715,13 +1314,13 @@ export function SessionPlanner() {
               {t('sessionPlanner.schedule')}
             </div>
             <Badge variant="outline" className="text-xs">
-              {plan.targets.length} / {activeTargets.length} {t('sessionPlanner.scheduled')}
+              {displayedPlan.targets.length} / {activeTargets.length} {t('sessionPlanner.scheduled')}
             </Badge>
           </div>
           
           <ScrollArea className="flex-1 min-h-0">
             <div className="space-y-2 pr-4">
-              {plan.targets.length === 0 ? (
+              {displayedPlan.targets.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8 space-y-3">
                   <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>{t('sessionPlanner.noTargets')}</p>
@@ -731,7 +1330,7 @@ export function SessionPlanner() {
                       variant="outline"
                       size="sm"
                       className="text-xs"
-                      onClick={() => setOpen(false)}
+                      onClick={handleQuickOpenRecommendations}
                     >
                       <Sparkles className="h-3 w-3 mr-1.5" />
                       {t('sessionPlanner.browseRecommendations')}
@@ -740,7 +1339,7 @@ export function SessionPlanner() {
                       variant="ghost"
                       size="sm"
                       className="text-xs"
-                      onClick={() => setOpen(false)}
+                      onClick={handleQuickOpenShotList}
                     >
                       <ListOrdered className="h-3 w-3 mr-1.5" />
                       {t('sessionPlanner.openShotList')}
@@ -748,14 +1347,65 @@ export function SessionPlanner() {
                   </div>
                 </div>
               ) : (
-                plan.targets.map(scheduled => (
-                  <ScheduledTargetCard
-                    key={scheduled.target.id}
-                    scheduled={scheduled}
-                    onNavigate={() => handleTargetClick(scheduled.target)}
-                    onExclude={() => toggleExclude(scheduled.target.id)}
-                  />
-                ))
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                  <SortableContext items={displayedPlan.targets.map((target) => target.target.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {displayedPlan.targets.map((scheduled) => {
+                        const edit = manualEdits[scheduled.target.id];
+                        return (
+                          <SortableTargetCard key={scheduled.target.id} scheduled={scheduled}>
+                            <div className="space-y-2">
+                              {planningMode === 'manual' && (
+                                <div className="grid grid-cols-3 gap-2 p-2 rounded-md bg-muted/40">
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">{t('sessionPlanner.startTime')}</Label>
+                                    <Input
+                                      type="time"
+                                      value={edit?.startTime ?? toInputTime(scheduled.startTime)}
+                                      onChange={(event) => handleStartTimeChange(scheduled.target.id, event.target.value)}
+                                      className="h-7 text-xs"
+                                      data-testid={`session-start-${scheduled.target.id}`}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">{t('sessionPlanner.durationMinutes')}</Label>
+                                    <Input
+                                      type="number"
+                                      min={15}
+                                      step={5}
+                                      value={edit?.durationMinutes ?? Math.round(scheduled.duration * 60)}
+                                      onChange={(event) => handleDurationChange(scheduled.target.id, Number(event.target.value))}
+                                      className="h-7 text-xs"
+                                      data-testid={`session-duration-${scheduled.target.id}`}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">{t('sessionPlanner.lockTarget')}</Label>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 w-full"
+                                      onClick={() => handleToggleLock(scheduled.target.id, !edit?.locked)}
+                                      data-testid={`session-lock-${scheduled.target.id}`}
+                                    >
+                                      {edit?.locked ? <Lock className="h-3 w-3 mr-1" /> : <Unlock className="h-3 w-3 mr-1" />}
+                                      {edit?.locked ? t('sessionPlanner.locked') : t('sessionPlanner.unlocked')}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                              <ScheduledTargetCard
+                                scheduled={scheduled}
+                                onNavigate={() => handleTargetClick(scheduled.target)}
+                                onExclude={() => toggleExclude(scheduled.target.id)}
+                              />
+                            </div>
+                          </SortableTargetCard>
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
               
               {/* Excluded targets */}
@@ -811,7 +1461,7 @@ export function SessionPlanner() {
                   variant="outline"
                   size="sm"
                   onClick={handleSavePlan}
-                  disabled={plan.targets.length === 0}
+                  disabled={displayedPlan.targets.length === 0}
                 >
                   <Save className="h-3.5 w-3.5 mr-1.5" />
                   {t('sessionPlanner.savePlan')}
@@ -860,28 +1510,56 @@ export function SessionPlanner() {
                 </PopoverContent>
               </Popover>
             )}
+            <Button variant="outline" size="sm" onClick={() => void handleImportPlan()}>
+              {t('sessionPlanner.importPlan')}
+            </Button>
+            <Popover open={showTemplates} onOpenChange={setShowTemplates}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  {t('sessionPlanner.templates')}
+                  <Badge variant="secondary" className="ml-1.5 text-[10px]">{availableTemplates.length}</Badge>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-2" align="start" data-testid="session-template-list">
+                <div className="space-y-2">
+                  <Button size="sm" variant="secondary" className="w-full" onClick={handleSaveTemplate}>
+                    {t('sessionPlanner.saveTemplate')}
+                  </Button>
+                  <ScrollArea className="max-h-40">
+                    <div className="space-y-1">
+                      {availableTemplates.length === 0 && (
+                        <div className="text-xs text-muted-foreground p-2">{t('sessionPlanner.noTemplates')}</div>
+                      )}
+                      {availableTemplates.map((template) => (
+                        <Button
+                          key={template.id}
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-xs"
+                          onClick={() => handleLoadTemplate(template.id)}
+                        >
+                          {template.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" disabled={plan.targets.length === 0}>
+                <Button variant="outline" size="sm" disabled={displayedPlan.targets.length === 0}>
                   {t('sessionPlanner.copyPlan')}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-44 p-1" align="start">
-                {(['text', 'markdown', 'json', 'nina-xml'] as const).map(fmt => (
+                {(['text', 'markdown', 'json', 'nina-xml', 'csv', 'sgp-csv'] as const).map(fmt => (
                   <Button
                     key={fmt}
                     variant="ghost"
                     size="sm"
                     className="w-full justify-start text-xs h-7"
-                    onClick={() => {
-                      const exported = exportSessionPlan(plan, {
-                        format: fmt,
-                        planDate,
-                        latitude,
-                        longitude,
-                      });
-                      navigator.clipboard.writeText(exported);
-                    }}
+                    onClick={() => void handleExportPlan(fmt)}
                   >
                     {t(`sessionPlanner.exportFormat.${fmt}`)}
                   </Button>

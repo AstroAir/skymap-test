@@ -6,6 +6,7 @@ import {
   Sparkles,
   CircleDot,
   MapPin,
+  Orbit,
 } from 'lucide-react';
 
 /**
@@ -15,11 +16,19 @@ import {
 export function getTypeIcon(type?: string) {
   switch (type) {
     case 'Comet': return <Sparkles className="h-4 w-4 text-green-400" />;
+    case 'Asteroid': return <Orbit className="h-4 w-4 text-cyan-400" />;
     case 'Planet': return <Globe className="h-4 w-4 text-blue-400" />;
     case 'DSO': return <CircleDot className="h-4 w-4 text-purple-400" />;
     case 'Star': return <Star className="h-4 w-4 text-orange-400" />;
     case 'Moon': return <MoonIcon className="h-4 w-4 text-gray-400" />;
     case 'Constellation': return <MapPin className="h-4 w-4 text-cyan-400" />;
+    case 'local': return <CircleDot className="h-4 w-4 text-gray-400" />;
+    case 'sesame':
+    case 'simbad':
+    case 'vizier':
+    case 'ned':
+    case 'mpc':
+      return <Globe className="h-4 w-4 text-emerald-400" />;
     default: return <CircleDot className="h-4 w-4 text-gray-400" />;
   }
 }

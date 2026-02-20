@@ -15,6 +15,7 @@ import { ThemeToggle } from '@/components/common/theme-toggle';
 import { Star, Github, Menu } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { EXTERNAL_LINKS } from '@/lib/constants/external-links';
 
 interface NavItem {
   href: string;
@@ -26,7 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '#features', labelKey: 'nav.features' },
   { href: '#screenshots', labelKey: 'nav.screenshots' },
   { href: '#tech', labelKey: 'nav.technology' },
-  { href: 'https://github.com/AstroAir/skymap', labelKey: 'nav.github', external: true },
+  { href: EXTERNAL_LINKS.repository, labelKey: 'nav.github', external: true },
 ];
 
 const SECTION_IDS = ['features', 'screenshots', 'tech'] as const;

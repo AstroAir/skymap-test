@@ -4,6 +4,7 @@
  */
 
 import { isTauri } from '@/lib/storage/platform';
+import { mapKeysApi } from './map-keys-api';
 import type {
   EquipmentData,
   Telescope,
@@ -20,6 +21,7 @@ import type {
   TargetExportItem,
   ImportTargetsResult,
   ExportFormat,
+  SessionTemplateEntry,
   AppSettings,
   SystemInfo,
 } from './types';
@@ -244,6 +246,36 @@ export const targetIoApi = {
 };
 
 // ============================================================================
+// Session Planner Import/Export API
+// ============================================================================
+
+export const sessionIoApi = {
+  async exportSessionPlan(
+    content: string,
+    format: string,
+    path?: string
+  ): Promise<string> {
+    const invoke = await getInvoke();
+    return invoke('export_session_plan', { content, format, path });
+  },
+
+  async importSessionPlan(path?: string): Promise<string> {
+    const invoke = await getInvoke();
+    return invoke('import_session_plan', { path });
+  },
+
+  async saveSessionTemplate(name: string, draft: unknown): Promise<SessionTemplateEntry> {
+    const invoke = await getInvoke();
+    return invoke('save_session_template', { name, draft: JSON.stringify(draft) });
+  },
+
+  async loadSessionTemplates(): Promise<SessionTemplateEntry[]> {
+    const invoke = await getInvoke();
+    return invoke('load_session_templates');
+  },
+};
+
+// ============================================================================
 // App Settings API
 // ============================================================================
 
@@ -303,7 +335,9 @@ export const tauriApi = {
   locations: locationsApi,
   observationLog: observationLogApi,
   targetIo: targetIoApi,
+  sessionIo: sessionIoApi,
   appSettings: appSettingsApi,
+  mapKeys: mapKeysApi,
   
   /** Check if Tauri API is available */
   isAvailable: isTauri,

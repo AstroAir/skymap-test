@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Info,
@@ -11,6 +12,7 @@ import {
   Monitor,
   Cpu,
   HardDrive,
+  MessageCircleWarning,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -19,6 +21,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SettingsSection } from './settings-shared';
 import { useAppSettings } from '@/lib/tauri/hooks';
 import { isTauri } from '@/lib/storage/platform';
+import { openExternalUrl } from '@/lib/tauri/app-control-api';
+import { EXTERNAL_LINKS } from '@/lib/constants/external-links';
+import { FeedbackDialog } from '@/components/starmap/dialogs/feedback-dialog';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0';
 const BUILD_DATE = process.env.NEXT_PUBLIC_BUILD_DATE || new Date().getFullYear().toString();
@@ -27,6 +32,7 @@ export function AboutSettings() {
   const t = useTranslations();
   const { systemInfo, loading: systemLoading } = useAppSettings();
   const isDesktop = isTauri();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -112,7 +118,7 @@ export function AboutSettings() {
           <Button
             variant="outline"
             className="w-full justify-start gap-2"
-            onClick={() => window.open('https://github.com/AstroAir/skymap', '_blank', 'noopener,noreferrer')}
+            onClick={() => void openExternalUrl(EXTERNAL_LINKS.repository)}
           >
             <Github className="h-4 w-4" />
             {t('settingsNew.about.sourceCode')}
@@ -120,10 +126,19 @@ export function AboutSettings() {
           <Button
             variant="outline"
             className="w-full justify-start gap-2"
-            onClick={() => window.open('https://github.com/AstroAir/skymap/wiki', '_blank', 'noopener,noreferrer')}
+            onClick={() => void openExternalUrl(EXTERNAL_LINKS.wiki)}
           >
             <BookOpen className="h-4 w-4" />
             {t('settingsNew.about.documentation')}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2"
+            onClick={() => setFeedbackOpen(true)}
+            data-testid="about-settings-report-issue-button"
+          >
+            <MessageCircleWarning className="h-4 w-4" />
+            {t('settingsNew.about.reportIssue')}
           </Button>
         </div>
       </SettingsSection>
@@ -170,6 +185,8 @@ export function AboutSettings() {
           © {new Date().getFullYear()} SkyMap. {t('about.allRightsReserved')}
         </p>
       </div>
+
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </div>
   );
 }

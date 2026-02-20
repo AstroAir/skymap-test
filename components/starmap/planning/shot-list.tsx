@@ -80,7 +80,7 @@ import {
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
 
-import { useTargetListStore, useMountStore, useEquipmentStore, useStellariumStore, type TargetItem } from '@/lib/stores';
+import { useTargetListStore, useMountStore, useEquipmentStore, useStellariumStore, usePlanningUiStore, type TargetItem } from '@/lib/stores';
 import { tauriApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
 import { toast } from 'sonner';
@@ -381,7 +381,8 @@ export function ShotList({
   currentSelection,
 }: ShotListProps) {
   const t = useTranslations();
-  const [open, setOpen] = useState(false);
+  const open = usePlanningUiStore((state) => state.shotListOpen);
+  const setOpen = usePlanningUiStore((state) => state.setShotListOpen);
   const [showPlanAnalysis, setShowPlanAnalysis] = useState(false);
   const [editingTarget, setEditingTarget] = useState<TargetItem | null>(null);
   

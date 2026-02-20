@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState, type RefObject } from 'react';
+import { useEffect, useRef, useCallback, type RefObject } from 'react';
 import type A from 'aladin-lite';
+import { getSurveyById } from '@/lib/core/constants/sky-surveys';
+import { removeImageLayerCompat } from '@/lib/aladin/aladin-compat';
 import { useSettingsStore } from '@/lib/stores/settings-store';
+import { useAladinStore, type AladinImageOverlayLayer } from '@/lib/stores/aladin-store';
 import { createLogger } from '@/lib/logger';
 
 type AladinInstance = ReturnType<typeof A.aladin>;
@@ -10,21 +13,15 @@ type HpxImageSurvey = ReturnType<typeof A.imageHiPS>;
 
 const logger = createLogger('aladin-layers');
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface OverlayLayer {
-  id: string;
-  name: string;
-  surveyId: string;
-  opacity: number;
-  additive: boolean;
+function setSurveyOpacity(survey: HpxImageSurvey, opacity: number): void {
+  if (typeof survey.setOpacity === 'function') {
+    survey.setOpacity(opacity);
+    return;
+  }
+  survey.setAlpha?.(opacity);
 }
 
-// ============================================================================
-// Hook
-// ============================================================================
+export type OverlayLayer = AladinImageOverlayLayer;
 
 interface UseAladinLayersOptions {
   aladinRef: RefObject<AladinInstance | null>;
@@ -44,15 +41,15 @@ export function useAladinLayers({
   engineReady,
 }: UseAladinLayersOptions): UseAladinLayersReturn {
   const skyEngine = useSettingsStore((state) => state.skyEngine);
-  const [overlayLayers, setOverlayLayers] = useState<OverlayLayer[]>([]);
 
-  // Track survey instances for each overlay layer
+  const overlayLayers = useAladinStore((state) => state.imageOverlayLayers);
+  const addImageOverlayLayer = useAladinStore((state) => state.addImageOverlayLayer);
+  const updateImageOverlayLayer = useAladinStore((state) => state.updateImageOverlayLayer);
+  const removeImageOverlayLayer = useAladinStore((state) => state.removeImageOverlayLayer);
+
   const surveyInstancesRef = useRef<Map<string, HpxImageSurvey>>(new Map());
-
-  // Aladin static API
   const aladinStaticRef = useRef<typeof A | null>(null);
 
-  // Load static API
   useEffect(() => {
     if (!engineReady || skyEngine !== 'aladin') return;
     import('aladin-lite').then((m) => {
@@ -62,86 +59,86 @@ export function useAladinLayers({
     });
   }, [engineReady, skyEngine]);
 
-  const addOverlayLayer = useCallback((surveyId: string, name: string) => {
+  useEffect(() => {
     const aladin = aladinRef.current;
     const AStatic = aladinStaticRef.current;
-    if (!aladin || !AStatic) return;
+    if (!aladin || !AStatic || !engineReady || skyEngine !== 'aladin') return;
 
-    const layerId = `overlay-${Date.now()}`;
+    const active = surveyInstancesRef.current;
 
-    try {
-      const survey = AStatic.imageHiPS(surveyId, { name });
-      aladin.setOverlayImageLayer(survey, layerId);
-      survey.setAlpha(0.5);
+    for (const layer of overlayLayers) {
+      const existing = active.get(layer.id);
 
-      surveyInstancesRef.current.set(layerId, survey);
+      if (!layer.enabled) {
+        if (existing) {
+          try { removeImageLayerCompat(aladin, layer.id); } catch { /* ignore */ }
+          active.delete(layer.id);
+        }
+        continue;
+      }
 
-      setOverlayLayers((prev) => [
-        ...prev,
-        { id: layerId, name, surveyId, opacity: 0.5, additive: false },
-      ]);
+      const surveySource = layer.surveyUrl ?? layer.surveyId;
+      const survey = existing ?? AStatic.imageHiPS(surveySource, { name: layer.name });
 
-      logger.info(`Overlay layer added: ${name} (${surveyId})`);
-    } catch (error) {
-      logger.warn(`Failed to add overlay layer: ${name}`, error);
-    }
-  }, [aladinRef]);
-
-  const removeOverlayLayer = useCallback((layerId: string) => {
-    const aladin = aladinRef.current;
-    if (!aladin) return;
-
-    try {
-      aladin.removeOverlayImageLayer(layerId);
-      surveyInstancesRef.current.delete(layerId);
-      setOverlayLayers((prev) => prev.filter((l) => l.id !== layerId));
-      logger.info(`Overlay layer removed: ${layerId}`);
-    } catch (error) {
-      logger.warn(`Failed to remove overlay layer: ${layerId}`, error);
-    }
-  }, [aladinRef]);
-
-  const setOverlayOpacity = useCallback((layerId: string, opacity: number) => {
-    const survey = surveyInstancesRef.current.get(layerId);
-    if (!survey) return;
-
-    try {
-      survey.setAlpha(opacity);
-      setOverlayLayers((prev) =>
-        prev.map((l) => (l.id === layerId ? { ...l, opacity } : l))
-      );
-    } catch (error) {
-      logger.warn(`Failed to set overlay opacity: ${layerId}`, error);
-    }
-  }, []);
-
-  const setOverlayBlending = useCallback((layerId: string, additive: boolean) => {
-    const survey = surveyInstancesRef.current.get(layerId);
-    if (!survey) return;
-
-    try {
-      survey.setBlendingConfig(additive);
-      setOverlayLayers((prev) =>
-        prev.map((l) => (l.id === layerId ? { ...l, additive } : l))
-      );
-    } catch (error) {
-      logger.warn(`Failed to set overlay blending: ${layerId}`, error);
-    }
-  }, []);
-
-  // Cleanup on engine switch or unmount
-  useEffect(() => {
-    const currentAladinRef = aladinRef;
-    const currentInstances = surveyInstancesRef.current;
-    return () => {
-      const aladin = currentAladinRef.current;
-      if (aladin) {
-        for (const [layerId] of currentInstances) {
-          try { aladin.removeOverlayImageLayer(layerId); } catch { /* ignore */ }
+      if (!existing) {
+        try {
+          aladin.setOverlayImageLayer(survey, layer.id);
+          active.set(layer.id, survey);
+        } catch (error) {
+          logger.warn(`Failed to add overlay layer: ${layer.name}`, error);
+          continue;
         }
       }
-      currentInstances.clear();
-      setOverlayLayers([]);
+
+      try {
+        setSurveyOpacity(survey, layer.opacity);
+        survey.setBlendingConfig(layer.additive);
+      } catch (error) {
+        logger.warn(`Failed to update overlay layer: ${layer.name}`, error);
+      }
+    }
+
+    for (const [layerId] of active) {
+      if (overlayLayers.some((layer) => layer.id === layerId && layer.enabled)) continue;
+      try { removeImageLayerCompat(aladin, layerId); } catch { /* ignore */ }
+      active.delete(layerId);
+    }
+  }, [aladinRef, engineReady, overlayLayers, skyEngine]);
+
+  const addOverlayLayer = useCallback((surveyId: string, name: string) => {
+    const survey = getSurveyById(surveyId);
+    addImageOverlayLayer({
+      name,
+      surveyId,
+      surveyUrl: survey?.url ?? surveyId,
+      enabled: true,
+      opacity: 0.5,
+      additive: false,
+    });
+  }, [addImageOverlayLayer]);
+
+  const removeOverlayLayer = useCallback((layerId: string) => {
+    removeImageOverlayLayer(layerId);
+  }, [removeImageOverlayLayer]);
+
+  const setOverlayOpacity = useCallback((layerId: string, opacity: number) => {
+    updateImageOverlayLayer(layerId, { opacity });
+  }, [updateImageOverlayLayer]);
+
+  const setOverlayBlending = useCallback((layerId: string, additive: boolean) => {
+    updateImageOverlayLayer(layerId, { additive });
+  }, [updateImageOverlayLayer]);
+
+  useEffect(() => {
+    const surveyInstances = surveyInstancesRef.current;
+    const aladin = aladinRef.current;
+    return () => {
+      if (aladin) {
+        for (const [layerId] of surveyInstances) {
+          try { removeImageLayerCompat(aladin, layerId); } catch { /* ignore */ }
+        }
+      }
+      surveyInstances.clear();
     };
   }, [aladinRef]);
 

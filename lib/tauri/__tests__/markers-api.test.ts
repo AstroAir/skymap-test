@@ -44,6 +44,7 @@ describe('markersApi', () => {
     ],
     groups: ['galaxies', 'nebulae'],
     show_markers: true,
+    show_markers_updated_at: 1704067200,
   };
 
   it('should load markers', async () => {

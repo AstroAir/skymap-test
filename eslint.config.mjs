@@ -32,6 +32,12 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    files: ["components/common/log-viewer.tsx"],
+    rules: {
+      "react-hooks/incompatible-library": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

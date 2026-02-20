@@ -40,6 +40,7 @@ pub struct SkyMarker {
 /// Marker input for creating new markers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkerInput {
+    pub id: Option<String>,
     pub name: String,
     pub description: Option<String>,
     pub ra: f64,
@@ -51,6 +52,26 @@ pub struct MarkerInput {
     pub color: String,
     pub icon: MarkerIcon,
     pub group: Option<String>,
+    pub visible: Option<bool>,
+    pub created_at: Option<i64>,
+    pub updated_at: Option<i64>,
+}
+
+/// Marker update payload
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MarkerUpdateInput {
+    pub name: Option<String>,
+    /// Some(None) means explicit clear; None means not provided.
+    pub description: Option<Option<String>>,
+    pub ra: Option<f64>,
+    pub dec: Option<f64>,
+    pub ra_string: Option<String>,
+    pub dec_string: Option<String>,
+    pub color: Option<String>,
+    pub icon: Option<MarkerIcon>,
+    /// Some(None) means explicit clear; None means not provided.
+    pub group: Option<Option<String>>,
+    pub visible: Option<bool>,
 }
 
 /// Markers data container
@@ -59,6 +80,8 @@ pub struct MarkersData {
     pub markers: Vec<SkyMarker>,
     pub groups: Vec<String>,
     pub show_markers: bool,
+    #[serde(default)]
+    pub show_markers_updated_at: i64,
 }
 
 fn get_markers_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
@@ -72,7 +95,12 @@ fn get_markers_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
 pub async fn load_markers(app: AppHandle) -> Result<MarkersData, StorageError> {
     let path = get_markers_path(&app)?;
     if !path.exists() {
-        return Ok(MarkersData { markers: Vec::new(), groups: vec!["Default".to_string()], show_markers: true });
+        return Ok(MarkersData {
+            markers: Vec::new(),
+            groups: vec!["Default".to_string()],
+            show_markers: true,
+            show_markers_updated_at: 0,
+        });
     }
     let data = fs::read_to_string(&path)?;
     Ok(serde_json::from_str(&data)?)
@@ -90,11 +118,17 @@ pub async fn save_markers(app: AppHandle, markers_data: MarkersData) -> Result<(
 pub async fn add_marker(app: AppHandle, marker: MarkerInput) -> Result<MarkersData, StorageError> {
     let mut data = load_markers(app.clone()).await?;
     let now = Utc::now().timestamp_millis();
+    let id = match marker.id {
+        Some(existing_id) if !existing_id.trim().is_empty() && !data.markers.iter().any(|m| m.id == existing_id) => existing_id,
+        _ => generate_id("marker"),
+    };
+    let created_at = marker.created_at.unwrap_or(now);
+    let updated_at = marker.updated_at.unwrap_or(now);
     let new_marker = SkyMarker {
-        id: generate_id("marker"), name: marker.name, description: marker.description,
+        id, name: marker.name, description: marker.description,
         ra: marker.ra, dec: marker.dec, ra_string: marker.ra_string, dec_string: marker.dec_string,
-        color: marker.color, icon: marker.icon, created_at: now, updated_at: now,
-        group: marker.group.clone(), visible: true,
+        color: marker.color, icon: marker.icon, created_at, updated_at,
+        group: marker.group.clone(), visible: marker.visible.unwrap_or(true),
     };
     if let Some(ref group) = new_marker.group {
         if !data.groups.contains(group) { data.groups.push(group.clone()); }
@@ -105,17 +139,24 @@ pub async fn add_marker(app: AppHandle, marker: MarkerInput) -> Result<MarkersDa
 }
 
 #[tauri::command]
-pub async fn update_marker(app: AppHandle, marker_id: String, updates: serde_json::Value) -> Result<MarkersData, StorageError> {
+pub async fn update_marker(app: AppHandle, marker_id: String, updates: MarkerUpdateInput) -> Result<MarkersData, StorageError> {
     let mut data = load_markers(app.clone()).await?;
     if let Some(marker) = data.markers.iter_mut().find(|m| m.id == marker_id) {
-        if let Some(name) = updates.get("name").and_then(|v| v.as_str()) { marker.name = name.to_string(); }
-        if let Some(desc) = updates.get("description").and_then(|v| v.as_str()) { marker.description = Some(desc.to_string()); }
-        if let Some(color) = updates.get("color").and_then(|v| v.as_str()) { marker.color = color.to_string(); }
-        if let Some(group) = updates.get("group").and_then(|v| v.as_str()) {
-            marker.group = Some(group.to_string());
-            if !data.groups.contains(&group.to_string()) { data.groups.push(group.to_string()); }
+        if let Some(name) = updates.name { marker.name = name; }
+        if let Some(desc) = updates.description { marker.description = desc; }
+        if let Some(ra) = updates.ra { marker.ra = ra; }
+        if let Some(dec) = updates.dec { marker.dec = dec; }
+        if let Some(ra_string) = updates.ra_string { marker.ra_string = ra_string; }
+        if let Some(dec_string) = updates.dec_string { marker.dec_string = dec_string; }
+        if let Some(color) = updates.color { marker.color = color; }
+        if let Some(icon) = updates.icon { marker.icon = icon; }
+        if let Some(group_update) = updates.group {
+            marker.group = group_update.clone();
+            if let Some(group) = group_update {
+                if !data.groups.contains(&group) { data.groups.push(group); }
+            }
         }
-        if let Some(visible) = updates.get("visible").and_then(|v| v.as_bool()) { marker.visible = visible; }
+        if let Some(visible) = updates.visible { marker.visible = visible; }
         marker.updated_at = Utc::now().timestamp_millis();
     }
     save_markers(app, data.clone()).await?;
@@ -166,6 +207,7 @@ pub async fn set_all_markers_visible(app: AppHandle, visible: bool) -> Result<Ma
 pub async fn set_show_markers(app: AppHandle, show: bool) -> Result<MarkersData, StorageError> {
     let mut data = load_markers(app.clone()).await?;
     data.show_markers = show;
+    data.show_markers_updated_at = Utc::now().timestamp_millis();
     save_markers(app, data.clone()).await?;
     Ok(data)
 }
@@ -332,6 +374,7 @@ mod tests {
     #[test]
     fn test_marker_input_serialization() {
         let input = MarkerInput {
+            id: None,
             name: "New Marker".to_string(),
             description: Some("A test marker".to_string()),
             ra: 90.0,
@@ -341,6 +384,9 @@ mod tests {
             color: "#0000FF".to_string(),
             icon: MarkerIcon::Diamond,
             group: Some("Test Group".to_string()),
+            visible: Some(true),
+            created_at: Some(1704067200000),
+            updated_at: Some(1704067200000),
         };
 
         let json = serde_json::to_string(&input).unwrap();
@@ -379,6 +425,7 @@ mod tests {
         assert!(data.markers.is_empty());
         assert!(data.groups.is_empty());
         assert!(!data.show_markers); // Default is false
+        assert_eq!(data.show_markers_updated_at, 0);
     }
 
     #[test]
@@ -386,6 +433,7 @@ mod tests {
         let mut data = MarkersData::default();
         data.groups.push("Default".to_string());
         data.show_markers = true;
+        data.show_markers_updated_at = 1704067200000;
         data.markers.push(SkyMarker {
             id: "m1".to_string(),
             name: "Test".to_string(),
@@ -406,6 +454,7 @@ mod tests {
         assert!(json.contains("markers"));
         assert!(json.contains("groups"));
         assert!(json.contains("show_markers"));
+        assert!(json.contains("show_markers_updated_at"));
     }
 
     #[test]
@@ -426,10 +475,12 @@ mod tests {
     fn test_markers_data_clone() {
         let mut data = MarkersData::default();
         data.show_markers = true;
+        data.show_markers_updated_at = 1704067200000;
         data.groups.push("Test".to_string());
 
         let cloned = data.clone();
         assert_eq!(cloned.show_markers, data.show_markers);
+        assert_eq!(cloned.show_markers_updated_at, data.show_markers_updated_at);
         assert_eq!(cloned.groups.len(), data.groups.len());
     }
 

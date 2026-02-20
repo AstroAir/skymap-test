@@ -364,25 +364,43 @@ test.describe('Marker Management Workflow', () => {
     const box = await canvas.boundingBox();
     
     if (box) {
+      const markerName = `E2E Marker ${Date.now()}`;
+
       // Right click to add marker
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
       await page.waitForTimeout(500);
       
-      const addMarkerOption = page.locator('text=/add.*marker|添加标记/i').first();
+      const addMarkerOption = page.getByRole('menuitem').filter({ hasText: /add.*marker|添加.*标注|添加.*标记/i }).first();
       if (await addMarkerOption.isVisible().catch(() => false)) {
         await addMarkerOption.click();
-        await page.waitForTimeout(300);
+        const markerDialog = page.getByRole('dialog').filter({ hasText: /add marker|添加标注/i }).first();
+        await expect(markerDialog).toBeVisible({ timeout: 3000 });
+
+        const nameInput = markerDialog.locator('input#name');
+        await expect(nameInput).toBeVisible({ timeout: 3000 });
+        await nameInput.fill(markerName);
+
+        await markerDialog.getByRole('button', { name: /save|保存/i }).click();
+        await expect(markerDialog).toBeHidden({ timeout: 3000 });
         
         // Open marker manager to verify
         const markerButton = page.getByRole('button', { name: /marker|标记/i }).first();
         if (await markerButton.isVisible().catch(() => false)) {
           await markerButton.click();
-          await page.waitForTimeout(500);
-          
-          // Check for markers in list
-          const markers = page.locator('[data-testid="marker-item"]')
-            .or(page.locator('.marker-item'));
-          expect(await markers.count()).toBeGreaterThanOrEqual(0);
+          const markerPanel = page.getByRole('dialog').filter({ hasText: /sky markers|天空标注/i }).first();
+          await expect(markerPanel).toBeVisible({ timeout: 3000 });
+          await expect(markerPanel.getByText(markerName).first()).toBeVisible({ timeout: 3000 });
+
+          await page.keyboard.press('Escape');
+          await expect(markerPanel).toBeHidden({ timeout: 3000 });
+
+          await page.reload();
+          await waitForStarmapReady(page);
+
+          await markerButton.click();
+          const markerPanelAfterReload = page.getByRole('dialog').filter({ hasText: /sky markers|天空标注/i }).first();
+          await expect(markerPanelAfterReload).toBeVisible({ timeout: 3000 });
+          await expect(markerPanelAfterReload.getByText(markerName).first()).toBeVisible({ timeout: 3000 });
         }
       }
     }

@@ -22,7 +22,7 @@ async function getInvoke() {
 export interface SkyMarker {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   ra: number;
   dec: number;
   ra_string: string;
@@ -36,8 +36,9 @@ export interface SkyMarker {
 }
 
 export interface MarkerInput {
+  id?: string;
   name: string;
-  description?: string;
+  description?: string | null;
   ra: number;
   dec: number;
   ra_string: string;
@@ -45,12 +46,29 @@ export interface MarkerInput {
   color: string;
   icon: MarkerIcon;
   group?: string;
+  visible?: boolean;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface MarkerUpdateInput {
+  name?: string;
+  description?: string | null;
+  ra?: number;
+  dec?: number;
+  ra_string?: string;
+  dec_string?: string;
+  color?: string;
+  icon?: MarkerIcon;
+  group?: string | null;
+  visible?: boolean;
 }
 
 export interface MarkersData {
   markers: SkyMarker[];
   groups: string[];
   show_markers: boolean;
+  show_markers_updated_at?: number;
 }
 
 // ============================================================================
@@ -73,7 +91,7 @@ export const markersApi = {
     return invoke('add_marker', { marker });
   },
 
-  async updateMarker(markerId: string, updates: Partial<SkyMarker>): Promise<MarkersData> {
+  async updateMarker(markerId: string, updates: MarkerUpdateInput): Promise<MarkersData> {
     const invoke = await getInvoke();
     return invoke('update_marker', { markerId, updates });
   },

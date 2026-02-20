@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useTranslations } from 'next-intl';
-import { useThemeStore } from '@/lib/stores/theme-store';
 import { useIsClient } from '@/lib/hooks/use-is-client';
 import { cn } from '@/lib/utils';
 
@@ -31,13 +29,7 @@ export function ThemeToggle({
 }: ThemeToggleProps) {
   const t = useTranslations();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const applyCustomization = useThemeStore((state) => state.applyCustomization);
   const mounted = useIsClient();
-  
-  // Re-apply customization when theme changes
-  useEffect(() => {
-    applyCustomization();
-  }, [resolvedTheme, applyCustomization]);
 
   // Use Sun as default during SSR to avoid hydration mismatch
   const ThemeIcon = mounted && resolvedTheme === 'dark' ? Moon : Sun;

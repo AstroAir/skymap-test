@@ -19,20 +19,32 @@ jest.mock('@/lib/storage', () => ({
 }));
 
 // Mock theme store
+const mockSetCustomization = jest.fn();
+
 jest.mock('@/lib/stores/theme-store', () => ({
   useThemeStore: Object.assign(
     (selector: (state: unknown) => unknown) => {
       const state = {
         customization: { radius: 0.5, fontFamily: 'default', fontSize: 'default', animationsEnabled: true, activePreset: null },
+        setCustomization: mockSetCustomization,
       };
       return selector ? selector(state) : state;
     },
     {
       getState: () => ({
         customization: { radius: 0.5, fontFamily: 'default', fontSize: 'default', animationsEnabled: true, activePreset: null },
+        setCustomization: mockSetCustomization,
       }),
     }
   ),
+}));
+
+// Mock next-themes
+jest.mock('next-themes', () => ({
+  useTheme: () => ({
+    theme: 'dark',
+    setTheme: jest.fn(),
+  }),
 }));
 
 // Mock keybinding store
@@ -66,7 +78,7 @@ jest.mock('@/components/ui/alert-dialog', () => ({
 }));
 
 import { SettingsExportImport } from '../settings-export-import';
-import { useSettingsStore } from '@/lib/stores';
+import { useDailyKnowledgeStore, useSettingsStore } from '@/lib/stores';
 
 describe('SettingsExportImport', () => {
   beforeEach(() => {
@@ -84,7 +96,17 @@ describe('SettingsExportImport', () => {
         startupView: 'last' as const,
         showSplash: true,
         autoConnectBackend: true,
+        dailyKnowledgeEnabled: true,
+        dailyKnowledgeAutoShow: true,
+        dailyKnowledgeOnlineEnhancement: true,
       },
+    });
+    useDailyKnowledgeStore.setState({
+      favorites: [{ itemId: 'curated-andromeda-distance', createdAt: Date.now() }],
+      history: [],
+      lastShownDate: null,
+      snoozedDate: null,
+      lastSeenItemId: null,
     });
   });
 
@@ -105,12 +127,13 @@ describe('SettingsExportImport', () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it('handles export click', () => {
+  it('handles export click', async () => {
     // Mock URL.createObjectURL and URL.revokeObjectURL
     const mockCreateObjectURL = jest.fn(() => 'blob:mock-url');
     const mockRevokeObjectURL = jest.fn();
     global.URL.createObjectURL = mockCreateObjectURL;
     global.URL.revokeObjectURL = mockRevokeObjectURL;
+    const stringifySpy = jest.spyOn(JSON, 'stringify');
 
     // Mock document.createElement to capture the download link
     const mockClick = jest.fn();
@@ -134,8 +157,23 @@ describe('SettingsExportImport', () => {
       fireEvent.click(exportButton);
       expect(mockCreateObjectURL).toHaveBeenCalled();
       expect(mockClick).toHaveBeenCalled();
+      const exportCall = stringifySpy.mock.calls.find(([, , space]) => space === 2);
+      expect(exportCall?.[0]).toEqual(expect.objectContaining({
+        version: 4,
+        themeMode: 'dark',
+        settings: expect.objectContaining({
+          skyEngine: expect.any(String),
+          aladinDisplay: expect.any(Object),
+        }),
+        dailyKnowledge: expect.objectContaining({
+          favorites: expect.any(Array),
+          history: expect.any(Array),
+          startupState: expect.any(Object),
+        }),
+      }));
     }
 
+    stringifySpy.mockRestore();
     jest.restoreAllMocks();
   });
 

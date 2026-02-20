@@ -259,6 +259,7 @@ nav:
   # 参考资料
   - 参考资料:
       - 概览: reference/index.md
+      - Stellarium 能力矩阵: reference/stellarium-capability-matrix.md
       - 天文学基础:
           - 基础概览: reference/astronomy-basics/index.md
           - 天球坐标: reference/astronomy-basics/coordinates.md

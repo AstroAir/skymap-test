@@ -1,22 +1,64 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { raDecToAltAzAtTime } from '@/lib/astronomy/coordinates/transforms';
+import {
+  deviceEulerToSkyDirection,
+  normalizeAngle360,
+  normalizeAngleSigned180,
+} from '@/lib/astronomy/coordinates/device-attitude';
 
 export interface DeviceOrientation {
-  alpha: number | null; // Compass direction (0-360)
-  beta: number | null;  // Front-back tilt (-180 to 180)
-  gamma: number | null; // Left-right tilt (-90 to 90)
+  alpha: number | null;
+  beta: number | null;
+  gamma: number | null;
   absolute: boolean;
 }
 
 export interface SkyDirection {
-  azimuth: number;  // 0-360, 0=North, 90=East
-  altitude: number; // -90 to 90, 0=horizon, 90=zenith
+  azimuth: number;
+  altitude: number;
+}
+
+export type OrientationSource =
+  | 'deviceorientationabsolute'
+  | 'deviceorientation'
+  | 'webkitCompassHeading'
+  | 'none';
+
+export type SensorStatus =
+  | 'idle'
+  | 'unsupported'
+  | 'permission-required'
+  | 'permission-denied'
+  | 'calibration-required'
+  | 'active'
+  | 'error';
+
+export interface SensorCalibrationState {
+  azimuthOffsetDeg: number;
+  altitudeOffsetDeg: number;
+  updatedAt: number | null;
+  required: boolean;
+}
+
+export interface CalibrationReference {
+  raDeg: number;
+  decDeg: number;
+  latitude: number;
+  longitude: number;
+  at: Date;
 }
 
 interface UseDeviceOrientationOptions {
   enabled?: boolean;
-  smoothingFactor?: number; // 0-1, higher = more smoothing
+  smoothingFactor?: number;
+  updateHz?: number;
+  deadbandDeg?: number;
+  absolutePreferred?: boolean;
+  useCompassHeading?: boolean;
+  calibration?: SensorCalibrationState;
+  onCalibrationChange?: (state: SensorCalibrationState) => void;
   onOrientationChange?: (direction: SkyDirection) => void;
 }
 
@@ -25,238 +67,514 @@ interface UseDeviceOrientationReturn {
   skyDirection: SkyDirection | null;
   isSupported: boolean;
   isPermissionGranted: boolean;
+  status: SensorStatus;
+  source: OrientationSource;
+  accuracyDeg: number | null;
+  calibration: SensorCalibrationState;
   requestPermission: () => Promise<boolean>;
+  calibrateToCurrentView: (reference: CalibrationReference) => void;
+  resetCalibration: () => void;
   error: string | null;
 }
 
-// Hook to safely check if we're on the client
-const emptySubscribe = () => () => {};
-
-// Check device orientation support
-function getOrientationSupportSnapshot() {
-  if (typeof window === 'undefined') return false;
-  return 'DeviceOrientationEvent' in window;
+interface OrientationSample {
+  alpha: number;
+  beta: number;
+  gamma: number;
+  absolute: boolean;
+  source: OrientationSource;
+  accuracyDeg: number | null;
+  timestamp: number;
 }
 
-function getOrientationSupportServerSnapshot() {
-  return false;
+interface DeviceOrientationEventIOS extends DeviceOrientationEvent {
+  webkitCompassHeading?: number;
+  webkitCompassAccuracy?: number;
 }
 
-// Check if permission is needed (iOS 13+)
-function checkNeedsPermission() {
-  if (typeof window === 'undefined') return true;
-  if (!('DeviceOrientationEvent' in window)) return true;
-  return typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === 'function';
+const DEFAULT_CALIBRATION: SensorCalibrationState = {
+  azimuthOffsetDeg: 0,
+  altitudeOffsetDeg: 0,
+  updatedAt: null,
+  required: true,
+};
+
+const ABSOLUTE_SAMPLE_HOLD_MS = 1500;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
-// Permission state store for useSyncExternalStore
-let permissionGranted = false;
-const permissionListeners = new Set<() => void>();
-
-function subscribeToPermission(callback: () => void) {
-  permissionListeners.add(callback);
-  return () => permissionListeners.delete(callback);
+function normalizeCalibration(
+  calibration?: SensorCalibrationState
+): SensorCalibrationState {
+  if (!calibration) return DEFAULT_CALIBRATION;
+  return {
+    azimuthOffsetDeg: Number.isFinite(calibration.azimuthOffsetDeg)
+      ? calibration.azimuthOffsetDeg
+      : 0,
+    altitudeOffsetDeg: Number.isFinite(calibration.altitudeOffsetDeg)
+      ? calibration.altitudeOffsetDeg
+      : 0,
+    updatedAt: calibration.updatedAt ?? null,
+    required: calibration.required ?? true,
+  };
 }
 
-function getPermissionSnapshot() {
-  // On client, if no permission is needed, return true
-  if (typeof window !== 'undefined' && !checkNeedsPermission()) {
-    return true;
+function supportsDeviceOrientation(): boolean {
+  return typeof window !== 'undefined' && 'DeviceOrientationEvent' in window;
+}
+
+function usesPermissionRequestApi(): boolean {
+  if (!supportsDeviceOrientation()) return false;
+  const deviceOrientationEventType = DeviceOrientationEvent as unknown as {
+    requestPermission?: (absolute?: boolean) => Promise<'granted' | 'denied' | string>;
+  };
+  return typeof deviceOrientationEventType.requestPermission === 'function';
+}
+
+function getScreenAngleDeg(): number {
+  if (typeof window === 'undefined') return 0;
+
+  if (window.screen?.orientation && typeof window.screen.orientation.angle === 'number') {
+    return window.screen.orientation.angle;
   }
-  return permissionGranted;
+
+  const legacyOrientation = (window as Window & { orientation?: number }).orientation;
+  if (typeof legacyOrientation === 'number') {
+    return legacyOrientation;
+  }
+
+  return 0;
 }
 
-function getPermissionServerSnapshot() {
-  return false;
+function applySmoothing(
+  previous: SkyDirection | null,
+  next: SkyDirection,
+  factor: number
+): SkyDirection {
+  if (!previous) return next;
+
+  let azimuthDiff = normalizeAngleSigned180(next.azimuth - previous.azimuth);
+  azimuthDiff *= factor;
+
+  return {
+    azimuth: normalizeAngle360(previous.azimuth + azimuthDiff),
+    altitude: previous.altitude + (next.altitude - previous.altitude) * factor,
+  };
 }
 
-function setPermissionGranted(granted: boolean) {
-  permissionGranted = granted;
-  permissionListeners.forEach(listener => listener());
+function applyCalibration(
+  direction: SkyDirection,
+  calibration: SensorCalibrationState
+): SkyDirection {
+  return {
+    azimuth: normalizeAngle360(direction.azimuth + calibration.azimuthOffsetDeg),
+    altitude: clamp(direction.altitude + calibration.altitudeOffsetDeg, -90, 90),
+  };
+}
+
+function isWithinDeadband(
+  previous: SkyDirection | null,
+  next: SkyDirection,
+  deadbandDeg: number
+): boolean {
+  if (!previous) return false;
+  const azimuthDiff = Math.abs(normalizeAngleSigned180(next.azimuth - previous.azimuth));
+  const altitudeDiff = Math.abs(next.altitude - previous.altitude);
+  return azimuthDiff < deadbandDeg && altitudeDiff < deadbandDeg;
 }
 
 /**
- * Hook for device orientation sensor control
- * Converts device orientation to sky coordinates (azimuth/altitude)
+ * Hook for device orientation/gyroscope control.
+ * Includes source prioritization, screen orientation compensation, throttling,
+ * deadband handling, and persisted calibration support.
  */
 export function useDeviceOrientation(
   options: UseDeviceOrientationOptions = {}
 ): UseDeviceOrientationReturn {
-  const { enabled = false, smoothingFactor = 0.3, onOrientationChange } = options;
-  
-  // Use useSyncExternalStore to safely get support status
-  const isSupported = useSyncExternalStore(
-    emptySubscribe,
-    getOrientationSupportSnapshot,
-    getOrientationSupportServerSnapshot
+  const {
+    enabled = false,
+    smoothingFactor = 0.2,
+    updateHz = 30,
+    deadbandDeg = 0.35,
+    absolutePreferred = true,
+    useCompassHeading = true,
+    calibration,
+    onCalibrationChange,
+    onOrientationChange,
+  } = options;
+  const normalizedCalibration = useMemo(
+    () => normalizeCalibration(calibration),
+    [calibration]
   );
-  
-  // Use useSyncExternalStore for permission state
-  const isPermissionGranted = useSyncExternalStore(
-    subscribeToPermission,
-    getPermissionSnapshot,
-    getPermissionServerSnapshot
-  );
-  
+  const isCalibrationControlled = calibration !== undefined && typeof onCalibrationChange === 'function';
+
   const [orientation, setOrientation] = useState<DeviceOrientation | null>(null);
   const [skyDirection, setSkyDirection] = useState<SkyDirection | null>(null);
+  const [isSupported] = useState(supportsDeviceOrientation);
+  const [isPermissionGranted, setIsPermissionGranted] = useState(
+    () => isSupported && !usesPermissionRequestApi()
+  );
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [source, setSource] = useState<OrientationSource>('none');
+  const [accuracyDeg, setAccuracyDeg] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  const smoothedDirection = useRef<SkyDirection | null>(null);
+  const [hasActiveSample, setHasActiveSample] = useState(false);
+  const [uncontrolledCalibrationState, setUncontrolledCalibrationState] = useState<SensorCalibrationState>(
+    normalizedCalibration
+  );
+  const calibrationState = isCalibrationControlled
+    ? normalizedCalibration
+    : uncontrolledCalibrationState;
+
   const callbackRef = useRef(onOrientationChange);
-  
-  // Update callback ref in effect to avoid render-time ref mutation
+  const calibrationCallbackRef = useRef(onCalibrationChange);
+  const latestSampleRef = useRef<OrientationSample | null>(null);
+  const latestRawDirectionRef = useRef<SkyDirection | null>(null);
+  const smoothedDirectionRef = useRef<SkyDirection | null>(null);
+  const emittedDirectionRef = useRef<SkyDirection | null>(null);
+  const calibrationRef = useRef<SensorCalibrationState>(normalizedCalibration);
+  const screenAngleRef = useRef(getScreenAngleDeg());
+  const lastAbsoluteSampleAtRef = useRef(0);
+  const lastProcessedAtRef = useRef(0);
+  const rafIdRef = useRef<number | null>(null);
+
   useEffect(() => {
     callbackRef.current = onOrientationChange;
   }, [onOrientationChange]);
 
-  // Request permission (iOS 13+)
+  useEffect(() => {
+    calibrationCallbackRef.current = onCalibrationChange;
+  }, [onCalibrationChange]);
+
+  useEffect(() => {
+    calibrationRef.current = calibrationState;
+  }, [calibrationState]);
+
+  const updateCalibrationState = useCallback((next: SensorCalibrationState) => {
+    calibrationRef.current = next;
+    if (!isCalibrationControlled) {
+      setUncontrolledCalibrationState(next);
+    }
+    calibrationCallbackRef.current?.(next);
+  }, [isCalibrationControlled]);
+
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (!isSupported) {
       setError('Device orientation not supported');
       return false;
     }
 
+    const deviceOrientationEventType = DeviceOrientationEvent as unknown as {
+      requestPermission?: (absolute?: boolean) => Promise<'granted' | 'denied' | string>;
+    };
+
     try {
-      // Check if requestPermission exists (iOS 13+)
-      const DeviceOrientationEventTyped = DeviceOrientationEvent as unknown as {
-        requestPermission?: () => Promise<string>;
-      };
-      
-      if (typeof DeviceOrientationEventTyped.requestPermission === 'function') {
-        const permission = await DeviceOrientationEventTyped.requestPermission();
+      if (typeof deviceOrientationEventType.requestPermission === 'function') {
+        let permission: string | null = null;
+
+        try {
+          permission = await deviceOrientationEventType.requestPermission(true);
+        } catch {
+          // Fallback to old API signature without absolute argument
+          permission = null;
+        }
+
+        if (permission !== 'granted') {
+          permission = await deviceOrientationEventType.requestPermission();
+        }
+
         const granted = permission === 'granted';
-        setPermissionGranted(granted);
+        setIsPermissionGranted(granted);
+        setPermissionDenied(!granted);
         if (!granted) {
           setError('Permission denied');
+        } else {
+          setError(null);
         }
         return granted;
       }
-      
-      // No permission needed (Android, older iOS)
-      setPermissionGranted(true);
+
+      setIsPermissionGranted(true);
+      setPermissionDenied(false);
+      setError(null);
       return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to request permission');
+    } catch (permissionError) {
+      const message = permissionError instanceof Error
+        ? permissionError.message
+        : 'Failed to request permission';
+      setError(message);
+      setPermissionDenied(true);
       return false;
     }
   }, [isSupported]);
 
-  // Convert device orientation to sky direction
-  const calculateSkyDirection = useCallback((
-    alpha: number | null,
-    beta: number | null,
-    gamma: number | null
-  ): SkyDirection | null => {
-    if (alpha === null || beta === null || gamma === null) {
-      return null;
+  const calibrateToCurrentView = useCallback((reference: CalibrationReference) => {
+    const measured = latestRawDirectionRef.current ?? (() => {
+      const sample = latestSampleRef.current;
+      if (!sample) return null;
+      const direction = deviceEulerToSkyDirection(
+        {
+          alphaDeg: sample.alpha,
+          betaDeg: sample.beta,
+          gammaDeg: sample.gamma,
+        },
+        screenAngleRef.current
+      );
+      latestRawDirectionRef.current = direction;
+      return direction;
+    })();
+    if (!measured) {
+      setError('No sensor sample available for calibration');
+      return;
     }
 
-    // Convert degrees to radians
-    const alphaRad = alpha * (Math.PI / 180);
-    const betaRad = beta * (Math.PI / 180);
-    const gammaRad = gamma * (Math.PI / 180);
+    try {
+      const expected = raDecToAltAzAtTime(
+        reference.raDeg,
+        reference.decDeg,
+        reference.latitude,
+        reference.longitude,
+        reference.at
+      );
 
-    // Calculate device pointing direction in 3D space
-    // Assuming phone is held with screen facing user, camera pointing at sky
-    
-    // Rotation matrix components
-    const cA = Math.cos(alphaRad);
-    const sA = Math.sin(alphaRad);
-    const cB = Math.cos(betaRad);
-    const sB = Math.sin(betaRad);
-    const cG = Math.cos(gammaRad);
-    const sG = Math.sin(gammaRad);
+      const azimuthOffsetDeg = normalizeAngleSigned180(expected.azimuth - measured.azimuth);
+      const altitudeOffsetDeg = clamp(expected.altitude - measured.altitude, -90, 90);
 
-    // Device pointing vector (assuming -Z is "forward" from screen)
-    // Apply ZXY rotation order (alpha, beta, gamma)
-    const x = -cA * sG - sA * sB * cG;
-    const y = -sA * sG + cA * sB * cG;
-    const z = -cB * cG;
-
-    // Convert to azimuth (compass bearing) and altitude
-    // Azimuth: 0=North, 90=East, 180=South, 270=West
-    let azimuth = Math.atan2(x, y) * (180 / Math.PI);
-    azimuth = ((azimuth % 360) + 360) % 360;
-
-    // Altitude: 0=horizon, 90=zenith, -90=nadir
-    const altitude = Math.asin(-z) * (180 / Math.PI);
-
-    return { azimuth, altitude };
-  }, []);
-
-  // Apply smoothing to reduce jitter
-  const applySmoothingToDirection = useCallback((
-    newDir: SkyDirection,
-    factor: number
-  ): SkyDirection => {
-    if (!smoothedDirection.current) {
-      smoothedDirection.current = newDir;
-      return newDir;
+      updateCalibrationState({
+        azimuthOffsetDeg,
+        altitudeOffsetDeg,
+        updatedAt: Date.now(),
+        required: false,
+      });
+      setError(null);
+    } catch (calibrationError) {
+      const message = calibrationError instanceof Error
+        ? calibrationError.message
+        : 'Calibration failed';
+      setError(message);
     }
+  }, [updateCalibrationState]);
 
-    const prev = smoothedDirection.current;
-    
-    // Handle azimuth wraparound (0/360 boundary)
-    let azDiff = newDir.azimuth - prev.azimuth;
-    if (azDiff > 180) azDiff -= 360;
-    if (azDiff < -180) azDiff += 360;
-    
-    const smoothedAz = ((prev.azimuth + azDiff * factor) % 360 + 360) % 360;
-    const smoothedAlt = prev.altitude + (newDir.altitude - prev.altitude) * factor;
+  const resetCalibration = useCallback(() => {
+    updateCalibrationState({
+      ...DEFAULT_CALIBRATION,
+      required: true,
+    });
+    setError(null);
+  }, [updateCalibrationState]);
 
-    smoothedDirection.current = { azimuth: smoothedAz, altitude: smoothedAlt };
-    return smoothedDirection.current;
-  }, []);
-
-  // Handle orientation event
   useEffect(() => {
     if (!enabled || !isSupported || !isPermissionGranted) {
       return;
     }
 
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      const newOrientation: DeviceOrientation = {
-        alpha: event.alpha,
-        beta: event.beta,
-        gamma: event.gamma,
-        absolute: event.absolute,
-      };
-      setOrientation(newOrientation);
+    const updateScreenOrientation = () => {
+      screenAngleRef.current = getScreenAngleDeg();
+    };
 
-      const rawDirection = calculateSkyDirection(
-        event.alpha,
-        event.beta,
-        event.gamma
+    const pushSample = (sample: OrientationSample) => {
+      if (!Number.isFinite(sample.alpha) || !Number.isFinite(sample.beta) || !Number.isFinite(sample.gamma)) {
+        return;
+      }
+      latestSampleRef.current = sample;
+      setOrientation({
+        alpha: sample.alpha,
+        beta: sample.beta,
+        gamma: sample.gamma,
+        absolute: sample.absolute,
+      });
+      setSource(sample.source);
+      setAccuracyDeg(sample.accuracyDeg);
+    };
+
+    const handleAbsolute = (event: DeviceOrientationEvent) => {
+      const alpha = event.alpha;
+      const beta = event.beta;
+      const gamma = event.gamma;
+      if (alpha === null || beta === null || gamma === null) return;
+
+      lastAbsoluteSampleAtRef.current = performance.now();
+      pushSample({
+        alpha,
+        beta,
+        gamma,
+        absolute: true,
+        source: 'deviceorientationabsolute',
+        accuracyDeg: null,
+        timestamp: Date.now(),
+      });
+    };
+
+    const handleRelative = (event: DeviceOrientationEventIOS) => {
+      let alpha = event.alpha;
+      const beta = event.beta;
+      const gamma = event.gamma;
+
+      if (alpha === null || beta === null || gamma === null) return;
+
+      let sampleSource: OrientationSource = event.absolute
+        ? 'deviceorientationabsolute'
+        : 'deviceorientation';
+      let sampleAccuracy: number | null = null;
+
+      if (useCompassHeading && Number.isFinite(event.webkitCompassHeading)) {
+        alpha = normalizeAngle360(360 - Number(event.webkitCompassHeading));
+        sampleSource = 'webkitCompassHeading';
+        sampleAccuracy = Number.isFinite(event.webkitCompassAccuracy)
+          ? Math.abs(Number(event.webkitCompassAccuracy))
+          : null;
+      }
+
+      if (absolutePreferred) {
+        const now = performance.now();
+        const hasRecentAbsoluteSample = lastAbsoluteSampleAtRef.current > 0
+          && now - lastAbsoluteSampleAtRef.current < ABSOLUTE_SAMPLE_HOLD_MS;
+        const isAbsoluteLike = sampleSource === 'deviceorientationabsolute';
+        if (!isAbsoluteLike && hasRecentAbsoluteSample) {
+          return;
+        }
+      }
+
+      if (sampleSource === 'deviceorientationabsolute') {
+        lastAbsoluteSampleAtRef.current = performance.now();
+      }
+
+      pushSample({
+        alpha,
+        beta,
+        gamma,
+        absolute: event.absolute === true,
+        source: sampleSource,
+        accuracyDeg: sampleAccuracy,
+        timestamp: Date.now(),
+      });
+    };
+
+    const minIntervalMs = Math.max(1000 / Math.max(updateHz, 1), 4);
+
+    const processLoop = (timestamp: number) => {
+      rafIdRef.current = requestAnimationFrame(processLoop);
+
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
+      if (timestamp - lastProcessedAtRef.current < minIntervalMs) {
+        return;
+      }
+      lastProcessedAtRef.current = timestamp;
+
+      const sample = latestSampleRef.current;
+      if (!sample) return;
+
+      const rawDirection = deviceEulerToSkyDirection(
+        {
+          alphaDeg: sample.alpha,
+          betaDeg: sample.beta,
+          gammaDeg: sample.gamma,
+        },
+        screenAngleRef.current
       );
+      latestRawDirectionRef.current = rawDirection;
 
-      if (rawDirection) {
-        const smoothed = applySmoothingToDirection(rawDirection, smoothingFactor);
-        setSkyDirection(smoothed);
-        callbackRef.current?.(smoothed);
+      const calibratedDirection = applyCalibration(rawDirection, calibrationRef.current);
+      const smoothed = applySmoothing(smoothedDirectionRef.current, calibratedDirection, smoothingFactor);
+      smoothedDirectionRef.current = smoothed;
+
+      if (isWithinDeadband(emittedDirectionRef.current, smoothed, deadbandDeg)) {
+        return;
+      }
+
+      emittedDirectionRef.current = smoothed;
+      setSkyDirection(smoothed);
+      setHasActiveSample(true);
+      callbackRef.current?.(smoothed);
+    };
+
+    updateScreenOrientation();
+    if (window.screen?.orientation && typeof window.screen.orientation.addEventListener === 'function') {
+      window.screen.orientation.addEventListener('change', updateScreenOrientation);
+    }
+    window.addEventListener('orientationchange', updateScreenOrientation);
+    window.addEventListener('deviceorientationabsolute', handleAbsolute, true);
+    window.addEventListener('deviceorientation', handleRelative as EventListener, true);
+    rafIdRef.current = requestAnimationFrame(processLoop);
+
+    return () => {
+      if (window.screen?.orientation && typeof window.screen.orientation.removeEventListener === 'function') {
+        window.screen.orientation.removeEventListener('change', updateScreenOrientation);
+      }
+      window.removeEventListener('orientationchange', updateScreenOrientation);
+      window.removeEventListener('deviceorientationabsolute', handleAbsolute, true);
+      window.removeEventListener('deviceorientation', handleRelative as EventListener, true);
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
     };
-
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    
-    return () => {
-      window.removeEventListener('deviceorientation', handleOrientation, true);
-    };
-  }, [enabled, isSupported, isPermissionGranted, calculateSkyDirection, applySmoothingToDirection, smoothingFactor]);
-
-  // Reset smoothed direction when disabled
-  useEffect(() => {
-    if (!enabled) {
-      smoothedDirection.current = null;
-    }
-  }, [enabled]);
-
-  return {
-    orientation,
-    skyDirection,
+  }, [
+    enabled,
     isSupported,
     isPermissionGranted,
+    updateHz,
+    deadbandDeg,
+    smoothingFactor,
+    absolutePreferred,
+    useCompassHeading,
+  ]);
+
+  useEffect(() => {
+    if (enabled) return;
+    latestSampleRef.current = null;
+    latestRawDirectionRef.current = null;
+    smoothedDirectionRef.current = null;
+    emittedDirectionRef.current = null;
+    lastProcessedAtRef.current = 0;
+    if (typeof window === 'undefined') return;
+
+    const resetTimer = window.setTimeout(() => {
+      setSkyDirection(null);
+      setOrientation(null);
+      setSource('none');
+      setAccuracyDeg(null);
+      setHasActiveSample(false);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(resetTimer);
+    };
+  }, [enabled]);
+
+  const effectiveOrientation = enabled ? orientation : null;
+  const effectiveSkyDirection = enabled ? skyDirection : null;
+  const effectiveSource = enabled ? source : 'none';
+  const effectiveAccuracyDeg = enabled ? accuracyDeg : null;
+
+  const status = useMemo<SensorStatus>(() => {
+    if (!isSupported) return 'unsupported';
+    if (!enabled) return 'idle';
+    if (!isPermissionGranted) {
+      return permissionDenied ? 'permission-denied' : 'permission-required';
+    }
+    if (error) return 'error';
+    if (calibrationState.required) return 'calibration-required';
+    return hasActiveSample ? 'active' : 'idle';
+  }, [isSupported, error, enabled, isPermissionGranted, permissionDenied, calibrationState.required, hasActiveSample]);
+
+  return {
+    orientation: effectiveOrientation,
+    skyDirection: effectiveSkyDirection,
+    isSupported,
+    isPermissionGranted,
+    status,
+    source: effectiveSource,
+    accuracyDeg: effectiveAccuracyDeg,
+    calibration: calibrationState,
     requestPermission,
+    calibrateToCurrentView,
+    resetCalibration,
     error,
   };
 }

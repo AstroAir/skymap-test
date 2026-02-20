@@ -271,5 +271,34 @@ describe('useSelectTarget', () => {
       expect(stel.pointAndLock).toHaveBeenCalled();
       expect(onSelect).toHaveBeenCalled();
     });
+
+    it('reuses the same target object across repeated coordinate jumps', async () => {
+      const stel = createMockStel();
+      mockStel = stel;
+
+      const { useSelectTarget } = await import('../use-select-target');
+      const { result } = renderHook(() => useSelectTarget());
+
+      await act(async () => {
+        await result.current({
+          Name: 'M31',
+          RA: 10.684,
+          Dec: 41.269,
+          Type: 'DSO',
+        });
+      });
+
+      await act(async () => {
+        await result.current({
+          Name: 'M42',
+          RA: 83.82,
+          Dec: -5.39,
+          Type: 'DSO',
+        });
+      });
+
+      expect(stel.createObj).toHaveBeenCalledTimes(1);
+      expect(stel.pointAndLock).toHaveBeenCalledTimes(2);
+    });
   });
 });

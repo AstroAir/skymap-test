@@ -9,5 +9,6 @@ export * from './keyboard-shortcuts';
 export * from './stellarium-credits';
 export * from './starmap';
 export * from './system';
+export * from './feedback';
 
 // Note: aladin-lite.d.ts is a module declaration, not re-exported here

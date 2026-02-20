@@ -6,6 +6,7 @@
  */
 
 import type { AppInfo, LicenseInfo, DependencyInfo, DataCreditInfo } from '@/types/about';
+import { EXTERNAL_LINKS } from './external-links';
 
 // ============================================================================
 // Application Info
@@ -14,7 +15,7 @@ import type { AppInfo, LicenseInfo, DependencyInfo, DataCreditInfo } from '@/typ
 export const APP_INFO: AppInfo = {
   name: 'SkyMap',
   version: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
-  repository: 'https://github.com/AstroAir/skymap-test',
+  repository: EXTERNAL_LINKS.repository,
   author: 'AstroAir Team',
 };
 

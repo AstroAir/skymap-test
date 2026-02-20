@@ -12,6 +12,7 @@ pub mod app_control;
 pub mod updater;
 pub mod plate_solver;
 pub mod path_config;
+pub mod map_keys;
 
 // Re-export app settings types and commands
 pub use app_settings::{
@@ -37,6 +38,13 @@ pub use path_config::{
     DirectoryValidation, MigrationResult, PathConfig, PathInfo,
     get_path_config, migrate_cache_dir, migrate_data_dir, reset_paths_to_default,
     set_custom_cache_dir, set_custom_data_dir, validate_directory,
+};
+
+// Re-export secure map key types and commands
+pub use map_keys::{
+    MapApiKeyMeta, MapApiKeyQuota, MapApiKeyRecord, MapApiKeyRestrictions,
+    delete_map_api_key, get_map_api_key, list_map_api_keys_meta, save_map_api_key,
+    set_active_map_api_key,
 };
 
 // Re-export plate solver types and commands

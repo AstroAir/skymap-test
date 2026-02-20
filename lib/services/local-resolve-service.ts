@@ -51,9 +51,13 @@ const DSO_TYPE_TO_CATEGORY: Record<string, ObjectCategory> = {
 // ============================================================================
 
 function dsoToSearchResult(dso: DeepSkyObject): OnlineSearchResult {
+  const identifiers = [dso.id, dso.name, ...(dso.alternateNames ?? [])];
   return {
     id: dso.id,
     name: dso.name,
+    canonicalId: dso.id.toUpperCase(),
+    identifiers,
+    confidence: 0.85,
     alternateNames: dso.alternateNames,
     type: dso.type,
     category: DSO_TYPE_TO_CATEGORY[dso.type] || 'other',

@@ -13,6 +13,31 @@ jest.mock('@/lib/stores', () => ({
     }),
     { getState: () => ({ setHelpers: jest.fn() }) }
   ),
+  useMountStore: Object.assign(
+    jest.fn((selector: (state: unknown) => unknown) => {
+      const state = {
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 40,
+            Longitude: -74,
+            Elevation: 0,
+          },
+        },
+      };
+      return selector ? selector(state) : state;
+    }),
+    {
+      getState: () => ({
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 40,
+            Longitude: -74,
+            Elevation: 0,
+          },
+        },
+      }),
+    }
+  ),
 }));
 
 // Mock aladin-lite dynamic import via manual resolution

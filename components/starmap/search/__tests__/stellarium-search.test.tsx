@@ -19,7 +19,7 @@ function createMockSearchHook(overrides: Record<string, unknown> = {}) {
     onlineAvailable: false,
     searchStats: { totalResults: 0, resultsByType: {}, searchTimeMs: 0 },
     filters: {
-      types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'TargetList', 'Constellation'],
+      types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'TargetList', 'Constellation'],
       includeTargetList: true,
       searchMode: 'name',
       minMagnitude: undefined,
@@ -218,5 +218,36 @@ describe('StellariumSearch', () => {
 
     render(<StellariumSearch {...defaultProps} />);
     expect(screen.getByTestId('search-input')).toBeInTheDocument();
+  });
+
+  it('shows command mode hint for prefixed queries', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      query: 'm:31',
+      results: [],
+    }));
+
+    render(<StellariumSearch {...defaultProps} />);
+    expect(screen.getByText('search.commandModeHint')).toBeInTheDocument();
+  });
+
+  it('navigates recent history with arrow keys when query is empty', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    const setQuery = jest.fn();
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      query: '',
+      recentSearches: ['M31', 'M42'],
+      setQuery,
+    }));
+
+    render(<StellariumSearch {...defaultProps} />);
+    const input = screen.getByTestId('search-input');
+    fireEvent.focus(input);
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(setQuery).toHaveBeenCalledWith('M31');
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(setQuery).toHaveBeenCalledWith('M42');
   });
 });

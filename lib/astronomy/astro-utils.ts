@@ -20,6 +20,14 @@ export type {
   ImagingFeasibility,
   MultiTargetPlan,
   FeasibilityRecommendation,
+  AstronomicalFrame,
+  TimeScale,
+  CoordinateQualityFlag,
+  EopFreshness,
+  CoordinateContext,
+  CoordinateResult,
+  RecommendationProfile,
+  RecommendationBreakdownV2,
 } from '@/lib/core/types/astronomy';
 
 export type { I18nMessage } from '@/lib/core/types';
@@ -38,6 +46,8 @@ export { getJulianDate } from './time/julian';
 export { deg2rad, rad2deg, degreesToHMS, degreesToDMS } from './coordinates/conversions';
 export { raDecToAltAz } from './coordinates/transforms';
 export { getLST } from './time/sidereal';
+export { buildTimeScaleContext, getEopSnapshot, triggerBackgroundEopRefresh } from './time-scales';
+export { transformCoordinate } from './pipeline';
 
 // ============================================================================
 // Celestial body positions
@@ -82,3 +92,15 @@ export { planMultipleTargets } from './imaging/planning';
 // ============================================================================
 
 export { formatTimeShort, formatDuration } from './time/formats';
+
+// ============================================================================
+// Unified engine API (async)
+// ============================================================================
+
+export {
+  computeCoordinates,
+  computeEphemeris,
+  computeRiseTransitSet,
+  searchPhenomena,
+  computeAlmanac,
+} from './engine';

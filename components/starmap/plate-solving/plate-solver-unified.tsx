@@ -67,6 +67,7 @@ import type { PlateSolveResult } from '@/lib/plate-solving';
 import type { PlateSolverUnifiedProps, SolveMode } from '@/types/starmap/plate-solving';
 import { SolveResultCard } from './solve-result-card';
 import { isTauri } from '@/lib/tauri/app-control-api';
+import { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
 import {
   usePlateSolverStore,
   selectActiveSolver,
@@ -76,11 +77,121 @@ import {
   convertToLegacyResult,
   isLocalSolver,
   cancelPlateSolve,
+  solveOnline,
   DEFAULT_SOLVER_CONFIG,
+  type OnlineSolveProgress as TauriOnlineSolveProgress,
+  type OnlineSolveResult as TauriOnlineSolveResult,
 } from '@/lib/tauri/plate-solver-api';
 
 // Re-export types for backward compatibility
 export type { PlateSolverUnifiedProps, SolveMode } from '@/types/starmap/plate-solving';
+
+function toLegacyOnlineResult(online: TauriOnlineSolveResult): PlateSolveResult {
+  if (!online.success) {
+    return createErrorResult('astrometry.net', online.error_message ?? 'Online plate solve failed');
+  }
+
+  const wcs = online.wcs;
+  const ra = online.ra ?? wcs?.crval1 ?? null;
+  const dec = online.dec ?? wcs?.crval2 ?? null;
+
+  const wcsPixelScale = (() => {
+    if (wcs?.cd1_1 !== null && wcs?.cd1_1 !== undefined && wcs?.cd2_1 !== null && wcs?.cd2_1 !== undefined) {
+      return Math.sqrt((wcs.cd1_1 ** 2) + (wcs.cd2_1 ** 2)) * 3600;
+    }
+    if (wcs?.cdelt1 !== null && wcs?.cdelt1 !== undefined) {
+      return Math.abs(wcs.cdelt1) * 3600;
+    }
+    return null;
+  })();
+
+  const wcsRotation = (() => {
+    if (wcs?.cd1_1 !== null && wcs?.cd1_1 !== undefined && wcs?.cd2_1 !== null && wcs?.cd2_1 !== undefined) {
+      return Math.atan2(wcs.cd2_1, wcs.cd1_1) * (180 / Math.PI);
+    }
+    return wcs?.crota2 ?? wcs?.crota1 ?? null;
+  })();
+
+  const wcsFov = (() => {
+    if (!wcs?.naxis1 || !wcs?.naxis2) {
+      return null;
+    }
+    if (
+      wcs.cd1_1 !== null && wcs.cd1_1 !== undefined &&
+      wcs.cd1_2 !== null && wcs.cd1_2 !== undefined &&
+      wcs.cd2_1 !== null && wcs.cd2_1 !== undefined &&
+      wcs.cd2_2 !== null && wcs.cd2_2 !== undefined
+    ) {
+      const width = Math.sqrt((wcs.cd1_1 ** 2) + (wcs.cd2_1 ** 2)) * wcs.naxis1;
+      const height = Math.sqrt((wcs.cd1_2 ** 2) + (wcs.cd2_2 ** 2)) * wcs.naxis2;
+      return { width, height };
+    }
+    if (
+      wcs.cdelt1 !== null && wcs.cdelt1 !== undefined &&
+      wcs.cdelt2 !== null && wcs.cdelt2 !== undefined
+    ) {
+      return {
+        width: Math.abs(wcs.cdelt1) * wcs.naxis1,
+        height: Math.abs(wcs.cdelt2) * wcs.naxis2,
+      };
+    }
+    return null;
+  })();
+
+  const flipped = (() => {
+    if (
+      wcs?.cd1_1 !== null && wcs?.cd1_1 !== undefined &&
+      wcs?.cd1_2 !== null && wcs?.cd1_2 !== undefined &&
+      wcs?.cd2_1 !== null && wcs?.cd2_1 !== undefined &&
+      wcs?.cd2_2 !== null && wcs?.cd2_2 !== undefined
+    ) {
+      const det = (wcs.cd1_1 * wcs.cd2_2) - (wcs.cd1_2 * wcs.cd2_1);
+      return det > 0;
+    }
+    if (online.parity !== null && online.parity !== undefined) {
+      return online.parity > 0;
+    }
+    return false;
+  })();
+
+  return {
+    success: true,
+    coordinates: ra !== null && dec !== null ? {
+      ra,
+      dec,
+      raHMS: formatRA(ra),
+      decDMS: formatDec(dec),
+    } : null,
+    positionAngle: online.orientation ?? wcsRotation ?? 0,
+    pixelScale: online.pixscale ?? wcsPixelScale ?? 0,
+    fov: {
+      width: online.fov_width ?? wcsFov?.width ?? 0,
+      height: online.fov_height ?? wcsFov?.height ?? 0,
+    },
+    flipped,
+    solverName: 'Astrometry.net (Online)',
+    solveTime: online.solve_time_ms,
+    errorMessage: online.error_message ?? undefined,
+  };
+}
+
+function mapTauriProgressToSolveProgress(payload: TauriOnlineSolveProgress): SolveProgress {
+  switch (payload.stage) {
+    case 'login':
+    case 'upload':
+      return { stage: 'uploading', progress: Math.max(0, Math.min(100, Math.round(payload.progress))) };
+    case 'processing':
+      return payload.sub_id !== null
+        ? { stage: 'queued', subid: payload.sub_id }
+        : { stage: 'uploading', progress: Math.max(0, Math.min(100, Math.round(payload.progress))) };
+    case 'solving':
+    case 'fetching':
+    case 'complete':
+      return { stage: 'processing', jobId: payload.job_id ?? 0 };
+    default:
+      return { stage: 'uploading', progress: Math.max(0, Math.min(100, Math.round(payload.progress))) };
+  }
+}
 
 // ============================================================================
 // Component
@@ -259,27 +370,67 @@ export function PlateSolverUnified({
     const maxAttempts = config?.retry_on_failure ? (config.max_retries + 1) : 1;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      let unlistenProgress: (() => void) | null = null;
+      let cleanup: undefined | (() => Promise<void>);
       try {
-        const client = new AstrometryApiClient({ apiKey: onlineApiKey });
-        cancelClientRef.current = client;
         const effectiveOptions = { ...options };
         if (effectiveRaHint !== undefined && effectiveDecHint !== undefined) {
           effectiveOptions.centerRa = effectiveRaHint;
           effectiveOptions.centerDec = effectiveDecHint;
           effectiveOptions.radius = config?.search_radius ?? 30;
         }
-        // Increase downsample on retry to improve chances
         if (attempt > 0 && effectiveOptions.downsampleFactor) {
           effectiveOptions.downsampleFactor = Math.min(effectiveOptions.downsampleFactor + attempt, 4);
         }
-        const solveResult = await client.solve(file, effectiveOptions, setProgress);
-        if (solveResult.success || attempt >= maxAttempts - 1) {
-          setResult(solveResult);
-          addToHistory({ imageName: file.name, solveMode: 'online', result: solveResult });
-          onSolveComplete?.(solveResult);
-          break;
+
+        if (isDesktop) {
+          const { listen } = await import('@tauri-apps/api/event');
+          unlistenProgress = await listen<TauriOnlineSolveProgress>('astrometry-progress', (event) => {
+            setProgress(mapTauriProgressToSolveProgress(event.payload));
+          });
+
+          const persisted = await persistFileForLocalSolve(file);
+          cleanup = persisted.cleanup;
+
+          const onlineResult = await solveOnline({
+            api_key: onlineApiKey,
+            image_path: persisted.filePath,
+            ra_hint: effectiveOptions.centerRa,
+            dec_hint: effectiveOptions.centerDec,
+            radius: effectiveOptions.radius,
+            scale_units: effectiveOptions.scaleUnits,
+            scale_lower: effectiveOptions.scaleLower,
+            scale_upper: effectiveOptions.scaleUpper,
+            scale_est: effectiveOptions.scaleEst,
+            scale_err: effectiveOptions.scaleErr,
+            downsample_factor: effectiveOptions.downsampleFactor,
+            tweak_order: effectiveOptions.tweakOrder,
+            crpix_center: effectiveOptions.crpixCenter,
+            parity: effectiveOptions.parity,
+            timeout_seconds: config?.timeout_seconds,
+            publicly_visible: effectiveOptions.publiclyVisible === 'y',
+          });
+
+          const solveResult = toLegacyOnlineResult(onlineResult);
+          if (solveResult.success || attempt >= maxAttempts - 1) {
+            setProgress({ stage: 'success', result: solveResult });
+            setResult(solveResult);
+            addToHistory({ imageName: file.name, solveMode: 'online', result: solveResult });
+            onSolveComplete?.(solveResult);
+            break;
+          }
+        } else {
+          const client = new AstrometryApiClient({ apiKey: onlineApiKey });
+          cancelClientRef.current = client;
+          const solveResult = await client.solve(file, effectiveOptions, setProgress);
+          if (solveResult.success || attempt >= maxAttempts - 1) {
+            setResult(solveResult);
+            addToHistory({ imageName: file.name, solveMode: 'online', result: solveResult });
+            onSolveComplete?.(solveResult);
+            break;
+          }
         }
-        // Backoff before retry
+
         await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
         setProgress({ stage: 'uploading', progress: 0 });
       } catch (error) {
@@ -294,12 +445,17 @@ export function PlateSolverUnified({
           await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
           setProgress({ stage: 'uploading', progress: 0 });
         }
+      } finally {
+        unlistenProgress?.();
+        if (cleanup) {
+          cleanup().catch(() => {});
+        }
       }
     }
 
     cancelClientRef.current = null;
     setSolving(false);
-  }, [onlineApiKey, options, onSolveComplete, config, addToHistory, t]);
+  }, [onlineApiKey, options, onSolveComplete, config, addToHistory, t, isDesktop]);
 
   // Handle image capture with optional FITS WCS hints
   const handleImageCapture = useCallback(async (file: File, metadata?: ImageMetadata) => {

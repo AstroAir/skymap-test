@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { LocationStep } from '../location-step';
 import { useSetupWizardStore } from '@/lib/stores/setup-wizard-store';
 
@@ -33,6 +34,61 @@ const mockGeolocation = {
 Object.defineProperty(navigator, 'geolocation', {
   value: mockGeolocation,
   writable: true,
+});
+
+jest.mock('@/components/ui/tabs', () => {
+  const ReactModule = jest.requireActual<typeof import('react')>('react');
+  const TabsContext = ReactModule.createContext<{
+    value: string;
+    setValue: (value: string) => void;
+  }>({
+    value: 'gps',
+    setValue: () => {},
+  });
+
+  return {
+    Tabs: ({
+      children,
+      defaultValue = 'gps',
+    }: {
+      children: ReactNode;
+      defaultValue?: string;
+    }) => {
+      const [value, setValue] = ReactModule.useState(defaultValue);
+      return (
+        <TabsContext.Provider value={{ value, setValue }}>
+          <div data-testid="tabs">{children}</div>
+        </TabsContext.Provider>
+      );
+    },
+    TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    TabsTrigger: ({
+      children,
+      value,
+    }: {
+      children: ReactNode;
+      value: string;
+    }) => {
+      const { value: activeValue, setValue } = ReactModule.useContext(TabsContext);
+      const active = activeValue === value;
+      return (
+        <button type="button" role="tab" data-state={active ? 'active' : 'inactive'} className={active ? 'border-primary' : ''} onClick={() => setValue(value)}>
+          {children}
+        </button>
+      );
+    },
+    TabsContent: ({
+      children,
+      value,
+    }: {
+      children: ReactNode;
+      value: string;
+    }) => {
+      const { value: activeValue } = ReactModule.useContext(TabsContext);
+      if (activeValue !== value) return null;
+      return <div>{children}</div>;
+    },
+  };
 });
 
 // Note: next-intl is globally mocked in jest.setup.ts to return translation keys

@@ -8,6 +8,7 @@ export const DISPLAY_SETTINGS = [
   { key: 'constellationsLinesVisible' as const, labelKey: 'settings.constellationLines' },
   { key: 'constellationArtVisible' as const, labelKey: 'settings.constellationArt' },
   { key: 'constellationLabelsVisible' as const, labelKey: 'settings.constellationLabels' },
+  { key: 'constellationBoundariesVisible' as const, labelKey: 'settings.constellationBoundaries' },
   { key: 'starLabelsVisible' as const, labelKey: 'settings.starLabels' },
   { key: 'planetLabelsVisible' as const, labelKey: 'settings.planetLabels' },
   { key: 'dsosVisible' as const, labelKey: 'settings.deepSkyObjects' },
@@ -20,8 +21,11 @@ export const DISPLAY_SETTINGS = [
 export const GRID_SETTINGS = [
   { key: 'azimuthalLinesVisible' as const, labelKey: 'settings.azimuthalGrid' },
   { key: 'equatorialLinesVisible' as const, labelKey: 'settings.equatorialGrid' },
+  { key: 'equatorialJnowLinesVisible' as const, labelKey: 'settings.equatorialJnowGrid' },
   { key: 'meridianLinesVisible' as const, labelKey: 'settings.meridianLine' },
   { key: 'eclipticLinesVisible' as const, labelKey: 'settings.eclipticLine' },
+  { key: 'horizonLinesVisible' as const, labelKey: 'settings.horizonLine' },
+  { key: 'galacticLinesVisible' as const, labelKey: 'settings.galacticLine' },
 ] as const;
 
 // ============================================================================
@@ -54,6 +58,12 @@ export const FILTER_OPTIONS = [
   { id: 'NoFilter', nameKey: 'exposure.filterNoFilter' },
 ];
 
+export const GAIN_STRATEGY_OPTIONS = [
+  { value: 'unity' as const, labelKey: 'exposure.gainStrategyUnity' },
+  { value: 'max_dynamic_range' as const, labelKey: 'exposure.gainStrategyMaxDynamicRange' },
+  { value: 'manual' as const, labelKey: 'exposure.gainStrategyManual' },
+] as const;
+
 // ============================================================================
 // FOV Settings Configuration
 // ============================================================================
@@ -83,12 +93,16 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   constellationsLinesVisible: true,
   constellationArtVisible: false,
   constellationLabelsVisible: true,
+  constellationBoundariesVisible: false,
   starLabelsVisible: true,
   planetLabelsVisible: true,
   azimuthalLinesVisible: false,
   equatorialLinesVisible: false,
+  equatorialJnowLinesVisible: false,
   meridianLinesVisible: false,
   eclipticLinesVisible: false,
+  horizonLinesVisible: false,
+  galacticLinesVisible: false,
   atmosphereVisible: false,
   landscapesVisible: false,
   dsosVisible: true,
@@ -100,6 +114,15 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   skyCultureLanguage: 'native' as const,
   nightMode: false,
   sensorControl: false,
+  sensorAbsolutePreferred: true,
+  sensorUseCompassHeading: true,
+  sensorUpdateHz: 30,
+  sensorDeadbandDeg: 0.35,
+  sensorSmoothingFactor: 0.2,
+  sensorCalibrationRequired: true,
+  sensorCalibrationAzimuthOffsetDeg: 0,
+  sensorCalibrationAltitudeOffsetDeg: 0,
+  sensorCalibrationUpdatedAt: null,
   crosshairVisible: true,
   crosshairColor: 'rgba(255, 255, 255, 0.3)',
 
@@ -112,4 +135,7 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   flipViewVertical: false,
   flipViewHorizontal: false,
   exposureScale: 2,
+  tonemapperP: 0.5,
+  mountFrame: 5 as const,
+  viewYOffset: 0,
 };

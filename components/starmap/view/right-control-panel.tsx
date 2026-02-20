@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,7 @@ import { AstroSessionPanel } from '../planning/astro-session-panel';
 
 import { buildSelectionData } from '@/lib/core/selection-utils';
 import { useEquipmentFOVProps } from '@/lib/hooks/use-equipment-fov-props';
-import { useEquipmentStore } from '@/lib/stores';
+import { useEquipmentStore, useOnboardingBridgeStore } from '@/lib/stores';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import type { RightControlPanelProps } from '@/types/starmap/view';
 
@@ -61,6 +61,20 @@ export const RightControlPanel = memo(function RightControlPanel({
   const toggleCollapsed = useCallback(() => {
     setPreference('rightPanelCollapsed', !collapsed);
   }, [collapsed, setPreference]);
+  const expandRightPanelRequestId = useOnboardingBridgeStore((state) => state.expandRightPanelRequestId);
+  const handledExpandRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (
+      expandRightPanelRequestId > 0 &&
+      expandRightPanelRequestId !== handledExpandRequestRef.current
+    ) {
+      handledExpandRequestRef.current = expandRightPanelRequestId;
+      if (collapsed) {
+        setPreference('rightPanelCollapsed', false);
+      }
+    }
+  }, [collapsed, expandRightPanelRequestId, setPreference]);
 
   return (
     <>
@@ -92,63 +106,77 @@ export const RightControlPanel = memo(function RightControlPanel({
         <ScrollArea className="max-h-[calc(100vh-160px)] overscroll-contain">
         <div className="flex flex-col items-center gap-1.5 py-1.5 w-[52px]">
           {/* Zoom Controls */}
-          <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-full" data-tour-id="zoom-controls">
-            <ZoomControls
-              fov={currentFov}
-              onZoomIn={onZoomIn}
-              onZoomOut={onZoomOut}
-              onFovChange={onFovSliderChange}
-            />
+          <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-full" data-tour-id="zoom">
+            <div data-tour-id="zoom-controls">
+              <ZoomControls
+                fov={currentFov}
+                onZoomIn={onZoomIn}
+                onZoomOut={onZoomOut}
+                onFovChange={onFovSliderChange}
+              />
+            </div>
           </div>
 
           {/* Tool Buttons - Vertical */}
           <div className="flex flex-col items-center gap-0.5 bg-card/80 backdrop-blur-md rounded-lg border border-border/50 p-0.5 w-full">
-            <MarkerManager initialCoords={contextMenuCoords} />
+            <div data-tour-id="markers">
+              <MarkerManager initialCoords={contextMenuCoords} />
+            </div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <LocationManager
-                  trigger={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-foreground/80 hover:text-foreground hover:bg-accent h-8 w-8"
-                    >
-                      <MapPin className="h-4 w-4" />
-                    </Button>
-                  }
-                  onLocationChange={onLocationChange}
-                />
+                <div data-tour-id="location">
+                  <LocationManager
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-foreground/80 hover:text-foreground hover:bg-accent h-8 w-8"
+                      >
+                        <MapPin className="h-4 w-4" />
+                      </Button>
+                    }
+                    onLocationChange={onLocationChange}
+                  />
+                </div>
               </TooltipTrigger>
               <TooltipContent side="left">
                 <p>{t('locations.title')}</p>
               </TooltipContent>
             </Tooltip>
-            <div data-tour-id="fov-button">
-              <FOVSimulator
-                enabled={fovSimEnabled}
-                onEnabledChange={setFovSimEnabled}
-                sensorWidth={sensorWidth}
-                sensorHeight={sensorHeight}
-                focalLength={focalLength}
-                onSensorWidthChange={setSensorWidth}
-                onSensorHeightChange={setSensorHeight}
-                onFocalLengthChange={setFocalLength}
-                mosaic={mosaic}
-                onMosaicChange={setMosaic}
-                gridType={gridType}
-                onGridTypeChange={setGridType}
-              />
+            <div data-tour-id="fov">
+              <div data-tour-id="fov-button">
+                <FOVSimulator
+                  enabled={fovSimEnabled}
+                  onEnabledChange={setFovSimEnabled}
+                  sensorWidth={sensorWidth}
+                  sensorHeight={sensorHeight}
+                  focalLength={focalLength}
+                  onSensorWidthChange={setSensorWidth}
+                  onSensorHeightChange={setSensorHeight}
+                  onFocalLengthChange={setFocalLength}
+                  mosaic={mosaic}
+                  onMosaicChange={setMosaic}
+                  gridType={gridType}
+                  onGridTypeChange={setGridType}
+                />
+              </div>
             </div>
-            <ExposureCalculator focalLength={focalLength} aperture={aperture} pixelSize={pixelSize} />
-            <div data-tour-id="shotlist-button">
-              <ShotList currentSelection={currentSelection} />
+            <div data-tour-id="exposure">
+              <ExposureCalculator focalLength={focalLength} aperture={aperture} pixelSize={pixelSize} />
             </div>
-            <ObservationLog currentSelection={observationSelection} />
+            <div data-tour-id="shotlist">
+              <div data-tour-id="shotlist-button">
+                <ShotList currentSelection={currentSelection} />
+              </div>
+            </div>
+            <div data-tour-id="observation-log">
+              <ObservationLog currentSelection={observationSelection} />
+            </div>
           </div>
 
           {/* Mount Controls */}
           {stel && (
-            <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-full">
+            <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-full" data-tour-id="mount">
               <StellariumMount />
             </div>
           )}

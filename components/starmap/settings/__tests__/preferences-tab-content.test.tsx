@@ -46,6 +46,10 @@ jest.mock('@/components/starmap/settings/keyboard-settings', () => ({
   KeyboardSettings: () => <div data-testid="keyboard-settings">KeyboardSettings</div>,
 }));
 
+jest.mock('@/components/starmap/settings/mobile-settings', () => ({
+  MobileSettings: () => <div data-testid="mobile-settings">MobileSettings</div>,
+}));
+
 import { PreferencesTabContent } from '../preferences-tab-content';
 
 describe('PreferencesTabContent', () => {
@@ -58,7 +62,7 @@ describe('PreferencesTabContent', () => {
     expect(screen.getByTestId('scroll-area')).toBeInTheDocument();
   });
 
-  it('renders all 7 settings sub-components', () => {
+  it('renders all 8 settings sub-components', () => {
     render(<PreferencesTabContent />);
     expect(screen.getByTestId('general-settings')).toBeInTheDocument();
     expect(screen.getByTestId('appearance-settings')).toBeInTheDocument();
@@ -67,17 +71,18 @@ describe('PreferencesTabContent', () => {
     expect(screen.getByTestId('search-settings')).toBeInTheDocument();
     expect(screen.getByTestId('accessibility-settings')).toBeInTheDocument();
     expect(screen.getByTestId('keyboard-settings')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-settings')).toBeInTheDocument();
   });
 
   it('renders separators between sections', () => {
     render(<PreferencesTabContent />);
     const separators = screen.getAllByTestId('separator');
-    expect(separators.length).toBe(6);
+    expect(separators.length).toBe(7);
   });
 
   it('renders section quick-nav buttons', () => {
     render(<PreferencesTabContent />);
     const buttons = screen.getAllByRole('button');
-    expect(buttons.length).toBe(7);
+    expect(buttons.length).toBe(8);
   });
 });

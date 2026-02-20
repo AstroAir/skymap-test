@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 // Mock zustand persist
 jest.mock('zustand/middleware', () => ({
@@ -56,6 +56,10 @@ jest.mock('@/lib/stores/theme-store', () => ({
   themePresets: [
     { id: 'default', name: 'Default', colors: { light: { primary: '#000', secondary: '#666', accent: '#999' }, dark: { primary: '#fff', secondary: '#999', accent: '#666' } } },
   ],
+}));
+
+jest.mock('@/components/starmap/dialogs/feedback-dialog', () => ({
+  FeedbackDialog: () => <div data-testid="feedback-dialog" />,
 }));
 
 // Mock keybinding store
@@ -160,6 +164,9 @@ describe('Settings Components', () => {
         startupView: 'last',
         showSplash: true,
         autoConnectBackend: true,
+        dailyKnowledgeEnabled: true,
+        dailyKnowledgeAutoShow: true,
+        dailyKnowledgeOnlineEnhancement: true,
       },
       performance: {
         renderQuality: 'high',
@@ -343,6 +350,13 @@ describe('Settings Components', () => {
     it('renders Stellarium Web Engine text', () => {
       render(<AboutSettings />);
       expect(screen.getByText('Stellarium Web Engine')).toBeInTheDocument();
+    });
+
+    it('renders report issue entry point', () => {
+      render(<AboutSettings />);
+      fireEvent.click(screen.getByRole('button', { name: /settingsNew\.about\.links/i }));
+      expect(screen.getByTestId('about-settings-report-issue-button')).toBeInTheDocument();
+      expect(screen.getByTestId('feedback-dialog')).toBeInTheDocument();
     });
   });
 });

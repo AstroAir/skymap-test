@@ -47,6 +47,20 @@ jest.mock('@/lib/tauri', () => ({
 // Mock platform check
 jest.mock('@/lib/storage/platform', () => ({
   isTauri: jest.fn(() => true),
+  isServer: jest.fn(() => false),
+}));
+
+jest.mock('@/lib/stores/session-plan-store', () => ({
+  useSessionPlanStore: (selector: (state: unknown) => unknown) => selector({
+    savedPlans: [],
+    importPlanV2: jest.fn(),
+  }),
+}));
+
+jest.mock('@/lib/stores/planning-ui-store', () => ({
+  usePlanningUiStore: (selector: (state: unknown) => unknown) => selector({
+    openSessionPlanner: jest.fn(),
+  }),
 }));
 
 // Mock sonner toast
@@ -201,6 +215,11 @@ describe('ObservationLog', () => {
   it('renders new session button', () => {
     render(<ObservationLog {...defaultProps} />);
     expect(screen.getByTestId('tabs-content-sessions')).toBeInTheDocument();
+  });
+
+  it('renders planner draft shortcut button', () => {
+    render(<ObservationLog {...defaultProps} />);
+    expect(screen.getByTestId('observation-log-create-planner-draft')).toBeInTheDocument();
   });
 
   it('passes current selection to observation form', () => {

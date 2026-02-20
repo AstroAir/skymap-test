@@ -6,6 +6,7 @@
  * - Clark's Visual Astronomy Method
  * - Professional observatory planning tools (airmass.org, LCO)
  */
+import { parseCatalogIdentifier } from '@/lib/astronomy/object-resolver/parser';
 
 // ============================================================================
 // Constants
@@ -556,31 +557,19 @@ export function calculateSimilarity(a: string, b: string): number {
  * Match against catalog prefixes (M, NGC, IC, etc.)
  */
 export function matchCatalogPrefix(query: string, objectName: string): SearchMatchResult | null {
-  const queryUpper = query.toUpperCase().trim();
-  const nameUpper = objectName.toUpperCase();
-  
-  // Define catalog patterns
-  const patterns = [
-    { prefix: 'M', regex: /^M\s*(\d+)$/ },
-    { prefix: 'NGC', regex: /^NGC\s*(\d+)$/ },
-    { prefix: 'IC', regex: /^IC\s*(\d+)$/ },
-    { prefix: 'C', regex: /^C\s*(\d+)$/ },     // Caldwell
-    { prefix: 'SH2', regex: /^SH2[-\s]*(\d+)$/ }, // Sharpless
-    { prefix: 'B', regex: /^B\s*(\d+)$/ },     // Barnard
-    { prefix: 'VDB', regex: /^VDB\s*(\d+)$/ }, // van den Bergh
-  ];
-  
-  for (const { prefix, regex } of patterns) {
-    const queryMatch = queryUpper.match(regex);
-    const nameMatch = nameUpper.match(new RegExp(`^${prefix}\\s*(\\d+)$`));
-    
-    if (queryMatch && nameMatch) {
-      if (queryMatch[1] === nameMatch[1]) {
-        return { score: 1.0, matchType: 'catalog', matchedField: 'name' };
-      }
-    }
+  const parsedQuery = parseCatalogIdentifier(query);
+  const parsedName = parseCatalogIdentifier(objectName);
+  if (!parsedQuery || !parsedName) return null;
+
+  const querySuffix = parsedQuery.suffix?.toUpperCase() || '';
+  const nameSuffix = parsedName.suffix?.toUpperCase() || '';
+  const sameNumber = parsedQuery.number === parsedName.number;
+  const sameCatalog = parsedQuery.catalog.toUpperCase() === parsedName.catalog.toUpperCase();
+
+  if (sameCatalog && sameNumber && querySuffix === nameSuffix) {
+    return { score: 1.0, matchType: 'catalog', matchedField: 'name' };
   }
-  
+
   return null;
 }
 

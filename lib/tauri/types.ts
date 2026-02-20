@@ -199,6 +199,14 @@ export interface ImportTargetsResult {
 
 export type ExportFormat = 'csv' | 'json' | 'stellarium' | 'mosaic';
 
+export interface SessionTemplateEntry {
+  id: string;
+  name: string;
+  draft: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================================
 // App Settings Types
 // ============================================================================
@@ -249,6 +257,42 @@ export interface StorageStats {
   store_count: number;
   stores: StoreInfo[];
   directory: string;
+}
+
+// ============================================================================
+// Secure Map API Key Types
+// ============================================================================
+
+export interface MapApiKeyQuota {
+  daily?: number;
+  monthly?: number;
+  used?: number;
+  resetDate?: string;
+}
+
+export interface MapApiKeyRestrictions {
+  domains?: string[];
+  ips?: string[];
+  regions?: string[];
+}
+
+export interface MapApiKeyMeta {
+  id: string;
+  provider: 'openstreetmap' | 'google' | 'mapbox';
+  label?: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+  quota?: MapApiKeyQuota;
+  restrictions?: MapApiKeyRestrictions;
+  createdAt: string;
+  lastUsed?: string;
+}
+
+export interface SecureKeyMigrationResult {
+  migrated: number;
+  skipped: number;
+  failed: number;
+  message?: string;
 }
 
 export interface StoreInfo {

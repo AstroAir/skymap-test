@@ -18,6 +18,7 @@ jest.mock('@/lib/services/geocoding-service', () => ({
   geocodingService: {
     geocode: jest.fn(),
     reverseGeocode: jest.fn(),
+    getSearchCapabilities: jest.fn(),
   },
 }));
 
@@ -25,6 +26,7 @@ import { geocodingService } from '@/lib/services/geocoding-service';
 
 const mockGeocode = geocodingService.geocode as jest.Mock;
 const mockReverseGeocode = geocodingService.reverseGeocode as jest.Mock;
+const mockGetSearchCapabilities = geocodingService.getSearchCapabilities as jest.Mock;
 
 // Mock toast
 jest.mock('sonner', () => ({
@@ -80,6 +82,11 @@ describe('MapLocationPicker', () => {
     jest.clearAllMocks();
     mockGeocode.mockResolvedValue([]);
     mockReverseGeocode.mockResolvedValue({ displayName: 'Test Location', address: 'Test Address', coordinates: { latitude: 0, longitude: 0 } });
+    mockGetSearchCapabilities.mockReturnValue({
+      autocompleteAvailable: true,
+      mode: 'online-autocomplete',
+      providers: ['google'],
+    });
   });
 
   describe('Rendering', () => {

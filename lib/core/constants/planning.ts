@@ -8,14 +8,14 @@
 // ============================================================================
 
 export const COMMON_FILTERS = [
-  { id: 'L', nameKey: 'exposure.filterLuminance', type: 'broadband' },
-  { id: 'R', nameKey: 'exposure.filterRed', type: 'broadband' },
-  { id: 'G', nameKey: 'exposure.filterGreen', type: 'broadband' },
-  { id: 'B', nameKey: 'exposure.filterBlue', type: 'broadband' },
-  { id: 'Ha', nameKey: 'exposure.filterHAlpha', type: 'narrowband' },
-  { id: 'OIII', nameKey: 'exposure.filterOiii', type: 'narrowband' },
-  { id: 'SII', nameKey: 'exposure.filterSii', type: 'narrowband' },
-  { id: 'NoFilter', nameKey: 'exposure.filterNoFilter', type: 'broadband' },
+  { id: 'L', nameKey: 'exposure.filterLuminance', type: 'broadband', bandwidthNm: 300 },
+  { id: 'R', nameKey: 'exposure.filterRed', type: 'broadband', bandwidthNm: 100 },
+  { id: 'G', nameKey: 'exposure.filterGreen', type: 'broadband', bandwidthNm: 100 },
+  { id: 'B', nameKey: 'exposure.filterBlue', type: 'broadband', bandwidthNm: 100 },
+  { id: 'Ha', nameKey: 'exposure.filterHAlpha', type: 'narrowband', bandwidthNm: 7 },
+  { id: 'OIII', nameKey: 'exposure.filterOiii', type: 'narrowband', bandwidthNm: 7 },
+  { id: 'SII', nameKey: 'exposure.filterSii', type: 'narrowband', bandwidthNm: 7 },
+  { id: 'NoFilter', nameKey: 'exposure.filterNoFilter', type: 'broadband', bandwidthNm: 300 },
 ] as const;
 
 export const BINNING_OPTIONS = ['1x1', '2x2', '3x3', '4x4'] as const;

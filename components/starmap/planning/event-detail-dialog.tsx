@@ -34,7 +34,7 @@ import {
   Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { AstroEvent } from '@/lib/services/astro-data-sources';
+import type { AstroEvent, DailyAstroEvent } from '@/lib/services/astro-data-sources';
 
 // ============================================================================
 // Icon & Color Maps (shared with calendar)
@@ -52,6 +52,7 @@ const EVENT_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>
   asteroid: CircleDot,
   supernova: Star,
   aurora: Sparkles,
+  other: Star,
 };
 
 const EVENT_COLOR_MAP: Record<string, string> = {
@@ -66,6 +67,7 @@ const EVENT_COLOR_MAP: Record<string, string> = {
   asteroid: 'text-stone-400 bg-stone-400/10',
   supernova: 'text-pink-400 bg-pink-400/10',
   aurora: 'text-emerald-400 bg-emerald-400/10',
+  other: 'text-muted-foreground bg-muted',
 };
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -80,6 +82,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   asteroid: 'Asteroid',
   supernova: 'Supernova',
   aurora: 'Aurora',
+  other: 'Other',
 };
 
 // ============================================================================
@@ -87,7 +90,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 // ============================================================================
 
 interface EventDetailDialogProps {
-  event: AstroEvent | null;
+  event: (AstroEvent | DailyAstroEvent) | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onGoTo?: (ra: number, dec: number) => void;
@@ -141,6 +144,10 @@ export function EventDetailDialog({
   };
 
   const visibilityInfo = getVisibilityInfo(event.visibility);
+  const startsAt = 'startsAt' in event ? event.startsAt : event.date;
+  const endsAt = 'endsAt' in event ? event.endsAt : event.endDate;
+  const occurrenceMode = 'occurrenceMode' in event ? event.occurrenceMode : undefined;
+  const sourcePriority = 'sourcePriority' in event ? event.sourcePriority : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,7 +181,12 @@ export function EventDetailDialog({
             <div className="rounded-lg border p-3 space-y-2">
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="h-4 w-4 text-primary" />
-                <span className="font-medium">{formatFullDate(event.date)}</span>
+                <span className="font-medium">{formatFullDate(startsAt)}</span>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4 text-primary" />
+                <span>{t('eventDetail.startTime')}: {formatTime(startsAt)}</span>
               </div>
 
               {event.peakTime && (
@@ -184,11 +196,16 @@ export function EventDetailDialog({
                 </div>
               )}
 
-              {event.endDate && (
+              {endsAt && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>{t('eventDetail.activeUntil')}: {formatFullDate(event.endDate)}</span>
+                  <span>{t('eventDetail.activeUntil')}: {formatFullDate(endsAt)}</span>
                 </div>
+              )}
+              {occurrenceMode && (
+                <Badge variant="outline" className="text-[10px] w-fit">
+                  {occurrenceMode === 'window' ? t('events.ongoingWindow') : t('events.instantEvent')}
+                </Badge>
               )}
             </div>
 
@@ -245,6 +262,11 @@ export function EventDetailDialog({
                     <Badge variant="outline" className="text-xs">
                       {event.source}
                     </Badge>
+                    {typeof sourcePriority === 'number' && (
+                      <Badge variant="outline" className="text-xs">
+                        {t('eventDetail.sourcePriority')}: {sourcePriority}
+                      </Badge>
+                    )}
                   </div>
                   {event.url && (
                     <a

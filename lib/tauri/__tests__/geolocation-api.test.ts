@@ -207,13 +207,10 @@ describe('geolocationApi', () => {
   describe('getPositionWithPermission', () => {
     it('should return null when not available', async () => {
       mockIsTauri.mockReturnValue(false);
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       const result = await geolocationApi.getPositionWithPermission();
 
       expect(result).toBeNull();
-      expect(consoleSpy).toHaveBeenCalledWith('Geolocation not available on this platform');
-      consoleSpy.mockRestore();
     });
 
     it('should get position when already granted', async () => {
@@ -251,14 +248,11 @@ describe('geolocationApi', () => {
 
     it('should return null when permission denied', async () => {
       mockCheckPermissions.mockResolvedValue({ location: 'denied', coarseLocation: 'denied' });
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       const result = await geolocationApi.getPositionWithPermission();
 
       expect(result).toBeNull();
       expect(mockGetCurrentPosition).not.toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith('Location permission denied');
-      consoleSpy.mockRestore();
     });
 
     it('should handle errors gracefully', async () => {

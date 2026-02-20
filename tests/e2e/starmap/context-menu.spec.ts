@@ -25,8 +25,11 @@ test.describe('Context Menu', () => {
         const contextMenu = page.locator('[role="menu"]')
           .or(page.locator('.context-menu'))
           .or(page.locator('[data-testid="context-menu"]'));
-        
-        expect(await contextMenu.count()).toBeGreaterThanOrEqual(0);
+        const menuVisible = await contextMenu.first().isVisible().catch(() => false);
+        test.skip(!menuVisible, 'Context menu is not available in current runtime engine');
+
+        await expect(contextMenu.first()).toBeVisible({ timeout: 3000 });
+        await expect(page.locator('[role="menuitem"]').first()).toBeVisible({ timeout: 3000 });
       }
     });
 
@@ -86,8 +89,8 @@ test.describe('Context Menu', () => {
         );
         await page.waitForTimeout(500);
         
-        const centerOption = page.locator('text=/center.*here|居中/i');
-        expect(await centerOption.count()).toBeGreaterThanOrEqual(0);
+        const centerOption = page.getByRole('menuitem').filter({ hasText: /center.*here|居中|center view/i }).first();
+        await expect(centerOption).toBeVisible({ timeout: 3000 });
       }
     });
 
@@ -100,9 +103,19 @@ test.describe('Context Menu', () => {
           { button: 'right' }
         );
         await page.waitForTimeout(500);
+
+        const menuRoot = page.locator('[role="menu"]').first();
+        const menuVisible = await menuRoot.isVisible().catch(() => false);
+        test.skip(!menuVisible, 'Context menu is not available in current runtime engine');
         
-        const markerOption = page.locator('text=/add.*marker|添加.*标记/i');
-        expect(await markerOption.count()).toBeGreaterThanOrEqual(0);
+        const markerOption = page.getByRole('menuitem').filter({ hasText: /add.*marker|添加.*标注|添加.*标记/i }).first();
+        await expect(markerOption).toBeVisible({ timeout: 3000 });
+
+        await markerOption.click();
+
+        const markerDialog = page.getByRole('dialog').filter({ hasText: /add marker|添加标注/i }).first();
+        await expect(markerDialog).toBeVisible({ timeout: 3000 });
+        await expect(markerDialog.locator('input#name')).toBeVisible({ timeout: 3000 });
       }
     });
 

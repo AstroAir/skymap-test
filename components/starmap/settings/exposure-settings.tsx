@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +10,11 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   Select,
   SelectContent,
@@ -21,11 +28,13 @@ import {
   TARGET_TYPE_OPTIONS,
   BINNING_OPTIONS,
   FILTER_OPTIONS,
+  GAIN_STRATEGY_OPTIONS,
 } from './settings-constants';
 
 export function ExposureSettings() {
   const t = useTranslations();
   const { exposureDefaults, setExposureDefaults } = useEquipmentStore();
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -207,6 +216,192 @@ export function ExposureSettings() {
           ))}
         </div>
       </div>
+
+      <Separator />
+
+      <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between h-8">
+            <span className="text-sm">{t('exposure.advancedModelDefaults')}</span>
+            {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 pt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">{t('exposure.readNoiseLimitPercent')}</Label>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[exposureDefaults.readNoiseLimitPercent ?? 5]}
+                  onValueChange={([v]) => setExposureDefaults({ readNoiseLimitPercent: Math.max(2, Math.min(20, v)) })}
+                  min={2}
+                  max={20}
+                  step={1}
+                />
+                <Badge variant="outline" className="min-w-10 justify-center">
+                  {exposureDefaults.readNoiseLimitPercent ?? 5}%
+                </Badge>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('exposure.filterBandwidthNm')}</Label>
+              <Input
+                type="number"
+                value={exposureDefaults.filterBandwidthNm ?? 300}
+                onChange={(e) =>
+                  setExposureDefaults({
+                    filterBandwidthNm: Math.max(2, Math.min(300, parseFloat(e.target.value) || 300)),
+                  })
+                }
+                className="h-8"
+                min={2}
+                max={300}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('exposure.gainStrategy')}</Label>
+              <Select
+                value={exposureDefaults.gainStrategy ?? 'unity'}
+                onValueChange={(v) => setExposureDefaults({ gainStrategy: v as typeof exposureDefaults.gainStrategy })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GAIN_STRATEGY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {t(option.labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('exposure.manualGain')}</Label>
+              <Input
+                type="number"
+                value={exposureDefaults.manualGain ?? 100}
+                onChange={(e) => setExposureDefaults({ manualGain: Math.max(0, parseInt(e.target.value) || 0) })}
+                className="h-8"
+                min={0}
+                max={300}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('exposure.sqmOverride')}</Label>
+              <Input
+                type="number"
+                value={exposureDefaults.sqmOverride ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  setExposureDefaults({ sqmOverride: raw === '' ? undefined : parseFloat(raw) || undefined });
+                }}
+                className="h-8"
+                placeholder="Auto"
+                step={0.01}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('exposure.targetSurfaceBrightness')}</Label>
+              <Input
+                type="number"
+                value={exposureDefaults.targetSurfaceBrightness ?? 22}
+                onChange={(e) =>
+                  setExposureDefaults({
+                    targetSurfaceBrightness: Math.max(10, Math.min(30, parseFloat(e.target.value) || 22)),
+                  })
+                }
+                className="h-8"
+                step={0.1}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('exposure.targetSignalRate')}</Label>
+              <Input
+                type="number"
+                value={exposureDefaults.targetSignalRate ?? 0}
+                onChange={(e) =>
+                  setExposureDefaults({
+                    targetSignalRate: Math.max(0, parseFloat(e.target.value) || 0),
+                  })
+                }
+                className="h-8"
+                step={0.01}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
+            <div className="space-y-0.5">
+              <Label htmlFor="manual-read-noise" className="text-sm cursor-pointer">
+                {t('exposure.manualCameraNoise')}
+              </Label>
+              <p className="text-[10px] text-muted-foreground">{t('exposure.manualCameraNoiseDescription')}</p>
+            </div>
+            <Switch
+              id="manual-read-noise"
+              checked={exposureDefaults.manualReadNoiseEnabled ?? false}
+              onCheckedChange={(checked) => setExposureDefaults({ manualReadNoiseEnabled: checked })}
+            />
+          </div>
+
+          {Boolean(exposureDefaults.manualReadNoiseEnabled) && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">{t('exposure.readNoiseE')}</Label>
+                <Input
+                  type="number"
+                  value={exposureDefaults.manualReadNoise ?? 1.8}
+                  onChange={(e) => setExposureDefaults({ manualReadNoise: Math.max(0.1, parseFloat(e.target.value) || 0.1) })}
+                  className="h-8"
+                  step={0.1}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t('exposure.darkCurrentE')}</Label>
+                <Input
+                  type="number"
+                  value={exposureDefaults.manualDarkCurrent ?? 0.002}
+                  onChange={(e) => setExposureDefaults({ manualDarkCurrent: Math.max(0, parseFloat(e.target.value) || 0) })}
+                  className="h-8"
+                  step={0.0001}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t('exposure.fullWellE')}</Label>
+                <Input
+                  type="number"
+                  value={exposureDefaults.manualFullWell ?? 50000}
+                  onChange={(e) => setExposureDefaults({ manualFullWell: Math.max(1000, parseFloat(e.target.value) || 1000) })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t('exposure.quantumEfficiency')}</Label>
+                <Input
+                  type="number"
+                  value={exposureDefaults.manualQE ?? 0.8}
+                  onChange={(e) => setExposureDefaults({ manualQE: Math.max(0.05, Math.min(1, parseFloat(e.target.value) || 0.8)) })}
+                  className="h-8"
+                  step={0.01}
+                  min={0.05}
+                  max={1}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t('exposure.ePerAdu')}</Label>
+                <Input
+                  type="number"
+                  value={exposureDefaults.manualEPeraDu ?? 1}
+                  onChange={(e) => setExposureDefaults({ manualEPeraDu: Math.max(0.1, parseFloat(e.target.value) || 0.1) })}
+                  className="h-8"
+                  step={0.01}
+                />
+              </div>
+            </div>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

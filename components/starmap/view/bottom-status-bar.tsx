@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useStellariumStore, useMountStore } from '@/lib/stores';
 import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import { getLST, lstToHours } from '@/lib/astronomy/time/sidereal';
+import { getEopSnapshot } from '@/lib/astronomy/time-scales';
+import { Button } from '@/components/ui/button';
 import { SystemStatusIndicator } from '@/components/common/system-status-indicator';
 import type { BottomStatusBarProps } from '@/types/starmap/view';
 
@@ -12,6 +14,7 @@ import type { BottomStatusBarProps } from '@/types/starmap/view';
 const ViewCenterDisplay = memo(function ViewCenterDisplay() {
   const t = useTranslations();
   const viewDirection = useStellariumStore((state) => state.viewDirection);
+  const [displayMode, setDisplayMode] = useState<'equatorial' | 'observed'>('equatorial');
 
   const viewCenter = useMemo(() => {
     if (!viewDirection) return null;
@@ -19,29 +22,56 @@ const ViewCenterDisplay = memo(function ViewCenterDisplay() {
     const decDeg = rad2deg(viewDirection.dec);
     const altDeg = rad2deg(viewDirection.alt);
     const azDeg = rad2deg(viewDirection.az);
+    const alt = Number.isFinite(altDeg) ? `${altDeg.toFixed(1)}°` : '--';
+    const az = Number.isFinite(azDeg)
+      ? `${(((azDeg % 360) + 360) % 360).toFixed(1)}°`
+      : '--';
     return {
       ra: degreesToHMS(((raDeg % 360) + 360) % 360),
       dec: degreesToDMS(decDeg),
-      alt: `${altDeg.toFixed(1)}°`,
-      az: `${(((azDeg % 360) + 360) % 360).toFixed(1)}°`,
+      alt,
+      az,
+      frame: viewDirection.frame ?? 'ICRF',
+      timeScale: viewDirection.timeScale ?? 'UTC',
+      qualityFlag: viewDirection.qualityFlag ?? 'fallback',
+      dataFreshness: viewDirection.dataFreshness ?? 'fallback',
     };
   }, [viewDirection]);
 
   if (!viewCenter) return null;
 
   return (
-    <div className="flex items-center gap-3 text-muted-foreground">
-      <span>
-        {t('coordinates.ra')}: <span className="text-foreground font-mono">{viewCenter.ra}</span>
-      </span>
-      <span>
-        {t('coordinates.dec')}: <span className="text-foreground font-mono">{viewCenter.dec}</span>
-      </span>
-      <span className="hidden sm:inline">
-        {t('coordinates.alt')}: <span className="text-foreground font-mono">{viewCenter.alt}</span>
-      </span>
-      <span className="hidden sm:inline">
-        {t('coordinates.az')}: <span className="text-foreground font-mono">{viewCenter.az}</span>
+    <div className="flex items-center gap-3 text-muted-foreground pointer-events-auto">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-5 px-1.5 text-[10px] font-medium"
+        onClick={() => setDisplayMode((prev) => prev === 'equatorial' ? 'observed' : 'equatorial')}
+      >
+        {displayMode === 'equatorial' ? 'ICRF' : 'OBS'}
+      </Button>
+      {displayMode === 'equatorial' ? (
+        <>
+          <span>
+            {t('coordinates.ra')}: <span className="text-foreground font-mono">{viewCenter.ra}</span>
+          </span>
+          <span>
+            {t('coordinates.dec')}: <span className="text-foreground font-mono">{viewCenter.dec}</span>
+          </span>
+        </>
+      ) : (
+        <>
+          <span>
+            {t('coordinates.alt')}: <span className="text-foreground font-mono">{viewCenter.alt}</span>
+          </span>
+          <span>
+            {t('coordinates.az')}: <span className="text-foreground font-mono">{viewCenter.az}</span>
+          </span>
+        </>
+      )}
+      <span className="hidden lg:inline text-[10px]">
+        {viewCenter.frame}/{viewCenter.timeScale}/{viewCenter.qualityFlag}/{viewCenter.dataFreshness}
       </span>
     </div>
   );
@@ -53,7 +83,12 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
   const t = useTranslations();
   const profileInfo = useMountStore((state) => state.profileInfo);
   const stel = useStellariumStore((state) => state.stel);
-  const [timeInfo, setTimeInfo] = useState<{ currentTime: string; lst: string }>({ currentTime: '', lst: '' });
+  const [timeInfo, setTimeInfo] = useState<{
+    currentTime: string;
+    lst: string;
+    lstSource: string;
+    freshness: 'fresh' | 'stale' | 'fallback';
+  }>({ currentTime: '', lst: '', lstSource: '', freshness: 'fallback' });
 
   useEffect(() => {
     const updateTime = () => {
@@ -61,6 +96,8 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
       const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       
       let lst = '';
+      let lstSource = '';
+      let freshness: 'fresh' | 'stale' | 'fallback' = 'fallback';
       const lon = profileInfo.AstrometrySettings.Longitude || 0;
       try {
         // Use Stellarium observer UTC when available, otherwise fall back to system time
@@ -71,11 +108,14 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
           const m = Math.floor((lstHours - h) * 60);
           const s = Math.floor(((lstHours - h) * 60 - m) * 60);
           lst = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+          const eop = getEopSnapshot(now);
+          freshness = eop.freshness;
+          lstSource = eop.freshness === 'fallback' ? 'UTC' : 'UT1';
         }
       } catch {
         // Ignore LST calculation errors
       }
-      setTimeInfo({ currentTime, lst });
+      setTimeInfo({ currentTime, lst, lstSource, freshness });
     };
 
     updateTime();
@@ -93,7 +133,12 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
       </span>
       {timeInfo.lst && (
         <span className="hidden sm:inline">
-          {t('session.lst')}: <span className="text-foreground font-mono">{timeInfo.lst}</span>
+          {t('session.lst')}({timeInfo.lstSource || 'UTC'}): <span className="text-foreground font-mono">{timeInfo.lst}</span>
+        </span>
+      )}
+      {timeInfo.lst && timeInfo.freshness !== 'fresh' && (
+        <span className="hidden lg:inline text-[10px] text-amber-500">
+          EOP {timeInfo.freshness}
         </span>
       )}
       <span>
@@ -107,8 +152,8 @@ LocationTimeDisplay.displayName = 'LocationTimeDisplay';
 export const BottomStatusBar = memo(function BottomStatusBar({ currentFov }: BottomStatusBarProps) {
   const t = useTranslations();
   return (
-    <div className="absolute bottom-0 left-0 right-0 pointer-events-none safe-area-bottom">
-      <div className="bg-card/80 backdrop-blur-md border-t border-border/50 px-2 sm:px-4 py-1.5 sm:py-2 status-bar-reveal">
+    <div className="absolute bottom-0 left-0 right-0 safe-area-bottom">
+      <div className="bg-card/80 backdrop-blur-md border-t border-border/50 px-2 sm:px-4 py-1.5 sm:py-2 status-bar-reveal pointer-events-auto">
         <div className="flex items-center justify-between text-[10px] sm:text-xs gap-2">
           {/* Left: View Center Coordinates */}
           <div className="flex items-center gap-4">

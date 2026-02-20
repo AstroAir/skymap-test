@@ -3,6 +3,7 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
+import { useAladinStore } from '@/lib/stores/aladin-store';
 
 // Mock logger
 jest.mock('@/lib/logger', () => ({
@@ -31,6 +32,8 @@ describe('useAladinLayers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSkyEngine = 'aladin';
+    window.localStorage.removeItem('aladin-layers-store');
+    useAladinStore.getState().resetAladinLayers();
   });
 
   it('exports the hook correctly', async () => {
@@ -66,7 +69,13 @@ describe('useAladinLayers', () => {
       result.current.addOverlayLayer('CDS/P/DSS2/color', 'DSS2 Color');
     });
 
-    expect(result.current.overlayLayers).toEqual([]);
+    expect(result.current.overlayLayers).toHaveLength(1);
+    expect(result.current.overlayLayers[0]).toEqual(
+      expect.objectContaining({
+        name: 'DSS2 Color',
+        enabled: true,
+      })
+    );
     expect(aladinMock.imageHiPS).not.toHaveBeenCalled();
   });
 });

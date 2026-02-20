@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { EXTERNAL_LINKS } from '@/lib/constants/external-links';
 import {
   Tooltip,
   TooltipContent,
@@ -86,7 +87,7 @@ export function Footer() {
             <TooltipProvider>
               <ul className="space-y-2">
                 <FooterLink href="/starmap" icon={Map} label={t('starmap')} tooltip={t('starmapTooltip')} />
-                <FooterLink href="https://github.com/AstroAir/skymap" icon={Github} label={t('github')} tooltip={t('githubTooltip')} external />
+                <FooterLink href={EXTERNAL_LINKS.repository} icon={Github} label={t('github')} tooltip={t('githubTooltip')} external />
                 <FooterLink href="https://stellarium.org" icon={BookOpen} label={t('stellarium')} tooltip={t('stellariumTooltip')} external />
               </ul>
             </TooltipProvider>
@@ -97,8 +98,8 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-4">{t('community')}</h4>
             <TooltipProvider>
               <ul className="space-y-2">
-                <FooterLink href="https://github.com/AstroAir/skymap/discussions" icon={Github} label={t('discussions')} tooltip={t('discussionsTooltip')} external />
-                <FooterLink href="https://github.com/AstroAir/skymap/issues" icon={Mail} label={t('reportIssue')} tooltip={t('reportIssueTooltip')} external />
+                <FooterLink href={EXTERNAL_LINKS.discussions} icon={Github} label={t('discussions')} tooltip={t('discussionsTooltip')} external />
+                <FooterLink href={EXTERNAL_LINKS.newIssueUrl()} icon={Mail} label={t('reportIssue')} tooltip={t('reportIssueTooltip')} external />
               </ul>
             </TooltipProvider>
           </nav>

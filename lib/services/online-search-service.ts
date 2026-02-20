@@ -1,31 +1,34 @@
 /**
  * Online Astronomical Database Search Service
- * Supports SIMBAD, Sesame (CDS name resolver), VizieR, and NED
+ * Authoritative-first pipeline:
+ * - coordinates: SIMBAD cone search first
+ * - name/catalog: Sesame first, then SIMBAD enrich, VizieR/NED supplement
+ * - minor objects: MPC identifier/observation services first
  */
 
-import { smartFetch } from './http-fetch';
+import { smartFetch, type FetchOptions, type FetchResponse } from './http-fetch';
 import { createLogger } from '@/lib/logger';
 import { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
+import { parseRACoordinate, parseDecCoordinate } from '@/lib/astronomy/coordinates/conversions';
+import { parseQuery } from '@/lib/astronomy/object-resolver/parser/parse-query';
+import { buildCanonicalId } from '@/lib/astronomy/object-resolver/parser/normalize';
 
 const logger = createLogger('online-search-service');
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export type OnlineSearchSource = 
-  | 'simbad' 
-  | 'sesame' 
-  | 'vizier' 
+export type OnlineSearchSource =
+  | 'simbad'
+  | 'sesame'
+  | 'vizier'
   | 'ned'
+  | 'mpc'
   | 'local';
 
-export type ObjectCategory = 
-  | 'galaxy' 
-  | 'nebula' 
-  | 'cluster' 
-  | 'star' 
-  | 'planet' 
+export type ObjectCategory =
+  | 'galaxy'
+  | 'nebula'
+  | 'cluster'
+  | 'star'
+  | 'planet'
   | 'comet'
   | 'asteroid'
   | 'quasar'
@@ -34,6 +37,9 @@ export type ObjectCategory =
 export interface OnlineSearchResult {
   id: string;
   name: string;
+  canonicalId: string;
+  identifiers: string[];
+  confidence: number;
   alternateNames?: string[];
   type: string;
   category: ObjectCategory;
@@ -58,14 +64,14 @@ export interface OnlineSearchOptions {
   limit?: number;
   timeout?: number;
   includeCoordinateSearch?: boolean;
-  searchRadius?: number; // degrees for coordinate search
+  searchRadius?: number;
   signal?: AbortSignal;
 }
 
 export interface CoordinateSearchParams {
   ra: number;
   dec: number;
-  radius: number; // degrees
+  radius: number;
 }
 
 export interface OnlineSearchResponse {
@@ -76,9 +82,7 @@ export interface OnlineSearchResponse {
   errors?: Array<{ source: OnlineSearchSource; error: string }>;
 }
 
-// ============================================================================
-// Source Configurations
-// ============================================================================
+type SearchErrors = Array<{ source: OnlineSearchSource; error: string }>;
 
 export const ONLINE_SEARCH_SOURCES = {
   simbad: {
@@ -98,7 +102,7 @@ export const ONLINE_SEARCH_SOURCES = {
     baseUrl: 'https://cds.unistra.fr',
     endpoint: '/cgi-bin/Sesame',
     enabled: true,
-    priority: 0, // Highest priority for name resolution
+    priority: 0,
     timeout: 10000,
   },
   vizier: {
@@ -121,280 +125,311 @@ export const ONLINE_SEARCH_SOURCES = {
     priority: 3,
     timeout: 15000,
   },
+  mpc: {
+    id: 'mpc' as const,
+    name: 'MPC',
+    description: 'Minor Planet Center designation resolver',
+    baseUrl: 'https://data.minorplanetcenter.net',
+    identifierEndpoint: '/api/query-identifier',
+    observationEndpoint: '/api/get-obs',
+    enabled: true,
+    priority: 0,
+    timeout: 15000,
+  },
 };
 
-// ============================================================================
-// Object Type Mapping
-// ============================================================================
+const DEFAULT_NAME_SOURCES: OnlineSearchSource[] = ['sesame', 'simbad', 'vizier', 'ned'];
+const DEFAULT_COORDINATE_SOURCES: OnlineSearchSource[] = ['simbad'];
+const DEFAULT_MINOR_SOURCES: OnlineSearchSource[] = ['mpc', 'sesame', 'simbad'];
+
+const SOURCE_TRUST: Record<OnlineSearchSource, number> = {
+  mpc: 0,
+  sesame: 1,
+  simbad: 2,
+  vizier: 3,
+  ned: 4,
+  local: 5,
+};
 
 const SIMBAD_TYPE_MAP: Record<string, { type: string; category: ObjectCategory }> = {
-  'G': { type: 'Galaxy', category: 'galaxy' },
-  'Galaxy': { type: 'Galaxy', category: 'galaxy' },
-  'GiG': { type: 'Galaxy in Group', category: 'galaxy' },
-  'GiC': { type: 'Galaxy in Cluster', category: 'galaxy' },
-  'GiP': { type: 'Galaxy in Pair', category: 'galaxy' },
-  'AGN': { type: 'Active Galactic Nucleus', category: 'galaxy' },
-  'QSO': { type: 'Quasar', category: 'quasar' },
-  'Sy1': { type: 'Seyfert 1 Galaxy', category: 'galaxy' },
-  'Sy2': { type: 'Seyfert 2 Galaxy', category: 'galaxy' },
-  'BLL': { type: 'BL Lac Object', category: 'galaxy' },
-  'IG': { type: 'Interacting Galaxies', category: 'galaxy' },
-  'PaG': { type: 'Pair of Galaxies', category: 'galaxy' },
-  'GrG': { type: 'Group of Galaxies', category: 'galaxy' },
-  'ClG': { type: 'Cluster of Galaxies', category: 'galaxy' },
-  'PN': { type: 'Planetary Nebula', category: 'nebula' },
-  'HII': { type: 'HII Region', category: 'nebula' },
-  'RNe': { type: 'Reflection Nebula', category: 'nebula' },
-  'SNR': { type: 'Supernova Remnant', category: 'nebula' },
-  'Neb': { type: 'Nebula', category: 'nebula' },
-  'EmO': { type: 'Emission Object', category: 'nebula' },
-  'DNe': { type: 'Dark Nebula', category: 'nebula' },
-  'GlC': { type: 'Globular Cluster', category: 'cluster' },
-  'OpC': { type: 'Open Cluster', category: 'cluster' },
+  G: { type: 'Galaxy', category: 'galaxy' },
+  Galaxy: { type: 'Galaxy', category: 'galaxy' },
+  GiG: { type: 'Galaxy in Group', category: 'galaxy' },
+  GiC: { type: 'Galaxy in Cluster', category: 'galaxy' },
+  GiP: { type: 'Galaxy in Pair', category: 'galaxy' },
+  AGN: { type: 'Active Galactic Nucleus', category: 'galaxy' },
+  QSO: { type: 'Quasar', category: 'quasar' },
+  Sy1: { type: 'Seyfert 1 Galaxy', category: 'galaxy' },
+  Sy2: { type: 'Seyfert 2 Galaxy', category: 'galaxy' },
+  BLL: { type: 'BL Lac Object', category: 'galaxy' },
+  IG: { type: 'Interacting Galaxies', category: 'galaxy' },
+  PaG: { type: 'Pair of Galaxies', category: 'galaxy' },
+  GrG: { type: 'Group of Galaxies', category: 'galaxy' },
+  ClG: { type: 'Cluster of Galaxies', category: 'galaxy' },
+  PN: { type: 'Planetary Nebula', category: 'nebula' },
+  HII: { type: 'HII Region', category: 'nebula' },
+  RNe: { type: 'Reflection Nebula', category: 'nebula' },
+  SNR: { type: 'Supernova Remnant', category: 'nebula' },
+  Neb: { type: 'Nebula', category: 'nebula' },
+  EmO: { type: 'Emission Object', category: 'nebula' },
+  DNe: { type: 'Dark Nebula', category: 'nebula' },
+  GlC: { type: 'Globular Cluster', category: 'cluster' },
+  OpC: { type: 'Open Cluster', category: 'cluster' },
   'Cl*': { type: 'Star Cluster', category: 'cluster' },
   'As*': { type: 'Asterism', category: 'cluster' },
   '*': { type: 'Star', category: 'star' },
   '**': { type: 'Double Star', category: 'star' },
   'V*': { type: 'Variable Star', category: 'star' },
-  'Psr': { type: 'Pulsar', category: 'star' },
+  Psr: { type: 'Pulsar', category: 'star' },
   'WD*': { type: 'White Dwarf', category: 'star' },
   'NS*': { type: 'Neutron Star', category: 'star' },
   'BH*': { type: 'Black Hole Candidate', category: 'other' },
-  'Pl': { type: 'Planet', category: 'planet' },
-  'Com': { type: 'Comet', category: 'comet' },
-  'Ast': { type: 'Asteroid', category: 'asteroid' },
-  'MPl': { type: 'Minor Planet', category: 'asteroid' },
+  Pl: { type: 'Planet', category: 'planet' },
+  Com: { type: 'Comet', category: 'comet' },
+  Ast: { type: 'Asteroid', category: 'asteroid' },
+  MPl: { type: 'Minor Planet', category: 'asteroid' },
 };
 
 function parseObjectType(typeStr?: string): { type: string; category: ObjectCategory } {
   if (!typeStr) return { type: 'Unknown', category: 'other' };
-  
+
   const normalized = typeStr.trim();
-  
-  // Direct match
-  if (SIMBAD_TYPE_MAP[normalized]) {
-    return SIMBAD_TYPE_MAP[normalized];
-  }
-  
-  // Partial match
+  if (SIMBAD_TYPE_MAP[normalized]) return SIMBAD_TYPE_MAP[normalized];
+
   for (const [key, value] of Object.entries(SIMBAD_TYPE_MAP)) {
-    if (normalized.includes(key) || key.includes(normalized)) {
-      return value;
-    }
+    if (normalized.includes(key) || key.includes(normalized)) return value;
   }
-  
-  // Keyword-based detection
+
   const upper = normalized.toUpperCase();
+  if (upper.includes('COMET')) return { type: 'Comet', category: 'comet' };
+  if (upper.includes('ASTEROID') || upper.includes('MINOR PLANET')) return { type: 'Asteroid', category: 'asteroid' };
   if (upper.includes('GALAX')) return { type: 'Galaxy', category: 'galaxy' };
   if (upper.includes('NEBULA') || upper.includes('NEB')) return { type: 'Nebula', category: 'nebula' };
   if (upper.includes('CLUSTER') || upper.includes('CL')) return { type: 'Star Cluster', category: 'cluster' };
   if (upper.includes('STAR')) return { type: 'Star', category: 'star' };
+  if (upper.includes('PLANET')) return { type: 'Planet', category: 'planet' };
   if (upper.includes('QUASAR') || upper.includes('QSO')) return { type: 'Quasar', category: 'quasar' };
-  
+
   return { type: typeStr, category: 'other' };
 }
 
-// ============================================================================
-// Coordinate Formatting (delegates to shared module)
-// ============================================================================
+function normalizedIdentifier(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toUpperCase();
+}
 
 function generateResultId(name: string, source: OnlineSearchSource): string {
   return `${source}-${name.replace(/\s+/g, '_').toLowerCase()}`;
 }
 
-// ============================================================================
-// Rate Limiter for CDS Services
-// ============================================================================
-
-const CDS_MIN_INTERVAL_MS = 200; // ≥200ms between requests to avoid SIMBAD blacklisting
-let cdsGate: Promise<void> = Promise.resolve();
-
-async function rateLimitedFetch(
-  url: string,
-  options: { timeout?: number; headers?: Record<string, string>; signal?: AbortSignal } = {}
-) {
-  const isCds = url.includes('cds.unistra.fr') || url.includes('simbad.cds.unistra.fr') || url.includes('vizier.cds.unistra.fr');
-  if (isCds) {
-    // Chain off the previous CDS request to serialize access
-    const prev = cdsGate;
-    let resolve: () => void;
-    cdsGate = new Promise<void>((r) => { resolve = r; });
-    await prev;
-    // Ensure minimum interval then release after delay
-    const doFetch = smartFetch(url, options);
-    doFetch.finally(() => {
-      setTimeout(() => resolve!(), CDS_MIN_INTERVAL_MS);
-    });
-    return doFetch;
+function toCanonicalId(...values: Array<string | undefined | null>): string {
+  for (const value of values) {
+    if (value && value.trim()) return buildCanonicalId(value);
   }
-  return smartFetch(url, options);
+  return buildCanonicalId('UNKNOWN');
 }
 
-// ============================================================================
-// Retry Helper
-// ============================================================================
+function parseCoordinatePair(rawRa: string, rawDec: string): { ra: number; dec: number } | null {
+  const ra = parseRACoordinate(rawRa);
+  const dec = parseDecCoordinate(rawDec);
+  if (ra === null || dec === null) return null;
+  return { ra, dec };
+}
 
-async function fetchWithRetry(
-  url: string,
-  options: { timeout?: number; headers?: Record<string, string>; signal?: AbortSignal } = {},
-  maxRetries: number = 1
-) {
+function angleDistanceArcsec(ra1: number, dec1: number, ra2: number, dec2: number): number {
+  const toRad = (d: number) => d * Math.PI / 180;
+  const dRa = toRad(ra2 - ra1);
+  const dDec = toRad(dec2 - dec1);
+  const a = Math.sin(dDec / 2) ** 2 + Math.cos(toRad(dec1)) * Math.cos(toRad(dec2)) * Math.sin(dRa / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return c * 206264.806;
+}
+
+function dedupeStrings(values: Array<string | undefined | null>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = normalizedIdentifier(trimmed);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(trimmed);
+    }
+  }
+  return out;
+}
+
+function shouldMergeResults(a: OnlineSearchResult, b: OnlineSearchResult): boolean {
+  if (a.canonicalId === b.canonicalId) return true;
+  if (a.identifiers.some(id => b.identifiers.map(normalizedIdentifier).includes(normalizedIdentifier(id)))) return true;
+  return angleDistanceArcsec(a.ra, a.dec, b.ra, b.dec) <= 5;
+}
+
+function mergeResult(base: OnlineSearchResult, incoming: OnlineSearchResult): OnlineSearchResult {
+  const preferred = SOURCE_TRUST[incoming.source] < SOURCE_TRUST[base.source] ? incoming : base;
+  const secondary = preferred === incoming ? base : incoming;
+
+  return {
+    ...preferred,
+    canonicalId: preferred.canonicalId || secondary.canonicalId,
+    identifiers: dedupeStrings([...preferred.identifiers, ...secondary.identifiers]),
+    alternateNames: dedupeStrings([...(preferred.alternateNames ?? []), ...(secondary.alternateNames ?? []), secondary.name]),
+    confidence: Math.max(preferred.confidence, secondary.confidence),
+    magnitude: preferred.magnitude ?? secondary.magnitude,
+    angularSize: preferred.angularSize ?? secondary.angularSize,
+    redshift: preferred.redshift ?? secondary.redshift,
+    spectralType: preferred.spectralType ?? secondary.spectralType,
+    morphologicalType: preferred.morphologicalType ?? secondary.morphologicalType,
+    sourceUrl: preferred.sourceUrl ?? secondary.sourceUrl,
+    description: preferred.description ?? secondary.description,
+  };
+}
+
+function consolidateResults(results: OnlineSearchResult[], limit: number): OnlineSearchResult[] {
+  const merged: OnlineSearchResult[] = [];
+
+  for (const item of results) {
+    const idx = merged.findIndex(existing => shouldMergeResults(existing, item));
+    if (idx < 0) {
+      merged.push({
+        ...item,
+        identifiers: dedupeStrings(item.identifiers),
+        alternateNames: dedupeStrings(item.alternateNames ?? []),
+      });
+      continue;
+    }
+    merged[idx] = mergeResult(merged[idx], item);
+  }
+
+  return merged
+    .sort((a, b) => SOURCE_TRUST[a.source] - SOURCE_TRUST[b.source])
+    .slice(0, limit);
+}
+
+const CDS_MIN_INTERVAL_MS = 200;
+let cdsGate: Promise<void> = Promise.resolve();
+
+async function rateLimitedFetch(url: string, options: FetchOptions = {}): Promise<FetchResponse> {
+  const isCds = url.includes('cds.unistra.fr') || url.includes('simbad.cds.unistra.fr') || url.includes('vizier.cds.unistra.fr');
+  if (!isCds) return smartFetch(url, options);
+
+  const prev = cdsGate;
+  let release: () => void;
+  cdsGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await prev;
+
+  try {
+    return await smartFetch(url, options);
+  } finally {
+    setTimeout(() => release(), CDS_MIN_INTERVAL_MS);
+  }
+}
+
+async function fetchWithRetry(url: string, options: FetchOptions = {}, maxRetries = 1): Promise<FetchResponse> {
   let lastError: Error | undefined;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
-      if (options.signal?.aborted) {
-        throw new Error('Request aborted');
-      }
+      if (options.signal?.aborted) throw new Error('Request aborted');
       return await rateLimitedFetch(url, options);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      // Only retry on network errors, not on abort
-      if (options.signal?.aborted || attempt >= maxRetries) {
-        throw lastError;
-      }
-      // Wait 500ms before retry
+      if (options.signal?.aborted || attempt >= maxRetries) throw lastError;
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
   throw lastError ?? new Error('Fetch failed');
 }
 
-// ============================================================================
-// ADQL Escape Utility
-// ============================================================================
+async function runSource<T>(
+  source: OnlineSearchSource,
+  task: () => Promise<T>,
+  errors: SearchErrors
+): Promise<T | null> {
+  try {
+    return await task();
+  } catch (error) {
+    errors.push({ source, error: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+}
+
+async function searchSesame(query: string, timeout = 10000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
+  const encoded = encodeURIComponent(query);
+  const url = `${ONLINE_SEARCH_SOURCES.sesame.baseUrl}${ONLINE_SEARCH_SOURCES.sesame.endpoint}/-oxpI/SNV?${encoded}`;
+  const response = await fetchWithRetry(url, { timeout, signal });
+  if (!response.ok) throw new Error(`Sesame API error: ${response.status}`);
+
+  const xmlText = await response.text();
+  const resolverMatches = xmlText.match(/<Resolver[^>]*>[\s\S]*?<\/Resolver>/g) ?? [];
+  const results: OnlineSearchResult[] = [];
+
+  for (const resolverXml of resolverMatches) {
+    const oname = resolverXml.match(/<oname>([^<]+)<\/oname>/)?.[1]?.trim() || query;
+    const raDeg = resolverXml.match(/<jradeg>([^<]+)<\/jradeg>/)?.[1]?.trim();
+    const decDeg = resolverXml.match(/<jdedeg>([^<]+)<\/jdedeg>/)?.[1]?.trim();
+    const jpos = resolverXml.match(/<jpos>([^<]+)<\/jpos>/)?.[1]?.trim();
+
+    let ra: number | null = null;
+    let dec: number | null = null;
+
+    if (raDeg && decDeg) {
+      const parsedRa = Number.parseFloat(raDeg);
+      const parsedDec = Number.parseFloat(decDeg);
+      if (Number.isFinite(parsedRa) && Number.isFinite(parsedDec)) {
+        ra = parsedRa;
+        dec = parsedDec;
+      }
+    } else if (jpos) {
+      const [rawRa, rawDec] = jpos.split(/\s+/);
+      const parsed = parseCoordinatePair(rawRa ?? '', rawDec ?? '');
+      if (parsed) {
+        ra = parsed.ra;
+        dec = parsed.dec;
+      }
+    }
+
+    if (ra === null || dec === null) continue;
+
+    const rawType = resolverXml.match(/<otype>([^<]+)<\/otype>/)?.[1]?.trim();
+    const { type, category } = parseObjectType(rawType);
+    const aliases = (resolverXml.match(/<alias>([^<]+)<\/alias>/g) ?? [])
+      .map(token => token.replace(/<\/?alias>/g, '').trim());
+    const magnitude = resolverXml.match(/<mag[^>]*><v>([^<]+)<\/v><\/mag>/)?.[1];
+
+    const canonicalId = toCanonicalId(oname, aliases[0], query);
+    const identifiers = dedupeStrings([oname, ...aliases, query]);
+
+    results.push({
+      id: generateResultId(oname, 'sesame'),
+      name: oname,
+      canonicalId,
+      identifiers,
+      confidence: 0.95,
+      alternateNames: aliases,
+      type,
+      category,
+      ra,
+      dec,
+      raString: formatRA(ra),
+      decString: formatDec(dec),
+      magnitude: magnitude ? Number.parseFloat(magnitude) : undefined,
+      source: 'sesame',
+      sourceUrl: `https://simbad.cds.unistra.fr/simbad/sim-basic?Ident=${encoded}`,
+    });
+  }
+
+  return results;
+}
 
 function escapeAdqlLike(value: string): string {
-  // Escape single quotes for ADQL string literals
   let escaped = value.replace(/'/g, "''");
-  // Escape LIKE wildcards
   escaped = escaped.replace(/%/g, '\\%');
   escaped = escaped.replace(/_/g, '\\_');
   return escaped;
 }
-
-// ============================================================================
-// Sesame Name Resolver (Primary - queries SIMBAD + NED + VizieR)
-// ============================================================================
-
-interface SesameResult {
-  name: string;
-  ra: number;
-  dec: number;
-  type?: string;
-  aliases?: string[];
-}
-
-async function searchSesame(query: string, timeout: number = 10000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
-  try {
-    const encodedQuery = encodeURIComponent(query);
-    const url = `${ONLINE_SEARCH_SOURCES.sesame.baseUrl}${ONLINE_SEARCH_SOURCES.sesame.endpoint}/-ox/SNV?${encodedQuery}`;
-    
-    const response = await fetchWithRetry(url, { timeout, signal });
-
-    if (!response || typeof response.ok !== 'boolean') {
-      throw new Error('Sesame API error: invalid response');
-    }
-    
-    if (!response.ok) {
-      throw new Error(`Sesame API error: ${response.status}`);
-    }
-    
-    const xmlText = await response.text();
-    const results: OnlineSearchResult[] = [];
-    
-    // Parse XML response
-    // Sesame returns XML with <Resolver> elements containing <jpos>, <oname>, <otype>
-    const resolverMatches = xmlText.match(/<Resolver[^>]*>[\s\S]*?<\/Resolver>/g);
-    
-    if (resolverMatches) {
-      for (const resolverXml of resolverMatches) {
-        // Extract name
-        const nameMatch = resolverXml.match(/<oname>([^<]+)<\/oname>/);
-        const name = nameMatch ? nameMatch[1].trim() : query;
-        
-        // Extract coordinates (J2000 decimal)
-        const jposMatch = resolverXml.match(/<jpos>([^<]+)<\/jpos>/);
-        if (!jposMatch) continue;
-        
-        const [raStr, decStr] = jposMatch[1].trim().split(/\s+/);
-        const ra = parseFloat(raStr);
-        const dec = parseFloat(decStr);
-        
-        if (isNaN(ra) || isNaN(dec)) continue;
-        
-        // Extract type
-        const typeMatch = resolverXml.match(/<otype>([^<]+)<\/otype>/);
-        const rawType = typeMatch ? typeMatch[1].trim() : undefined;
-        const { type, category } = parseObjectType(rawType);
-        
-        // Extract aliases
-        const aliasMatches = resolverXml.match(/<alias>([^<]+)<\/alias>/g);
-        const alternateNames = aliasMatches 
-          ? aliasMatches.map(m => m.replace(/<\/?alias>/g, '').trim())
-          : undefined;
-        
-        // Extract magnitude if available
-        const magMatch = resolverXml.match(/<mag[^>]*>([^<]+)<\/mag>/);
-        const magnitude = magMatch ? parseFloat(magMatch[1]) : undefined;
-        
-        // Use SesameResult interface for intermediate parsing
-        const sesameResult: SesameResult = {
-          name,
-          ra,
-          dec,
-          type: rawType,
-          aliases: alternateNames,
-        };
-        
-        results.push({
-          id: generateResultId(sesameResult.name, 'sesame'),
-          name: sesameResult.name,
-          alternateNames: sesameResult.aliases,
-          type,
-          category,
-          ra: sesameResult.ra,
-          dec: sesameResult.dec,
-          raString: formatRA(sesameResult.ra),
-          decString: formatDec(sesameResult.dec),
-          magnitude: magnitude && !isNaN(magnitude) ? magnitude : undefined,
-          source: 'sesame',
-          sourceUrl: `https://simbad.cds.unistra.fr/simbad/sim-basic?Ident=${encodedQuery}`,
-        });
-      }
-    }
-    
-    // Fallback: Try to parse simple format if XML parsing fails
-    if (results.length === 0) {
-      const simpleMatch = xmlText.match(/(\d+\.?\d*)\s+([+-]?\d+\.?\d*)/);
-      if (simpleMatch) {
-        const ra = parseFloat(simpleMatch[1]);
-        const dec = parseFloat(simpleMatch[2]);
-        
-        if (!isNaN(ra) && !isNaN(dec)) {
-          results.push({
-            id: generateResultId(query, 'sesame'),
-            name: query,
-            type: 'Unknown',
-            category: 'other',
-            ra,
-            dec,
-            raString: formatRA(ra),
-            decString: formatDec(dec),
-            source: 'sesame',
-          });
-        }
-      }
-    }
-    
-    return results;
-  } catch (error) {
-    throw error instanceof Error ? error : new Error('Sesame search error');
-  }
-}
-
-// ============================================================================
-// SIMBAD TAP Query
-// ============================================================================
 
 interface SimbadTapRow {
   main_id: string;
@@ -409,597 +444,560 @@ interface SimbadTapRow {
   rvz_redshift?: number | null;
 }
 
-async function searchSimbadByName(query: string, limit: number = 20, timeout: number = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
-  if (!query.trim()) {
-    return [];
+async function querySimbad(adqlQuery: string, timeout: number, signal?: AbortSignal): Promise<SimbadTapRow[]> {
+  const params = new URLSearchParams({
+    request: 'doQuery',
+    lang: 'adql',
+    format: 'json',
+    query: adqlQuery.trim(),
+  });
+  const url = `${ONLINE_SEARCH_SOURCES.simbad.baseUrl}${ONLINE_SEARCH_SOURCES.simbad.tapEndpoint}?${params}`;
+
+  const response = await fetchWithRetry(url, {
+    timeout,
+    signal,
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok) throw new Error(`SIMBAD TAP error: ${response.status}`);
+
+  const data = await response.json<{ data?: (string | number | null)[][] }>();
+  const rows: SimbadTapRow[] = [];
+
+  for (const row of data.data ?? []) {
+    if (typeof row[0] !== 'string' || typeof row[1] !== 'number' || typeof row[2] !== 'number') continue;
+    rows.push({
+      main_id: row[0],
+      ra: row[1],
+      dec: row[2],
+      otype_txt: row[3] as string | null,
+      sp_type: row[4] as string | null,
+      flux_v: row[5] as number | null,
+      galdim_majaxis: row[6] as number | null,
+      galdim_minaxis: row[7] as number | null,
+      morph_type: row[8] as string | null,
+      rvz_redshift: row[9] as number | null,
+    });
   }
 
-  try {
-    // Build ADQL query for SIMBAD TAP with proper escaping
-    const escapedQuery = escapeAdqlLike(query);
-    const adqlQuery = `
-      SELECT TOP ${limit}
-        b.main_id, b.ra, b.dec, b.otype_txt, b.sp_type,
-        f.V AS flux_v, b.galdim_majaxis, b.galdim_minaxis,
-        b.morph_type, b.rvz_redshift
-      FROM basic AS b
-      JOIN ident ON b.oid = ident.oidref
-      LEFT JOIN allfluxes AS f ON b.oid = f.oidref
-      WHERE ident.id LIKE '%${escapedQuery}%'
-      ORDER BY f.V ASC
-    `;
-    
-    const params = new URLSearchParams({
-      request: 'doQuery',
-      lang: 'adql',
-      format: 'json',
-      query: adqlQuery.trim(),
-    });
-    
-    const url = `${ONLINE_SEARCH_SOURCES.simbad.baseUrl}${ONLINE_SEARCH_SOURCES.simbad.tapEndpoint}?${params}`;
-    
-    const response = await fetchWithRetry(url, {
-      timeout,
-      headers: { 'Accept': 'application/json' },
-      signal,
-    });
+  return rows;
+}
 
-    if (!response || typeof response.ok !== 'boolean') {
-      throw new Error('SIMBAD TAP error: invalid response');
-    }
-    
-    if (!response.ok) {
-      throw new Error(`SIMBAD TAP error: ${response.status}`);
-    }
-    
-    const data = await response.json<{ data?: (string | number | null)[][] }>();
-    const results: OnlineSearchResult[] = [];
-    
-    if (data.data && Array.isArray(data.data)) {
-      for (const row of data.data) {
-        // Use SimbadTapRow interface for type safety
-        const tapRow: SimbadTapRow = {
-          main_id: row[0] as string,
-          ra: row[1] as number,
-          dec: row[2] as number,
-          otype_txt: row[3] as string | null,
-          sp_type: row[4] as string | null,
-          flux_v: row[5] as number | null,
-          galdim_majaxis: row[6] as number | null,
-          galdim_minaxis: row[7] as number | null,
-          morph_type: row[8] as string | null,
-          rvz_redshift: row[9] as number | null,
-        };
-        
-        if (typeof tapRow.ra !== 'number' || typeof tapRow.dec !== 'number') continue;
-        
-        const { type, category } = parseObjectType(tapRow.otype_txt || undefined);
-        
-        // Format angular size
-        let angularSize: string | undefined;
-        if (tapRow.galdim_majaxis && tapRow.galdim_minaxis) {
-          angularSize = `${tapRow.galdim_majaxis.toFixed(1)}' × ${tapRow.galdim_minaxis.toFixed(1)}'`;
-        } else if (tapRow.galdim_majaxis) {
-          angularSize = `${tapRow.galdim_majaxis.toFixed(1)}'`;
-        }
-        
-        results.push({
-          id: generateResultId(tapRow.main_id, 'simbad'),
-          name: tapRow.main_id,
-          type,
-          category,
-          ra: tapRow.ra,
-          dec: tapRow.dec,
-          raString: formatRA(tapRow.ra),
-          decString: formatDec(tapRow.dec),
-          magnitude: tapRow.flux_v ?? undefined,
-          angularSize,
-          morphologicalType: tapRow.morph_type ?? undefined,
-          spectralType: tapRow.sp_type ?? undefined,
-          redshift: tapRow.rvz_redshift ?? undefined,
-          source: 'simbad',
-          sourceUrl: `https://simbad.cds.unistra.fr/simbad/sim-basic?Ident=${encodeURIComponent(tapRow.main_id)}`,
-        });
-      }
-    }
-    
-    return results;
-  } catch (error) {
-    throw error instanceof Error ? error : new Error('SIMBAD TAP search error');
-  }
+function simbadRowsToResults(rows: SimbadTapRow[], queryHint: string): OnlineSearchResult[] {
+  return rows.map((row) => {
+    const { type, category } = parseObjectType(row.otype_txt || undefined);
+    const angularSize = row.galdim_majaxis
+      ? row.galdim_minaxis
+        ? `${row.galdim_majaxis.toFixed(1)}' × ${row.galdim_minaxis.toFixed(1)}'`
+        : `${row.galdim_majaxis.toFixed(1)}'`
+      : undefined;
+
+    const identifiers = dedupeStrings([row.main_id, queryHint]);
+    return {
+      id: generateResultId(row.main_id, 'simbad'),
+      name: row.main_id,
+      canonicalId: toCanonicalId(row.main_id, queryHint),
+      identifiers,
+      confidence: 0.92,
+      type,
+      category,
+      ra: row.ra,
+      dec: row.dec,
+      raString: formatRA(row.ra),
+      decString: formatDec(row.dec),
+      magnitude: row.flux_v ?? undefined,
+      angularSize,
+      morphologicalType: row.morph_type ?? undefined,
+      spectralType: row.sp_type ?? undefined,
+      redshift: row.rvz_redshift ?? undefined,
+      source: 'simbad',
+      sourceUrl: `https://simbad.cds.unistra.fr/simbad/sim-basic?Ident=${encodeURIComponent(row.main_id)}`,
+    };
+  });
+}
+
+async function searchSimbadByName(query: string, limit = 20, timeout = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
+  if (!query.trim()) return [];
+  const escapedQuery = escapeAdqlLike(query);
+  const adqlQuery = `
+    SELECT TOP ${limit}
+      b.main_id, b.ra, b.dec, b.otype_txt, b.sp_type,
+      f.V AS flux_v, b.galdim_majaxis, b.galdim_minaxis,
+      b.morph_type, b.rvz_redshift
+    FROM basic AS b
+    JOIN ident ON b.oid = ident.oidref
+    LEFT JOIN allfluxes AS f ON b.oid = f.oidref
+    WHERE ident.id LIKE '%${escapedQuery}%'
+    ORDER BY f.V ASC
+  `;
+  const rows = await querySimbad(adqlQuery, timeout, signal);
+  return simbadRowsToResults(rows, query);
 }
 
 async function searchSimbadByCoordinates(
-  ra: number, 
-  dec: number, 
-  radius: number = 0.5, 
-  limit: number = 20, 
-  timeout: number = 15000,
+  ra: number,
+  dec: number,
+  radius = 0.5,
+  limit = 20,
+  timeout = 15000,
   signal?: AbortSignal
 ): Promise<OnlineSearchResult[]> {
-  try {
-    const adqlQuery = `
-      SELECT TOP ${limit}
-        b.main_id, b.ra, b.dec, b.otype_txt, b.sp_type,
-        f.V AS flux_v, b.galdim_majaxis, b.galdim_minaxis,
-        b.morph_type, b.rvz_redshift,
-        DISTANCE(POINT('ICRS', b.ra, b.dec), POINT('ICRS', ${ra}, ${dec})) AS dist
-      FROM basic AS b
-      LEFT JOIN allfluxes AS f ON b.oid = f.oidref
-      WHERE CONTAINS(POINT('ICRS', b.ra, b.dec), CIRCLE('ICRS', ${ra}, ${dec}, ${radius})) = 1
-      ORDER BY dist ASC
-    `;
-    
-    const params = new URLSearchParams({
-      request: 'doQuery',
-      lang: 'adql',
-      format: 'json',
-      query: adqlQuery.trim(),
-    });
-    
-    const url = `${ONLINE_SEARCH_SOURCES.simbad.baseUrl}${ONLINE_SEARCH_SOURCES.simbad.tapEndpoint}?${params}`;
-    
-    const response = await fetchWithRetry(url, {
-      timeout,
-      headers: { 'Accept': 'application/json' },
-      signal,
-    });
-
-    if (!response || typeof response.ok !== 'boolean') {
-      throw new Error('SIMBAD coordinate search error: invalid response');
-    }
-    
-    if (!response.ok) {
-      throw new Error(`SIMBAD coordinate search error: ${response.status}`);
-    }
-    
-    const data = await response.json<{ data?: (string | number | null)[][] }>();
-    const results: OnlineSearchResult[] = [];
-    
-    if (data.data && Array.isArray(data.data)) {
-      for (const row of data.data) {
-        // Use SimbadTapRow interface for type safety
-        const tapRow: SimbadTapRow = {
-          main_id: row[0] as string,
-          ra: row[1] as number,
-          dec: row[2] as number,
-          otype_txt: row[3] as string | null,
-          sp_type: row[4] as string | null,
-          flux_v: row[5] as number | null,
-          galdim_majaxis: row[6] as number | null,
-          galdim_minaxis: row[7] as number | null,
-          morph_type: row[8] as string | null,
-          rvz_redshift: row[9] as number | null,
-        };
-        
-        if (typeof tapRow.ra !== 'number' || typeof tapRow.dec !== 'number') continue;
-        
-        const { type, category } = parseObjectType(tapRow.otype_txt || undefined);
-        
-        let angularSize: string | undefined;
-        if (tapRow.galdim_majaxis && tapRow.galdim_minaxis) {
-          angularSize = `${tapRow.galdim_majaxis.toFixed(1)}' × ${tapRow.galdim_minaxis.toFixed(1)}'`;
-        } else if (tapRow.galdim_majaxis) {
-          angularSize = `${tapRow.galdim_majaxis.toFixed(1)}'`;
-        }
-        
-        results.push({
-          id: generateResultId(tapRow.main_id, 'simbad'),
-          name: tapRow.main_id,
-          type,
-          category,
-          ra: tapRow.ra,
-          dec: tapRow.dec,
-          raString: formatRA(tapRow.ra),
-          decString: formatDec(tapRow.dec),
-          magnitude: tapRow.flux_v ?? undefined,
-          angularSize,
-          morphologicalType: tapRow.morph_type ?? undefined,
-          spectralType: tapRow.sp_type ?? undefined,
-          redshift: tapRow.rvz_redshift ?? undefined,
-          source: 'simbad',
-          sourceUrl: `https://simbad.cds.unistra.fr/simbad/sim-coo?Coord=${tapRow.ra}+${tapRow.dec}&Radius=2&Radius.unit=arcmin`,
-        });
-      }
-    }
-    
-    return results;
-  } catch (error) {
-    throw error instanceof Error ? error : new Error('SIMBAD coordinate search error');
-  }
+  const adqlQuery = `
+    SELECT TOP ${limit}
+      b.main_id, b.ra, b.dec, b.otype_txt, b.sp_type,
+      f.V AS flux_v, b.galdim_majaxis, b.galdim_minaxis,
+      b.morph_type, b.rvz_redshift,
+      DISTANCE(POINT('ICRS', b.ra, b.dec), POINT('ICRS', ${ra}, ${dec})) AS dist
+    FROM basic AS b
+    LEFT JOIN allfluxes AS f ON b.oid = f.oidref
+    WHERE CONTAINS(POINT('ICRS', b.ra, b.dec), CIRCLE('ICRS', ${ra}, ${dec}, ${radius})) = 1
+    ORDER BY dist ASC
+  `;
+  const rows = await querySimbad(adqlQuery, timeout, signal);
+  return simbadRowsToResults(rows, `${ra},${dec}`);
 }
-
-// ============================================================================
-// VizieR Catalog Search
-// ============================================================================
 
 async function searchVizierCatalogs(
-  query: string, 
-  catalogs: string[] = ['VII/118', 'VII/239B', 'I/355/gaiadr3'], // NGC/IC, Tycho-2, Gaia DR3
-  limit: number = 20, 
-  timeout: number = 20000,
+  query: string,
+  catalogs: string[] = ['VII/118', 'VII/239B', 'I/355/gaiadr3'],
+  limit = 20,
+  timeout = 20000,
   signal?: AbortSignal
 ): Promise<OnlineSearchResult[]> {
+  const params = new URLSearchParams({
+    '-source': catalogs.join(','),
+    '-words': query,
+    '-out.max': limit.toString(),
+    '-mime': 'json',
+    '-out': '_RAJ2000,_DEJ2000,Name,Vmag,SpType',
+  });
+  const url = `${ONLINE_SEARCH_SOURCES.vizier.baseUrl}/viz-bin/VizieR-4?${params}`;
+  const response = await fetchWithRetry(url, { timeout, signal });
+  if (!response.ok) throw new Error(`VizieR search error: ${response.status}`);
+
+  const text = await response.text();
+  let parsed: Record<string, unknown> | null = null;
   try {
-    const catalogParam = catalogs.join(',');
-    const params = new URLSearchParams({
-      '-source': catalogParam,
-      '-words': query,
-      '-out.max': limit.toString(),
-      '-mime': 'json',
-      '-out': '_RAJ2000,_DEJ2000,Name,Vmag,SpType',
-    });
-    
-    const url = `${ONLINE_SEARCH_SOURCES.vizier.baseUrl}/viz-bin/VizieR-4?${params}`;
-    
-    const response = await fetchWithRetry(url, { timeout, signal });
-    
-    if (!response || !response.ok) {
-      throw new Error(`VizieR search error: ${response?.status ?? 'no response'}`);
-    }
-    
-    // VizieR JSON response parsing
-    const text = await response.text();
-    const results: OnlineSearchResult[] = [];
-    
-    try {
-      // Try direct JSON parse first (with -mime=json it should be valid JSON)
-      let data: Record<string, unknown> | null = null;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        // Fallback: extract JSON object from mixed content
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          data = JSON.parse(jsonMatch[0]);
-        }
-      }
-      
-      if (data) {
-        // Process VizieR JSON structure
-        const rows = (data as Record<string, unknown>).data as Record<string, unknown>[] | undefined;
-        if (rows && Array.isArray(rows)) {
-          for (const row of rows) {
-            if (row._RAJ2000 && row._DEJ2000) {
-              const ra = parseFloat(String(row._RAJ2000));
-              const dec = parseFloat(String(row._DEJ2000));
-              if (isNaN(ra) || isNaN(dec)) continue;
-              
-              const name = row.Name 
-                ? String(row.Name)
-                : `J${ra.toFixed(4)}${dec >= 0 ? '+' : ''}${dec.toFixed(4)}`;
-              
-              results.push({
-                id: generateResultId(name, 'vizier'),
-                name,
-                type: row.SpType ? 'Star' : 'Unknown',
-                category: row.SpType ? 'star' : 'other',
-                ra,
-                dec,
-                raString: formatRA(ra),
-                decString: formatDec(dec),
-                magnitude: row.Vmag ? parseFloat(String(row.Vmag)) : undefined,
-                spectralType: row.SpType ? String(row.SpType) : undefined,
-                source: 'vizier',
-                sourceUrl: `https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=${catalogParam}&-c=${encodeURIComponent(query)}`,
-              });
-            }
-          }
-        }
-      }
-    } catch {
-      logger.warn('VizieR JSON parse failed for query:', query);
-    }
-    
-    return results;
-  } catch (error) {
-    throw error instanceof Error ? error : new Error('VizieR search error');
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) parsed = JSON.parse(match[0]) as Record<string, unknown>;
   }
+
+  const rows = (parsed?.data as Record<string, unknown>[] | undefined) ?? [];
+  const results: OnlineSearchResult[] = [];
+
+  for (const row of rows) {
+    const ra = Number.parseFloat(String(row._RAJ2000 ?? ''));
+    const dec = Number.parseFloat(String(row._DEJ2000 ?? ''));
+    if (!Number.isFinite(ra) || !Number.isFinite(dec)) continue;
+
+    const name = row.Name ? String(row.Name) : `J${ra.toFixed(4)}${dec >= 0 ? '+' : ''}${dec.toFixed(4)}`;
+    const identifiers = dedupeStrings([name, query]);
+
+    results.push({
+      id: generateResultId(name, 'vizier'),
+      name,
+      canonicalId: toCanonicalId(name, query),
+      identifiers,
+      confidence: 0.75,
+      type: row.SpType ? 'Star' : 'Unknown',
+      category: row.SpType ? 'star' : 'other',
+      ra,
+      dec,
+      raString: formatRA(ra),
+      decString: formatDec(dec),
+      magnitude: row.Vmag ? Number.parseFloat(String(row.Vmag)) : undefined,
+      spectralType: row.SpType ? String(row.SpType) : undefined,
+      source: 'vizier',
+      sourceUrl: `https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=${encodeURIComponent(catalogs.join(','))}&-c=${encodeURIComponent(query)}`,
+    });
+  }
+
+  return results;
 }
 
-// ============================================================================
-// NED (NASA/IPAC Extragalactic Database)
-// ============================================================================
+async function searchNED(query: string, limit = 20, timeout = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
+  const params = new URLSearchParams({
+    objname: query,
+    extend: 'no',
+    of: 'xml_main',
+    img_stamp: 'NO',
+  });
+  const url = `${ONLINE_SEARCH_SOURCES.ned.baseUrl}${ONLINE_SEARCH_SOURCES.ned.endpoint}?${params}`;
+  const response = await fetchWithRetry(url, { timeout, signal });
+  if (!response.ok) throw new Error(`NED search error: ${response.status}`);
 
-async function searchNED(query: string, limit: number = 20, timeout: number = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
-  try {
-    const params = new URLSearchParams({
-      objname: query,
-      extend: 'no',
-      of: 'xml_main',
-      img_stamp: 'NO',
+  const xmlText = await response.text();
+  const objectMatches = xmlText.match(/<OBJECT>[\s\S]*?<\/OBJECT>/g) ?? [];
+  const results: OnlineSearchResult[] = [];
+
+  for (const objXml of objectMatches.slice(0, limit)) {
+    const name = objXml.match(/<OBJNAME>([^<]+)<\/OBJNAME>/)?.[1]?.trim() || query;
+    const ra = Number.parseFloat(objXml.match(/<RA>([^<]+)<\/RA>/)?.[1] ?? '');
+    const dec = Number.parseFloat(objXml.match(/<DEC>([^<]+)<\/DEC>/)?.[1] ?? '');
+    if (!Number.isFinite(ra) || !Number.isFinite(dec)) continue;
+
+    const rawType = objXml.match(/<OBJTYPE>([^<]+)<\/OBJTYPE>/)?.[1]?.trim();
+    const { type, category } = parseObjectType(rawType);
+    const redshift = Number.parseFloat(objXml.match(/<REDSHIFT>([^<]+)<\/REDSHIFT>/)?.[1] ?? '');
+    const magnitude = Number.parseFloat(objXml.match(/<MAGNITUDE>([^<]+)<\/MAGNITUDE>/)?.[1] ?? '');
+    const identifiers = dedupeStrings([name, query]);
+
+    results.push({
+      id: generateResultId(name, 'ned'),
+      name,
+      canonicalId: toCanonicalId(name, query),
+      identifiers,
+      confidence: 0.72,
+      type,
+      category,
+      ra,
+      dec,
+      raString: formatRA(ra),
+      decString: formatDec(dec),
+      magnitude: Number.isFinite(magnitude) ? magnitude : undefined,
+      redshift: Number.isFinite(redshift) ? redshift : undefined,
+      source: 'ned',
+      sourceUrl: `https://ned.ipac.caltech.edu/byname?objname=${encodeURIComponent(name)}`,
     });
-    
-    const url = `${ONLINE_SEARCH_SOURCES.ned.baseUrl}${ONLINE_SEARCH_SOURCES.ned.endpoint}?${params}`;
-    
-    const response = await fetchWithRetry(url, { timeout, signal });
-    
-    if (!response.ok) {
-      throw new Error(`NED search error: ${response.status}`);
-    }
-    
-    const xmlText = await response.text();
-    const results: OnlineSearchResult[] = [];
-    
-    // Parse NED XML response
-    const objectMatches = xmlText.match(/<OBJECT>[\s\S]*?<\/OBJECT>/g);
-    
-    if (objectMatches) {
-      for (const objXml of objectMatches.slice(0, limit)) {
-        // Extract name
-        const nameMatch = objXml.match(/<OBJNAME>([^<]+)<\/OBJNAME>/);
-        const name = nameMatch ? nameMatch[1].trim() : query;
-        
-        // Extract RA/Dec
-        const raMatch = objXml.match(/<RA>([^<]+)<\/RA>/);
-        const decMatch = objXml.match(/<DEC>([^<]+)<\/DEC>/);
-        
-        if (!raMatch || !decMatch) continue;
-        
-        const ra = parseFloat(raMatch[1]);
-        const dec = parseFloat(decMatch[1]);
-        
-        if (isNaN(ra) || isNaN(dec)) continue;
-        
-        // Extract type
-        const typeMatch = objXml.match(/<OBJTYPE>([^<]+)<\/OBJTYPE>/);
-        const rawType = typeMatch ? typeMatch[1].trim() : undefined;
-        const { type, category } = parseObjectType(rawType);
-        
-        // Extract redshift
-        const zMatch = objXml.match(/<REDSHIFT>([^<]+)<\/REDSHIFT>/);
-        const redshift = zMatch ? parseFloat(zMatch[1]) : undefined;
-        
-        // Extract magnitude
-        const magMatch = objXml.match(/<MAGNITUDE>([^<]+)<\/MAGNITUDE>/);
-        const magnitude = magMatch ? parseFloat(magMatch[1]) : undefined;
-        
-        results.push({
-          id: generateResultId(name, 'ned'),
-          name,
-          type,
-          category,
-          ra,
-          dec,
-          raString: formatRA(ra),
-          decString: formatDec(dec),
-          magnitude: magnitude && !isNaN(magnitude) ? magnitude : undefined,
-          redshift: redshift && !isNaN(redshift) ? redshift : undefined,
-          source: 'ned',
-          sourceUrl: `https://ned.ipac.caltech.edu/byname?objname=${encodeURIComponent(name)}`,
-        });
-      }
-    }
-    
-    return results;
-  } catch (error) {
-    throw error instanceof Error ? error : new Error('NED search error');
   }
+
+  return results;
 }
 
-// ============================================================================
-// Unified Search API
-// ============================================================================
+interface MpcIdentifierResult {
+  found?: number;
+  iau_designation?: string | null;
+  name?: string | null;
+  object_type?: [string, number] | string | null;
+  permid?: string | null;
+  packed_permid?: string | null;
+  packed_primary_provisional_designation?: string | null;
+  packed_secondary_provisional_designations?: string[] | null;
+  unpacked_primary_provisional_designation?: string | null;
+  unpacked_secondary_provisional_designations?: string[] | null;
+}
 
-/**
- * Search online astronomical databases by object name
- */
+function extractMpcIdentifier(payload: unknown, originalId: string): MpcIdentifierResult | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+
+  if (typeof record.found === 'number') return record as MpcIdentifierResult;
+
+  const direct = record[originalId];
+  if (direct && typeof direct === 'object') return direct as MpcIdentifierResult;
+
+  const firstObject = Object.values(record).find(value => !!value && typeof value === 'object');
+  return firstObject ? (firstObject as MpcIdentifierResult) : null;
+}
+
+function extractObjectTypeLabel(objectType: MpcIdentifierResult['object_type']): string {
+  if (Array.isArray(objectType)) return String(objectType[0] ?? '');
+  return objectType ? String(objectType) : '';
+}
+
+function isMpcComet(objectTypeLabel: string): boolean {
+  return objectTypeLabel.toLowerCase().includes('comet');
+}
+
+function firstNonEmpty(values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    if (value && value.trim()) return value;
+  }
+  return null;
+}
+
+function parseMpcObservationRows(payload: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(payload)) {
+    const first = payload[0];
+    if (first && typeof first === 'object' && Array.isArray((first as { ADES_DF?: unknown }).ADES_DF)) {
+      return ((first as { ADES_DF: Record<string, unknown>[] }).ADES_DF) ?? [];
+    }
+  }
+  if (payload && typeof payload === 'object' && Array.isArray((payload as { ADES_DF?: unknown }).ADES_DF)) {
+    return ((payload as { ADES_DF: Record<string, unknown>[] }).ADES_DF) ?? [];
+  }
+  return [];
+}
+
+async function mpcGetJson(url: string, body: Record<string, unknown>, timeout: number, signal?: AbortSignal): Promise<unknown> {
+  const response = await fetchWithRetry(url, {
+    method: 'GET',
+    timeout,
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+  }, 0);
+
+  if (!response.ok) throw new Error(`MPC API error: ${response.status}`);
+  return response.json<unknown>();
+}
+
+async function searchMpcMinorObject(query: string, timeout = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
+  const identifierUrl = `${ONLINE_SEARCH_SOURCES.mpc.baseUrl}${ONLINE_SEARCH_SOURCES.mpc.identifierEndpoint}`;
+  const identifierPayload = await mpcGetJson(identifierUrl, { ids: [query] }, timeout, signal);
+  const resolved = extractMpcIdentifier(identifierPayload, query);
+  if (!resolved || (resolved.found ?? 0) < 1) return [];
+
+  const objectTypeLabel = extractObjectTypeLabel(resolved.object_type);
+  const category: ObjectCategory = isMpcComet(objectTypeLabel) ? 'comet' : 'asteroid';
+  const type = category === 'comet' ? 'Comet' : 'Asteroid';
+
+  const primaryDesignation = firstNonEmpty([
+    resolved.unpacked_primary_provisional_designation ?? null,
+    resolved.iau_designation ?? null,
+    resolved.permid ?? null,
+    query,
+  ]);
+  if (!primaryDesignation) return [];
+
+  const obsUrl = `${ONLINE_SEARCH_SOURCES.mpc.baseUrl}${ONLINE_SEARCH_SOURCES.mpc.observationEndpoint}`;
+  let rows: Array<Record<string, unknown>> = [];
+  try {
+    const obsPayload = await mpcGetJson(
+      obsUrl,
+      { desigs: [primaryDesignation], output_format: ['ADES_DF'] },
+      timeout,
+      signal
+    );
+    rows = parseMpcObservationRows(obsPayload);
+  } catch (error) {
+    logger.warn('MPC observation lookup failed', error);
+  }
+
+  const latest = rows
+    .filter(row => typeof row.ra === 'string' && typeof row.dec === 'string')
+    .sort((a, b) => {
+      const ta = Date.parse(String(a.obstime ?? ''));
+      const tb = Date.parse(String(b.obstime ?? ''));
+      return Number.isFinite(tb - ta) ? tb - ta : 0;
+    })[0];
+
+  const ra = Number.parseFloat(String(latest?.ra ?? ''));
+  const dec = Number.parseFloat(String(latest?.dec ?? ''));
+  if (!Number.isFinite(ra) || !Number.isFinite(dec)) return [];
+
+  const identifiers = dedupeStrings([
+    query,
+    resolved.iau_designation ?? undefined,
+    resolved.name ?? undefined,
+    resolved.permid ?? undefined,
+    resolved.packed_permid ?? undefined,
+    resolved.packed_primary_provisional_designation ?? undefined,
+    ...(resolved.packed_secondary_provisional_designations ?? []),
+    resolved.unpacked_primary_provisional_designation ?? undefined,
+    ...(resolved.unpacked_secondary_provisional_designations ?? []),
+  ]);
+
+  const name = firstNonEmpty([
+    resolved.iau_designation ?? null,
+    resolved.unpacked_primary_provisional_designation ?? null,
+    resolved.name ?? null,
+    query,
+  ]) || query;
+
+  const magnitude = Number.parseFloat(String(latest?.mag ?? ''));
+  const canonicalId = toCanonicalId(
+    resolved.iau_designation ?? undefined,
+    resolved.permid ?? undefined,
+    resolved.unpacked_primary_provisional_designation ?? undefined,
+    query
+  );
+
+  return [{
+    id: generateResultId(name, 'mpc'),
+    name,
+    canonicalId,
+    identifiers,
+    confidence: 0.99,
+    alternateNames: dedupeStrings([resolved.name ?? undefined, ...identifiers.filter(v => v !== name)]),
+    type,
+    category,
+    ra,
+    dec,
+    raString: formatRA(ra),
+    decString: formatDec(dec),
+    magnitude: Number.isFinite(magnitude) ? magnitude : undefined,
+    source: 'mpc',
+    sourceUrl: `${ONLINE_SEARCH_SOURCES.mpc.baseUrl}${ONLINE_SEARCH_SOURCES.mpc.identifierEndpoint}`,
+    description: objectTypeLabel || undefined,
+  }];
+}
+
+function collectUsedSources(results: OnlineSearchResult[]): OnlineSearchSource[] {
+  const seen = new Set<OnlineSearchSource>();
+  for (const result of results) seen.add(result.source);
+  return Array.from(seen);
+}
+
 export async function searchOnlineByName(
   query: string,
   options: OnlineSearchOptions = {}
 ): Promise<OnlineSearchResponse> {
   const {
-    sources = ['sesame', 'simbad'],
+    sources = DEFAULT_NAME_SOURCES,
     limit = 20,
     timeout = 15000,
+    searchRadius = 0.5,
     signal,
   } = options;
 
   if (!query.trim()) {
-    return {
-      results: [],
-      sources: [],
-      totalCount: 0,
-      searchTimeMs: 0,
-    };
+    return { results: [], sources: [], totalCount: 0, searchTimeMs: 0 };
   }
-  
-  const startTime = performance.now();
-  const allResults: OnlineSearchResult[] = [];
-  const errors: Array<{ source: OnlineSearchSource; error: string }> = [];
-  const usedSources: OnlineSearchSource[] = [];
-  
-  // Execute searches in parallel
-  const searchPromises: Promise<{ source: OnlineSearchSource; results: OnlineSearchResult[] }>[] = [];
-  
-  if (sources.includes('sesame')) {
-    searchPromises.push(
-      searchSesame(query, timeout, signal)
-        .then(results => ({ source: 'sesame' as const, results }))
-        .catch(error => {
-          errors.push({ source: 'sesame', error: error.message });
-          return { source: 'sesame' as const, results: [] };
-        })
-    );
+
+  const parsed = parseQuery(query);
+  const start = performance.now();
+  const errors: SearchErrors = [];
+  const stagedResults: OnlineSearchResult[] = [];
+
+  if (parsed.kind === 'coordinate' && parsed.coordinate) {
+    return searchOnlineByCoordinates({
+      ra: parsed.coordinate.ra,
+      dec: parsed.coordinate.dec,
+      radius: searchRadius,
+    }, {
+      ...options,
+      sources: sources.filter(source => source === 'simbad' || source === 'local'),
+      limit,
+      timeout,
+      signal,
+    });
   }
-  
-  if (sources.includes('simbad')) {
-    searchPromises.push(
-      searchSimbadByName(query, limit, timeout, signal)
-        .then(results => ({ source: 'simbad' as const, results }))
-        .catch(error => {
-          errors.push({ source: 'simbad', error: error.message });
-          return { source: 'simbad' as const, results: [] };
-        })
-    );
-  }
-  
-  if (sources.includes('vizier')) {
-    searchPromises.push(
-      searchVizierCatalogs(query, undefined, limit, timeout, signal)
-        .then(results => ({ source: 'vizier' as const, results }))
-        .catch(error => {
-          errors.push({ source: 'vizier', error: error.message });
-          return { source: 'vizier' as const, results: [] };
-        })
-    );
-  }
-  
-  if (sources.includes('ned')) {
-    searchPromises.push(
-      searchNED(query, limit, timeout, signal)
-        .then(results => ({ source: 'ned' as const, results }))
-        .catch(error => {
-          errors.push({ source: 'ned', error: error.message });
-          return { source: 'ned' as const, results: [] };
-        })
-    );
-  }
-  
-  const searchResults = await Promise.all(searchPromises);
-  
-  // Deduplicate results by coordinates (within ~3.6 arcsec) + name similarity
-  const seenPositions = new Map<string, OnlineSearchResult>();
-  const seenNames = new Map<string, OnlineSearchResult>();
-  
-  for (const { source, results } of searchResults) {
-    if (results.length > 0) {
-      usedSources.push(source);
+
+  if (parsed.kind === 'minor') {
+    const minorSources = sources.length > 0 ? sources : DEFAULT_MINOR_SOURCES;
+
+    if (minorSources.includes('mpc')) {
+      const mpcResults = await runSource('mpc', () => searchMpcMinorObject(query, timeout, signal), errors);
+      if (mpcResults?.length) stagedResults.push(...mpcResults);
     }
-    
-    for (const result of results) {
-      // Create position key with 0.001 degree precision (~3.6 arcsec)
-      const posKey = `${Math.round(result.ra * 1000)}_${Math.round(result.dec * 1000)}`;
-      // Normalize name for comparison (strip common prefixes)
-      const normalizedName = result.name.replace(/^(NAME\s+|\*\s+|V\*\s+)/i, '').toLowerCase().trim();
-      
-      const posMatch = seenPositions.get(posKey);
-      const nameMatch = seenNames.get(normalizedName);
-      const existing = posMatch || nameMatch;
-      
-      if (!existing) {
-        seenPositions.set(posKey, result);
-        seenNames.set(normalizedName, result);
-        allResults.push(result);
-      } else {
-        // Merge alternate names if same object
-        if (existing.name !== result.name) {
-          existing.alternateNames = existing.alternateNames || [];
-          if (!existing.alternateNames.includes(result.name)) {
-            existing.alternateNames.push(result.name);
-          }
-        }
-        // Fill in missing fields from other sources
-        if (!existing.magnitude && result.magnitude) existing.magnitude = result.magnitude;
-        if (!existing.redshift && result.redshift) existing.redshift = result.redshift;
-        if (!existing.angularSize && result.angularSize) existing.angularSize = result.angularSize;
-        if (!existing.spectralType && result.spectralType) existing.spectralType = result.spectralType;
-      }
+    if (minorSources.includes('sesame')) {
+      const sesameResults = await runSource('sesame', () => searchSesame(query, timeout, signal), errors);
+      if (sesameResults?.length) stagedResults.push(...sesameResults);
+    }
+    if (minorSources.includes('simbad')) {
+      const simbadResults = await runSource('simbad', () => searchSimbadByName(query, limit, timeout, signal), errors);
+      if (simbadResults?.length) stagedResults.push(...simbadResults);
+    }
+  } else {
+    if (sources.includes('sesame')) {
+      const sesameResults = await runSource('sesame', () => searchSesame(query, timeout, signal), errors);
+      if (sesameResults?.length) stagedResults.push(...sesameResults);
+    }
+
+    if (sources.includes('simbad')) {
+      const simbadResults = await runSource('simbad', () => searchSimbadByName(query, limit, timeout, signal), errors);
+      if (simbadResults?.length) stagedResults.push(...simbadResults);
+    }
+
+    const supplements = await Promise.all([
+      sources.includes('vizier')
+        ? runSource('vizier', () => searchVizierCatalogs(query, undefined, limit, timeout, signal), errors)
+        : Promise.resolve(null),
+      sources.includes('ned')
+        ? runSource('ned', () => searchNED(query, limit, timeout, signal), errors)
+        : Promise.resolve(null),
+    ]);
+
+    for (const supplemental of supplements) {
+      if (supplemental?.length) stagedResults.push(...supplemental);
     }
   }
-  
-  const endTime = performance.now();
-  
+
+  const results = consolidateResults(stagedResults, limit);
+  const searchTimeMs = Math.round(performance.now() - start);
+
   return {
-    results: allResults.slice(0, limit),
-    sources: usedSources,
-    totalCount: allResults.length,
-    searchTimeMs: Math.round(endTime - startTime),
+    results,
+    sources: collectUsedSources(results),
+    totalCount: results.length,
+    searchTimeMs,
     errors: errors.length > 0 ? errors : undefined,
   };
 }
 
-/**
- * Search online astronomical databases by coordinates
- */
 export async function searchOnlineByCoordinates(
   params: CoordinateSearchParams,
   options: OnlineSearchOptions = {}
 ): Promise<OnlineSearchResponse> {
   const {
-    sources = ['simbad'],
+    sources = DEFAULT_COORDINATE_SOURCES,
     limit = 20,
     timeout = 15000,
     signal,
   } = options;
-  
-  const startTime = performance.now();
-  const allResults: OnlineSearchResult[] = [];
-  const errors: Array<{ source: OnlineSearchSource; error: string }> = [];
-  const usedSources: OnlineSearchSource[] = [];
-  
-  // SIMBAD is the primary source for coordinate searches
+
+  const start = performance.now();
+  const errors: SearchErrors = [];
+  const results: OnlineSearchResult[] = [];
+
   if (sources.includes('simbad')) {
-    try {
-      const results = await searchSimbadByCoordinates(
-        params.ra, 
-        params.dec, 
-        params.radius, 
-        limit, 
-        timeout,
-        signal
-      );
-      if (results.length > 0) {
-        usedSources.push('simbad');
-        allResults.push(...results);
-      }
-    } catch (error) {
-      errors.push({ source: 'simbad', error: (error as Error).message });
-    }
+    const simbadResults = await runSource(
+      'simbad',
+      () => searchSimbadByCoordinates(params.ra, params.dec, params.radius, limit, timeout, signal),
+      errors
+    );
+    if (simbadResults?.length) results.push(...simbadResults);
   }
-  
-  const endTime = performance.now();
-  
+
+  const merged = consolidateResults(results, limit);
+  const searchTimeMs = Math.round(performance.now() - start);
+
   return {
-    results: allResults.slice(0, limit),
-    sources: usedSources,
-    totalCount: allResults.length,
-    searchTimeMs: Math.round(endTime - startTime),
+    results: merged,
+    sources: collectUsedSources(merged),
+    totalCount: merged.length,
+    searchTimeMs,
     errors: errors.length > 0 ? errors : undefined,
   };
 }
 
-/**
- * Quick name resolution using Sesame
- * Returns the first match with coordinates
- */
 export async function resolveObjectName(name: string): Promise<OnlineSearchResult | null> {
   try {
-    const results = await searchSesame(name, 8000);
-    return results.length > 0 ? results[0] : null;
+    const response = await searchOnlineByName(name, {
+      limit: 1,
+      sources: ['sesame', 'simbad', 'mpc'],
+      timeout: 8000,
+    });
+    return response.results[0] ?? null;
   } catch {
     return null;
   }
 }
 
-/**
- * Check if online search services are available
- */
 export async function checkOnlineSearchAvailability(): Promise<Record<OnlineSearchSource, boolean>> {
-  const results: Record<OnlineSearchSource, boolean> = {
+  const result: Record<OnlineSearchSource, boolean> = {
     simbad: false,
     sesame: false,
     vizier: false,
     ned: false,
+    mpc: false,
     local: true,
   };
-  
+
   const checks = [
     smartFetch(`${ONLINE_SEARCH_SOURCES.sesame.baseUrl}${ONLINE_SEARCH_SOURCES.sesame.endpoint}/-ox/SNV?M31`, { timeout: 5000 })
-      .then(r => { results.sesame = r.ok; })
-      .catch(() => { results.sesame = false; }),
+      .then(r => { result.sesame = r.ok; })
+      .catch(() => { result.sesame = false; }),
     smartFetch(`${ONLINE_SEARCH_SOURCES.simbad.baseUrl}/simbad/`, { timeout: 5000 })
-      .then(r => { results.simbad = r.ok; })
-      .catch(() => { results.simbad = false; }),
+      .then(r => { result.simbad = r.ok; })
+      .catch(() => { result.simbad = false; }),
     smartFetch(`${ONLINE_SEARCH_SOURCES.vizier.baseUrl}/viz-bin/VizieR`, { timeout: 5000 })
-      .then(r => { results.vizier = r.ok; })
-      .catch(() => { results.vizier = false; }),
+      .then(r => { result.vizier = r.ok; })
+      .catch(() => { result.vizier = false; }),
     smartFetch(`${ONLINE_SEARCH_SOURCES.ned.baseUrl}/`, { timeout: 5000 })
-      .then(r => { results.ned = r.ok; })
-      .catch(() => { results.ned = false; }),
+      .then(r => { result.ned = r.ok; })
+      .catch(() => { result.ned = false; }),
+    smartFetch(`${ONLINE_SEARCH_SOURCES.mpc.baseUrl}${ONLINE_SEARCH_SOURCES.mpc.identifierEndpoint}`, { timeout: 5000 })
+      .then(r => { result.mpc = r.ok; })
+      .catch(() => { result.mpc = false; }),
   ];
-  
+
   await Promise.allSettled(checks);
-  
-  return results;
+  return result;
 }

@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback, type RefObject } from 'react';
+import { useEffect, useRef, useCallback, useState, type RefObject } from 'react';
 import type A from 'aladin-lite';
 import { useSettingsStore } from '@/lib/stores/settings-store';
+import { useStellariumStore } from '@/lib/stores';
+import { useAladinStore, type AladinCatalogLayer } from '@/lib/stores/aladin-store';
+import { getFoVCompat } from '@/lib/aladin/aladin-compat';
 import { createLogger } from '@/lib/logger';
 
 type AladinInstance = ReturnType<typeof A.aladin>;
@@ -10,25 +13,8 @@ type AladinCatalog = ReturnType<typeof A.catalog>;
 
 const logger = createLogger('aladin-catalogs');
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export type CatalogSourceType = 'simbad' | 'vizier' | 'ned';
-
-export interface CatalogLayerConfig {
-  id: string;
-  type: CatalogSourceType;
-  name: string;
-  enabled: boolean;
-  color: string;
-  /** VizieR catalog ID (only for vizier type) */
-  vizierCatId?: string;
-  /** Search radius in degrees */
-  radius: number;
-  /** Max number of sources to display */
-  limit: number;
-}
+export type CatalogLayerConfig = AladinCatalogLayer;
 
 export const DEFAULT_CATALOG_LAYERS: CatalogLayerConfig[] = [
   {
@@ -71,10 +57,6 @@ export const DEFAULT_CATALOG_LAYERS: CatalogLayerConfig[] = [
   },
 ];
 
-// ============================================================================
-// Hook
-// ============================================================================
-
 interface UseAladinCatalogsOptions {
   aladinRef: RefObject<AladinInstance | null>;
   engineReady: boolean;
@@ -86,139 +68,242 @@ interface UseAladinCatalogsReturn {
   refreshCatalogs: () => void;
 }
 
+const AUTO_SIMBAD_PAN_THRESHOLD_DEG = 2;
+const AUTO_SIMBAD_DEBOUNCE_MS = 1500;
+const AUTO_SIMBAD_RADIUS_FACTOR = 0.35;
+const AUTO_SIMBAD_LIMIT = 500;
+
+function signatureForLayer(layer: CatalogLayerConfig): string {
+  return [layer.enabled, layer.type, layer.name, layer.color, layer.radius, layer.limit, layer.vizierCatId ?? '']
+    .join('|');
+}
+
 export function useAladinCatalogs({
   aladinRef,
   engineReady,
 }: UseAladinCatalogsOptions): UseAladinCatalogsReturn {
   const skyEngine = useSettingsStore((state) => state.skyEngine);
 
-  // Store catalog layer configs in a ref to avoid re-renders on every position change
-  const catalogLayersRef = useRef<CatalogLayerConfig[]>(
-    DEFAULT_CATALOG_LAYERS.map((l) => ({ ...l }))
-  );
+  const catalogLayers = useAladinStore((state) => state.catalogLayers);
+  const toggleCatalogLayer = useAladinStore((state) => state.toggleCatalogLayer);
 
-  // Track active Aladin catalog objects for cleanup
   const activeCatalogsRef = useRef<Map<string, AladinCatalog>>(new Map());
+  const signatureMapRef = useRef<Map<string, string>>(new Map());
 
-  // Track the Aladin static API reference for factory methods
   const aladinStaticRef = useRef<typeof A | null>(null);
+  const [staticApiReady, setStaticApiReady] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
-  // Load Aladin static API on first use
+  const autoSimbadRef = useRef<AladinCatalog | null>(null);
+  const autoSimbadCenterRef = useRef<{ ra: number; dec: number } | null>(null);
+  const autoSimbadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!engineReady || skyEngine !== 'aladin') return;
 
     import('aladin-lite').then((m) => {
       aladinStaticRef.current = m.default;
+      setStaticApiReady(true);
     }).catch((err) => {
       logger.warn('Failed to load aladin-lite static API for catalogs', err);
     });
   }, [engineReady, skyEngine]);
 
-  const loadCatalog = useCallback((config: CatalogLayerConfig) => {
+  const createCatalog = useCallback((layer: CatalogLayerConfig): AladinCatalog | null => {
+    const aladin = aladinRef.current;
+    const AStatic = aladinStaticRef.current;
+    if (!aladin || !AStatic || !layer.enabled) return null;
+
+    const [ra, dec] = aladin.getRaDec();
+    const target = `${ra} ${dec}`;
+
+    const opts = {
+      name: layer.name,
+      color: layer.color,
+      sourceSize: 8,
+      limit: layer.limit,
+      onClick: 'showPopup' as const,
+    };
+
+    if (layer.type === 'simbad') {
+      const factory = AStatic.catalogFromSimbad ?? AStatic.catalogFromSIMBAD;
+      return factory({ ra, dec }, layer.radius, opts);
+    }
+
+    if (layer.type === 'ned') {
+      return AStatic.catalogFromNED(target, layer.radius, opts);
+    }
+
+    if (layer.type === 'vizier' && layer.vizierCatId) {
+      return AStatic.catalogFromVizieR(layer.vizierCatId, target, layer.radius, opts);
+    }
+
+    return null;
+  }, [aladinRef]);
+
+  useEffect(() => {
+    const aladin = aladinRef.current;
+    if (!engineReady || skyEngine !== 'aladin' || !staticApiReady || !aladin) return;
+
+    const active = activeCatalogsRef.current;
+    const signatures = signatureMapRef.current;
+
+    // Create/update enabled catalogs.
+    for (const layer of catalogLayers) {
+      const nextSignature = signatureForLayer(layer);
+      const prevSignature = signatures.get(layer.id);
+      const existing = active.get(layer.id);
+
+      if (!layer.enabled) {
+        if (existing) {
+          try { existing.hide(); } catch { /* ignore */ }
+          active.delete(layer.id);
+        }
+        signatures.delete(layer.id);
+        continue;
+      }
+
+      if (existing && prevSignature === nextSignature) {
+        continue;
+      }
+
+      if (existing) {
+        try { existing.hide(); } catch { /* ignore */ }
+        active.delete(layer.id);
+      }
+
+      const catalog = createCatalog(layer);
+      if (!catalog) continue;
+
+      try {
+        aladin.addCatalog(catalog);
+        active.set(layer.id, catalog);
+        signatures.set(layer.id, nextSignature);
+      } catch (error) {
+        logger.warn(`Failed to apply catalog layer ${layer.name}`, error);
+      }
+    }
+
+    // Remove stale instances that no longer exist in store.
+    for (const [id, catalog] of active) {
+      if (catalogLayers.some((layer) => layer.id === id)) continue;
+      try { catalog.hide(); } catch { /* ignore */ }
+      active.delete(id);
+      signatures.delete(id);
+    }
+  }, [aladinRef, catalogLayers, createCatalog, engineReady, refreshTick, skyEngine, staticApiReady]);
+
+  const loadAutoSimbad = useCallback((ra: number, dec: number) => {
     const aladin = aladinRef.current;
     const AStatic = aladinStaticRef.current;
     if (!aladin || !AStatic) return;
 
-    // Remove existing catalog if any
-    const existing = activeCatalogsRef.current.get(config.id);
-    if (existing) {
-      try { existing.hide(); } catch { /* ignore */ }
-      activeCatalogsRef.current.delete(config.id);
+    if (autoSimbadRef.current) {
+      try { autoSimbadRef.current.hide(); } catch { /* ignore */ }
+      autoSimbadRef.current = null;
     }
 
-    if (!config.enabled) return;
-
     try {
-      const [ra, dec] = aladin.getRaDec();
-      const target = `${ra} ${dec}`;
-      let catalog: AladinCatalog;
+      const currentFov = getFoVCompat(aladin) ?? 60;
+      const radius = Math.max(0.2, Math.min(5, currentFov * AUTO_SIMBAD_RADIUS_FACTOR));
 
-      const opts = {
-        name: config.name,
-        color: config.color,
-        sourceSize: 8,
-        limit: config.limit,
-        onClick: 'showPopup' as const,
-      };
-
-      switch (config.type) {
-        case 'simbad':
-          catalog = AStatic.catalogFromSimbad(
-            { ra, dec },
-            config.radius,
-            opts
-          );
-          break;
-        case 'ned':
-          catalog = AStatic.catalogFromNED(
-            target,
-            config.radius,
-            opts
-          );
-          break;
-        case 'vizier':
-          if (!config.vizierCatId) return;
-          catalog = AStatic.catalogFromVizieR(
-            config.vizierCatId,
-            target,
-            config.radius,
-            opts
-          );
-          break;
-        default:
-          return;
-      }
+      const factory = AStatic.catalogFromSimbad ?? AStatic.catalogFromSIMBAD;
+      const catalog = factory(
+        { ra, dec },
+        radius,
+        {
+          name: '_auto_simbad',
+          color: '#ffffff',
+          sourceSize: 0,
+          limit: AUTO_SIMBAD_LIMIT,
+          onClick: 'showPopup',
+        }
+      );
 
       aladin.addCatalog(catalog);
-      activeCatalogsRef.current.set(config.id, catalog);
-      logger.info(`Catalog loaded: ${config.name}`);
+      autoSimbadRef.current = catalog;
+      autoSimbadCenterRef.current = { ra, dec };
     } catch (error) {
-      logger.warn(`Failed to load catalog: ${config.name}`, error);
+      logger.debug('Auto-SIMBAD load failed', error);
     }
   }, [aladinRef]);
 
-  const toggleCatalog = useCallback((catalogId: string) => {
-    const layers = catalogLayersRef.current;
-    const idx = layers.findIndex((l) => l.id === catalogId);
-    if (idx === -1) return;
+  useEffect(() => {
+    if (!engineReady || skyEngine !== 'aladin' || !staticApiReady) return;
 
-    layers[idx] = { ...layers[idx], enabled: !layers[idx].enabled };
+    const aladin = aladinRef.current;
+    if (!aladin) return;
 
-    if (layers[idx].enabled) {
-      loadCatalog(layers[idx]);
-    } else {
-      const existing = activeCatalogsRef.current.get(catalogId);
-      if (existing) {
-        try { existing.hide(); } catch { /* ignore */ }
-        activeCatalogsRef.current.delete(catalogId);
+    const [ra, dec] = aladin.getRaDec();
+    loadAutoSimbad(ra, dec);
+  }, [aladinRef, engineReady, loadAutoSimbad, skyEngine, staticApiReady]);
+
+  useEffect(() => {
+    if (!engineReady || skyEngine !== 'aladin') return;
+
+    const unsubscribe = useStellariumStore.subscribe((state) => {
+      const vd = state.viewDirection;
+      if (!vd || !autoSimbadCenterRef.current) return;
+
+      const raDeg = (vd.ra * 180) / Math.PI;
+      const decDeg = (vd.dec * 180) / Math.PI;
+      const prev = autoSimbadCenterRef.current;
+
+      const dRa = Math.abs(raDeg - prev.ra) * Math.cos((decDeg * Math.PI) / 180);
+      const dDec = Math.abs(decDeg - prev.dec);
+      const dist = Math.sqrt(dRa * dRa + dDec * dDec);
+
+      if (dist < AUTO_SIMBAD_PAN_THRESHOLD_DEG) return;
+
+      if (autoSimbadTimerRef.current) clearTimeout(autoSimbadTimerRef.current);
+      autoSimbadTimerRef.current = setTimeout(() => {
+        autoSimbadTimerRef.current = null;
+        const aladin = aladinRef.current;
+        if (!aladin || !aladinStaticRef.current) return;
+        const [newRa, newDec] = aladin.getRaDec();
+        loadAutoSimbad(newRa, newDec);
+      }, AUTO_SIMBAD_DEBOUNCE_MS);
+    });
+
+    return () => {
+      unsubscribe();
+      if (autoSimbadTimerRef.current) {
+        clearTimeout(autoSimbadTimerRef.current);
+        autoSimbadTimerRef.current = null;
       }
+    };
+  }, [aladinRef, engineReady, loadAutoSimbad, skyEngine]);
+
+  const cleanupCatalogs = useCallback(() => {
+    for (const [, catalog] of activeCatalogsRef.current) {
+      try { catalog.hide(); } catch { /* ignore */ }
     }
-    // Force re-render by creating new array reference
-    catalogLayersRef.current = [...layers];
-  }, [loadCatalog]);
+    activeCatalogsRef.current.clear();
+    signatureMapRef.current.clear();
+
+    if (autoSimbadRef.current) {
+      try { autoSimbadRef.current.hide(); } catch { /* ignore */ }
+      autoSimbadRef.current = null;
+    }
+    autoSimbadCenterRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (skyEngine === 'aladin' && engineReady) return;
+    cleanupCatalogs();
+  }, [cleanupCatalogs, engineReady, skyEngine]);
+
+  const toggleCatalog = useCallback((catalogId: string) => {
+    toggleCatalogLayer(catalogId);
+  }, [toggleCatalogLayer]);
 
   const refreshCatalogs = useCallback(() => {
-    const layers = catalogLayersRef.current;
-    for (const layer of layers) {
-      if (layer.enabled) {
-        loadCatalog(layer);
-      }
-    }
-  }, [loadCatalog]);
-
-  // Cleanup on unmount or engine switch
-  useEffect(() => {
-    if (skyEngine !== 'aladin' || !engineReady) {
-      // Clear all active catalogs
-      for (const [, catalog] of activeCatalogsRef.current) {
-        try { catalog.hide(); } catch { /* ignore */ }
-      }
-      activeCatalogsRef.current.clear();
-    }
-  }, [skyEngine, engineReady]);
+    cleanupCatalogs();
+    setRefreshTick((prev) => prev + 1);
+  }, [cleanupCatalogs]);
 
   return {
-    catalogLayers: catalogLayersRef.current,
+    catalogLayers,
     toggleCatalog,
     refreshCatalogs,
   };

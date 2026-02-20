@@ -30,6 +30,8 @@ function createMockResponse(text: string, ok = true): Partial<FetchResponse> {
 describe('online-search-service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
+    mockSmartFetch.mockReset();
   });
 
   describe('ONLINE_SEARCH_SOURCES', () => {
@@ -38,6 +40,7 @@ describe('online-search-service', () => {
       expect(ONLINE_SEARCH_SOURCES.sesame).toBeDefined();
       expect(ONLINE_SEARCH_SOURCES.vizier).toBeDefined();
       expect(ONLINE_SEARCH_SOURCES.ned).toBeDefined();
+      expect(ONLINE_SEARCH_SOURCES.mpc).toBeDefined();
     });
 
     it('should have correct base URLs', () => {
@@ -72,7 +75,9 @@ describe('online-search-service', () => {
     });
 
     it('should handle API errors gracefully', async () => {
-      mockSmartFetch.mockRejectedValue(new Error('Network error'));
+      mockSmartFetch
+        .mockImplementationOnce(async () => { throw new Error('Network error'); })
+        .mockImplementationOnce(async () => { throw new Error('Network error'); });
 
       const result = await searchOnlineByName('M31', { sources: ['sesame'] });
 
@@ -140,11 +145,17 @@ describe('online-search-service', () => {
 
       expect(result).toHaveProperty('sesame');
       expect(result).toHaveProperty('simbad');
+      expect(result).toHaveProperty('mpc');
       expect(result.local).toBe(true);
     });
 
     it('should handle offline sources', async () => {
-      mockSmartFetch.mockRejectedValue(new Error('Network error'));
+      mockSmartFetch
+        .mockImplementationOnce(async () => { throw new Error('Network error'); })
+        .mockImplementationOnce(async () => { throw new Error('Network error'); })
+        .mockImplementationOnce(async () => { throw new Error('Network error'); })
+        .mockImplementationOnce(async () => { throw new Error('Network error'); })
+        .mockImplementationOnce(async () => { throw new Error('Network error'); });
 
       const result = await checkOnlineSearchAvailability();
 
@@ -157,6 +168,9 @@ describe('online-search-service', () => {
       const mockResult: OnlineSearchResult = {
         id: 'sesame-m31',
         name: 'M 31',
+        canonicalId: 'M31',
+        identifiers: ['M31', 'M 31'],
+        confidence: 0.9,
         type: 'Galaxy',
         category: 'galaxy',
         ra: 10.6847,
@@ -243,6 +257,7 @@ describe('online-search-service', () => {
       expect(result).toHaveProperty('simbad');
       expect(result).toHaveProperty('vizier');
       expect(result).toHaveProperty('ned');
+      expect(result).toHaveProperty('mpc');
       expect(result.local).toBe(true);
     });
   });
@@ -259,7 +274,7 @@ describe('online-search-service', () => {
       `);
 
       mockSmartFetch
-        .mockRejectedValueOnce(new Error('Network error'))
+        .mockImplementationOnce(async () => { throw new Error('Network error'); })
         .mockResolvedValueOnce(mockResponse as FetchResponse);
 
       const result = await searchOnlineByName('M1', { sources: ['sesame'] });

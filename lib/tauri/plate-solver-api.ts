@@ -165,7 +165,7 @@ export interface OnlineSolveConfig {
   ra_hint?: number;
   dec_hint?: number;
   radius?: number;
-  scale_units?: string;
+  scale_units?: OnlineScaleUnits;
   scale_lower?: number;
   scale_upper?: number;
   scale_est?: number;
@@ -184,6 +184,39 @@ export interface OnlineAnnotation {
   pixelx: number;
   pixely: number;
   radius: number;
+}
+
+export type OnlineScaleUnits = 'degwidth' | 'arcminwidth' | 'arcsecperpix';
+
+export interface OnlineSipCoefficients {
+  a_order: number | null;
+  b_order: number | null;
+  ap_order: number | null;
+  bp_order: number | null;
+  a_coeffs: Record<string, number>;
+  b_coeffs: Record<string, number>;
+  ap_coeffs: Record<string, number>;
+  bp_coeffs: Record<string, number>;
+}
+
+export interface OnlineWcsResult {
+  crpix1: number | null;
+  crpix2: number | null;
+  crval1: number | null;
+  crval2: number | null;
+  cdelt1: number | null;
+  cdelt2: number | null;
+  crota1: number | null;
+  crota2: number | null;
+  cd1_1: number | null;
+  cd1_2: number | null;
+  cd2_1: number | null;
+  cd2_2: number | null;
+  ctype1: string | null;
+  ctype2: string | null;
+  naxis1: number | null;
+  naxis2: number | null;
+  sip: OnlineSipCoefficients | null;
 }
 
 export interface OnlineSolveProgress {
@@ -207,6 +240,7 @@ export interface OnlineSolveResult {
   objects_in_field: string[];
   annotations: OnlineAnnotation[];
   job_id: number | null;
+  wcs: OnlineWcsResult | null;
   solve_time_ms: number;
   error_message: string | null;
 }

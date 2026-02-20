@@ -98,6 +98,7 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
       totalExposure: parseFloat(totalExposure) || 0,
       subFrames: parseInt(subFrames) || 0,
       filter: filter || undefined,
+      advanced: target.exposurePlan?.advanced,
     } : target.exposurePlan;
 
     updateTarget(target.id, {

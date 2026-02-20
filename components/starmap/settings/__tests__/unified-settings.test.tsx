@@ -22,6 +22,31 @@ const mockUseEquipmentStore = jest.fn((selector) => {
 jest.mock('@/lib/stores', () => ({
   useSettingsStore: (selector: (state: unknown) => unknown) => mockUseSettingsStore(selector),
   useEquipmentStore: (selector: (state: unknown) => unknown) => mockUseEquipmentStore(selector),
+  useOnboardingBridgeStore: (selector: (state: unknown) => unknown) => {
+    const state = {
+      openSettingsDrawerRequestId: 0,
+      closeTransientPanelsRequestId: 0,
+      settingsDrawerTab: null,
+    };
+    return selector ? selector(state) : state;
+  },
+}));
+
+jest.mock('@/lib/stores/onboarding-store', () => ({
+  useOnboardingStore: (selector: (state: unknown) => unknown) => {
+    const state = {
+      startTourById: jest.fn(),
+      getTourProgress: () => ({
+        currentStepIndex: 0,
+        totalSteps: 3,
+        completedStepIds: [],
+        completed: false,
+        updatedAt: null,
+      }),
+      completedTours: [],
+    };
+    return selector ? selector(state) : state;
+  },
 }));
 
 jest.mock('@/lib/stores/theme-store', () => ({
@@ -153,6 +178,7 @@ jest.mock('@/components/starmap/settings/settings-export-import', () => ({
 jest.mock('@/components/starmap/map', () => ({
   MapProviderSettings: () => <div data-testid="map-provider-settings">MapProviderSettings</div>,
   MapHealthMonitor: () => <div data-testid="map-health-monitor">MapHealthMonitor</div>,
+  MapApiKeyManager: () => <div data-testid="map-api-key-manager">MapApiKeyManager</div>,
 }));
 
 jest.mock('@/components/starmap/management/data-manager', () => ({

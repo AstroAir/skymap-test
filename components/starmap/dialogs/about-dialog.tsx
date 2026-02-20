@@ -11,6 +11,7 @@ import {
   Heart,
   Star,
   ChevronRight,
+  MessageCircleWarning,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +35,7 @@ import { cn } from '@/lib/utils';
 import type { LicenseInfo, DependencyInfo, DataCreditInfo } from '@/types/about';
 import { APP_INFO, LICENSES, DEPENDENCIES, DATA_CREDITS } from '@/lib/constants/about-data';
 import { StellariumCredits } from './stellarium-credits';
+import { FeedbackDialog } from './feedback-dialog';
 
 // ============================================================================
 // Sub Components
@@ -118,6 +120,7 @@ function DataCreditRow({ item, t }: { item: DataCreditInfo; t: ReturnType<typeof
 export function AboutDialog() {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -196,12 +199,24 @@ export function AboutDialog() {
                       <p className="text-xs text-muted-foreground">GitHub</p>
                     </div>
                   </a>
-                  <div className="flex items-center gap-3 p-3 rounded-lg border border-border">
-                    <Heart className="h-5 w-5 text-red-500" />
+                  <button
+                    type="button"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/50 transition-colors text-left"
+                    onClick={() => setFeedbackOpen(true)}
+                    data-testid="report-issue-button"
+                  >
+                    <MessageCircleWarning className="h-5 w-5 text-primary" />
                     <div>
-                      <p className="text-sm font-medium">{t('about.madeWith')}</p>
-                      <p className="text-xs text-muted-foreground">{APP_INFO.author}</p>
+                      <p className="text-sm font-medium">{t('about.reportIssue')}</p>
+                      <p className="text-xs text-muted-foreground">{t('about.reportIssueDescription')}</p>
                     </div>
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-border">
+                  <Heart className="h-5 w-5 text-red-500" />
+                  <div>
+                    <p className="text-sm font-medium">{t('about.madeWith')}</p>
+                    <p className="text-xs text-muted-foreground">{APP_INFO.author}</p>
                   </div>
                 </div>
 
@@ -262,6 +277,7 @@ export function AboutDialog() {
             </ScrollArea>
           </TabsContent>
         </Tabs>
+        <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       </DialogContent>
     </Dialog>
   );

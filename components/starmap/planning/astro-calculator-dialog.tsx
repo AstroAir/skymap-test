@@ -36,6 +36,9 @@ import {
   EphemerisTab,
   AlmanacTab,
   PhenomenaTab,
+  CoordinateTab,
+  TimeTab,
+  SolarSystemTab,
 } from './astro-calculator';
 
 // ============================================================================
@@ -101,7 +104,7 @@ export function AstroCalculatorDialog() {
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
-          <TabsList className="grid w-full grid-cols-3 grid-rows-2 h-auto gap-0.5 p-1">
+          <TabsList className="grid w-full grid-cols-3 grid-rows-3 h-auto gap-0.5 p-1">
             <TabsTrigger value="wut" className="text-xs">
               {t('astroCalc.wut')}
             </TabsTrigger>
@@ -119,6 +122,15 @@ export function AstroCalculatorDialog() {
             </TabsTrigger>
             <TabsTrigger value="phenomena" className="text-xs">
               {t('astroCalc.phenomena')}
+            </TabsTrigger>
+            <TabsTrigger value="coordinate" className="text-xs">
+              {t('astroCalc.coordinate')}
+            </TabsTrigger>
+            <TabsTrigger value="time" className="text-xs">
+              {t('astroCalc.timeCalc')}
+            </TabsTrigger>
+            <TabsTrigger value="solar-system" className="text-xs">
+              {t('astroCalc.solarSystem')}
             </TabsTrigger>
           </TabsList>
 
@@ -155,6 +167,18 @@ export function AstroCalculatorDialog() {
 
             <TabsContent value="phenomena" className="mt-0 h-full">
               <PhenomenaTab latitude={latitude} longitude={longitude} />
+            </TabsContent>
+
+            <TabsContent value="coordinate" className="mt-0 h-full">
+              <CoordinateTab latitude={latitude} longitude={longitude} />
+            </TabsContent>
+
+            <TabsContent value="time" className="mt-0 h-full">
+              <TimeTab longitude={longitude} />
+            </TabsContent>
+
+            <TabsContent value="solar-system" className="mt-0 h-full">
+              <SolarSystemTab latitude={latitude} longitude={longitude} />
             </TabsContent>
           </div>
         </Tabs>

@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useStellariumStore } from '@/lib/stores';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import { rad2deg } from '@/lib/astronomy/starmap-utils';
+import { pointAndLockTargetAt } from '@/lib/hooks/stellarium/target-object-pool';
 import type { SearchResultItem } from '@/lib/core/types';
 import { createLogger } from '@/lib/logger';
 
@@ -99,18 +100,7 @@ export function useSelectTarget(callbacks?: {
         const dec_rad = dec * stel.D2R;
         const icrfVec = stel.s2c(ra_rad, dec_rad);
         const observedVec = stel.convertFrame(stel.observer, 'ICRF', 'CIRS', icrfVec);
-
-        const targetCircle = stel.createObj('circle', {
-          id: 'targetCircle',
-          pos: observedVec,
-          color: [0, 0, 0, 0.1],
-          size: [0.05, 0.05],
-        });
-
-        targetCircle.pos = observedVec;
-        targetCircle.update();
-        Object.assign(stel.core, { selection: targetCircle });
-        stel.pointAndLock(targetCircle);
+        pointAndLockTargetAt(stel, observedVec);
       }
 
       addRecentSearch?.(item.Name);

@@ -154,15 +154,49 @@ test.describe('About Dialog', () => {
       }
     });
 
-    test('should have report issue link', async ({ page }) => {
+    test('should open feedback flow and include issue URL parameters', async ({ page }) => {
       const aboutButton = page.getByRole('button', { name: /about|关于/i }).first();
       
       if (await aboutButton.isVisible().catch(() => false)) {
         await aboutButton.click();
         await page.waitForTimeout(500);
-        
-        const issueLink = page.locator('text=/report.*issue|bug|反馈|问题/i');
-        expect(await issueLink.count()).toBeGreaterThanOrEqual(0);
+
+        const feedbackButton = page
+          .locator('[data-testid="report-issue-button"]')
+          .or(page.getByRole('button', { name: /report issue|反馈问题/i }))
+          .first();
+
+        if (await feedbackButton.isVisible().catch(() => false)) {
+          await feedbackButton.click();
+          await page.waitForTimeout(300);
+
+          const titleInput = page.locator('[data-testid="feedback-title-input"]');
+          const descriptionInput = page.locator('[data-testid="feedback-description-input"]');
+          const stepsInput = page.locator('[data-testid="feedback-steps-input"]');
+          const expectedInput = page.locator('[data-testid="feedback-expected-input"]');
+          const submitButton = page.locator('[data-testid="feedback-submit-button"]').first();
+
+          await titleInput.fill('E2E feedback title');
+          await descriptionInput.fill('E2E feedback description');
+          await stepsInput.fill('1. Open dialog\n2. Fill form\n3. Submit');
+          await expectedInput.fill('Issue URL contains required parameters');
+
+          const popupPromise = page.waitForEvent('popup', { timeout: 8000 });
+          await submitButton.click();
+          const popup = await popupPromise;
+
+          await popup.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {});
+          await expect
+            .poll(() => popup.url(), { timeout: 8000 })
+            .toContain('github.com/AstroAir/skymap-test/issues/new');
+
+          const issueUrl = new URL(popup.url());
+          expect(issueUrl.searchParams.get('template')).toBeTruthy();
+          expect(issueUrl.searchParams.get('title')).toBeTruthy();
+          expect(issueUrl.searchParams.get('body')).toBeTruthy();
+
+          await popup.close().catch(() => {});
+        }
       }
     });
   });

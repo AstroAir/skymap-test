@@ -51,6 +51,8 @@
     "licensesTab": "Licenses",
     "depsTab": "Dependencies",
     "sourceCode": "Source Code",
+    "reportIssue": "Report Issue",
+    "reportIssueDescription": "Open structured feedback form",
     "madeWith": "Made with ❤️",
     "dataCredits": "Data Credits",
     "allRightsReserved": "All rights reserved.",
@@ -210,6 +212,7 @@
     "illuminated": "illuminated",
     "filter": "Filter",
     "sort": "Sort",
+    "profile": "Profile",
     "addTop10": "Add Top 10",
     "filterType": {
       "all": "All",
@@ -221,6 +224,11 @@
       "score": "Score",
       "altitude": "Altitude",
       "time": "Time"
+    },
+    "profileType": {
+      "imaging": "Imaging",
+      "visual": "Visual",
+      "hybrid": "Hybrid"
     },
     "clickToUpdateLocation": "Click to update location from browser"
   },
@@ -354,12 +362,38 @@
     "aladinContrast": "Contrast",
     "aladinSaturation": "Saturation",
     "aladinGamma": "Gamma",
+    "aladinCatalogLayers": "Catalog Layers",
+    "aladinSearchRadius": "Search Radius",
+    "aladinCatalogLimit": "Source Limit",
+    "aladinVizierCatalogId": "VizieR Catalog ID",
+    "aladinOverlayLayers": "Image Overlay Layers",
+    "aladinAddOverlay": "Add HiPS Overlay",
+    "aladinOverlayOpacity": "Layer Opacity",
+    "aladinAdditiveBlend": "Additive Blending",
+    "aladinMocLayers": "MOC Layers",
+    "aladinAddWellKnownMoc": "Quick Add Presets",
+    "aladinAddCustomMoc": "Custom MOC",
+    "aladinMocNamePlaceholder": "MOC name",
+    "aladinMocUrlPlaceholder": "MOC URL",
+    "aladinMocOpacity": "MOC Opacity",
+    "aladinMocLineWidth": "Boundary Width",
+    "aladinFitsLayers": "FITS Layers",
+    "aladinAddFitsLayer": "Add FITS Layer",
+    "aladinFitsNamePlaceholder": "FITS layer name",
+    "aladinFitsUrlPlaceholder": "FITS / HiPS URL",
+    "aladinFitsMode": "Render Mode",
+    "aladinFitsModeOverlay": "Overlay",
+    "aladinFitsModeBase": "Base Layer",
+    "aladinAttribution": "Aladin Lite data and rendering provided by CDS (Strasbourg Observatory).",
     "displaySettings": "Display Settings",
     "constellationLines": "Constellation Lines",
     "azimuthalGrid": "Azimuthal Grid",
     "equatorialGrid": "Equatorial Grid",
+    "equatorialJnowGrid": "Equatorial JNow Grid",
     "meridianLine": "Meridian Line",
     "eclipticLine": "Ecliptic Line",
+    "horizonLine": "Horizon Line",
+    "galacticLine": "Galactic Line",
     "atmosphere": "Atmosphere",
     "landscape": "Landscape",
     "deepSkyObjects": "Deep Sky Objects",
@@ -410,9 +444,27 @@
     "sensorControlEnable": "Enable sensor pointing",
     "sensorControlDisable": "Disable sensor pointing",
     "sensorControlPermission": "Tap to enable device orientation",
+    "sensorAbsolutePreferred": "Prefer absolute orientation",
+    "sensorUseCompassHeading": "Use iOS compass heading fallback",
+    "sensorUpdateRate": "Sensor update rate",
+    "sensorSmoothingFactor": "Sensor smoothing",
+    "sensorDeadbandDeg": "Sensor deadband",
+    "sensorCalibrationRequired": "Calibration required",
+    "sensorCalibrationDescription": "Point the device to the current map center direction and confirm calibration.",
+    "sensorCalibrateNow": "Calibrate now",
+    "sensorRecalibrate": "Recalibrate",
+    "sensorResetCalibration": "Reset calibration",
+    "sensorCalibrationUpdated": "Calibration updated",
+    "sensorAccuracy": "Accuracy",
+    "sensorStatusActive": "Tracking",
+    "sensorStatusPermissionDenied": "Permission denied",
+    "sensorStatusUnsupported": "Not supported",
+    "stellariumFeatureUnavailable": "This feature is available only in Stellarium mode.",
+    "switchToStellarium": "Switch to Stellarium",
     "constellationArt": "Constellation Art",
     "constellationArtDescription": "Show constellation illustrations",
     "constellationLabels": "Constellation Labels",
+    "constellationBoundaries": "Constellation Boundaries",
     "starLabels": "Star Labels",
     "planetLabels": "Planet Labels",
     "viewModes": "View Modes",
@@ -443,6 +495,18 @@
     "displayLimitMag": "Magnitude Limit",
     "magNoLimit": "No limit",
     "exposureScale": "Exposure",
+    "tonemapperP": "Tonemapper P",
+    "viewYOffset": "View Y Offset",
+    "mountFrame": "Mount Frame",
+    "mountFrameAstrom": "Astrometric",
+    "mountFrameIcrf": "ICRF",
+    "mountFrameCirs": "CIRS",
+    "mountFrameJnow": "JNow",
+    "mountFrameObservedGeom": "Observed Geom",
+    "mountFrameObserved": "Observed",
+    "mountFrameMount": "Mount",
+    "mountFrameView": "View",
+    "mountFrameEcliptic": "Ecliptic",
     "projection": "Projection",
     "projectionDescription": "Map projection for sky rendering",
     "projStereographic": "Stereographic",
@@ -628,6 +692,7 @@
     "search": "Search",
     "stats": "Stats",
     "newSession": "New Session",
+    "usePlannerSession": "Create Draft from Planner",
     "activeSession": "Active Session",
     "endSession": "End Session",
     "noSessions": "No observation sessions yet",
@@ -662,6 +727,8 @@
     "bortle": "Bortle Class",
     "loadFailed": "Failed to load observation log",
     "sessionCreated": "Session created",
+    "plannerDraftCreated": "Session planner draft created",
+    "noPlannerSession": "No saved planner session found",
     "createFailed": "Failed to create session",
     "observationAdded": "Observation added",
     "addFailed": "Failed to add observation",
@@ -743,6 +810,7 @@
     "timeout": "Timeout",
     "cacheResults": "Cache results",
     "showSourceBadges": "Show source badges",
+    "groupBySource": "Group by Source",
     "clearCache": "Clear Cache",
     "sourceFrom": "From {source}",
     "searchingOnline": "Searching online databases...",
@@ -758,12 +826,20 @@
     "sesameDescription": "CDS name resolver",
     "vizierDescription": "VizieR catalog library",
     "nedDescription": "NASA Extragalactic Database",
+    "mpcDescription": "Minor Planet Center designation resolver",
     "categories": {
       "galaxies": "Galaxies",
       "nebulae": "Nebulae",
       "planets": "Planets",
       "clusters": "Clusters"
-    }
+    },
+    "sortByDistance": "Distance",
+    "sortByAltitude": "Altitude",
+    "batchSearch": "Batch Search",
+    "batchPlaceholder": "One object per line, e.g.\nM31\nNGC7000\nMars",
+    "importList": "Import List",
+    "runBatchSearch": "Run Batch Search",
+    "commandModeHint": "Command mode enabled. Supported prefixes: m:, ngc:, ic:, hd:, hip:, @"
   },
   "exposure": {
     "exposureCalculator": "Exposure Calculator",
@@ -824,12 +900,43 @@
     "narrowband": "Narrowband",
     "applyToTarget": "Apply to Target",
     "advancedOptions": "Advanced Options",
+    "advancedModelDefaults": "Advanced Model Defaults",
+    "professionalParameters": "Professional Parameters",
     "dither": "Dither",
     "ditherDescription": "Move sensor between exposures",
+    "sqmOverride": "SQM Override",
+    "filterBandwidthNm": "Filter Bandwidth (nm)",
+    "readNoiseLimitPercent": "Read Noise Limit (%)",
+    "gainStrategy": "Gain Strategy",
+    "gainStrategyUnity": "Unity Gain",
+    "gainStrategyMaxDynamicRange": "Max Dynamic Range",
+    "gainStrategyManual": "Manual",
+    "manualGain": "Manual Gain",
+    "targetSurfaceBrightness": "Target Surface Brightness (mag/arcsec²)",
+    "targetSignalRate": "Target Signal Rate (e⁻/px/s, optional override)",
+    "manualCameraNoise": "Manual Camera Noise Profile",
+    "manualCameraNoiseDescription": "Override automatic camera estimates with measured sensor values.",
+    "readNoiseE": "Read Noise (e⁻)",
+    "darkCurrentE": "Dark Current (e⁻/px/s)",
+    "fullWellE": "Full Well (e⁻)",
+    "quantumEfficiency": "Quantum Efficiency (0-1)",
+    "ePerAdu": "e⁻/ADU",
     "calculatedValues": "Calculated Values",
     "imageScale": "Image Scale",
     "recommendedSingle": "Recommended Single",
     "recommendedTotal": "Recommended Total",
+    "professionalRecommendation": "Professional Recommendation",
+    "recommendedSubExposure": "Recommended Sub-Exposure",
+    "usableExposureRange": "Usable Exposure Range",
+    "dynamicRange": "Dynamic Range",
+    "readNoiseShort": "Read",
+    "skyNoiseShort": "Sky",
+    "darkNoiseShort": "Dark",
+    "recommendedGainStrategy": "Gain Strategy",
+    "stackPlan": "Stack Plan",
+    "framesForTargetSNR": "Frames for target SNR",
+    "framesForTimeNoise": "Frames for time/noise target",
+    "constraints": "Constraints",
     "sessionSummary": "Session Summary",
     "storageRequired": "Storage Required",
     "sessionDuration": "Session Duration",
@@ -1166,6 +1273,13 @@
     "comets": "Comets",
     "seasons": "Seasons",
     "noEvents": "No events this month",
+    "noEventsToday": "No events for this day",
+    "todayExact": "Today (Exact Time)",
+    "todayOngoing": "Today (Ongoing)",
+    "ongoing": "Ongoing",
+    "endsToday": "Ends today",
+    "ongoingWindow": "Window Event",
+    "instantEvent": "Instant Event",
     "goToRadiant": "Go to Radiant",
     "excellent": "Excellent",
     "good": "Good",
@@ -1179,16 +1293,20 @@
     "eventsFound": "events",
     "peak": "Peak: {time}",
     "until": "Until {date}",
-    "planetaryEvents": "Planetary Events"
+    "planetaryEvents": "Planetary Events",
+    "timezone": "Timezone",
+    "monthOverview": "Monthly overview"
   },
   "eventDetail": {
     "visibility": "Visibility",
+    "startTime": "Start Time",
     "peakTime": "Peak Time",
     "activeUntil": "Active Until",
     "description": "Description",
     "coordinates": "Coordinates",
     "magnitude": "Magnitude",
     "source": "Data Source",
+    "sourcePriority": "Priority",
     "goToLocation": "Go to Location"
   },
   "eventSources": {
@@ -1207,6 +1325,7 @@
     "connectionFailed": "Connection failed"
   },
   "ocular": {
+    "title": "Eyepiece Simulator",
     "simulator": "Eyepiece Simulator",
     "eyepieceSimulator": "Eyepiece Simulator",
     "telescope": "Telescope",
@@ -1216,7 +1335,12 @@
     "addCustom": "Add Custom",
     "deleteCustom": "Delete Custom",
     "builtinPresets": "Built-in Presets",
+    "desktopPresets": "Desktop Library",
     "customPresets": "Custom",
+    "sourceBuiltin": "Built-in",
+    "sourceDesktop": "Desktop",
+    "sourceCustom": "Custom",
+    "desktopMergeHint": "Desktop mode merges Tauri equipment with local presets. Desktop entries are read-only here.",
     "telescopeName": "Telescope name",
     "eyepieceName": "Eyepiece name",
     "barlowName": "Barlow/Reducer name",
@@ -1243,6 +1367,15 @@
     "suggestAllround": "All-Round",
     "suggestPlanetary": "Planetary",
     "suggestOverlimit": "Over Limit",
+    "applyToMap": "Apply To Map",
+    "restoreFov": "Restore Previous FOV",
+    "overlayEnabled": "Show Ocular Mask",
+    "overlayOpacity": "Mask Opacity",
+    "overlayCrosshair": "Center Crosshair",
+    "overlayExceedsFov": "Eyepiece TFOV exceeds current map FOV",
+    "validationTelescope": "Please enter a name, focal length 50–10000 mm, and aperture 20–1000 mm.",
+    "validationEyepiece": "Please enter a name, focal length 2–80 mm, AFOV 30–120°, and valid field stop.",
+    "validationBarlow": "Please enter a name and magnification between 0.2x and 8x.",
     "overMagnifiedWarning": "Magnification exceeds useful limit. Image may appear dim and blurry.",
     "underMagnifiedWarning": "Below minimum useful magnification. Exit pupil exceeds 7mm — some light is wasted.",
     "largePupilWarning": "Exit pupil exceeds typical dark-adapted eye. Some light may be wasted."
@@ -1714,6 +1847,51 @@
         }
       }
     },
+    "tours": {
+      "first-run-core": {
+        "title": "Core Quick Start",
+        "description": "Essential controls to get you observing immediately."
+      },
+      "module-discovery": {
+        "title": "Discovery Toolkit",
+        "description": "Search and discovery workflows for tonight's sky."
+      },
+      "module-planning": {
+        "title": "Planning Workflow",
+        "description": "Session planning, events, and observation tracking."
+      },
+      "module-imaging": {
+        "title": "Imaging Workflow",
+        "description": "FOV, exposure, and imaging-oriented toolchain."
+      },
+      "module-controls": {
+        "title": "Control Surface",
+        "description": "Navigation controls and display mode preferences."
+      },
+      "module-settings-help": {
+        "title": "Settings & Help",
+        "description": "Settings drawer, shortcuts, and help resources."
+      },
+      "module-advanced": {
+        "title": "Advanced Toolkit",
+        "description": "Advanced instrument and alignment capabilities."
+      }
+    },
+    "hub": {
+      "title": "Tour Center",
+      "description": "Continue with module tours or restart any completed module.",
+      "start": "Start Module",
+      "restart": "Restart Module",
+      "completed": "Completed",
+      "progress": "{current} / {total}",
+      "finishLater": "Finish Later"
+    },
+    "skipReasons": {
+      "unavailable": "This feature is unavailable in your current environment and was skipped.",
+      "missing-selector": "Guide target was not visible and this step was skipped.",
+      "hidden-by-platform": "This feature is hidden on the current platform and was skipped.",
+      "unsupported-engine": "This feature is unsupported for the current sky engine and was skipped."
+    },
     "steps": {
       "welcome": {
         "title": "Welcome to the Star Map",
@@ -1754,6 +1932,94 @@
       "complete": {
         "title": "You're All Set!",
         "description": "You've completed the tour. Explore the universe at your own pace! You can restart this tour anytime from the Settings menu."
+      },
+      "sky-atlas": {
+        "title": "Sky Atlas",
+        "description": "Open curated atlas targets to jump quickly between popular regions."
+      },
+      "quick-actions": {
+        "title": "Quick Actions",
+        "description": "Use one-click shortcuts for common framing and navigation tasks."
+      },
+      "navigation-history": {
+        "title": "Navigation History",
+        "description": "Move backward and forward through previous views."
+      },
+      "view-bookmarks": {
+        "title": "View Bookmarks",
+        "description": "Save and return to favorite sky positions and FOV states."
+      },
+      "session-planner": {
+        "title": "Session Planner",
+        "description": "Plan nightly targets, constraints, and sequence priorities."
+      },
+      "astro-events": {
+        "title": "Astronomy Events",
+        "description": "Review upcoming celestial events relevant to your location."
+      },
+      "astro-calculator": {
+        "title": "Astronomy Calculator",
+        "description": "Open the calculation workspace for ephemeris and observation math."
+      },
+      "equipment-manager": {
+        "title": "Equipment Manager",
+        "description": "Manage telescope and camera presets for realistic simulation."
+      },
+      "exposure": {
+        "title": "Exposure Calculator",
+        "description": "Estimate exposure settings using instrument and target conditions."
+      },
+      "observation-log": {
+        "title": "Observation Log",
+        "description": "Record completed observations and notes while you work."
+      },
+      "markers": {
+        "title": "Sky Markers",
+        "description": "Place and manage temporary markers directly on the sky view."
+      },
+      "location": {
+        "title": "Location Controls",
+        "description": "Manage observing sites and switch quickly between saved locations."
+      },
+      "satellite": {
+        "title": "Satellite Tracker",
+        "description": "Track satellite passes and visibility windows."
+      },
+      "ocular": {
+        "title": "Ocular Simulator",
+        "description": "Preview eyepiece framing and magnification behavior."
+      },
+      "plate-solver": {
+        "title": "Plate Solver",
+        "description": "Solve image coordinates and synchronize mount alignment."
+      },
+      "mount": {
+        "title": "Mount Controls",
+        "description": "Connect and control mount actions from the starmap interface."
+      },
+      "theme": {
+        "title": "Theme",
+        "description": "Switch between visual themes for your workspace."
+      },
+      "language": {
+        "title": "Language",
+        "description": "Change UI language and localization options."
+      },
+      "night-mode": {
+        "title": "Night Mode",
+        "description": "Enable red-filter mode to preserve dark adaptation."
+      },
+      "keyboard-shortcuts": {
+        "title": "Keyboard Shortcuts",
+        "description": "Open shortcut reference to speed up frequent actions."
+      },
+      "about": {
+        "title": "About",
+        "description": "Check version, credits, and project information."
+      },
+      "daily-knowledge": {
+        "title": "Daily Knowledge",
+        "description": "Open the daily astronomy insight panel to read, save favorites, and jump to related objects."
       }
     }
   },
@@ -1764,6 +2030,12 @@
     "skipSetup": "Skip Setup",
     "getStarted": "Get Started",
     "restartSetup": "Restart Setup",
+    "softGuard": {
+      "title": "Continue Without Full Setup?",
+      "locationImpact": "Skipping location setup can reduce recommendation and visibility accuracy.",
+      "equipmentImpact": "Skipping equipment setup can reduce FOV and imaging simulation accuracy.",
+      "continueAnyway": "Continue Anyway"
+    },
     "steps": {
       "welcome": {
         "title": "Welcome",
@@ -1891,7 +2163,15 @@
     "secondary": "Secondary",
     "accent": "Accent",
     "background": "Background",
-    "foreground": "Foreground"
+    "foreground": "Foreground",
+    "muted": "Muted",
+    "card": "Card",
+    "border": "Border",
+    "destructive": "Destructive",
+    "colorValuePlaceholder": "e.g. #1a1a1a / oklch(...)",
+    "clearColor": "Clear",
+    "invalidColor": "Invalid CSS color value",
+    "customOverridesPreset": "Custom values override the active preset for the same color key."
   },
   "plateSolving": {
     "title": "Plate Solving",
@@ -2133,6 +2413,8 @@
       "performanceShort": "Perf",
       "accessibility": "Accessibility",
       "accessibilityShort": "A11y",
+      "mobile": "Mobile",
+      "mobileShort": "Mobile",
       "about": "About",
       "aboutShort": "Info"
     },
@@ -2174,14 +2456,24 @@
       "autoConnectDesc": "Automatically connect to the backend service on startup",
       "behavior": "Behavior",
       "skipCloseConfirmation": "Skip Close Confirmation",
-      "skipCloseConfirmationDesc": "Close the app without asking for confirmation"
+      "skipCloseConfirmationDesc": "Close the app without asking for confirmation",
+      "dailyKnowledgeEnabled": "Enable Daily Knowledge",
+      "dailyKnowledgeEnabledDesc": "Turn Daily Knowledge feature on or off.",
+      "dailyKnowledgeAutoShow": "Auto show once per day",
+      "dailyKnowledgeAutoShowDesc": "Automatically open Daily Knowledge on the first launch each day.",
+      "dailyKnowledgeOnlineEnhancement": "Online enhancement",
+      "dailyKnowledgeOnlineEnhancementDesc": "Use APOD and Wikimedia metadata to enrich today's content when online.",
+      "openDailyKnowledgeNow": "Open Daily Knowledge Now"
     },
     "appearance": {
+      "title": "Appearance",
       "themeMode": "Theme Mode",
       "light": "Light",
       "dark": "Dark",
       "system": "System",
       "colorPresets": "Color Presets",
+      "colors": "Color Customization",
+      "colorMode": "Edit Palette",
       "borderRadius": "Border Radius",
       "roundness": "Roundness",
       "square": "Square",
@@ -2293,6 +2585,43 @@
       "other": "Other",
       "closePanel": "Close Panel"
     },
+    "mobile": {
+      "title": "Mobile",
+      "compactBottomBar": "Compact Bottom Bar",
+      "compactBottomBarDesc": "Use prioritized tools with a More drawer instead of showing every tool at once.",
+      "oneHandMode": "One-hand Mode",
+      "oneHandModeDesc": "Bring mobile controls closer to the right-thumb reach zone.",
+      "prioritizedTools": "Priority Tool Order & Visibility",
+      "prioritizedToolsDesc": "Visible tools appear first in compact mode. Hidden tools remain available from More.",
+      "hiddenHint": "Hidden from compact bar, available in More",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "accessHint": "The compact bar controls quick access only; no feature is removed.",
+      "moreToolsTitle": "More Tools",
+      "tools": {
+        "markers": "Markers",
+        "location": "Location",
+        "fov": "FOV Simulator",
+        "exposure": "Exposure Calculator",
+        "daily-knowledge": "Daily Knowledge",
+        "tonight": "Tonight Recommendations",
+        "session-planner": "Session Planner",
+        "astro-events": "Astronomy Events",
+        "astro-calculator": "Astronomy Calculator",
+        "shotlist": "Shot List",
+        "observation-log": "Observation Log",
+        "mount": "Mount",
+        "plate-solver": "Plate Solver",
+        "ocular": "Ocular Simulator",
+        "sky-atlas": "Sky Atlas",
+        "equipment-manager": "Equipment",
+        "offline-cache": "Offline Storage",
+        "satellite": "Satellite Tracker",
+        "settings": "Settings",
+        "keyboard-shortcuts": "Shortcuts",
+        "about": "About"
+      }
+    },
     "exportImport": {
       "title": "Settings Backup",
       "description": "Export your settings to a file or import from a previous backup",
@@ -2315,12 +2644,60 @@
       "links": "Links",
       "sourceCode": "Source Code",
       "documentation": "Documentation",
+      "reportIssue": "Report Issue",
+      "reportIssueDescription": "Open feedback form and submit to GitHub",
       "dataCredits": "Data Credits",
       "systemInfo": "System Info",
       "os": "Operating System",
       "arch": "Architecture",
       "tauriVersion": "Tauri Version",
       "systemInfoUnavailable": "System info unavailable"
+    }
+  },
+  "feedback": {
+    "title": "Send Feedback",
+    "description": "Create a structured issue with optional diagnostics.",
+    "type": "Feedback Type",
+    "typeBug": "Bug Report",
+    "typeFeature": "Feature Request",
+    "typeBugHint": "Use this for crashes, incorrect behavior, or regressions.",
+    "typeFeatureHint": "Use this for improvements and new capabilities.",
+    "titleField": "Issue Title",
+    "titlePlaceholder": "A short and clear title",
+    "descriptionField": "Description",
+    "descriptionPlaceholder": "Describe the problem or request in detail.",
+    "stepsField": "Steps / Use Case",
+    "stepsPlaceholder": "How can we reproduce this issue or scenario?",
+    "expectedField": "Expected Result / Proposal",
+    "expectedPlaceholder": "What did you expect to happen?",
+    "additionalField": "Additional Context",
+    "additionalPlaceholder": "Anything else that may help (workarounds, notes, links).",
+    "diagnosticsTitle": "Diagnostics (Optional)",
+    "includeSystemInfo": "Include system information",
+    "includeSystemInfoDesc": "OS, architecture, app/runtime versions, browser context.",
+    "includeLogs": "Include recent logs",
+    "includeLogsDesc": "Attach latest logs with sensitive fields redacted.",
+    "privacyHint": "Diagnostics are optional and only included when you enable them.",
+    "copyMarkdown": "Copy Markdown",
+    "downloadDiagnostics": "Download Diagnostics",
+    "submitToGitHub": "Submit to GitHub",
+    "toast": {
+      "markdownCopied": "Markdown copied",
+      "copyFailed": "Failed to copy markdown",
+      "enableDiagnosticsForExport": "Enable system info or logs before exporting diagnostics",
+      "noDiagnosticsCollected": "No diagnostics were collected",
+      "diagnosticsExported": "Diagnostics bundle exported",
+      "downloadCancelled": "Download cancelled",
+      "exportFailed": "Failed to export diagnostics bundle",
+      "urlTruncated": "Issue body was shortened due to URL length limits",
+      "openedInBrowser": "GitHub issue form opened in browser",
+      "submitFailed": "Failed to open GitHub issue form"
+    },
+    "errors": {
+      "titleRequired": "Please enter a title",
+      "descriptionRequired": "Please enter a description",
+      "stepsRequired": "Please provide reproduction steps",
+      "expectedRequired": "Please provide expected behavior"
     }
   },
   "updater": {
@@ -2443,9 +2820,13 @@
   },
   "sessionPlanner": {
     "title": "Session Planner",
+    "dialogDescription": "Build, edit, and export tonight's imaging session with scheduling constraints.",
     "darkTime": "Dark Time",
     "night": "Night",
     "daylight": "Daylight",
+    "mode": "Mode",
+    "modeAuto": "Automatic",
+    "modeManual": "Manual",
     "optimizationSettings": "Optimization Settings",
     "strategy": "Strategy",
     "strategyBalanced": "Balanced (Recommended)",
@@ -2483,12 +2864,46 @@
     "restore": "Restore",
     "savePlan": "Save Plan",
     "savePlanTooltip": "Save current plan for later use",
+    "planSaved": "Session plan saved",
     "loadPlan": "Load Plan",
+    "templates": "Templates",
+    "saveTemplate": "Save as Template",
+    "templateSaved": "Template saved",
+    "templateSaveFailed": "Template sync to desktop failed",
+    "templateLoaded": "Template loaded",
+    "templatePrefix": "Template",
+    "noTemplates": "No templates yet",
+    "importPlan": "Import Plan",
+    "importSuccess": "Session draft imported",
+    "importFailed": "Failed to import session draft",
+    "importDesktopOnly": "Import is available in desktop mode only",
+    "notes": "Session Notes",
+    "notesPlaceholder": "Add weather notes, setup reminders, and sequencing tips...",
+    "weatherSourceLabel": "Weather Source",
+    "weatherSourceDevice": "Device (Alpaca)",
+    "weatherSourceManual": "Manual Input",
+    "weatherSourceNone": "Astronomy-only (no weather constraints)",
+    "weatherCloudCover": "Cloud Cover (%)",
+    "weatherHumidity": "Humidity (%)",
+    "weatherWindSpeed": "Wind (km/h)",
+    "weatherDewPoint": "Dew Point (°C)",
+    "refreshWeather": "Refresh",
+    "safetySafe": "Safety: Safe",
+    "safetyUnsafe": "Safety: Unsafe",
+    "safetyWarning": "Safety monitor reports unsafe conditions. Scheduler keeps astronomical plan but flags weather/safety violations.",
+    "startTime": "Start Time",
+    "durationMinutes": "Duration (min)",
+    "lockTarget": "Lock Target",
+    "locked": "Locked",
+    "unlocked": "Unlocked",
+    "exportSaved": "Export saved to file",
     "exportFormat": {
       "text": "Plain Text",
       "markdown": "Markdown",
       "json": "JSON",
-      "nina-xml": "NINA Sequence XML"
+      "nina-xml": "NINA Sequence XML",
+      "csv": "CSV",
+      "sgp-csv": "SGP CSV"
     }
   },
   "mountSafety": {
@@ -2561,6 +2976,7 @@
     "addMoreTargets": "Consider adding more targets to fill the night",
     "tooManyForOneNight": "Too many targets for one night — consider spreading across multiple sessions",
     "brightMoon": "Bright moon tonight — consider narrowband imaging",
+    "weatherNotIdeal": "Weather conditions are above configured limits",
     "prioritize": "Prioritize: {names}",
     "unusedDarkTime": "{duration} of unused dark time — consider adding targets",
     "tooManyTargets": "Too many targets — consider spreading across multiple nights",
@@ -2698,7 +3114,8 @@
       "opposition": "Opposition",
       "elongation": "Elongation",
       "occultation": "Occultation",
-      "close_approach": "Close Approach"
+      "close_approach": "Close Approach",
+      "moon_phase": "Moon Phase"
     },
     "advancedFilters": "Advanced Filters",
     "minSize": "Min Size",
@@ -2706,7 +3123,52 @@
     "noObjectsFound": "No objects found",
     "adjustFilters": "Try adjusting filters or expanding the search criteria",
     "enterCoordinates": "Enter target coordinates",
-    "enterCoordinatesHint": "Input RA and Dec in degrees to calculate"
+    "enterCoordinatesHint": "Input RA and Dec in degrees to calculate",
+    "targetType": "Target Type",
+    "invalidCoordinates": "Invalid coordinate format",
+    "calculationFailed": "Calculation failed",
+    "days": "days",
+    "time": "Time",
+    "calculating": "Calculating...",
+    "noData": "No data",
+    "neverRises": "Never rises",
+    "coordinate": "Coordinate",
+    "timeCalc": "Time",
+    "solarSystem": "Solar System",
+    "coordinateOutput": "Output Coordinates",
+    "entries": "entries",
+    "showGalactic": "Galactic",
+    "showEcliptic": "Ecliptic",
+    "galacticL": "Galactic l",
+    "galacticB": "Galactic b",
+    "eclipticLon": "Ecliptic λ",
+    "eclipticLat": "Ecliptic β",
+    "moonDistance": "Moon Dist",
+    "moonPhase": "Moon Phase",
+    "sourceSystem": "Source System",
+    "refraction": "Refraction",
+    "refractionNormal": "Normal",
+    "refractionNone": "None",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "roundTripError": "Round-trip Error",
+    "coordinateModes": {
+      "equatorial": "Equatorial",
+      "horizontal": "Horizontal",
+      "galactic": "Galactic",
+      "ecliptic": "Ecliptic"
+    },
+    "timeInputMode": "Input Mode",
+    "utcLocal": "UTC/Local",
+    "invalidLongitude": "Invalid longitude",
+    "invalidTimeInput": "Invalid time input",
+    "raForHourAngle": "RA for HA",
+    "utc": "UTC",
+    "local": "Local",
+    "timeScales": "Time Scales",
+    "hourAngle": "Hour Angle",
+    "includePluto": "Include Pluto",
+    "solarNoon": "Solar Noon"
   },
   "system": {
     "online": "Online",
@@ -3044,6 +3506,53 @@
       "madeWith": "Made with",
       "forAstronomers": "for astronomers",
       "backToTop": "Back to top"
+    }
+  },
+  "dailyKnowledge": {
+    "title": "Daily Knowledge",
+    "subtitle": "A curated daily astronomy insight inspired by KStars and Stellarium workflows.",
+    "open": "Daily Knowledge",
+    "searchPlaceholder": "Search title, summary, or tags...",
+    "categoryAll": "All categories",
+    "categoryObject": "Object",
+    "categoryEvent": "Event",
+    "categoryHistory": "History",
+    "categoryMission": "Mission",
+    "categoryTechnique": "Technique",
+    "categoryCulture": "Culture",
+    "sourceAll": "All sources",
+    "sourceCurated": "Curated",
+    "sourceApod": "NASA APOD",
+    "sourceWikimedia": "Wikimedia",
+    "favorites": "Favorites",
+    "favorite": "Favorite",
+    "favorited": "Favorited",
+    "noHistory": "No history yet.",
+    "resultCount": "{count} results",
+    "loading": "Loading daily knowledge...",
+    "noResults": "No matching daily knowledge entries.",
+    "attribution": "Attribution",
+    "copy": "Copy",
+    "share": "Share",
+    "openSource": "Open Source",
+    "dontShowToday": "Do not show again today",
+    "copySuccess": "Copied to clipboard.",
+    "copyFailed": "Copy failed.",
+    "shareFailed": "Share failed.",
+    "loadFailed": "Failed to load daily knowledge.",
+    "videoEntry": "Video entry. Use Open Source to view the original video.",
+    "sourceBadge": {
+      "curated": "Curated",
+      "nasa-apod": "NASA APOD",
+      "wikimedia": "Wikimedia"
+    },
+    "categoryBadge": {
+      "object": "Object",
+      "event": "Event",
+      "history": "History",
+      "mission": "Mission",
+      "technique": "Technique",
+      "culture": "Culture"
     }
   }
 }

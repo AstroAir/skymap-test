@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Plus } from 'lucide-react';
 import { HighlightText } from './search-utils';
+import { SourceBadge } from './online-search-settings';
 
 export { getResultId } from '@/lib/core/search-utils';
 export { type SkyCultureLanguage } from '@/lib/core/types';
@@ -75,6 +76,9 @@ export const SearchResultItemRow = memo(forwardRef<HTMLDivElement, SearchResultI
         </div>
         
         <div className="flex items-center gap-1.5 shrink-0">
+          {item._onlineSource && (
+            <SourceBadge source={item._onlineSource} />
+          )}
           {item.Magnitude !== undefined && (
             <Badge variant="secondary" className="h-4 text-[10px] px-1 py-0">
               {item.Magnitude.toFixed(1)}m

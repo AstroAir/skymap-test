@@ -149,11 +149,21 @@ describe('setup-wizard (unified onboarding store)', () => {
       expect(getState().isSetupLastStep()).toBe(true);
     });
 
-    it('should allow proceeding on all steps', () => {
-      SETUP_WIZARD_STEPS.forEach(step => {
-        act(() => { getState().goToSetupStep(step); });
-        expect(getState().canSetupProceed()).toBe(true);
-      });
+    it('should enforce soft constraints for location and equipment', () => {
+      act(() => { getState().goToSetupStep('location'); });
+      expect(getState().canSetupProceed()).toBe(false);
+
+      act(() => { getState().updateSetupData({ locationConfigured: true }); });
+      expect(getState().canSetupProceed()).toBe(true);
+
+      act(() => { getState().goToSetupStep('equipment'); });
+      expect(getState().canSetupProceed()).toBe(false);
+
+      act(() => { getState().updateSetupData({ equipmentConfigured: true }); });
+      expect(getState().canSetupProceed()).toBe(true);
+
+      act(() => { getState().goToSetupStep('preferences'); });
+      expect(getState().canSetupProceed()).toBe(true);
     });
   });
 

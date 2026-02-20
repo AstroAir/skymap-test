@@ -3,6 +3,8 @@
  */
 
 import {
+  fetchAstroEventsInRange,
+  fetchDailyAstroEvents,
   fetchMeteorShowers,
   fetchAllAstroEvents,
   fetchAllSatellites,
@@ -141,6 +143,35 @@ describe('astro-data-sources', () => {
       const lunarEclipse = events.find(e => e.name.includes('Lunar'));
       expect(lunarEclipse).toBeDefined();
     });
+
+    it('parses GSFC decade pages for 2026 eclipse fixtures', async () => {
+      const solarHtml = `
+        <table>
+          <tr><td><a>2026 Feb 17</a></td><td><a>12:13:05</a></td><td><a>Annular</a></td></tr>
+          <tr><td><a>2026 Aug 12</a></td><td><a>17:47:05</a></td><td><a>Total</a></td></tr>
+        </table>
+      `;
+      const lunarHtml = `
+        <table>
+          <tr><td><a>2026 Mar 03</a></td><td>11:34:52</td><td>Total</td></tr>
+          <tr><td><a>2026 Aug 28</a></td><td>04:14:04</td><td>Partial</td></tr>
+        </table>
+      `;
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(solarHtml) })
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(lunarHtml) });
+
+      const { fetchEclipses } = await import('../astro-data-sources');
+
+      const feb = await fetchEclipses(2026, 1);
+      const aug = await fetchEclipses(2026, 7);
+      const mar = await fetchEclipses(2026, 2);
+
+      expect(feb.some(e => e.name.includes('Annular Solar'))).toBe(true);
+      expect(aug.some(e => e.name.includes('Total Solar') || e.name.includes('Partial Lunar'))).toBe(true);
+      expect(mar.some(e => e.name.includes('Total Lunar'))).toBe(true);
+    });
   });
 
   describe('fetchPlanetaryEvents', () => {
@@ -167,6 +198,32 @@ describe('astro-data-sources', () => {
       });
       // Should fallback to static data
       expect(events.length).toBeGreaterThan(0);
+    });
+
+    it('should call AstronomyAPI body-specific endpoint with observer params', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: { table: { rows: [] } } }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: { table: { rows: [] } } }),
+        });
+
+      await fetchPlanetaryEvents(
+        2026,
+        1,
+        { apiKey: 'test-key', apiUrl: 'https://api.astronomyapi.com/api/v2' },
+        { latitude: 40.7, longitude: -74.0, elevation: 0 }
+      );
+
+      const firstCallUrl = mockFetch.mock.calls[0][0] as string;
+      const secondCallUrl = mockFetch.mock.calls[1][0] as string;
+      expect(firstCallUrl).toContain('/bodies/events/sun?');
+      expect(firstCallUrl).toContain('latitude=40.7');
+      expect(firstCallUrl).toContain('longitude=-74');
+      expect(secondCallUrl).toContain('/bodies/events/moon?');
     });
   });
 
@@ -226,6 +283,58 @@ describe('astro-data-sources', () => {
       const events = await fetchAllAstroEvents(2024, 0);
       // Should still work with default sources
       expect(Array.isArray(events)).toBe(true);
+    });
+  });
+
+  describe('daily and range aggregation', () => {
+    it('fetchAstroEventsInRange returns active-window events', async () => {
+      const events = await fetchAstroEventsInRange({
+        startDate: new Date(2024, 7, 10, 0, 0, 0),
+        endDate: new Date(2024, 7, 10, 23, 59, 59),
+        observer: { latitude: 40.7, longitude: -74.0 },
+        includeOngoing: true,
+        sourcesOrIds: ['imo'],
+      });
+
+      const perseidsWindow = events.find(event => event.name.includes('Perseids'));
+      expect(perseidsWindow).toBeDefined();
+      expect(perseidsWindow?.endDate).toBeDefined();
+    });
+
+    it('fetchDailyAstroEvents classifies ongoing status', async () => {
+      const daily = await fetchDailyAstroEvents({
+        date: new Date(2024, 7, 10, 12, 0, 0),
+        observer: { latitude: 40.7, longitude: -74.0 },
+        includeOngoing: true,
+        sourcesOrIds: ['imo'],
+      });
+
+      const meteorWindow = daily.events.find(event => event.type === 'meteor_shower' && event.occurrenceMode === 'window');
+      expect(meteorWindow).toBeDefined();
+      expect(meteorWindow?.statusOnSelectedDay).toBe('ongoing');
+    });
+
+    it('fetchDailyAstroEvents preserves explicit timezone', async () => {
+      const daily = await fetchDailyAstroEvents({
+        date: new Date(2024, 7, 10, 12, 0, 0),
+        observer: { latitude: 31.2, longitude: 121.5 },
+        includeOngoing: true,
+        sourcesOrIds: ['imo'],
+        timezone: 'Asia/Shanghai',
+      });
+
+      expect(daily.timezone).toBe('Asia/Shanghai');
+    });
+
+    it('fetchDailyAstroEvents resolves observer timezone from coordinates', async () => {
+      const daily = await fetchDailyAstroEvents({
+        date: new Date(2024, 7, 10, 12, 0, 0),
+        observer: { latitude: 40.7128, longitude: -74.0060 },
+        includeOngoing: true,
+        sourcesOrIds: ['imo'],
+      });
+
+      expect(daily.timezone).toBe('America/New_York');
     });
   });
 

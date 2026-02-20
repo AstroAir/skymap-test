@@ -17,6 +17,9 @@ import type { OnlineSearchSource, OnlineSearchResult, ObjectCategory } from '@/l
 export interface SearchFavorite {
   id: string;
   name: string;
+  canonicalId?: string;
+  identifiers?: string[];
+  confidence?: number;
   alternateNames?: string[];
   type: string;
   category: ObjectCategory;
@@ -112,6 +115,7 @@ interface SearchActions {
   addRecentSearch: (query: string, resultCount: number, source: RecentSearch['source']) => void;
   clearRecentSearches: () => void;
   getRecentSearches: (limit?: number) => RecentSearch[];
+  setMaxRecentSearches: (max: number) => void;
   
   // Cache
   cacheSearchResults: (query: string, results: OnlineSearchResult[], source: SearchMode) => void;
@@ -126,6 +130,7 @@ interface SearchActions {
   
   // Quick access
   getEnabledSources: () => OnlineSearchSource[];
+  resetSearchState: () => void;
 }
 
 type SearchStore = SearchState & SearchActions;
@@ -140,8 +145,9 @@ const DEFAULT_SETTINGS: SearchSettings = {
   onlineSources: [
     { id: 'sesame', enabled: true, priority: 0 },
     { id: 'simbad', enabled: true, priority: 1 },
-    { id: 'vizier', enabled: false, priority: 2 },
-    { id: 'ned', enabled: false, priority: 3 },
+    { id: 'mpc', enabled: true, priority: 2 },
+    { id: 'vizier', enabled: false, priority: 3 },
+    { id: 'ned', enabled: false, priority: 4 },
     { id: 'local', enabled: true, priority: -1 },
   ],
   defaultLimit: 30,
@@ -157,8 +163,16 @@ const DEFAULT_ONLINE_STATUS: Record<OnlineSearchSource, boolean> = {
   sesame: true,
   vizier: true,
   ned: true,
+  mpc: true,
   local: true,
 };
+
+function cloneDefaultSettings(): SearchSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    onlineSources: DEFAULT_SETTINGS.onlineSources.map((source) => ({ ...source })),
+  };
+}
 
 // ============================================================================
 // Store Implementation
@@ -168,7 +182,7 @@ export const useSearchStore = create<SearchStore>()(
   persist(
     (set, get) => ({
       // Initial state
-      settings: DEFAULT_SETTINGS,
+      settings: cloneDefaultSettings(),
       favorites: [],
       recentSearches: [],
       maxRecentSearches: 20,
@@ -215,6 +229,9 @@ export const useSearchStore = create<SearchStore>()(
         const favorite: SearchFavorite = {
           id: result.id,
           name: result.name,
+          canonicalId: result.canonicalId,
+          identifiers: result.identifiers,
+          confidence: result.confidence,
           alternateNames: result.alternateNames,
           type: result.type,
           category: result.category,
@@ -300,6 +317,14 @@ export const useSearchStore = create<SearchStore>()(
       getRecentSearches: (limit = 10) => {
         return get().recentSearches.slice(0, limit);
       },
+
+      setMaxRecentSearches: (max) => {
+        const normalizedMax = Math.max(1, Math.floor(max));
+        set((state) => ({
+          maxRecentSearches: normalizedMax,
+          recentSearches: state.recentSearches.slice(0, normalizedMax),
+        }));
+      },
       
       // Cache actions (using external LRUCache for efficient management)
       cacheSearchResults: (query, results, source) => {
@@ -365,6 +390,20 @@ export const useSearchStore = create<SearchStore>()(
           .sort((a, b) => a.priority - b.priority)
           .map((s) => s.id);
       },
+
+      resetSearchState: () => {
+        searchResultsCache.clear();
+        set({
+          favorites: [],
+          recentSearches: [],
+          maxRecentSearches: 20,
+          settings: cloneDefaultSettings(),
+          onlineStatus: { ...DEFAULT_ONLINE_STATUS },
+          lastStatusCheck: 0,
+          isOnlineSearchEnabled: true,
+          currentSearchMode: 'hybrid',
+        });
+      },
     }),
     {
       name: 'starmap-search-store',
@@ -400,6 +439,9 @@ export function favoriteToSearchResult(favorite: SearchFavorite): OnlineSearchRe
   return {
     id: favorite.id,
     name: favorite.name,
+    canonicalId: favorite.canonicalId || buildFallbackCanonicalId(favorite),
+    identifiers: favorite.identifiers || buildFallbackIdentifiers(favorite),
+    confidence: favorite.confidence ?? 0.6,
     alternateNames: favorite.alternateNames,
     type: favorite.type,
     category: favorite.category,
@@ -411,6 +453,15 @@ export function favoriteToSearchResult(favorite: SearchFavorite): OnlineSearchRe
     angularSize: favorite.angularSize,
     source: favorite.source,
   };
+}
+
+function buildFallbackCanonicalId(favorite: SearchFavorite): string {
+  return favorite.name.toUpperCase().replace(/\s+/g, ' ').trim();
+}
+
+function buildFallbackIdentifiers(favorite: SearchFavorite): string[] {
+  const aliases = favorite.alternateNames ?? [];
+  return [favorite.name, ...aliases];
 }
 
 /**

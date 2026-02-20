@@ -13,7 +13,15 @@ jest.mock('@/lib/tauri/markers-api', () => ({
     removeMarker: jest.fn().mockResolvedValue(undefined),
     updateMarker: jest.fn().mockResolvedValue(undefined),
     removeMarkersByGroup: jest.fn().mockResolvedValue(undefined),
-    clearAllMarkers: jest.fn().mockResolvedValue(undefined),
+    clearAll: jest.fn().mockResolvedValue(undefined),
+    toggleVisibility: jest.fn().mockResolvedValue(undefined),
+    setAllVisible: jest.fn().mockResolvedValue(undefined),
+    setShowMarkers: jest.fn().mockResolvedValue(undefined),
+    addGroup: jest.fn().mockResolvedValue(undefined),
+    removeGroup: jest.fn().mockResolvedValue(undefined),
+    renameGroup: jest.fn().mockResolvedValue(undefined),
+    load: jest.fn().mockResolvedValue(undefined),
+    save: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -177,6 +185,30 @@ describe('useMarkerStore', () => {
       });
 
       expect(result.current.markers[0].name).toBe('Updated Marker');
+    });
+
+    it('should clear marker description when null is provided', () => {
+      const { result } = renderHook(() => useMarkerStore());
+
+      let markerId: string | null;
+      act(() => {
+        markerId = result.current.addMarker({
+          name: 'Test Marker',
+          description: 'to-clear',
+          ra: 180,
+          dec: 45,
+          raString: '12h 00m 00s',
+          decString: '+45° 00\' 00"',
+          color: '#ef4444',
+          icon: 'star',
+        });
+      });
+
+      act(() => {
+        result.current.updateMarker(markerId!, { description: null });
+      });
+
+      expect(result.current.markers[0].description).toBeUndefined();
     });
   });
 
@@ -440,6 +472,7 @@ describe('import/export', () => {
     const { result } = renderHook(() => useMarkerStore());
 
     act(() => {
+      result.current.setShowMarkers(true);
       result.current.addMarker({
         name: 'Export Test',
         ra: 180,
@@ -454,10 +487,12 @@ describe('import/export', () => {
 
     const json = result.current.exportMarkers();
     const data = JSON.parse(json);
-    expect(data.version).toBe(1);
+    expect(data.version).toBe(2);
     expect(data.markers).toHaveLength(1);
     expect(data.markers[0].name).toBe('Export Test');
     expect(data.groups).toContain('TestGroup');
+    expect(data.showMarkers).toBe(true);
+    expect(typeof data.showMarkersUpdatedAt).toBe('number');
   });
 
   it('should import markers from JSON string', () => {

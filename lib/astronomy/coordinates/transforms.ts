@@ -1,22 +1,88 @@
 /**
- * Coordinate system transforms
- * Conversions between different celestial coordinate systems
+ * Coordinate system transforms.
+ * Azimuth convention: North=0°, East=90°.
  */
 
+import {
+  Horizon,
+  Observer,
+  RotateVector,
+  Rotation_ECL_EQJ,
+  Rotation_ECT_EQJ,
+  Rotation_EQJ_ECL,
+  Rotation_EQJ_ECT,
+  SphereFromVector,
+  Spherical,
+  VectorFromSphere,
+} from 'astronomy-engine';
 import { deg2rad, rad2deg } from './conversions';
-import { getLST } from '../time/sidereal';
+import { getLSTForDate } from '../time/sidereal';
+
+function normalizeDegrees(value: number): number {
+  return ((value % 360) + 360) % 360;
+}
+
+function normalizeHourAngleDegrees(value: number): number {
+  const normalized = normalizeDegrees(value);
+  return normalized > 180 ? normalized - 360 : normalized;
+}
+
+function clampDeclination(dec: number): number {
+  return Math.max(-90, Math.min(90, dec));
+}
+
+function equatorialVector(ra: number, dec: number, date: Date): ReturnType<typeof VectorFromSphere> {
+  return VectorFromSphere(new Spherical(clampDeclination(dec), normalizeDegrees(ra), 1), date);
+}
+
+const EQ_TO_GAL_MATRIX: ReadonlyArray<ReadonlyArray<number>> = [
+  [-0.0548755604162154, -0.873437090234885, -0.4838350155487132],
+  [0.4941094278755837, -0.4448296299600112, 0.7469822444972189],
+  [-0.8676661490190047, -0.1980763734312015, 0.4559837761750669],
+];
+
+const GAL_TO_EQ_MATRIX: ReadonlyArray<ReadonlyArray<number>> = [
+  [EQ_TO_GAL_MATRIX[0][0], EQ_TO_GAL_MATRIX[1][0], EQ_TO_GAL_MATRIX[2][0]],
+  [EQ_TO_GAL_MATRIX[0][1], EQ_TO_GAL_MATRIX[1][1], EQ_TO_GAL_MATRIX[2][1]],
+  [EQ_TO_GAL_MATRIX[0][2], EQ_TO_GAL_MATRIX[1][2], EQ_TO_GAL_MATRIX[2][2]],
+];
+
+function multiplyMatrixVector(
+  matrix: ReadonlyArray<ReadonlyArray<number>>,
+  vector: readonly [number, number, number]
+): [number, number, number] {
+  return [
+    matrix[0][0] * vector[0] + matrix[0][1] * vector[1] + matrix[0][2] * vector[2],
+    matrix[1][0] * vector[0] + matrix[1][1] * vector[1] + matrix[1][2] * vector[2],
+    matrix[2][0] * vector[0] + matrix[2][1] * vector[1] + matrix[2][2] * vector[2],
+  ];
+}
+
+function sphereToCartesian(lonDeg: number, latDeg: number): [number, number, number] {
+  const lon = deg2rad(normalizeDegrees(lonDeg));
+  const lat = deg2rad(clampDeclination(latDeg));
+  const cosLat = Math.cos(lat);
+  return [
+    cosLat * Math.cos(lon),
+    cosLat * Math.sin(lon),
+    Math.sin(lat),
+  ];
+}
+
+function cartesianToSphere(vector: readonly [number, number, number]): { lon: number; lat: number } {
+  const [x, y, z] = vector;
+  const lon = normalizeDegrees(rad2deg(Math.atan2(y, x)));
+  const lat = rad2deg(Math.asin(Math.max(-1, Math.min(1, z))));
+  return { lon, lat: clampDeclination(lat) };
+}
 
 // ============================================================================
-// Equatorial to Horizontal Transform
+// Equatorial ↔ Horizontal
 // ============================================================================
 
 /**
- * Convert RA/Dec to Alt/Az
- * @param ra - Right Ascension in degrees
- * @param dec - Declination in degrees
- * @param latitude - Observer latitude in degrees
- * @param longitude - Observer longitude in degrees
- * @returns Altitude and Azimuth in degrees
+ * Convert RA/Dec (degrees) to Alt/Az for the current time.
+ * Wrapper kept for backward compatibility; prefer `raDecToAltAzAtTime`.
  */
 export function raDecToAltAz(
   ra: number,
@@ -24,26 +90,11 @@ export function raDecToAltAz(
   latitude: number,
   longitude: number
 ): { altitude: number; azimuth: number } {
-  const LST = getLST(longitude);
-  const delta = deg2rad(dec);
-  const phi = deg2rad(latitude);
-  const HA = deg2rad(LST - ra);
-
-  const sinAlt = Math.sin(delta) * Math.sin(phi) + 
-                 Math.cos(delta) * Math.cos(phi) * Math.cos(HA);
-  const altitude = rad2deg(Math.asin(sinAlt));
-
-  const y = -Math.cos(delta) * Math.sin(HA);
-  const x = Math.sin(delta) * Math.cos(phi) - 
-            Math.cos(delta) * Math.sin(phi) * Math.cos(HA);
-  let azimuth = rad2deg(Math.atan2(y, x));
-  if (azimuth < 0) azimuth += 360;
-
-  return { altitude, azimuth };
+  return raDecToAltAzAtTime(ra, dec, latitude, longitude, new Date());
 }
 
 /**
- * Convert RA/Dec to Alt/Az at a specific time
+ * Convert RA/Dec (degrees) to Alt/Az (degrees) at a specific date/time.
  */
 export function raDecToAltAzAtTime(
   ra: number,
@@ -52,35 +103,18 @@ export function raDecToAltAzAtTime(
   longitude: number,
   date: Date
 ): { altitude: number; azimuth: number } {
-  const LST = getLSTForDate(date, longitude);
-  const delta = deg2rad(dec);
-  const phi = deg2rad(latitude);
-  const HA = deg2rad(LST - ra);
+  const observer = new Observer(latitude, longitude, 0);
+  const horizontal = Horizon(date, observer, normalizeDegrees(ra) / 15, clampDeclination(dec), 'normal');
 
-  const sinAlt = Math.sin(delta) * Math.sin(phi) + 
-                 Math.cos(delta) * Math.cos(phi) * Math.cos(HA);
-  const altitude = rad2deg(Math.asin(sinAlt));
-
-  const y = -Math.cos(delta) * Math.sin(HA);
-  const x = Math.sin(delta) * Math.cos(phi) - 
-            Math.cos(delta) * Math.sin(phi) * Math.cos(HA);
-  let azimuth = rad2deg(Math.atan2(y, x));
-  if (azimuth < 0) azimuth += 360;
-
-  return { altitude, azimuth };
+  return {
+    altitude: horizontal.altitude,
+    azimuth: normalizeDegrees(horizontal.azimuth),
+  };
 }
 
-// ============================================================================
-// Horizontal to Equatorial Transform
-// ============================================================================
-
 /**
- * Convert Alt/Az to RA/Dec
- * @param altitude - Altitude in degrees
- * @param azimuth - Azimuth in degrees
- * @param latitude - Observer latitude in degrees
- * @param longitude - Observer longitude in degrees
- * @returns RA and Dec in degrees
+ * Convert Alt/Az (degrees) to RA/Dec for the current time.
+ * Wrapper kept for backward compatibility; prefer `altAzToRaDecAtTime`.
  */
 export function altAzToRaDec(
   altitude: number,
@@ -88,73 +122,122 @@ export function altAzToRaDec(
   latitude: number,
   longitude: number
 ): { ra: number; dec: number } {
-  const LST = getLST(longitude);
-  const h = deg2rad(altitude);
-  const A = deg2rad(azimuth);
-  const phi = deg2rad(latitude);
+  return altAzToRaDecAtTime(altitude, azimuth, latitude, longitude, new Date());
+}
 
-  const sinDec = Math.sin(h) * Math.sin(phi) + 
-                 Math.cos(h) * Math.cos(phi) * Math.cos(A);
-  const dec = rad2deg(Math.asin(sinDec));
+/**
+ * Convert Alt/Az (degrees) to RA/Dec (degrees) at a specific date/time.
+ */
+export function altAzToRaDecAtTime(
+  altitude: number,
+  azimuth: number,
+  latitude: number,
+  longitude: number,
+  date: Date
+): { ra: number; dec: number } {
+  const lst = getLSTForDate(longitude, date);
+  const altitudeRad = deg2rad(altitude);
+  const azimuthRad = deg2rad(normalizeDegrees(azimuth));
+  const latitudeRad = deg2rad(latitude);
 
-  const y = -Math.sin(A) * Math.cos(h);
-  const x = Math.cos(phi) * Math.sin(h) - 
-            Math.sin(phi) * Math.cos(h) * Math.cos(A);
-  const HA = rad2deg(Math.atan2(y, x));
+  const sinDec = Math.sin(altitudeRad) * Math.sin(latitudeRad)
+    + Math.cos(altitudeRad) * Math.cos(latitudeRad) * Math.cos(azimuthRad);
+  const dec = rad2deg(Math.asin(Math.max(-1, Math.min(1, sinDec))));
 
-  let ra = (LST - HA) % 360;
-  if (ra < 0) ra += 360;
+  const y = -Math.sin(azimuthRad) * Math.cos(altitudeRad);
+  const x = Math.cos(latitudeRad) * Math.sin(altitudeRad)
+    - Math.sin(latitudeRad) * Math.cos(altitudeRad) * Math.cos(azimuthRad);
+  const hourAngle = rad2deg(Math.atan2(y, x));
 
-  return { ra, dec };
+  return {
+    ra: normalizeDegrees(lst - hourAngle),
+    dec: clampDeclination(dec),
+  };
+}
+
+// ============================================================================
+// Equatorial ↔ Galactic
+// ============================================================================
+
+export function raDecToGalactic(
+  ra: number,
+  dec: number,
+  _date?: Date
+): { l: number; b: number } {
+  const equatorialCartesian = sphereToCartesian(ra, dec);
+  const galacticCartesian = multiplyMatrixVector(EQ_TO_GAL_MATRIX, equatorialCartesian);
+  const sphere = cartesianToSphere(galacticCartesian);
+
+  return {
+    l: sphere.lon,
+    b: sphere.lat,
+  };
+}
+
+export function galacticToRaDec(
+  l: number,
+  b: number,
+  _date?: Date
+): { ra: number; dec: number } {
+  const galacticCartesian = sphereToCartesian(l, b);
+  const equatorialCartesian = multiplyMatrixVector(GAL_TO_EQ_MATRIX, galacticCartesian);
+  const sphere = cartesianToSphere(equatorialCartesian);
+
+  return {
+    ra: sphere.lon,
+    dec: sphere.lat,
+  };
+}
+
+// ============================================================================
+// Equatorial ↔ Ecliptic
+// ============================================================================
+
+export function raDecToEcliptic(
+  ra: number,
+  dec: number,
+  date?: Date
+): { longitude: number; latitude: number } {
+  const at = date ?? new Date();
+  const rotation = date ? Rotation_EQJ_ECT(at) : Rotation_EQJ_ECL();
+  const rotated = RotateVector(rotation, equatorialVector(ra, dec, at));
+  const sphere = SphereFromVector(rotated);
+
+  return {
+    longitude: normalizeDegrees(sphere.lon),
+    latitude: sphere.lat,
+  };
+}
+
+export function eclipticToRaDec(
+  longitude: number,
+  latitude: number,
+  date?: Date
+): { ra: number; dec: number } {
+  const at = date ?? new Date();
+  const rotation = date ? Rotation_ECT_EQJ(at) : Rotation_ECL_EQJ();
+  const eclVector = VectorFromSphere(
+    new Spherical(clampDeclination(latitude), normalizeDegrees(longitude), 1),
+    at
+  );
+  const rotated = RotateVector(rotation, eclVector);
+  const sphere = SphereFromVector(rotated);
+
+  return {
+    ra: normalizeDegrees(sphere.lon),
+    dec: clampDeclination(sphere.lat),
+  };
 }
 
 // ============================================================================
 // Hour Angle
 // ============================================================================
 
-/**
- * Calculate hour angle for an object
- * @param ra - Right Ascension in degrees
- * @param longitude - Observer longitude in degrees
- * @returns Hour angle in degrees
- */
 export function getHourAngle(ra: number, longitude: number): number {
-  const LST = getLST(longitude);
-  let HA = LST - ra;
-  if (HA < -180) HA += 360;
-  if (HA > 180) HA -= 360;
-  return HA;
+  return getHourAngleAtTime(ra, longitude, new Date());
 }
 
-/**
- * Calculate hour angle at a specific time
- */
-export function getHourAngleAtTime(
-  ra: number, 
-  longitude: number, 
-  date: Date
-): number {
-  const LST = getLSTForDate(date, longitude);
-  let HA = LST - ra;
-  if (HA < -180) HA += 360;
-  if (HA > 180) HA -= 360;
-  return HA;
-}
-
-// ============================================================================
-// Helper: LST for specific date
-// ============================================================================
-
-/**
- * Get Local Sidereal Time for a specific date
- * @param date - Date object
- * @param longitude - Observer longitude in degrees
- * @returns LST in degrees
- */
-function getLSTForDate(date: Date, longitude: number): number {
-  const jd = date.getTime() / 86400000 + 2440587.5;
-  const S = jd - 2451545.0;
-  const T = S / 36525.0;
-  const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
-  return ((GST + longitude) % 360 + 360) % 360;
+export function getHourAngleAtTime(ra: number, longitude: number, date: Date): number {
+  const lst = getLSTForDate(longitude, date);
+  return normalizeHourAngleDegrees(lst - normalizeDegrees(ra));
 }

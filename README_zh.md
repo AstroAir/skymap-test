@@ -9,7 +9,11 @@
 - **星图可视化** - 集成 Stellarium Web 引擎，实现实时星空渲染
 - **观测规划** - 用于规划天文观测和追踪目标的工具
 - **设备管理** - 管理望远镜、相机和目镜，支持视野计算
-- **天文计算** - 坐标转换、可见性预测、曙暮光时间
+- **天文计算** - 9 个计算器标签页（今夜可见、位置、升落、星历、年历、天象、坐标、时间、太阳系）
+- **统一引擎** - `lib/astronomy/engine` 采用 Tauri 优先 + `astronomy-engine` 回退，保证 Web/桌面一致
+- **坐标/时制契约** - 统一 ICRF/CIRS/OBSERVED 管线，并附带 UTC/UT1/TT 元数据
+- **智能推荐模式** - 支持摄影/目视/混合三种目标评分模式与置信度
+- **离线精度回退** - 内置 EOP 基线数据，联网时后台增量更新
 - **原生桌面** - 基于 Tauri 2.9 构建，具有高性能和系统集成
 - **现代 UI** - Tailwind CSS v4，配合 Geist 字体和暗色模式支持
 - **shadcn/ui** - 基于 Radix UI 的高质量无障碍组件
@@ -115,10 +119,14 @@ skymap/
 │   ├── astronomy/         # 天文计算
 │   │   ├── coordinates/   # 坐标转换
 │   │   ├── time/          # 儒略日、恒星时
+│   │   ├── time-scales.ts # UTC/UT1/TT 与 EOP 新鲜度管理
+│   │   ├── frames.ts      # 坐标帧契约
+│   │   ├── pipeline.ts    # 统一坐标变换管线
 │   │   ├── celestial/     # 太阳、月球计算
 │   │   ├── visibility/    # 目标可见性
 │   │   ├── twilight/      # 曙暮光时间
-│   │   └── imaging/       # 曝光计算
+│   │   ├── imaging/       # 曝光计算
+│   │   └── engine/        # 统一 Tauri/回退天文引擎
 │   ├── stores/            # Zustand 状态管理
 │   └── tauri/             # Tauri API 封装
 ├── src-tauri/             # Rust 后端

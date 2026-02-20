@@ -21,10 +21,7 @@ export function useObserverSync(stelRef: RefObject<StellariumEngine | null>) {
   useEffect(() => {
     if (bootstrapped.current) return;
 
-    // Wait for mount-store to finish rehydrating persisted state.
-    // If persist middleware hasn't hydrated yet, the profileInfo is still the
-    // in-memory default (0,0,0) and we'd incorrectly overwrite.
-    const unsub = useMountStore.persist.onFinishHydration(() => {
+    const runBootstrap = () => {
       if (bootstrapped.current) return;
       bootstrapped.current = true;
 
@@ -44,32 +41,32 @@ export function useObserverSync(stelRef: RefObject<StellariumEngine | null>) {
           },
         });
       }
-    });
+    };
 
-    // If already hydrated (synchronous storage), run immediately
-    if (useMountStore.persist.hasHydrated()) {
-      unsub();
-      bootstrapped.current = true;
+    const persistApi = (
+      useMountStore as typeof useMountStore & {
+        persist?: {
+          onFinishHydration?: (cb: () => void) => (() => void) | void;
+          hasHydrated?: () => boolean;
+        };
+      }
+    ).persist;
 
-      const hydrated = useMountStore.getState().profileInfo;
-      const { Latitude, Longitude } = hydrated.AstrometrySettings;
-      if (Latitude !== 0 || Longitude !== 0) return;
+    // Test mocks may not include persist middleware API.
+    if (!persistApi?.onFinishHydration || !persistApi?.hasHydrated) {
+      runBootstrap();
+      return;
+    }
 
-      const webLocations = useWebLocationStore.getState().locations;
-      const current = webLocations.find((l) => l.is_current);
-      if (current) {
-        setProfileInfo({
-          AstrometrySettings: {
-            ...hydrated.AstrometrySettings,
-            Latitude: current.latitude,
-            Longitude: current.longitude,
-            Elevation: current.altitude,
-          },
-        });
+    const unsub = persistApi.onFinishHydration(runBootstrap);
+    if (persistApi.hasHydrated()) {
+      runBootstrap();
+      if (typeof unsub === 'function') {
+        unsub();
       }
     }
 
-    return unsub;
+    return typeof unsub === 'function' ? unsub : undefined;
   }, [setProfileInfo]);
 
   useEffect(() => {

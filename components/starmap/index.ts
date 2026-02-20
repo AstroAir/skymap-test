@@ -32,6 +32,7 @@ export { StellariumMount } from './mount/stellarium-mount';
 
 // Dialogs - Information dialogs
 export { AboutDialog } from './dialogs/about-dialog';
+export { FeedbackDialog } from './dialogs/feedback-dialog';
 export { StellariumCredits } from './dialogs/stellarium-credits';
 export { KeyboardShortcutsDialog } from './dialogs/keyboard-shortcuts-dialog';
 

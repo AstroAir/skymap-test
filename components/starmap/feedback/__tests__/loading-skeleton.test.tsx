@@ -42,7 +42,7 @@ describe('FullScreenLoader', () => {
   it('uses default aria-label when no message provided', () => {
     render(<FullScreenLoader />);
     const loader = screen.getByTestId('full-screen-loader');
-    expect(loader).toHaveAttribute('aria-label', 'Loading');
+    expect(loader).toHaveAttribute('aria-label', 'common.loading');
   });
 
   it('displays message text', () => {
@@ -60,7 +60,7 @@ describe('InlineLoader', () => {
 
   it('has sr-only loading text', () => {
     render(<InlineLoader />);
-    expect(screen.getByText('Loading')).toHaveClass('sr-only');
+    expect(screen.getByText('common.loading')).toHaveClass('sr-only');
   });
 });
 
@@ -70,6 +70,6 @@ describe('StarmapLoadingSkeleton', () => {
     const skeleton = screen.getByTestId('starmap-loading-skeleton');
     expect(skeleton).toHaveAttribute('role', 'status');
     expect(skeleton).toHaveAttribute('aria-busy', 'true');
-    expect(skeleton).toHaveAttribute('aria-label', 'Loading star map');
+    expect(skeleton).toHaveAttribute('aria-label', 'splash.loading');
   });
 });

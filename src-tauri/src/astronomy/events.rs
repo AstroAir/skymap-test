@@ -619,6 +619,85 @@ pub fn get_astro_events(start_date: String, end_date: String) -> Result<Vec<Astr
     Ok(events)
 }
 
+/// Get astronomical events for a single local day
+#[tauri::command]
+pub fn get_daily_astro_events(
+    date: String,
+    timezone: String,
+    include_ongoing: bool,
+) -> Result<Vec<AstroEvent>, String> {
+    let selected_date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid date: {}", e))?;
+
+    // Timezone is currently consumed by frontend/day-key classification.
+    // Keep parameter for API compatibility and future zoned-day expansion.
+    let _timezone = timezone;
+
+    let mut events = get_astro_events(date.clone(), date.clone())?;
+
+    if include_ongoing {
+        let selected_timestamp = selected_date.and_hms_opt(0, 0, 0)
+            .ok_or_else(|| "Failed to build selected date timestamp".to_string())?
+            .and_utc()
+            .timestamp();
+        let year = selected_date.year();
+
+        for y in (year - 1)..=(year + 1) {
+            for shower in get_meteor_showers(y) {
+                let start = NaiveDate::parse_from_str(&shower.active_start, "%Y-%m-%d").ok();
+                let end = NaiveDate::parse_from_str(&shower.active_end, "%Y-%m-%d").ok();
+                if let (Some(active_start), Some(active_end)) = (start, end) {
+                    if selected_date >= active_start && selected_date <= active_end {
+                        let id = format!(
+                            "daily-window-meteor-{}-{}",
+                            shower.name.to_lowercase().replace(' ', "-"),
+                            selected_date
+                        );
+                        let details = serde_json::json!({
+                            "occurrence_mode": "window",
+                            "starts_at": shower.active_start,
+                            "ends_at": shower.active_end,
+                            "active_start": shower.active_start,
+                            "active_end": shower.active_end,
+                            "zhr": shower.zhr,
+                            "radiant_ra": shower.radiant_ra,
+                            "radiant_dec": shower.radiant_dec,
+                            "parent_body": shower.parent_body,
+                        });
+                        events.push(AstroEvent {
+                            id,
+                            event_type: AstroEventType::MeteorShower,
+                            name: format!("{} (Active)", shower.name),
+                            description: format!(
+                                "Active meteor shower window ({} to {}), peak ZHR {}",
+                                shower.active_start, shower.active_end, shower.zhr
+                            ),
+                            date: selected_date.to_string(),
+                            time: None,
+                            timestamp: selected_timestamp,
+                            magnitude: None,
+                            visibility: Some(format!("ZHR: {}", shower.zhr)),
+                            details: Some(details),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    for event in events.iter_mut() {
+        let details = event.details.get_or_insert_with(|| serde_json::json!({}));
+        if let Some(obj) = details.as_object_mut() {
+            obj.entry("occurrence_mode").or_insert_with(|| serde_json::json!("instant"));
+            obj.entry("starts_at").or_insert_with(|| serde_json::json!(event.date.clone()));
+        }
+    }
+
+    events.sort_by_key(|event| event.timestamp);
+    events.dedup_by(|left, right| left.id == right.id);
+    Ok(events)
+}
+
 /// Get tonight's astronomical highlights
 #[tauri::command]
 pub fn get_tonight_highlights(
@@ -997,6 +1076,41 @@ mod tests {
         let has_2024 = events.iter().any(|e| e.date.starts_with("2024"));
         let has_2025 = events.iter().any(|e| e.date.starts_with("2025"));
         assert!(has_2024 || has_2025, "Should have events from either year");
+    }
+
+    #[test]
+    fn test_get_daily_astro_events_valid_date() {
+        let result = get_daily_astro_events(
+            "2026-08-12".to_string(),
+            "Etc/UTC".to_string(),
+            true,
+        );
+        assert!(result.is_ok());
+        let events = result.unwrap();
+        for event in events {
+            assert!(!event.id.is_empty());
+            assert!(!event.name.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_get_daily_astro_events_includes_window_event_when_enabled() {
+        let result = get_daily_astro_events(
+            "2024-08-10".to_string(),
+            "Etc/UTC".to_string(),
+            true,
+        );
+        assert!(result.is_ok());
+        let events = result.unwrap();
+        let has_window = events.iter().any(|event| {
+            event.details
+                .as_ref()
+                .and_then(|value| value.get("occurrence_mode"))
+                .and_then(|value| value.as_str())
+                .map(|mode| mode == "window")
+                .unwrap_or(false)
+        });
+        assert!(has_window, "Expected at least one window-style daily event");
     }
 
     // ------------------------------------------------------------------------

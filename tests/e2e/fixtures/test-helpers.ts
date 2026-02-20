@@ -5,12 +5,55 @@ import { TEST_TIMEOUTS } from './test-data';
  * Selector for the Stellarium loading overlay
  */
 const LOADING_OVERLAY_SELECTOR = 'div.absolute.inset-0.flex.flex-col.items-center.justify-center.bg-black\\/90.z-10';
+const SPLASH_SELECTOR = '[data-testid="splash-screen"]';
+
+async function dismissSplashIfVisible(page: Page) {
+  const splash = page.locator(SPLASH_SELECTOR).first();
+  const skipHint = page.getByText(/press any key or click to skip|按任意键或点击跳过/i).first();
+  const dialogOverlay = page.locator('[data-slot="dialog-overlay"][data-state="open"]').first();
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const splashVisible = await splash.isVisible().catch(() => false);
+    const hintVisible = await skipHint.isVisible().catch(() => false);
+
+    if (splashVisible) {
+      await splash.click({ timeout: TEST_TIMEOUTS.short }).catch(() => {});
+    } else if (hintVisible) {
+      await skipHint.click({ timeout: TEST_TIMEOUTS.short }).catch(() => {});
+    }
+
+    if (await dialogOverlay.isVisible().catch(() => false)) {
+      await dialogOverlay.click({ force: true }).catch(() => {});
+    }
+    await page.keyboard.press('Escape').catch(() => {});
+
+    const splashHidden = await splash.isHidden().catch(() => false);
+    const overlayHidden = await dialogOverlay.isHidden().catch(() => false);
+    if (splashHidden && overlayHidden) return;
+
+    await page.waitForTimeout(300);
+  }
+
+  await splash.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.splash }).catch(() => {});
+}
 
 /**
  * Helper to skip onboarding and setup wizard via localStorage
  */
 export async function skipOnboardingAndSetup(page: Page) {
   await page.evaluate(() => {
+    localStorage.setItem('starmap-onboarding', JSON.stringify({
+      state: {
+        hasCompletedOnboarding: true,
+        hasCompletedSetup: true,
+        completedSteps: ['welcome', 'search', 'navigation', 'zoom', 'settings', 'fov', 'shotlist', 'tonight', 'contextmenu', 'complete'],
+        setupCompletedSteps: ['welcome', 'location', 'equipment', 'preferences', 'complete'],
+        showOnNextVisit: false,
+      },
+      version: 3,
+    }));
+
+    // Backward-compat keys kept for older tests/components.
     localStorage.setItem('onboarding-storage', JSON.stringify({
       state: {
         hasCompletedOnboarding: true,
@@ -30,6 +73,28 @@ export async function skipOnboardingAndSetup(page: Page) {
       },
       version: 1,
     }));
+
+    // Disable splash during E2E runs for deterministic toolbar interactions.
+    const rawSettings = localStorage.getItem('starmap-settings');
+    try {
+      const parsed = rawSettings
+        ? (JSON.parse(rawSettings) as { state?: { preferences?: Record<string, unknown> }; version?: number })
+        : {};
+      parsed.state = parsed.state ?? {};
+      const existingPreferences = parsed.state.preferences ?? {};
+      parsed.state.preferences = {
+        locale: existingPreferences.locale ?? 'en',
+        ...existingPreferences,
+        showSplash: false,
+        dailyKnowledgeAutoShow: false,
+      };
+      localStorage.setItem('starmap-settings', JSON.stringify(parsed));
+    } catch {
+      localStorage.setItem('starmap-settings', JSON.stringify({
+        state: { preferences: { locale: 'en', showSplash: false, dailyKnowledgeAutoShow: false } },
+        version: 14,
+      }));
+    }
   });
 }
 
@@ -39,12 +104,29 @@ export async function skipOnboardingAndSetup(page: Page) {
  * for faster and more reliable tests.
  */
 export async function waitForStarmapReady(page: Page, options?: { skipWasmWait?: boolean }) {
-  await page.goto('/starmap');
+  const openStarmap = async () => {
+    await page.goto('/starmap', {
+      waitUntil: 'domcontentloaded',
+      timeout: TEST_TIMEOUTS.wasmInit,
+    });
+  };
+
+  try {
+    await openStarmap();
+  } catch {
+    // Retry once when dev server is still compiling the first page load.
+    await page.waitForTimeout(1500);
+    await openStarmap();
+  }
   
   // Skip onboarding and setup wizard by setting localStorage
   await skipOnboardingAndSetup(page);
   
-  await page.reload();
+  await page.reload({
+    waitUntil: 'domcontentloaded',
+    timeout: TEST_TIMEOUTS.wasmInit,
+  });
+  await dismissSplashIfVisible(page);
   
   // Wait for canvas to be visible
   const canvas = page.locator('canvas').first();

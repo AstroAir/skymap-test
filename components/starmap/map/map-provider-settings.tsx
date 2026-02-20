@@ -183,7 +183,23 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
     setHasChanges(true);
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handlePolicyModeChange = useCallback((policyMode: MapConfiguration['policyMode']) => {
+    setConfig(prev => ({
+      ...prev,
+      policyMode,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleSearchBehaviorModeChange = useCallback((mode: MapConfiguration['searchBehaviorWhenNoAutocomplete']) => {
+    setConfig(prev => ({
+      ...prev,
+      searchBehaviorWhenNoAutocomplete: mode,
+    }));
+    setHasChanges(true);
+  }, []);
+
+  const handleSave = useCallback(async () => {
     try {
       // Apply all settings
       config.providers.forEach(p => {
@@ -196,6 +212,9 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
       mapConfig.setCacheSettings(config.cacheResponses, config.cacheDuration);
       mapConfig.setOfflineMode(config.enableOfflineMode);
       mapConfig.setHealthCheckInterval(config.healthCheckInterval);
+      mapConfig.setPolicyMode(config.policyMode);
+      mapConfig.setSearchBehaviorWhenNoAutocomplete(config.searchBehaviorWhenNoAutocomplete);
+      await connectivityChecker.checkAllProvidersHealth();
 
       toast.success(t('map.settingsSaved') || 'Settings saved');
       setHasChanges(false);
@@ -417,6 +436,44 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
                 />
               </div>
             )}
+          </div>
+
+          <Separator />
+
+          {/* Policy Settings */}
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <Label>{t('map.policyMode') || 'Policy Mode'}</Label>
+              <Select
+                value={config.policyMode}
+                onValueChange={(v) => handlePolicyModeChange(v as MapConfiguration['policyMode'])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="strict">{t('map.policyModes.strict') || 'Strict'}</SelectItem>
+                  <SelectItem value="balanced">{t('map.policyModes.balanced') || 'Balanced'}</SelectItem>
+                  <SelectItem value="legacy">{t('map.policyModes.legacy') || 'Legacy'}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <Label>{t('map.searchBehaviorWhenNoAutocomplete') || 'Search Behavior Without Autocomplete'}</Label>
+              <Select
+                value={config.searchBehaviorWhenNoAutocomplete}
+                onValueChange={(v) => handleSearchBehaviorModeChange(v as MapConfiguration['searchBehaviorWhenNoAutocomplete'])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="submit-only">{t('map.searchFallback.submitOnly') || 'Submit only'}</SelectItem>
+                  <SelectItem value="disabled">{t('map.searchFallback.disabled') || 'Disabled'}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Separator />

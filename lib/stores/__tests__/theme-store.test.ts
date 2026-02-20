@@ -205,6 +205,66 @@ describe('useThemeStore', () => {
     });
   });
 
+  describe('setCustomization', () => {
+    it('should update multiple fields in one action', () => {
+      const { result } = renderHook(() => useThemeStore());
+
+      act(() => {
+        result.current.setCustomization({
+          radius: 0.8,
+          fontFamily: 'mono',
+          fontSize: 'large',
+          animationsEnabled: false,
+        });
+      });
+
+      expect(result.current.customization.radius).toBe(0.8);
+      expect(result.current.customization.fontFamily).toBe('mono');
+      expect(result.current.customization.fontSize).toBe('large');
+      expect(result.current.customization.animationsEnabled).toBe(false);
+      expect(document.documentElement.style.getPropertyValue('--radius')).toBe('0.8rem');
+    });
+
+    it('should sanitize invalid values and unsupported custom color keys', () => {
+      const { result } = renderHook(() => useThemeStore());
+
+      act(() => {
+        result.current.setCustomization({
+          radius: 9,
+          fontFamily: 'invalid-font' as never,
+          fontSize: 'invalid-size' as never,
+          customColors: {
+            light: {
+              primary: '#ff0000',
+              unknown: '#00ff00',
+            } as never,
+          } as never,
+        });
+      });
+
+      expect(result.current.customization.radius).toBe(1);
+      expect(result.current.customization.fontFamily).toBe('default');
+      expect(result.current.customization.fontSize).toBe('default');
+      expect(result.current.customization.customColors.light.primary).toBe('#ff0000');
+      expect((result.current.customization.customColors.light as Record<string, string>).unknown).toBeUndefined();
+    });
+  });
+
+  describe('clearCustomColor', () => {
+    it('should remove only the selected color key', () => {
+      const { result } = renderHook(() => useThemeStore());
+
+      act(() => {
+        result.current.setCustomColor('dark', 'primary', '#111111');
+        result.current.setCustomColor('dark', 'accent', '#222222');
+        result.current.clearCustomColor('dark', 'primary');
+      });
+
+      expect(result.current.customization.customColors.dark.primary).toBeUndefined();
+      expect(result.current.customization.customColors.dark.accent).toBe('#222222');
+    });
+  });
+
   describe('resetCustomization', () => {
     it('should reset all customization to defaults', () => {
       const { result } = renderHook(() => useThemeStore());

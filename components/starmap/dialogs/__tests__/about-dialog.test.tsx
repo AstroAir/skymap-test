@@ -57,6 +57,10 @@ jest.mock('../stellarium-credits', () => ({
   StellariumCredits: () => <div data-testid="stellarium-credits">Stellarium Credits</div>,
 }));
 
+jest.mock('../feedback-dialog', () => ({
+  FeedbackDialog: () => <div data-testid="feedback-dialog">Feedback Dialog</div>,
+}));
+
 import { AboutDialog } from '../about-dialog';
 
 describe('AboutDialog', () => {
@@ -125,5 +129,11 @@ describe('AboutDialog', () => {
     render(<AboutDialog />);
     expect(screen.getByText('next')).toBeInTheDocument();
     expect(screen.getByText('react')).toBeInTheDocument();
+  });
+
+  it('renders report issue entry point and feedback dialog mount point', () => {
+    render(<AboutDialog />);
+    expect(screen.getByText('about.reportIssue')).toBeInTheDocument();
+    expect(screen.getByTestId('feedback-dialog')).toBeInTheDocument();
   });
 });

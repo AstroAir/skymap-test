@@ -1,19 +1,22 @@
 import { test, expect } from '@playwright/test';
-import { StarmapPage } from '../fixtures/page-objects';
 import { waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Sky Markers', () => {
-  let starmapPage: StarmapPage;
-
   test.beforeEach(async ({ page }) => {
-    starmapPage = new StarmapPage(page);
     await waitForStarmapReady(page, { skipWasmWait: true });
   });
 
   test.describe('Marker Types', () => {
     test('should support custom markers on sky', async ({ page }) => {
-      const markerButton = page.getByRole('button', { name: /marker|标记/i }).first();
-      expect(await markerButton.count()).toBeGreaterThanOrEqual(0);
+      const markerButton = page.locator(
+        'button:has(svg.lucide-map-pinned), button:has(svg[data-lucide="map-pinned"])'
+      ).first();
+      test.skip((await markerButton.count()) === 0, 'Marker manager trigger is not exposed in current toolbar layout');
+      await expect(markerButton).toBeVisible({ timeout: 3000 });
+      await markerButton.click();
+
+      const markerPanel = page.getByRole('dialog').filter({ hasText: /sky markers|天空标注/i }).first();
+      await expect(markerPanel).toBeVisible({ timeout: 3000 });
     });
 
     test('should display constellation lines', async ({ page }) => {
@@ -67,21 +70,44 @@ test.describe('Sky Markers', () => {
 
   test.describe('Marker Visibility', () => {
     test('should toggle marker visibility', async ({ page }) => {
-      const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
-      if (await settingsButton.isVisible().catch(() => false)) {
-        await settingsButton.click();
-        await page.waitForTimeout(500);
-        
-        const visibilityToggle = page.locator('[role="switch"], input[type="checkbox"]').first();
-        if (await visibilityToggle.isVisible().catch(() => false)) {
-          await visibilityToggle.click();
-          await page.waitForTimeout(300);
+      const markerButton = page.locator(
+        'button:has(svg.lucide-map-pinned), button:has(svg[data-lucide="map-pinned"])'
+      ).first();
+      test.skip((await markerButton.count()) === 0, 'Marker manager trigger is not exposed in current toolbar layout');
+      await expect(markerButton).toBeVisible({ timeout: 3000 });
+      await markerButton.click();
+
+      const markerPanel = page.getByRole('dialog').filter({ hasText: /sky markers|天空标注/i }).first();
+      await expect(markerPanel).toBeVisible({ timeout: 3000 });
+
+      const before = await page.evaluate(() => {
+        const raw = localStorage.getItem('starmap-markers');
+        if (!raw) return true;
+        try {
+          const parsed = JSON.parse(raw) as { state?: { showMarkers?: boolean } };
+          return parsed.state?.showMarkers ?? true;
+        } catch {
+          return true;
         }
-        
-        await page.keyboard.press('Escape');
-      }
-      
-      await expect(starmapPage.canvas).toBeVisible();
+      });
+
+      const visibilityToggle = markerPanel.locator('button:has(svg.lucide-eye), button:has(svg.lucide-eye-off)').first();
+      await expect(visibilityToggle).toBeVisible({ timeout: 3000 });
+      await visibilityToggle.click();
+      await page.waitForTimeout(200);
+
+      const after = await page.evaluate(() => {
+        const raw = localStorage.getItem('starmap-markers');
+        if (!raw) return true;
+        try {
+          const parsed = JSON.parse(raw) as { state?: { showMarkers?: boolean } };
+          return parsed.state?.showMarkers ?? true;
+        } catch {
+          return true;
+        }
+      });
+
+      expect(after).toBe(!before);
     });
   });
 

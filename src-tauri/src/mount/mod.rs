@@ -31,4 +31,6 @@ pub use commands::{
     mount_stop_axis,
     mount_set_slew_rate,
     mount_discover,
+    mount_get_observing_conditions,
+    mount_get_safety_state,
 };

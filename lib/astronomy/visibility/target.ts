@@ -3,7 +3,6 @@
  */
 
 import { deg2rad, rad2deg } from '../coordinates/conversions';
-import { dateToJulianDate } from '../time/julian';
 import { getLSTForDate } from '../time/sidereal';
 import { calculateTwilightTimes } from '../twilight/calculator';
 import { isCircumpolar, neverRises } from './circumpolar';
@@ -61,11 +60,7 @@ export function calculateTargetVisibility(
   const neverRisesFlag = neverRises(dec, latitude);
   
   // Current position
-  const jd = dateToJulianDate(now);
-  const S = jd - 2451545.0;
-  const T = S / 36525.0;
-  const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
-  const LST = ((GST + longitude) % 360 + 360) % 360;
+  const LST = getLSTForDate(longitude, now);
   const HA = deg2rad(LST - ra);
   const decRad = deg2rad(dec);
   const latRad = deg2rad(latitude);
@@ -101,8 +96,10 @@ export function calculateTargetVisibility(
     imagingWindowStart = new Date(transitTime.getTime() - (haMinAlt / 15) * 3600000);
     imagingWindowEnd = new Date(transitTime.getTime() + (haMinAlt / 15) * 3600000);
   } else if (haMinAlt === 180 || circumpolar) {
-    imagingWindowStart = riseTime;
-    imagingWindowEnd = setTime;
+    // For circumpolar/always-above-threshold targets we create a full 24h window
+    // centered on the calculation date so dark-window intersection still works.
+    imagingWindowStart = new Date(date.getTime() - 12 * 3600000);
+    imagingWindowEnd = new Date(date.getTime() + 12 * 3600000);
   }
   
   const imagingHours = imagingWindowStart && imagingWindowEnd

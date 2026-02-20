@@ -9,16 +9,23 @@ const mockUseSettingsStore = jest.fn((selector) => {
   const state = {
     stellarium: {
       constellationsLinesVisible: true,
+      constellationBoundariesVisible: false,
       azimuthalLinesVisible: false,
       equatorialLinesVisible: false,
+      equatorialJnowLinesVisible: false,
       meridianLinesVisible: false,
       eclipticLinesVisible: false,
+      horizonLinesVisible: false,
+      galacticLinesVisible: false,
       atmosphereVisible: false,
       landscapesVisible: false,
       dsosVisible: true,
       surveyEnabled: true,
       surveyId: 'dss',
       skyCultureLanguage: 'native',
+      tonemapperP: 0.5,
+      mountFrame: 5,
+      viewYOffset: 0,
     },
     setStellariumSetting: jest.fn(),
     toggleStellariumSetting: jest.fn(),
@@ -119,11 +126,21 @@ const mockUseEquipmentStore = jest.fn((selector) => {
   return selector ? selector(state) : state;
 });
 
+const mockUseOnboardingBridgeStore = jest.fn((selector) => {
+  const state = {
+    openSettingsDrawerRequestId: 0,
+    closeTransientPanelsRequestId: 0,
+    settingsDrawerTab: null,
+  };
+  return selector ? selector(state) : state;
+});
+
 jest.mock('@/lib/stores', () => ({
   useSettingsStore: (selector: (state: unknown) => unknown) => mockUseSettingsStore(selector),
   useSatelliteStore: (selector: (state: unknown) => unknown) => mockUseSatelliteStore(selector),
   useMountStore: (selector: (state: unknown) => unknown) => mockUseMountStore(selector),
   useEquipmentStore: (selector: (state: unknown) => unknown) => mockUseEquipmentStore(selector),
+  useOnboardingBridgeStore: (selector: (state: unknown) => unknown) => mockUseOnboardingBridgeStore(selector),
   BUILTIN_CAMERA_PRESETS: [
     { id: 'asi6200', name: 'ASI6200MC Pro', sensorWidth: 36, sensorHeight: 24, pixelSize: 3.76, isCustom: false },
   ],
@@ -313,6 +330,7 @@ jest.mock('../../settings/storage-path-settings', () => ({
 jest.mock('../../map', () => ({
   MapProviderSettings: () => <div data-testid="map-provider-settings">MapProviderSettings</div>,
   MapHealthMonitor: () => <div data-testid="map-health-monitor">MapHealthMonitor</div>,
+  MapApiKeyManager: () => <div data-testid="map-api-key-manager">MapApiKeyManager</div>,
 }));
 
 import { UnifiedSettings } from '../unified-settings';

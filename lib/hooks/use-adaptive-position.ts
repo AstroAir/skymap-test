@@ -51,7 +51,11 @@ export function useAdaptivePosition(
       return opts.defaultPosition;
     }
 
-    const availableWidth = containerBounds.width - opts.rightPanelWidth;
+    const inferredRightPanelWidth =
+      containerBounds.width < 1024
+        ? 0
+        : opts.rightPanelWidth;
+    const availableWidth = containerBounds.width - inferredRightPanelWidth;
 
     let left = clickPosition.x + opts.offset;
     let top = clickPosition.y - panelSize.height / 2;

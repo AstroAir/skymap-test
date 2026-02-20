@@ -39,7 +39,9 @@ function LocationPermissionStatus() {
         if ('permissions' in navigator) {
           permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
           setPermissionState(permissionStatus.state as PermissionState);
-          permissionStatus.addEventListener('change', handleChange);
+          if (typeof permissionStatus.addEventListener === 'function') {
+            permissionStatus.addEventListener('change', handleChange);
+          }
         } else {
           setPermissionState('unknown');
         }
@@ -51,7 +53,9 @@ function LocationPermissionStatus() {
     checkPermission();
 
     return () => {
-      permissionStatus?.removeEventListener('change', handleChange);
+      if (permissionStatus && typeof permissionStatus.removeEventListener === 'function') {
+        permissionStatus.removeEventListener('change', handleChange);
+      }
     };
   }, []);
   

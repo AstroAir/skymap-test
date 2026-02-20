@@ -22,6 +22,54 @@ export interface GeographicCoordinates {
   elevation?: number; // Elevation in meters
 }
 
+export type AstronomicalFrame = 'ICRF' | 'CIRS' | 'OBSERVED' | 'VIEW';
+export type TimeScale = 'UTC' | 'UT1' | 'TT';
+export type CoordinateQualityFlag = 'precise' | 'interpolated' | 'fallback';
+export type EopFreshness = 'fresh' | 'stale' | 'fallback';
+
+export interface CoordinateMetadata {
+  frame: AstronomicalFrame;
+  epochJd: number;
+  timeScale: TimeScale;
+  qualityFlag: CoordinateQualityFlag;
+  dataFreshness: EopFreshness;
+  source: 'calculation' | 'engine';
+  generatedAt: string;
+}
+
+export interface CoordinateContext {
+  latitude: number;
+  longitude: number;
+  date?: Date;
+  jdUtc?: number;
+  fromFrame?: AstronomicalFrame;
+  toFrame?: AstronomicalFrame;
+  precisionMode?: 'core_high_precision' | 'realtime_lightweight';
+  deltaUt1Seconds?: number;
+}
+
+export interface CoordinateResult {
+  raDeg: number;
+  decDeg: number;
+  altitudeDeg: number;
+  azimuthDeg: number;
+  hourAngleDeg: number;
+  lstDeg: number;
+  gstDeg: number;
+  metadata: CoordinateMetadata;
+}
+
+export type RecommendationProfile = 'imaging' | 'visual' | 'hybrid';
+
+export interface RecommendationBreakdownV2 {
+  observability: number;
+  moonImpact: number;
+  equipmentMatch: number;
+  targetSuitability: number;
+  timingQuality: number;
+  difficultyPenalty: number;
+}
+
 // ============================================================================
 // Time Types
 // ============================================================================

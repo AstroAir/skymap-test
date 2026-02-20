@@ -19,18 +19,6 @@ jest.mock('next-themes', () => ({
   }),
 }));
 
-// Mock theme store
-const mockApplyCustomization = jest.fn();
-interface ThemeStoreState {
-  applyCustomization: () => void;
-}
-
-jest.mock('@/lib/stores/theme-store', () => ({
-  useThemeStore: <T,>(selector: (state: ThemeStoreState) => T): T => {
-    return selector({ applyCustomization: mockApplyCustomization });
-  },
-}));
-
 const messages = {
   theme: {
     switchToLight: 'Switch to Light',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Key,
@@ -91,6 +91,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState(() => mapConfig.getApiKeys());
   
   // Form state for adding new key
   const [newKey, setNewKey] = useState({
@@ -101,7 +102,12 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
     monthlyQuota: '',
   });
 
-  const apiKeys = mapConfig.getApiKeys();
+  useEffect(() => {
+    const unsubscribe = mapConfig.addConfigurationListener?.(() => {
+      setApiKeys(mapConfig.getApiKeys());
+    });
+    return typeof unsubscribe === 'function' ? unsubscribe : undefined;
+  }, []);
 
   const handleToggleVisibility = useCallback((keyId: string) => {
     setVisibleKeys(prev => {

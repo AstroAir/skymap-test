@@ -8,10 +8,11 @@
 
 发现问题？请创建 Issue：
 
-1. 访问 [GitHub Issues](https://github.com/yourusername/skymap-test/issues)
+1. 访问 [GitHub Issue 表单](https://github.com/AstroAir/skymap-test/issues/new)
 2. 搜索是否已有相同问题
 3. 如果没有，创建新 Issue
 4. 详细描述问题
+5. 如有需要，附上应用内导出的诊断包（手动上传附件）
 
 **好的 Issue 模板**:
 
@@ -472,7 +473,7 @@ MAJOR.MINOR.PATCH
 
 我们会在以下地方认可贡献者：
 
-- [ Contributors](https://github.com/yourusername/skymap-test/graphs/contributors) 部分
+- [ Contributors](https://github.com/AstroAir/skymap-test/graphs/contributors) 部分
 - Release Notes 中
 - 项目网站上的贡献者列表
 

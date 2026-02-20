@@ -11,7 +11,7 @@ test.describe('Astro Session Panel', () => {
     test('should have session panel button', async ({ page }) => {
       const sessionButton = page.getByRole('button', { name: /session|plan|会话|计划/i })
         .or(page.locator('[data-testid="session-panel-button"]'));
-      expect(await sessionButton.count()).toBeGreaterThanOrEqual(0);
+      expect(await sessionButton.count()).toBeGreaterThan(0);
     });
 
     test('should open session panel', async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const panel = page.locator('[role="dialog"], [data-state="open"]');
-        expect(await panel.count()).toBeGreaterThanOrEqual(0);
+        expect(await panel.count()).toBeGreaterThan(0);
       }
     });
 
@@ -47,7 +47,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const dateDisplay = page.locator('text=/date|日期/i');
-        expect(await dateDisplay.count()).toBeGreaterThanOrEqual(0);
+        expect(await dateDisplay.count()).toBeGreaterThan(0);
       }
     });
 
@@ -59,7 +59,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const observationWindow = page.locator('text=/observation.*window|dark.*hours|观测窗口|暗夜/i');
-        expect(await observationWindow.count()).toBeGreaterThanOrEqual(0);
+        expect(await observationWindow.count()).toBeGreaterThan(0);
       }
     });
 
@@ -71,7 +71,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const moonPhase = page.locator('text=/moon|lunar|月相|月亮/i');
-        expect(await moonPhase.count()).toBeGreaterThanOrEqual(0);
+        expect(await moonPhase.count()).toBeGreaterThan(0);
       }
     });
 
@@ -83,7 +83,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const weather = page.locator('text=/weather|conditions|天气|条件/i');
-        expect(await weather.count()).toBeGreaterThanOrEqual(0);
+        expect(await weather.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -97,7 +97,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const targetList = page.locator('text=/targets|objects|目标|对象/i');
-        expect(await targetList.count()).toBeGreaterThanOrEqual(0);
+        expect(await targetList.count()).toBeGreaterThan(0);
       }
     });
 
@@ -112,7 +112,7 @@ test.describe('Astro Session Panel', () => {
           .or(page.locator('.timeline'))
           .or(page.locator('text=/timeline|时间线/i'));
         
-        expect(await timeline.count()).toBeGreaterThanOrEqual(0);
+        expect(await timeline.count()).toBeGreaterThan(0);
       }
     });
 
@@ -124,7 +124,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const priority = page.locator('text=/priority|优先级/i');
-        expect(await priority.count()).toBeGreaterThanOrEqual(0);
+        expect(await priority.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -138,7 +138,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const autoPlanButton = page.getByRole('button', { name: /auto.*plan|optimize|自动计划|优化/i });
-        expect(await autoPlanButton.count()).toBeGreaterThanOrEqual(0);
+        expect(await autoPlanButton.count()).toBeGreaterThan(0);
       }
     });
 
@@ -150,7 +150,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const manualSchedule = page.locator('text=/schedule|manual|安排|手动/i');
-        expect(await manualSchedule.count()).toBeGreaterThanOrEqual(0);
+        expect(await manualSchedule.count()).toBeGreaterThan(0);
       }
     });
 
@@ -162,7 +162,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const totalTime = page.locator('text=/total.*time|imaging.*time|总时间|成像时间/i');
-        expect(await totalTime.count()).toBeGreaterThanOrEqual(0);
+        expect(await totalTime.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -177,7 +177,7 @@ test.describe('Astro Session Panel', () => {
         
         // Look for draggable items
         const draggableItems = page.locator('[draggable="true"], [data-testid="draggable-target"]');
-        expect(await draggableItems.count()).toBeGreaterThanOrEqual(0);
+        expect(await draggableItems.count()).toBeGreaterThan(0);
       }
     });
 
@@ -191,7 +191,7 @@ test.describe('Astro Session Panel', () => {
         const startTimeInput = page.locator('input[type="time"]')
           .or(page.locator('text=/start.*time|开始时间/i'));
         
-        expect(await startTimeInput.count()).toBeGreaterThanOrEqual(0);
+        expect(await startTimeInput.count()).toBeGreaterThan(0);
       }
     });
 
@@ -203,7 +203,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const durationInput = page.locator('text=/duration|持续时间/i');
-        expect(await durationInput.count()).toBeGreaterThanOrEqual(0);
+        expect(await durationInput.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -217,7 +217,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const conflictWarning = page.locator('text=/conflict|overlap|warning|冲突|重叠|警告/i');
-        expect(await conflictWarning.count()).toBeGreaterThanOrEqual(0);
+        expect(await conflictWarning.count()).toBeGreaterThan(0);
       }
     });
 
@@ -229,7 +229,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const altitudeWarning = page.locator('text=/low.*altitude|below.*horizon|低高度|地平线/i');
-        expect(await altitudeWarning.count()).toBeGreaterThanOrEqual(0);
+        expect(await altitudeWarning.count()).toBeGreaterThan(0);
       }
     });
 
@@ -241,7 +241,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const moonWarning = page.locator('text=/moon.*proximity|moon.*distance|月球距离/i');
-        expect(await moonWarning.count()).toBeGreaterThanOrEqual(0);
+        expect(await moonWarning.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -255,7 +255,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const exportButton = page.getByRole('button', { name: /export|导出/i });
-        expect(await exportButton.count()).toBeGreaterThanOrEqual(0);
+        expect(await exportButton.count()).toBeGreaterThan(0);
       }
     });
 
@@ -267,7 +267,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const ninaExport = page.locator('text=/NINA|N.I.N.A/i');
-        expect(await ninaExport.count()).toBeGreaterThanOrEqual(0);
+        expect(await ninaExport.count()).toBeGreaterThan(0);
       }
     });
 
@@ -279,7 +279,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const sgpExport = page.locator('text=/SGP|Sequence.*Generator/i');
-        expect(await sgpExport.count()).toBeGreaterThanOrEqual(0);
+        expect(await sgpExport.count()).toBeGreaterThan(0);
       }
     });
 
@@ -291,7 +291,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const csvExport = page.locator('text=/CSV/i');
-        expect(await csvExport.count()).toBeGreaterThanOrEqual(0);
+        expect(await csvExport.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -305,7 +305,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const importButton = page.getByRole('button', { name: /import|导入/i });
-        expect(await importButton.count()).toBeGreaterThanOrEqual(0);
+        expect(await importButton.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -319,7 +319,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const saveTemplate = page.locator('text=/save.*template|保存.*模板/i');
-        expect(await saveTemplate.count()).toBeGreaterThanOrEqual(0);
+        expect(await saveTemplate.count()).toBeGreaterThan(0);
       }
     });
 
@@ -331,7 +331,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const loadTemplate = page.locator('text=/load.*template|加载.*模板/i');
-        expect(await loadTemplate.count()).toBeGreaterThanOrEqual(0);
+        expect(await loadTemplate.count()).toBeGreaterThan(0);
       }
     });
   });
@@ -345,7 +345,7 @@ test.describe('Astro Session Panel', () => {
         await page.waitForTimeout(500);
         
         const notesSection = page.locator('text=/notes|备注/i');
-        expect(await notesSection.count()).toBeGreaterThanOrEqual(0);
+        expect(await notesSection.count()).toBeGreaterThan(0);
       }
     });
 
@@ -392,7 +392,7 @@ test.describe('Astro Session Panel', () => {
               
               // Target should appear in session
               const targetInSession = page.locator(`text=/${TEST_OBJECTS.M31.name}/i`);
-              expect(await targetInSession.count()).toBeGreaterThanOrEqual(0);
+              expect(await targetInSession.count()).toBeGreaterThan(0);
             }
           }
         }
@@ -412,7 +412,7 @@ test.describe('Astro Session Panel', () => {
           .or(page.locator('[data-testid="date-picker"]'))
           .or(page.getByRole('button', { name: /date|日期/i }));
         
-        expect(await datePicker.count()).toBeGreaterThanOrEqual(0);
+        expect(await datePicker.count()).toBeGreaterThan(0);
       }
     });
 
@@ -434,6 +434,36 @@ test.describe('Astro Session Panel', () => {
           await expect(canvas).toBeVisible();
         }
       }
+    });
+  });
+
+  test.describe('Session Planner Strong Assertions', () => {
+    test('should expose weather inputs, notes and template list controls', async ({ page }) => {
+      const sessionButton = page.getByRole('button', { name: /session|plan|会话|计划/i }).first();
+      await expect(sessionButton).toBeVisible();
+      await sessionButton.click();
+
+      await expect(page.getByTestId('session-weather-cloud-cover')).toBeVisible();
+      await expect(page.getByTestId('session-weather-humidity')).toBeVisible();
+      await expect(page.getByTestId('session-weather-wind')).toBeVisible();
+      await expect(page.getByTestId('session-weather-dew-point')).toBeVisible();
+      await expect(page.getByTestId('session-notes')).toBeVisible();
+
+      const templateButton = page.getByRole('button', { name: /templates|模板/i });
+      await expect(templateButton).toBeVisible();
+      await templateButton.click();
+      await expect(page.getByTestId('session-template-list')).toBeVisible();
+    });
+
+    test('should keep conflicts block mountable and gap toggle interactive', async ({ page }) => {
+      const sessionButton = page.getByRole('button', { name: /session|plan|会话|计划/i }).first();
+      await expect(sessionButton).toBeVisible();
+      await sessionButton.click();
+
+      const switchElement = page.getByRole('switch').first();
+      await expect(switchElement).toBeVisible();
+      await switchElement.click();
+      await switchElement.click();
     });
   });
 });

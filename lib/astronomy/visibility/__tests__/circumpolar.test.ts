@@ -47,12 +47,8 @@ describe('Circumpolar and Visibility Checks', () => {
     });
 
     it('handles poles', () => {
-      // At north pole, all objects are "circumpolar" (never set) 
-      // because they maintain constant altitude
       expect(isCircumpolar(10, 90)).toBe(true);
-      // Note: Objects with negative dec are below horizon but still
-      // technically circumpolar (never set because never rise)
-      expect(isCircumpolar(-10, 90)).toBe(true);
+      expect(isCircumpolar(-10, 90)).toBe(false);
     });
   });
 
@@ -179,10 +175,8 @@ describe('Circumpolar and Visibility Checks', () => {
       expect(getVisibilityClass(85, 60)).toBe('circumpolar');
     });
 
-    it('returns "circumpolar" for far southern objects from northern hemisphere', () => {
-      // Note: Current implementation marks objects with |dec| > (90 - |lat|) as circumpolar
-      // regardless of whether they're above or below horizon
-      expect(getVisibilityClass(-70, 40)).toBe('circumpolar');
+    it('returns "never_rises" for far southern objects from northern hemisphere', () => {
+      expect(getVisibilityClass(-70, 40)).toBe('never_rises');
     });
 
     it('returns "visible" for normal objects', () => {

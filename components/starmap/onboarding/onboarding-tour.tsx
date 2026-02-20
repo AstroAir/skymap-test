@@ -1,32 +1,205 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
-import { TOUR_STEPS } from '@/lib/constants/onboarding';
-import type { OnboardingTourProps } from '@/types/starmap/onboarding';
+import { useOnboardingBridgeStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
+import { resolveTourSteps } from '@/lib/constants/onboarding-capabilities';
+import type {
+  OnboardingTourProps,
+  StepSkipReason,
+  TourBeforeEnterAction,
+  TourStep,
+} from '@/types/starmap/onboarding';
+import { isTauri } from '@/lib/tauri/app-control-api';
 import { TourSpotlight } from './tour-spotlight';
 import { TourTooltip } from './tour-tooltip';
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 export function OnboardingTour({
   onTourStart,
   onTourEnd,
   onStepChange,
+  onTourCompleted,
 }: OnboardingTourProps) {
   const isTourActive = useOnboardingStore((state) => state.isTourActive);
+  const activeTourId = useOnboardingStore((state) => state.activeTourId);
+  const activeTourSteps = useOnboardingStore((state) => state.activeTourSteps);
   const currentStepIndex = useOnboardingStore((state) => state.currentStepIndex);
+  const currentStep = useOnboardingStore((state) => state.getCurrentStep());
+  const setActiveTourSteps = useOnboardingStore((state) => state.setActiveTourSteps);
   const nextStep = useOnboardingStore((state) => state.nextStep);
   const prevStep = useOnboardingStore((state) => state.prevStep);
   const skipTour = useOnboardingStore((state) => state.skipTour);
   const endTour = useOnboardingStore((state) => state.endTour);
   const isFirstStep = useOnboardingStore((state) => state.isFirstStep);
   const isLastStep = useOnboardingStore((state) => state.isLastStep);
+  const goToStep = useOnboardingStore((state) => state.goToStep);
+  const skipCapability = useOnboardingStore((state) => state.skipCapability);
 
-  const currentStep = isTourActive && currentStepIndex >= 0 && currentStepIndex < TOUR_STEPS.length
-    ? TOUR_STEPS[currentStepIndex]
-    : null;
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
+  const stelAvailable = useStellariumStore((state) => Boolean(state.stel));
+
+  const [isMobile, setIsMobile] = useState(false);
 
   const wasTourActiveRef = useRef(false);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const stepCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (!isTourActive || !activeTourId) return;
+
+    const { steps, skipped } = resolveTourSteps(
+      {
+        isMobile,
+        isTauri: isTauri(),
+        skyEngine,
+        stelAvailable,
+        featureVisibility: {},
+      },
+      activeTourId,
+    );
+
+    setActiveTourSteps(steps);
+    for (const skippedStep of skipped) {
+      skipCapability(skippedStep.capabilityId, skippedStep.reason);
+    }
+
+    if (steps.length === 0) {
+      endTour();
+      return;
+    }
+
+    if (currentStepIndex >= steps.length) {
+      goToStep(steps.length - 1);
+    }
+  }, [
+    activeTourId,
+    currentStepIndex,
+    endTour,
+    goToStep,
+    isMobile,
+    isTourActive,
+    setActiveTourSteps,
+    skipCapability,
+    skyEngine,
+    stelAvailable,
+  ]);
+
+  const runBeforeEnterActions = useCallback(
+    async (step: TourStep) => {
+      const actions = step.beforeEnterAction
+        ? Array.isArray(step.beforeEnterAction)
+          ? step.beforeEnterAction
+          : [step.beforeEnterAction]
+        : [];
+
+      if (actions.length === 0) {
+        return null;
+      }
+
+      const cleanups: Array<() => void> = [];
+      const bridge = useOnboardingBridgeStore.getState();
+
+      for (const action of actions) {
+        switch ((action as TourBeforeEnterAction).type) {
+          case 'expandRightPanel': {
+            const wasCollapsed =
+              useSettingsStore.getState().preferences.rightPanelCollapsed;
+            bridge.expandRightPanel();
+            if (wasCollapsed) {
+              cleanups.push(() =>
+                useSettingsStore
+                  .getState()
+                  .setPreference('rightPanelCollapsed', true),
+              );
+            }
+            break;
+          }
+          case 'openSettingsDrawer':
+            bridge.closeTransientPanels();
+            bridge.openSettingsDrawer(action.tab);
+            break;
+          case 'openSearch':
+            bridge.closeTransientPanels();
+            bridge.openSearch();
+            break;
+          case 'openMobileDrawer':
+            bridge.closeTransientPanels();
+            bridge.openMobileDrawer(action.section);
+            break;
+          case 'openDailyKnowledge':
+            bridge.closeTransientPanels();
+            bridge.openDailyKnowledge();
+            break;
+          case 'closeTransientPanels':
+            bridge.closeTransientPanels();
+            break;
+        }
+      }
+
+      await wait(160);
+      return () => {
+        for (const cleanup of cleanups) {
+          cleanup();
+        }
+      };
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isTourActive || !currentStep) return;
+
+    let cancelled = false;
+    stepCleanupRef.current?.();
+    stepCleanupRef.current = null;
+
+    const execute = async () => {
+      const cleanup = await runBeforeEnterActions(currentStep);
+      if (cancelled) {
+        cleanup?.();
+        return;
+      }
+      stepCleanupRef.current = cleanup ?? null;
+
+      if (
+        currentStep.fallbackMode === 'skip' &&
+        currentStep.placement !== 'center'
+      ) {
+        await wait(120);
+        if (cancelled) return;
+        const target = document.querySelector(currentStep.targetSelector);
+        if (!target && currentStep.capabilityId) {
+          const reason: StepSkipReason = {
+            code: 'missing-selector',
+            messageKey: 'onboarding.skipReasons.missing-selector',
+            details: currentStep.targetSelector,
+          };
+          skipCapability(currentStep.capabilityId, reason);
+          nextStep();
+        }
+      }
+    };
+
+    execute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep, isTourActive, nextStep, runBeforeEnterActions, skipCapability]);
 
   // Notify callbacks and manage focus
   useEffect(() => {
@@ -36,6 +209,8 @@ export function OnboardingTour({
       onTourStart?.();
     }
     if (wasActive && !isTourActive) {
+      stepCleanupRef.current?.();
+      stepCleanupRef.current = null;
       previousFocusRef.current?.focus?.();
       previousFocusRef.current = null;
       onTourEnd?.();
@@ -49,6 +224,15 @@ export function OnboardingTour({
     }
   }, [isTourActive, currentStepIndex, onStepChange]);
 
+  const handleNext = useCallback(() => {
+    const finishing = isLastStep();
+    const tourId = activeTourId;
+    nextStep();
+    if (finishing && tourId) {
+      onTourCompleted?.(tourId);
+    }
+  }, [activeTourId, isLastStep, nextStep, onTourCompleted]);
+
   // Keyboard navigation
   useEffect(() => {
     if (!isTourActive) return;
@@ -60,11 +244,7 @@ export function OnboardingTour({
           break;
         case 'ArrowRight':
         case 'Enter':
-          if (!isLastStep()) {
-            nextStep();
-          } else {
-            nextStep(); // This will complete the tour
-          }
+          handleNext();
           break;
         case 'ArrowLeft':
           if (!isFirstStep()) {
@@ -76,7 +256,7 @@ export function OnboardingTour({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isTourActive, nextStep, prevStep, endTour, isFirstStep, isLastStep]);
+  }, [endTour, handleNext, isFirstStep, isTourActive, prevStep]);
 
   if (!isTourActive || !currentStep) {
     return null;
@@ -84,7 +264,6 @@ export function OnboardingTour({
 
   return (
     <>
-      {/* Spotlight overlay */}
       <TourSpotlight
         targetSelector={currentStep.targetSelector}
         padding={currentStep.highlightPadding}
@@ -92,12 +271,11 @@ export function OnboardingTour({
         spotlightRadius={currentStep.spotlightRadius}
       />
 
-      {/* Tooltip */}
       <TourTooltip
         step={currentStep}
         currentIndex={currentStepIndex}
-        totalSteps={TOUR_STEPS.length}
-        onNext={nextStep}
+        totalSteps={activeTourSteps.length}
+        onNext={handleNext}
         onPrev={prevStep}
         onSkip={skipTour}
         onClose={endTour}

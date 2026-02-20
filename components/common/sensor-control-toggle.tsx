@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Compass, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,61 +9,150 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useSettingsStore, useStellariumStore } from '@/lib/stores';
-import { useDeviceOrientation, type SkyDirection } from '@/lib/hooks/use-device-orientation';
+import { altAzToRaDec } from '@/lib/astronomy/coordinates/transforms';
+import { rad2deg } from '@/lib/astronomy/starmap-utils';
+import { useMountStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
+import {
+  useDeviceOrientation,
+  type SkyDirection,
+  type SensorCalibrationState,
+  type SensorStatus,
+} from '@/lib/hooks/use-device-orientation';
 import { useIsClient } from '@/lib/hooks/use-is-client';
 import { cn } from '@/lib/utils';
+import { SensorCalibrationDialog } from './sensor-calibration-dialog';
 
 interface SensorControlToggleProps {
   className?: string;
+  showStatusLabel?: boolean;
 }
 
-export function SensorControlToggle({ className }: SensorControlToggleProps) {
+function getStatusClass(status: SensorStatus): string {
+  switch (status) {
+    case 'active':
+      return 'bg-emerald-500';
+    case 'calibration-required':
+      return 'bg-amber-500';
+    case 'permission-denied':
+    case 'error':
+      return 'bg-red-500';
+    default:
+      return 'bg-muted-foreground';
+  }
+}
+
+export function SensorControlToggle({ className, showStatusLabel = false }: SensorControlToggleProps) {
   const t = useTranslations();
-  const sensorControl = useSettingsStore((state) => state.stellarium.sensorControl);
+  const stellarium = useSettingsStore((state) => state.stellarium);
+  const sensorControl = stellarium.sensorControl;
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
+  const setStellariumSetting = useSettingsStore((state) => state.setStellariumSetting);
+  const profileInfo = useMountStore((state) => state.profileInfo);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
-  const stel = useStellariumStore((state) => state.stel);
+  const getCurrentViewDirection = useStellariumStore((state) => state.getCurrentViewDirection);
+  const viewDirection = useStellariumStore((state) => state.viewDirection);
+  const [calibrationDialogOpen, setCalibrationDialogOpen] = useState(false);
   
   // Track if component is on client to avoid hydration mismatch
   const isClient = useIsClient();
 
   // Handle orientation change - update view direction
   const handleOrientationChange = useCallback((direction: SkyDirection) => {
-    if (!stel || !setViewDirection) return;
-    
-    // Convert azimuth/altitude to RA/Dec
-    // This is a simplified conversion - for accurate results we need observer location and time
+    if (!setViewDirection) return;
+
+    const latitude = profileInfo.AstrometrySettings.Latitude;
+    const longitude = profileInfo.AstrometrySettings.Longitude;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
     try {
-      const observer = stel.core.observer;
-      const azRad = direction.azimuth * stel.D2R;
-      const altRad = direction.altitude * stel.D2R;
-      
-      // Convert horizontal to equatorial coordinates
-      // Using Stellarium's coordinate conversion
-      const altazVec = stel.s2c(azRad, altRad);
-      const icrfVec = stel.convertFrame(observer, 'OBSERVED', 'ICRF', altazVec);
-      const spherical = stel.c2s(icrfVec);
-      
-      const raDeg = stel.anp(spherical[0]) * stel.R2D;
-      const decDeg = spherical[1] * stel.R2D;
-      
-      setViewDirection(raDeg, decDeg);
+      const { ra, dec } = altAzToRaDec(
+        direction.altitude,
+        direction.azimuth,
+        latitude,
+        longitude
+      );
+      if (Number.isFinite(ra) && Number.isFinite(dec)) {
+        setViewDirection(ra, dec);
+      }
     } catch {
       // Ignore conversion errors
     }
-  }, [stel, setViewDirection]);
+  }, [setViewDirection, profileInfo.AstrometrySettings.Latitude, profileInfo.AstrometrySettings.Longitude]);
+
+  const currentCalibration = useMemo<SensorCalibrationState>(() => ({
+    azimuthOffsetDeg: stellarium.sensorCalibrationAzimuthOffsetDeg,
+    altitudeOffsetDeg: stellarium.sensorCalibrationAltitudeOffsetDeg,
+    updatedAt: stellarium.sensorCalibrationUpdatedAt,
+    required: stellarium.sensorCalibrationRequired,
+  }), [
+    stellarium.sensorCalibrationAzimuthOffsetDeg,
+    stellarium.sensorCalibrationAltitudeOffsetDeg,
+    stellarium.sensorCalibrationUpdatedAt,
+    stellarium.sensorCalibrationRequired,
+  ]);
+
+  const handleCalibrationChange = useCallback((nextCalibration: SensorCalibrationState) => {
+    setStellariumSetting('sensorCalibrationAzimuthOffsetDeg', nextCalibration.azimuthOffsetDeg);
+    setStellariumSetting('sensorCalibrationAltitudeOffsetDeg', nextCalibration.altitudeOffsetDeg);
+    setStellariumSetting('sensorCalibrationUpdatedAt', nextCalibration.updatedAt);
+    setStellariumSetting('sensorCalibrationRequired', nextCalibration.required);
+  }, [setStellariumSetting]);
 
   const {
     isSupported,
     isPermissionGranted,
+    status,
+    source,
+    accuracyDeg,
+    calibration,
     requestPermission,
+    calibrateToCurrentView,
+    resetCalibration,
     error,
   } = useDeviceOrientation({
     enabled: sensorControl && isClient,
-    smoothingFactor: 0.2,
+    smoothingFactor: stellarium.sensorSmoothingFactor,
+    updateHz: stellarium.sensorUpdateHz,
+    deadbandDeg: stellarium.sensorDeadbandDeg,
+    absolutePreferred: stellarium.sensorAbsolutePreferred,
+    useCompassHeading: stellarium.sensorUseCompassHeading,
+    calibration: currentCalibration,
+    onCalibrationChange: handleCalibrationChange,
     onOrientationChange: handleOrientationChange,
   });
+
+  const handleCalibrateNow = useCallback(() => {
+    const latitude = profileInfo.AstrometrySettings.Latitude;
+    const longitude = profileInfo.AstrometrySettings.Longitude;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return;
+    }
+
+    let current = viewDirection;
+    if (!current && getCurrentViewDirection) {
+      try {
+        current = getCurrentViewDirection();
+      } catch {
+        current = null;
+      }
+    }
+    if (!current) return;
+
+    calibrateToCurrentView({
+      raDeg: rad2deg(current.ra),
+      decDeg: rad2deg(current.dec),
+      latitude,
+      longitude,
+      at: new Date(),
+    });
+    setCalibrationDialogOpen(false);
+  }, [
+    profileInfo.AstrometrySettings.Latitude,
+    profileInfo.AstrometrySettings.Longitude,
+    viewDirection,
+    getCurrentViewDirection,
+    calibrateToCurrentView,
+  ]);
 
   // Handle toggle click
   const handleToggle = useCallback(async () => {
@@ -73,9 +162,21 @@ export function SensorControlToggle({ className }: SensorControlToggleProps) {
         const granted = await requestPermission();
         if (!granted) return;
       }
+      toggleStellariumSetting('sensorControl');
+      if (currentCalibration.required) {
+        setCalibrationDialogOpen(true);
+      }
+      return;
     }
     toggleStellariumSetting('sensorControl');
-  }, [sensorControl, isPermissionGranted, requestPermission, toggleStellariumSetting]);
+    setCalibrationDialogOpen(false);
+  }, [
+    sensorControl,
+    isPermissionGranted,
+    requestPermission,
+    toggleStellariumSetting,
+    currentCalibration.required,
+  ]);
 
   // Auto-disable if not supported (only after client render)
   useEffect(() => {
@@ -85,29 +186,44 @@ export function SensorControlToggle({ className }: SensorControlToggleProps) {
   }, [isClient, sensorControl, isSupported, toggleStellariumSetting]);
 
   // Don't render until client to avoid hydration mismatch
-  // After client render, don't render if not supported
   if (!isClient) {
-    return null;
-  }
-  
-  if (!isSupported) {
     return null;
   }
 
   const getTooltipText = () => {
+    if (!isSupported) return t('settings.sensorStatusUnsupported');
     if (error) return error;
+    if (status === 'permission-denied') return t('settings.sensorStatusPermissionDenied');
+    if (status === 'calibration-required') return t('settings.sensorCalibrationRequired');
     if (!isPermissionGranted) return t('settings.sensorControlPermission');
+    if (status === 'active' && accuracyDeg !== null) {
+      return `${t('settings.sensorAccuracy')}: ±${accuracyDeg.toFixed(1)}° (${source})`;
+    }
     return sensorControl ? t('settings.sensorControlDisable') : t('settings.sensorControlEnable');
   };
 
-  return (
+  const statusText = status === 'active'
+    ? t('settings.sensorStatusActive')
+    : status === 'permission-denied'
+      ? t('settings.sensorStatusPermissionDenied')
+      : status === 'calibration-required'
+        ? t('settings.sensorCalibrationRequired')
+        : !isSupported
+          ? t('settings.sensorStatusUnsupported')
+          : null;
+
+  const button = (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
+          aria-label={getTooltipText()}
+          data-testid="sensor-control-toggle"
+          data-sensor-status={status}
+          disabled={!isSupported}
           className={cn(
-            'h-9 w-9 backdrop-blur-sm transition-colors',
+            'relative h-9 w-9 backdrop-blur-sm transition-colors',
             sensorControl
               ? 'bg-primary/30 text-primary hover:bg-primary/40'
               : 'bg-background/60 text-foreground hover:bg-background/80',
@@ -120,11 +236,57 @@ export function SensorControlToggle({ className }: SensorControlToggleProps) {
           ) : (
             <Smartphone className="h-5 w-5" />
           )}
+          <span
+            className={cn(
+              'absolute right-1 top-1 h-2 w-2 rounded-full',
+              getStatusClass(status)
+            )}
+          />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">
         <p>{getTooltipText()}</p>
       </TooltipContent>
     </Tooltip>
+  );
+
+  return (
+    <>
+      {showStatusLabel ? (
+        <div className="flex flex-col items-center gap-1">
+          {button}
+          <span className="text-[10px] text-muted-foreground leading-tight text-center">
+            {statusText ?? t('settings.sensorControl')}
+          </span>
+          {status === 'calibration-required' && (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-[10px]"
+              onClick={handleCalibrateNow}
+            >
+              {t('settings.sensorCalibrateNow')}
+            </Button>
+          )}
+          {!calibration.required && (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-[10px]"
+              onClick={resetCalibration}
+            >
+              {t('settings.sensorRecalibrate')}
+            </Button>
+          )}
+        </div>
+      ) : (
+        button
+      )}
+      <SensorCalibrationDialog
+        open={calibrationDialogOpen}
+        onOpenChange={setCalibrationDialogOpen}
+        onCalibrate={handleCalibrateNow}
+      />
+    </>
   );
 }

@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 // Mock UI components
 jest.mock('@/components/ui/card', () => ({
@@ -118,6 +118,19 @@ const mockUseEquipmentStore = jest.fn(() => ({
     tracking: 'guided',
     targetType: 'nebula',
     bortle: 5,
+    sqmOverride: undefined,
+    filterBandwidthNm: 300,
+    readNoiseLimitPercent: 5,
+    gainStrategy: 'unity',
+    manualGain: 100,
+    manualReadNoiseEnabled: false,
+    manualReadNoise: 1.8,
+    manualDarkCurrent: 0.002,
+    manualFullWell: 50000,
+    manualQE: 0.8,
+    manualEPeraDu: 1,
+    targetSurfaceBrightness: 22,
+    targetSignalRate: 0,
   },
 }));
 
@@ -146,6 +159,26 @@ describe('ExposureCalculator', () => {
     render(<ExposureCalculator />);
     const buttons = screen.getAllByRole('button');
     expect(buttons.length).toBeGreaterThan(0);
+  });
+
+  it('renders professional parameter section', () => {
+    render(<ExposureCalculator />);
+    expect(screen.getByText('exposure.professionalParameters')).toBeInTheDocument();
+    expect(screen.getByText('exposure.professionalRecommendation')).toBeInTheDocument();
+  });
+
+  it('keeps quick plan fields unchanged when applying', () => {
+    const onExposurePlanChange = jest.fn();
+    render(<ExposureCalculator onExposurePlanChange={onExposurePlanChange} />);
+
+    fireEvent.click(screen.getByText('exposure.applyToTarget'));
+    expect(onExposurePlanChange).toHaveBeenCalledTimes(1);
+
+    const appliedPlan = onExposurePlanChange.mock.calls[0][0];
+    expect(appliedPlan.settings.exposureTime).toBe(120);
+    expect(appliedPlan.settings.gain).toBe(100);
+    expect(appliedPlan.totalFrames).toBe(30);
+    expect(appliedPlan.advanced).toBeDefined();
   });
 });
 

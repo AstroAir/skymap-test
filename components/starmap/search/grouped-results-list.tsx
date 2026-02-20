@@ -48,6 +48,7 @@ export const GroupedResultsList = memo(function GroupedResultsList({
 }: GroupedResultsListProps) {
   const t = useTranslations();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(defaultExpanded));
+  const sourceGroups = new Set(['local', 'sesame', 'simbad', 'vizier', 'ned']);
 
   const toggleGroup = useCallback((group: string) => {
     setExpandedGroups(prev => {
@@ -77,7 +78,11 @@ export const GroupedResultsList = memo(function GroupedResultsList({
               <ChevronRight className="h-3 w-3" />
             )}
             {getTypeIcon(groupName)}
-            <span className="ml-1">{t(`objects.${groupName.toLowerCase()}`)}</span>
+            <span className="ml-1">
+              {sourceGroups.has(groupName.toLowerCase())
+                ? groupName.toUpperCase()
+                : t(`objects.${groupName.toLowerCase()}` as Parameters<typeof t>[0], { defaultValue: groupName })}
+            </span>
             <Badge variant="secondary" className="ml-auto h-4 text-[10px]">
               {items.length}
             </Badge>

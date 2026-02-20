@@ -168,7 +168,7 @@ jest.mock('@/components/ui/alert-dialog', () => ({
     children: React.ReactNode;
     open?: boolean;
   }) => (
-    open ? <div data-testid="alert-dialog">{children}</div> : null
+    open ? <div data-testid="alert-dialog" data-open={open}>{children}</div> : null
   ),
   AlertDialogContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="alert-dialog-content">{children}</div>
@@ -543,7 +543,10 @@ describe('LocationManager', () => {
         setCurrent: jest.fn(),
         isAvailable: true,
       });
-      (mockTauriApi.locations.delete as jest.Mock).mockResolvedValue(undefined);
+      (mockTauriApi.locations.delete as jest.Mock).mockResolvedValue({
+        locations: [],
+        current_location_id: null,
+      });
 
       render(<LocationManager />);
 

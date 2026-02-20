@@ -3,29 +3,20 @@ import { TEST_TIMEOUTS } from '../fixtures/test-data';
 
 // Helper to wait for starmap ready and dismiss onboarding
 async function waitForStarmapReady(page: Page) {
-  await page.goto('/starmap');
-  await page.evaluate(() => {
-    localStorage.setItem('onboarding-storage', JSON.stringify({
+  await page.addInitScript(() => {
+    localStorage.setItem('starmap-onboarding', JSON.stringify({
       state: {
         hasCompletedOnboarding: true,
-        hasSeenWelcome: true,
-        currentStepIndex: -1,
-        isTourActive: false,
-        completedSteps: ['welcome', 'search', 'navigation', 'zoom', 'settings', 'fov', 'shotlist', 'tonight', 'contextmenu', 'complete'],
-        showOnNextVisit: false,
-      },
-      version: 0,
-    }));
-    localStorage.setItem('starmap-setup-wizard', JSON.stringify({
-      state: {
         hasCompletedSetup: true,
+        completedSteps: ['welcome', 'search', 'navigation', 'zoom', 'settings', 'fov', 'shotlist', 'tonight', 'contextmenu', 'complete'],
+        setupCompletedSteps: ['welcome', 'location', 'equipment', 'preferences', 'complete'],
         showOnNextVisit: false,
-        completedSteps: ['welcome', 'location', 'equipment', 'preferences', 'complete'],
       },
-      version: 1,
+      version: 3,
     }));
   });
-  await page.reload();
+
+  await page.goto('/starmap', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3500);
   const canvas = page.locator('canvas').first();
   await expect(canvas).toBeVisible({ timeout: TEST_TIMEOUTS.long });
@@ -302,16 +293,17 @@ test.describe('Sensor Control Toggle', () => {
     await waitForStarmapReady(page);
   });
 
+  const getMobileSensorToggle = (page: Page) =>
+    page.locator('[data-testid="sensor-control-toggle"]:visible').first();
+
   test.describe('Access', () => {
     test('should have sensor control toggle on mobile', async ({ page }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 });
       await page.waitForTimeout(500);
-      
-      const sensorToggle = page.getByRole('button', { name: /sensor|compass|gyro|传感器/i })
-        .or(page.locator('[data-testid="sensor-control-toggle"]'));
-      
-      expect(await sensorToggle.count()).toBeGreaterThanOrEqual(0);
+
+      const sensorToggle = getMobileSensorToggle(page);
+      await expect(sensorToggle).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -319,13 +311,25 @@ test.describe('Sensor Control Toggle', () => {
     test('should toggle sensor control', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
       await page.waitForTimeout(500);
-      
-      const sensorToggle = page.getByRole('button', { name: /sensor|compass|gyro|传感器/i }).first();
+
+      const sensorToggle = getMobileSensorToggle(page);
       
       if (await sensorToggle.isVisible().catch(() => false)) {
+        const before = (await sensorToggle.getAttribute('data-sensor-status')) ?? 'unknown';
         await sensorToggle.click();
         await page.waitForTimeout(300);
+        const after = (await sensorToggle.getAttribute('data-sensor-status')) ?? 'unknown';
+        expect(after.length).toBeGreaterThan(0);
+        expect(before.length).toBeGreaterThan(0);
       }
+    });
+
+    test('should expose sensor status state on mobile UI', async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 667 });
+      await page.waitForTimeout(500);
+
+      const sensorToggle = getMobileSensorToggle(page);
+      await expect(sensorToggle).toHaveAttribute('data-sensor-status', /idle|active|permission-required|permission-denied|calibration-required|unsupported|error/);
     });
   });
 });

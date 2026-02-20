@@ -33,6 +33,33 @@ export interface ExposurePlan {
   total_exposure: number;
   sub_frames: number;
   filter?: string;
+  advanced?: {
+    sqm?: number;
+    filter_bandwidth_nm?: number;
+    read_noise_limit_percent?: number;
+    gain_strategy?: 'unity' | 'max_dynamic_range' | 'manual';
+    recommended_gain?: number;
+    recommended_exposure_sec?: number;
+    sky_flux_per_pixel?: number;
+    target_signal_per_pixel_per_sec?: number;
+    dynamic_range_score?: number;
+    dynamic_range_stops?: number;
+    read_noise_used?: number;
+    dark_current_used?: number;
+    noise_fractions?: {
+      read?: number;
+      sky?: number;
+      dark?: number;
+    };
+    stack_estimate?: {
+      recommended_frame_count?: number;
+      estimated_total_minutes?: number;
+      frames_for_target_snr?: number;
+      frames_for_time_noise?: number;
+      target_snr?: number;
+      target_time_noise_ratio?: number;
+    };
+  };
 }
 
 export interface ObservableWindow {

@@ -5,10 +5,6 @@
  */
 
 declare module 'aladin-lite' {
-  // ==========================================================================
-  // Initialization Options
-  // ==========================================================================
-
   interface AladinOptions {
     fov?: number;
     target?: string;
@@ -38,15 +34,7 @@ declare module 'aladin-lite' {
     samp?: boolean;
   }
 
-  // ==========================================================================
-  // Coordinate Frame
-  // ==========================================================================
-
   type AladinCooFrame = 'ICRS' | 'ICRSd' | 'galactic' | 'j2000' | 'j2000d';
-
-  // ==========================================================================
-  // Coordinate Grid Options
-  // ==========================================================================
 
   interface AladinCooGridOptions {
     color?: string;
@@ -57,12 +45,23 @@ declare module 'aladin-lite' {
     enabled?: boolean;
   }
 
-  // ==========================================================================
-  // Aladin Instance
-  // ==========================================================================
+  interface AladinReticle {
+    show: boolean;
+    color: string;
+    size: number;
+    update(options: { show?: boolean; color?: string; size?: number }): void;
+    setColor?(color: string): void;
+    setSize?(size: number): void;
+  }
+
+  interface AladinViewDataURLOptions {
+    format?: 'image/png' | 'image/jpeg' | string;
+    quality?: number;
+    transparent?: boolean;
+    mediaType?: string;
+  }
 
   interface AladinInstance {
-    // View control
     getRaDec(): [number, number];
     gotoRaDec(ra: number, dec: number): void;
     gotoObject(
@@ -73,37 +72,48 @@ declare module 'aladin-lite' {
       }
     ): void;
     animateToRaDec(ra: number, dec: number, duration: number): void;
-    getFov(): [number, number];
-    setFov(fov: number): void;
-    setFovRange(min: number, max: number): void;
+
+    // Official FoV methods
+    getFoV(): number | [number, number];
+    setFoV(fov: number): void;
+    setFoVRange(min: number, max: number): void;
+
+    // Backward-compatible aliases found in older integrations
+    getFov?(): number | [number, number];
+    setFov?(fov: number): void;
+    setFovRange?(min: number, max: number): void;
+    setFOVRange?(min: number, max: number): void;
+
     getSize(): [number, number];
     setProjection(proj: string): void;
-    getFovCorners(nbSteps?: number): [number, number][];
+    getFoVCorners?(nbSteps?: number): [number, number][];
+    getFovCorners?(nbSteps?: number): [number, number][];
     increaseZoom(): void;
     decreaseZoom(): void;
     setFrame(frame: AladinCooFrame): void;
 
-    // Coordinate conversion
     pix2world(x: number, y: number): [number, number] | null;
     world2pix(ra: number, dec: number): [number, number] | null;
 
-    // Layer management
     setBaseImageLayer(survey: HpxImageSurvey | string): void;
     setOverlayImageLayer(survey: HpxImageSurvey | string, name?: string): void;
     getBaseImageLayer(): HpxImageSurvey;
     getOverlayImageLayer(name?: string): HpxImageSurvey | null;
-    removeOverlayImageLayer(name: string): void;
+    removeImageLayer(name: string): void;
+
+    /** @deprecated Use removeImageLayer(name) */
+    removeOverlayImageLayer?(name: string): void;
+
     newImageSurvey(urlOrId: string): HpxImageSurvey;
     addCatalog(catalog: AladinCatalog): void;
     addOverlay(overlay: AladinGraphicOverlay): void;
     addMOC(moc: AladinMOC): void;
     removeLayers(): void;
+    remove?(): void;
 
-    // Coordinate grid
     setCooGrid(options: AladinCooGridOptions): void;
     showCooGrid(show: boolean): void;
 
-    // FITS
     displayFITS(
       urlOrBlob: string | Blob,
       options?: Record<string, unknown>,
@@ -111,43 +121,34 @@ declare module 'aladin-lite' {
       errorCallback?: (error: unknown) => void
     ): void;
 
-    // Selection mode
     select(
       mode: 'rect' | 'poly' | 'circle',
       callback: (selection: unknown) => void
     ): void;
 
-    // Events
     on(event: AladinEvent, callback: (...args: unknown[]) => void): void;
 
-    // Reticle
     showReticle(show: boolean): void;
-    setReticleColor(color: string): void;
-    setReticleSize(size: number): void;
+    getReticle(): AladinReticle;
+    setDefaultColor?(color: string): void;
 
-    // Popup
-    showPopup(
-      ra: number,
-      dec: number,
-      title: string,
-      content: string
-    ): void;
+    /** @deprecated Use getReticle().update({ color }) */
+    setReticleColor?(color: string): void;
+
+    /** @deprecated Use getReticle().update({ size }) */
+    setReticleSize?(size: number): void;
+
+    showPopup(ra: number, dec: number, title: string, content: string): void;
     hidePopup(): void;
 
-    // Export / Sharing
     exportAsPNG(): void;
-    getViewDataURL(format?: string): string;
-    getViewImageBuffer(): Uint8Array;
+    getViewDataURL(options?: AladinViewDataURLOptions | string): Promise<string>;
+    getViewImageBuffer?(): Uint8Array;
     getShareURL(): string;
 
-    // Utilities
     adjustFovForObject(name: string): void;
     stopAnimation(): void;
   }
-
-  // ==========================================================================
-  // Events
-  // ==========================================================================
 
   type AladinEvent =
     | 'objectClicked'
@@ -167,21 +168,17 @@ declare module 'aladin-lite' {
     | 'layerChanged'
     | 'resizeChanged';
 
-  // ==========================================================================
-  // HiPS Image Survey
-  // ==========================================================================
-
   interface HpxImageSurvey {
     setOpacity(opacity: number): void;
-    setAlpha(alpha: number): void;
-    getAlpha(): number;
-    toggle(): void;
-    setColormap(
-      name: string,
-      opts?: { stretch?: string; reversed?: boolean }
-    ): void;
-    setCuts(low: number, high: number): void;
-    setImageFormat(format: 'jpeg' | 'png' | 'fits'): void;
+
+    /** @deprecated Use setOpacity(opacity) */
+    setAlpha?(alpha: number): void;
+
+    getAlpha?(): number;
+    toggle?(): void;
+    setColormap(name: string, opts?: { stretch?: string; reversed?: boolean }): void;
+    setCuts?(low: number, high: number): void;
+    setImageFormat?(format: 'jpeg' | 'png' | 'fits'): void;
     setBlendingConfig(additive: boolean): void;
     setGamma(gamma: number): void;
     setSaturation(sat: number): void;
@@ -190,10 +187,6 @@ declare module 'aladin-lite' {
     name?: string;
     url?: string;
   }
-
-  // ==========================================================================
-  // Catalog Options
-  // ==========================================================================
 
   interface AladinCatalogOptions {
     name?: string;
@@ -214,10 +207,6 @@ declare module 'aladin-lite' {
     raField?: string;
     decField?: string;
   }
-
-  // ==========================================================================
-  // Catalog, Source, Overlay, MOC
-  // ==========================================================================
 
   interface AladinCatalog {
     addSources(sources: AladinSource[]): void;
@@ -256,17 +245,24 @@ declare module 'aladin-lite' {
   interface AladinMOC {
     show(): void;
     hide(): void;
-    toggle(): void;
     isShowing: boolean;
-    setOpacity(opacity: number): void;
-    setColor(color: string): void;
-    setLineWidth(width: number): void;
+    opacity: number;
+    color: string;
+    lineWidth: number;
     name?: string;
-  }
 
-  // ==========================================================================
-  // MOC Options
-  // ==========================================================================
+    /** @deprecated MOC style is property-driven in v3 */
+    toggle?(): void;
+
+    /** @deprecated MOC style is property-driven in v3 */
+    setOpacity?(opacity: number): void;
+
+    /** @deprecated MOC style is property-driven in v3 */
+    setColor?(color: string): void;
+
+    /** @deprecated MOC style is property-driven in v3 */
+    setLineWidth?(width: number): void;
+  }
 
   interface AladinMOCOptions {
     name?: string;
@@ -277,18 +273,10 @@ declare module 'aladin-lite' {
     perimeter?: boolean;
   }
 
-  // ==========================================================================
-  // Static API (default export)
-  // ==========================================================================
-
   interface AladinStatic {
     init: Promise<void>;
-    aladin(
-      selector: string | HTMLElement,
-      options?: AladinOptions
-    ): AladinInstance;
+    aladin(selector: string | HTMLElement, options?: AladinOptions): AladinInstance;
 
-    // Catalog & Source factories
     catalog(options?: AladinCatalogOptions): AladinCatalog;
     source(
       ra: number,
@@ -306,13 +294,11 @@ declare module 'aladin-lite' {
       }
     ): AladinSource;
 
-    // HiPS catalog factory
     catalogHiPS(
       url: string,
       options?: AladinCatalogOptions & { filter?: (source: AladinSource) => boolean }
     ): AladinCatalog;
 
-    // HiPS image factory
     imageHiPS(
       urlOrId: string,
       options?: {
@@ -323,18 +309,8 @@ declare module 'aladin-lite' {
       }
     ): HpxImageSurvey;
 
-    // Graphic overlay factories
-    graphicOverlay(options?: {
-      color?: string;
-      lineWidth?: number;
-      name?: string;
-    }): AladinGraphicOverlay;
-    circle(
-      ra: number,
-      dec: number,
-      radius: number,
-      options?: { color?: string; lineWidth?: number }
-    ): AladinShape;
+    graphicOverlay(options?: { color?: string; lineWidth?: number; name?: string }): AladinGraphicOverlay;
+    circle(ra: number, dec: number, radius: number, options?: { color?: string; lineWidth?: number }): AladinShape;
     ellipse(
       ra: number,
       dec: number,
@@ -343,21 +319,22 @@ declare module 'aladin-lite' {
       rot: number,
       options?: { color?: string; lineWidth?: number }
     ): AladinShape;
-    polygon(
-      vertices: [number, number][],
-      options?: { color?: string; lineWidth?: number }
-    ): AladinShape;
-    polyline(
-      vertices: [number, number][],
-      options?: { color?: string; lineWidth?: number }
-    ): AladinShape;
+    polygon(vertices: [number, number][], options?: { color?: string; lineWidth?: number }): AladinShape;
+    polyline(vertices: [number, number][], options?: { color?: string; lineWidth?: number }): AladinShape;
 
-    // Remote catalog factories
     catalogFromSimbad(
       target: string | { ra: number; dec: number },
       radius: number,
       options?: AladinCatalogOptions
     ): AladinCatalog;
+
+    /** @deprecated Use catalogFromSimbad */
+    catalogFromSIMBAD?(
+      target: string | { ra: number; dec: number },
+      radius: number,
+      options?: AladinCatalogOptions
+    ): AladinCatalog;
+
     catalogFromVizieR(
       catId: string,
       target: string | { ra: number; dec: number },
@@ -370,25 +347,11 @@ declare module 'aladin-lite' {
       options?: AladinCatalogOptions
     ): AladinCatalog;
 
-    // MOC factories
-    MOCFromURL(
-      url: string,
-      options?: AladinMOCOptions
-    ): AladinMOC;
-    MOCFromJSON(
-      json: Record<string, number[]>,
-      options?: AladinMOCOptions
-    ): AladinMOC;
-    MOCFromCone(
-      circle: { ra: number; dec: number; radius: number },
-      options?: AladinMOCOptions
-    ): AladinMOC;
-    MOCFromPolygon(
-      polygon: { ra: number[]; dec: number[] },
-      options?: AladinMOCOptions
-    ): AladinMOC;
+    MOCFromURL(url: string, options?: AladinMOCOptions): AladinMOC;
+    MOCFromJSON(json: Record<string, number[]>, options?: AladinMOCOptions): AladinMOC;
+    MOCFromCone(circle: { ra: number; dec: number; radius: number }, options?: AladinMOCOptions): AladinMOC;
+    MOCFromPolygon(polygon: { ra: number[]; dec: number[] }, options?: AladinMOCOptions): AladinMOC;
 
-    // Utilities
     getAvailableListOfColormaps(): string[];
     Utils: AladinUtils;
   }

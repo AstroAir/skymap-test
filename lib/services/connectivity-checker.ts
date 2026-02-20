@@ -136,6 +136,13 @@ class ConnectivityChecker {
     }
 
     this.providers.delete(providerType);
+    this.clearProviderState(providerType);
+  }
+
+  clearProviderState(providerType: 'openstreetmap' | 'google' | 'mapbox' | 'other'): void {
+    this.healthStatuses.delete(providerType);
+    this.testHistory.delete(providerType);
+    this.lastCheckTime.delete(providerType);
   }
 
   /**
@@ -395,7 +402,9 @@ class ConnectivityChecker {
     // Filter to healthy providers only
     const healthyProviders = enabledProviders.filter(provider => {
       const health = this.getProviderHealth(provider.provider);
-      return health?.isHealthy !== false;
+      if (health?.isHealthy === false) return false;
+      if (mapConfig.checkQuotaExceeded(provider.provider)) return false;
+      return true;
     });
     
     if (healthyProviders.length === 0) {

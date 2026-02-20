@@ -19,6 +19,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -36,6 +37,10 @@ import { StellariumSurveySelector } from './stellarium-survey-selector';
 import { ObjectInfoSourcesConfig } from '../objects/object-info-sources-config';
 import { SettingsSection, ToggleItem } from './settings-shared';
 import { DISPLAY_SETTINGS, GRID_SETTINGS } from './settings-constants';
+import { AladinCatalogSettings } from './aladin-catalog-settings';
+import { AladinOverlaySettings } from './aladin-overlay-settings';
+import { AladinMocSettings } from './aladin-moc-settings';
+import { AladinFitsSettings } from './aladin-fits-settings';
 
 const PROJECTION_OPTIONS: { value: StellariumProjection; labelKey: string }[] = [
   { value: 'stereographic', labelKey: 'settings.projStereographic' },
@@ -49,6 +54,18 @@ const PROJECTION_OPTIONS: { value: StellariumProjection; labelKey: string }[] = 
   { value: 'cylinder', labelKey: 'settings.projCylinder' },
   { value: 'sinusoidal', labelKey: 'settings.projSinusoidal' },
 ];
+
+const MOUNT_FRAME_OPTIONS = [
+  { value: 0, labelKey: 'settings.mountFrameAstrom' },
+  { value: 1, labelKey: 'settings.mountFrameIcrf' },
+  { value: 2, labelKey: 'settings.mountFrameCirs' },
+  { value: 3, labelKey: 'settings.mountFrameJnow' },
+  { value: 4, labelKey: 'settings.mountFrameObservedGeom' },
+  { value: 5, labelKey: 'settings.mountFrameObserved' },
+  { value: 6, labelKey: 'settings.mountFrameMount' },
+  { value: 7, labelKey: 'settings.mountFrameView' },
+  { value: 8, labelKey: 'settings.mountFrameEcliptic' },
+] as const;
 
 export function DisplaySettings() {
   const t = useTranslations();
@@ -242,6 +259,22 @@ export function DisplaySettings() {
             className="w-full"
           />
         </div>
+
+        {/* Tonemapper P */}
+        <div className="space-y-1 py-2 px-3 rounded-lg bg-muted/30">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">{t('settings.tonemapperP')}</Label>
+            <span className="text-xs font-mono text-muted-foreground">{stellarium.tonemapperP.toFixed(2)}</span>
+          </div>
+          <Slider
+            value={[stellarium.tonemapperP * 100]}
+            onValueChange={([v]) => setStellariumSetting('tonemapperP', v / 100)}
+            min={0}
+            max={200}
+            step={1}
+            className="w-full"
+          />
+        </div>
       </SettingsSection>
       )}
 
@@ -269,6 +302,38 @@ export function DisplaySettings() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground px-1">{t('settings.projectionDescription')}</p>
+
+            <div className="space-y-1 py-2 px-3 rounded-lg bg-muted/30">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">{t('settings.viewYOffset')}</Label>
+                <span className="text-xs font-mono text-muted-foreground">{stellarium.viewYOffset.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[stellarium.viewYOffset * 100]}
+                onValueChange={([v]) => setStellariumSetting('viewYOffset', v / 100)}
+                min={-100}
+                max={100}
+                step={1}
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-1 py-2 px-3 rounded-lg bg-muted/30">
+              <Label className="text-sm">{t('settings.mountFrame')}</Label>
+              <Select
+                value={String(stellarium.mountFrame)}
+                onValueChange={(v) => setStellariumSetting('mountFrame', Number(v) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOUNT_FRAME_OPTIONS.map(({ value, labelKey }) => (
+                    <SelectItem key={value} value={String(value)}>{t(labelKey)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </SettingsSection>
 
           <Separator />
@@ -317,6 +382,87 @@ export function DisplaySettings() {
                 checked={stellarium.sensorControl}
                 onCheckedChange={() => toggleStellariumSetting('sensorControl')}
               />
+            </div>
+            <ToggleItem
+              id="sensor-absolute-preferred"
+              label={t('settings.sensorAbsolutePreferred')}
+              checked={stellarium.sensorAbsolutePreferred}
+              onCheckedChange={() => toggleStellariumSetting('sensorAbsolutePreferred')}
+            />
+            <ToggleItem
+              id="sensor-compass-heading"
+              label={t('settings.sensorUseCompassHeading')}
+              checked={stellarium.sensorUseCompassHeading}
+              onCheckedChange={() => toggleStellariumSetting('sensorUseCompassHeading')}
+            />
+            <div className="space-y-1 py-1 px-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.sensorUpdateRate')}</Label>
+                <span className="text-xs text-muted-foreground">{stellarium.sensorUpdateHz} Hz</span>
+              </div>
+              <Slider
+                value={[stellarium.sensorUpdateHz]}
+                min={10}
+                max={60}
+                step={1}
+                onValueChange={([value]) => setStellariumSetting('sensorUpdateHz', value)}
+              />
+            </div>
+            <div className="space-y-1 py-1 px-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.sensorSmoothingFactor')}</Label>
+                <span className="text-xs text-muted-foreground">{stellarium.sensorSmoothingFactor.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[stellarium.sensorSmoothingFactor]}
+                min={0.05}
+                max={0.9}
+                step={0.05}
+                onValueChange={([value]) => setStellariumSetting('sensorSmoothingFactor', value)}
+              />
+            </div>
+            <div className="space-y-1 py-1 px-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.sensorDeadbandDeg')}</Label>
+                <span className="text-xs text-muted-foreground">{stellarium.sensorDeadbandDeg.toFixed(2)}°</span>
+              </div>
+              <Slider
+                value={[stellarium.sensorDeadbandDeg]}
+                min={0.05}
+                max={2}
+                step={0.05}
+                onValueChange={([value]) => setStellariumSetting('sensorDeadbandDeg', value)}
+              />
+            </div>
+            <div className="px-3 py-2 rounded-lg bg-muted/30 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {stellarium.sensorCalibrationRequired
+                  ? t('settings.sensorCalibrationRequired')
+                  : `${t('settings.sensorCalibrationUpdated')}: ${stellarium.sensorCalibrationUpdatedAt ? new Date(stellarium.sensorCalibrationUpdatedAt).toLocaleString() : '--'}`}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setStellariumSetting('sensorCalibrationRequired', true)}
+                >
+                  {t('settings.sensorRecalibrate')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setStellariumSetting('sensorCalibrationRequired', true);
+                    setStellariumSetting('sensorCalibrationAzimuthOffsetDeg', 0);
+                    setStellariumSetting('sensorCalibrationAltitudeOffsetDeg', 0);
+                    setStellariumSetting('sensorCalibrationUpdatedAt', null);
+                  }}
+                >
+                  {t('settings.sensorResetCalibration')}
+                </Button>
+              </div>
             </div>
           </SettingsSection>
         </>
@@ -481,6 +627,31 @@ export function DisplaySettings() {
               />
             </div>
           </SettingsSection>
+
+          <Separator />
+          <AladinCatalogSettings />
+
+          <Separator />
+          <AladinOverlaySettings />
+
+          <Separator />
+          <AladinMocSettings />
+
+          <Separator />
+          <AladinFitsSettings />
+
+          <div className="rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            {t('settings.aladinAttribution')}
+            {' '}
+            <a
+              href="https://aladin.cds.unistra.fr/AladinLite/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline"
+            >
+              Aladin Lite
+            </a>
+          </div>
         </>
       )}
 

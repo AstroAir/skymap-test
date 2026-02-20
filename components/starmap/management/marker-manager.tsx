@@ -242,7 +242,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     if (editingMarker) {
       updateMarker(editingMarker.id, {
         name: formData.name,
-        description: formData.description || undefined,
+        description: formData.description.trim() ? formData.description : null,
         color: formData.color,
         icon: formData.icon,
         group: formData.group,

@@ -56,6 +56,7 @@ const mockUseTargetListStore = jest.fn((selector) => {
   const state = {
     addTarget: jest.fn(),
     targets: [],
+    setScoreProfile: jest.fn(),
   };
   return selector ? selector(state) : state;
 });
@@ -73,9 +74,18 @@ const mockUseMountStore = jest.fn((selector) => {
   return selector ? selector(state) : state;
 });
 
+const mockUsePlanningUiStore = jest.fn((selector) => {
+  const state = {
+    tonightRecommendationsOpen: false,
+    setTonightRecommendationsOpen: jest.fn(),
+  };
+  return selector ? selector(state) : state;
+});
+
 jest.mock('@/lib/stores', () => ({
   useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
   useMountStore: (selector: (state: unknown) => unknown) => mockUseMountStore(selector),
+  usePlanningUiStore: (selector: (state: unknown) => unknown) => mockUsePlanningUiStore(selector),
 }));
 
 jest.mock('@/lib/stores/target-list-store', () => ({

@@ -36,7 +36,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { useMountStore, useEquipmentStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
+import { useAladinStore, useEquipmentStore, useMountStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useObservingConditions } from '@/lib/hooks/use-observing-conditions';
 import { getCelestialReferencePoint } from '@/lib/astronomy/navigation';
@@ -64,11 +64,23 @@ export const QuickActionsPanel = memo(function QuickActionsPanel({
   const profileInfo = useMountStore((state) => state.profileInfo);
   const fovEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
   const setFovEnabled = useEquipmentStore((state) => state.setFOVEnabled);
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
+  const setSkyEngine = useSettingsStore((state) => state.setSkyEngine);
   const stellariumSettings = useSettingsStore((state) => state.stellarium);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
+  const catalogLayers = useAladinStore((state) => state.catalogLayers);
+  const toggleCatalogLayer = useAladinStore((state) => state.toggleCatalogLayer);
+  const mocLayers = useAladinStore((state) => state.mocLayers);
+  const toggleMocLayer = useAladinStore((state) => state.toggleMocLayer);
+  const overlayLayers = useAladinStore((state) => state.imageOverlayLayers);
+  const toggleImageOverlayLayer = useAladinStore((state) => state.toggleImageOverlayLayer);
+  const updateImageOverlayLayer = useAladinStore((state) => state.updateImageOverlayLayer);
+  const fitsLayers = useAladinStore((state) => state.fitsLayers);
+  const toggleFitsLayer = useAladinStore((state) => state.toggleFitsLayer);
   const targets = useTargetListStore((state) => state.targets);
   const activeTargetId = useTargetListStore((state) => state.activeTargetId);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
+  const isStellarium = skyEngine === 'stellarium';
 
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
@@ -94,6 +106,13 @@ export const QuickActionsPanel = memo(function QuickActionsPanel({
     if (!activeTarget || !setViewDirection) return;
     setViewDirection(activeTarget.ra, activeTarget.dec);
   }, [activeTarget, setViewDirection]);
+
+  const adjustPrimaryOverlayOpacity = useCallback((delta: number) => {
+    const layer = overlayLayers[0];
+    if (!layer) return;
+    const next = Math.max(0, Math.min(1, layer.opacity + delta));
+    updateImageOverlayLayer(layer.id, { opacity: next });
+  }, [overlayLayers, updateImageOverlayLayer]);
 
   // Quick zoom presets (from shared constants)
 
@@ -251,62 +270,144 @@ export const QuickActionsPanel = memo(function QuickActionsPanel({
                     <Eye className="h-3 w-3" />
                     {t('quickActions.display')}
                   </h4>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <Button
-                      variant={stellariumSettings.constellationsLinesVisible ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 text-xs justify-start"
-                      onClick={() => toggleStellariumSetting('constellationsLinesVisible')}
-                    >
-                      <Sparkles className="h-3 w-3 mr-1.5" />
-                      {t('quickActions.constellations')}
-                    </Button>
-                    <Button
-                      variant={stellariumSettings.equatorialLinesVisible ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 text-xs justify-start"
-                      onClick={() => toggleStellariumSetting('equatorialLinesVisible')}
-                    >
-                      <Grid3X3 className="h-3 w-3 mr-1.5" />
-                      {t('quickActions.eqGrid')}
-                    </Button>
-                    <Button
-                      variant={stellariumSettings.azimuthalLinesVisible ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 text-xs justify-start"
-                      onClick={() => toggleStellariumSetting('azimuthalLinesVisible')}
-                    >
-                      <Compass className="h-3 w-3 mr-1.5" />
-                      {t('quickActions.azGrid')}
-                    </Button>
-                    <Button
-                      variant={fovEnabled ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 text-xs justify-start"
-                      onClick={() => setFovEnabled(!fovEnabled)}
-                    >
-                      <Camera className="h-3 w-3 mr-1.5" />
-                      {t('quickActions.fovOverlay')}
-                    </Button>
-                    <Button
-                      variant={stellariumSettings.dsosVisible ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 text-xs justify-start"
-                      onClick={() => toggleStellariumSetting('dsosVisible')}
-                    >
-                      <Layers className="h-3 w-3 mr-1.5" />
-                      {t('quickActions.dsos')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs justify-start"
-                      onClick={onResetView}
-                    >
-                      <RotateCcw className="h-3 w-3 mr-1.5" />
-                      {t('quickActions.reset')}
-                    </Button>
-                  </div>
+                  {isStellarium ? (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Button
+                        variant={stellariumSettings.constellationsLinesVisible ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => toggleStellariumSetting('constellationsLinesVisible')}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1.5" />
+                        {t('quickActions.constellations')}
+                      </Button>
+                      <Button
+                        variant={stellariumSettings.equatorialLinesVisible ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => toggleStellariumSetting('equatorialLinesVisible')}
+                      >
+                        <Grid3X3 className="h-3 w-3 mr-1.5" />
+                        {t('quickActions.eqGrid')}
+                      </Button>
+                      <Button
+                        variant={stellariumSettings.azimuthalLinesVisible ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => toggleStellariumSetting('azimuthalLinesVisible')}
+                      >
+                        <Compass className="h-3 w-3 mr-1.5" />
+                        {t('quickActions.azGrid')}
+                      </Button>
+                      <Button
+                        variant={fovEnabled ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => setFovEnabled(!fovEnabled)}
+                      >
+                        <Camera className="h-3 w-3 mr-1.5" />
+                        {t('quickActions.fovOverlay')}
+                      </Button>
+                      <Button
+                        variant={stellariumSettings.dsosVisible ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => toggleStellariumSetting('dsosVisible')}
+                      >
+                        <Layers className="h-3 w-3 mr-1.5" />
+                        {t('quickActions.dsos')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={onResetView}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1.5" />
+                        {t('quickActions.reset')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {catalogLayers.map((layer) => (
+                        <Button
+                          key={layer.id}
+                          variant={layer.enabled ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 text-xs justify-start"
+                          onClick={() => toggleCatalogLayer(layer.id)}
+                        >
+                          <Layers className="h-3 w-3 mr-1.5" />
+                          {layer.name}
+                        </Button>
+                      ))}
+                      {mocLayers.map((layer) => (
+                        <Button
+                          key={layer.id}
+                          variant={layer.visible ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 text-xs justify-start"
+                          onClick={() => toggleMocLayer(layer.id)}
+                        >
+                          <Grid3X3 className="h-3 w-3 mr-1.5" />
+                          {layer.name}
+                        </Button>
+                      ))}
+                      {overlayLayers.map((layer) => (
+                        <Button
+                          key={layer.id}
+                          variant={layer.enabled ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 text-xs justify-start"
+                          onClick={() => toggleImageOverlayLayer(layer.id)}
+                        >
+                          <Camera className="h-3 w-3 mr-1.5" />
+                          {layer.name}
+                        </Button>
+                      ))}
+                      {fitsLayers.map((layer) => (
+                        <Button
+                          key={layer.id}
+                          variant={layer.enabled ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 text-xs justify-start"
+                          onClick={() => toggleFitsLayer(layer.id)}
+                        >
+                          <Camera className="h-3 w-3 mr-1.5" />
+                          {layer.name}
+                        </Button>
+                      ))}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => adjustPrimaryOverlayOpacity(-0.1)}
+                        disabled={overlayLayers.length === 0}
+                      >
+                        <Camera className="h-3 w-3 mr-1.5" />
+                        {t('settings.aladinOverlayOpacity')} -10%
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => adjustPrimaryOverlayOpacity(0.1)}
+                        disabled={overlayLayers.length === 0}
+                      >
+                        <Camera className="h-3 w-3 mr-1.5" />
+                        {t('settings.aladinOverlayOpacity')} +10%
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs justify-start"
+                        onClick={() => setSkyEngine('stellarium')}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1.5" />
+                        {t('settings.switchToStellarium')}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Target List Summary */}

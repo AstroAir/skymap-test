@@ -3,6 +3,7 @@ export { LogViewer } from './log-viewer';
 export { LogPanel, LogPanelTrigger } from './log-panel';
 export { NightModeToggle } from './night-mode-toggle';
 export { SensorControlToggle } from './sensor-control-toggle';
+export { SensorCalibrationDialog } from './sensor-calibration-dialog';
 export { Spinner } from './spinner';
 export { ThemeCustomizer, ThemeCustomizerButton } from './theme-customizer';
 export { ThemeToggle, ThemeIconToggle } from './theme-toggle';

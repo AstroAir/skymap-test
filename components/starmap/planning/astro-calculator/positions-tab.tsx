@@ -26,13 +26,14 @@ import {
 } from '@/components/ui/table';
 import { Search, Plus, Telescope } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { degreesToHMS, degreesToDMS, raDecToAltAz } from '@/lib/astronomy/starmap-utils';
+import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import {
   calculateTargetVisibility,
-  getSunPosition,
   angularSeparation,
   formatTimeShort,
 } from '@/lib/astronomy/astro-utils';
+import { raDecToAltAzAtTime, raDecToEcliptic, raDecToGalactic } from '@/lib/astronomy/coordinates/transforms';
+import { computeEphemeris } from '@/lib/astronomy/engine';
 import { TranslatedName } from '../../objects/translated-name';
 import {
   useSkyAtlasStore,
@@ -56,6 +57,8 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
   const [magnitudeLimit, setMagnitudeLimit] = useState(12);
   const [minAltitude, setMinAltitude] = useState(0);
   const [showAboveHorizon, setShowAboveHorizon] = useState(false);
+  const [showGalactic, setShowGalactic] = useState(false);
+  const [showEcliptic, setShowEcliptic] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
     key: 'altitude',
@@ -63,6 +66,13 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
   });
   
   const { catalog: dsoCatalog } = useSkyAtlasStore();
+  const [solarReference, setSolarReference] = useState<{
+    sun: { ra: number; dec: number } | null;
+    moon: { ra: number; dec: number } | null;
+  }>({
+    sun: null,
+    moon: null,
+  });
   
   // Initialize catalog
   useEffect(() => {
@@ -70,6 +80,46 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
       initializeSkyAtlas(latitude, longitude);
     }
   }, [dsoCatalog.length, latitude, longitude]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadReferences() {
+      try {
+        const [sunResult, moonResult] = await Promise.all([
+          computeEphemeris({
+            body: 'Sun',
+            observer: { latitude, longitude },
+            startDate: new Date(),
+            stepHours: 24,
+            steps: 1,
+          }),
+          computeEphemeris({
+            body: 'Moon',
+            observer: { latitude, longitude },
+            startDate: new Date(),
+            stepHours: 24,
+            steps: 1,
+          }),
+        ]);
+
+        if (!cancelled) {
+          setSolarReference({
+            sun: sunResult.points[0] ? { ra: sunResult.points[0].ra, dec: sunResult.points[0].dec } : null,
+            moon: moonResult.points[0] ? { ra: moonResult.points[0].ra, dec: moonResult.points[0].dec } : null,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setSolarReference({ sun: null, moon: null });
+        }
+      }
+    }
+
+    void loadReferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [latitude, longitude]);
   
   // Calculate positions for all objects
   const positions = useMemo(() => {
@@ -107,11 +157,24 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
     }
     
     // Calculate current positions
-    const positionedObjects: CelestialPosition[] = objects.map(obj => {
-      const altAz = raDecToAltAz(obj.ra, obj.dec, latitude, longitude);
+    const now = new Date();
+    const positionedObjects: (CelestialPosition & {
+      galacticL?: number;
+      galacticB?: number;
+      eclipticLon?: number;
+      eclipticLat?: number;
+      moonDistance?: number;
+    })[] = objects.map(obj => {
+      const altAz = raDecToAltAzAtTime(obj.ra, obj.dec, latitude, longitude, now);
       const visibility = calculateTargetVisibility(obj.ra, obj.dec, latitude, longitude, 30);
-      const sunPos = getSunPosition();
-      const elongation = angularSeparation(obj.ra, obj.dec, sunPos.ra, sunPos.dec);
+      const galactic = raDecToGalactic(obj.ra, obj.dec, now);
+      const ecliptic = raDecToEcliptic(obj.ra, obj.dec, now);
+      const elongation = solarReference.sun
+        ? angularSeparation(obj.ra, obj.dec, solarReference.sun.ra, solarReference.sun.dec)
+        : undefined;
+      const moonDistance = solarReference.moon
+        ? angularSeparation(obj.ra, obj.dec, solarReference.moon.ra, solarReference.moon.dec)
+        : undefined;
       
       return {
         name: obj.name,
@@ -125,6 +188,11 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
         transitTime: visibility.transitTime,
         maxElevation: visibility.transitAltitude,
         elongation,
+        moonDistance,
+        galacticL: galactic.l,
+        galacticB: galactic.b,
+        eclipticLon: ecliptic.longitude,
+        eclipticLat: ecliptic.latitude,
         constellation: CONSTELLATION_NAMES[obj.constellation] || obj.constellation,
       };
     });
@@ -179,7 +247,7 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
     });
     
     return filtered.slice(0, 200); // Limit for performance
-  }, [dsoCatalog, catalog, magnitudeLimit, minAltitude, showAboveHorizon, searchQuery, sortConfig, latitude, longitude]);
+  }, [dsoCatalog, catalog, magnitudeLimit, minAltitude, showAboveHorizon, searchQuery, sortConfig, latitude, longitude, solarReference]);
   
   const handleSort = (key: string) => {
     setSortConfig(prev => ({
@@ -257,7 +325,7 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
       </div>
       
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <Checkbox
             id="aboveHorizon"
             checked={showAboveHorizon}
@@ -266,6 +334,26 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
           <Label htmlFor="aboveHorizon" className="text-xs">
             {t('astroCalc.showAboveHorizonOnly')}
           </Label>
+          <div className="flex items-center gap-1.5">
+            <Checkbox
+              id="showGalactic"
+              checked={showGalactic}
+              onCheckedChange={(checked) => setShowGalactic(!!checked)}
+            />
+            <Label htmlFor="showGalactic" className="text-xs">
+              {t('astroCalc.showGalactic')}
+            </Label>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Checkbox
+              id="showEcliptic"
+              checked={showEcliptic}
+              onCheckedChange={(checked) => setShowEcliptic(!!checked)}
+            />
+            <Label htmlFor="showEcliptic" className="text-xs">
+              {t('astroCalc.showEcliptic')}
+            </Label>
+          </div>
         </div>
         <Badge variant="outline" className="text-xs">
           {positions.length} {t('astroCalc.objects')}
@@ -292,6 +380,19 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
                 <SortableHeader label={t('astroCalc.alt')} sortKey="altitude" currentSort={sortConfig} onSort={handleSort} />
                 <SortableHeader label={t('astroCalc.transit')} sortKey="transit" currentSort={sortConfig} onSort={handleSort} />
                 <SortableHeader label={t('astroCalc.maxEl')} sortKey="maxElevation" currentSort={sortConfig} onSort={handleSort} />
+                {showGalactic && (
+                  <>
+                    <TableHead className="text-right">{t('astroCalc.galacticL')}</TableHead>
+                    <TableHead className="text-right">{t('astroCalc.galacticB')}</TableHead>
+                  </>
+                )}
+                {showEcliptic && (
+                  <>
+                    <TableHead className="text-right">{t('astroCalc.eclipticLon')}</TableHead>
+                    <TableHead className="text-right">{t('astroCalc.eclipticLat')}</TableHead>
+                  </>
+                )}
+                <TableHead className="text-right">{t('astroCalc.moonDistance')}</TableHead>
                 <TableHead className="w-8"></TableHead>
               </TableRow>
             </TableHeader>
@@ -317,6 +418,19 @@ export function PositionsTab({ latitude, longitude, onSelectObject, onAddToList 
                   </TableCell>
                   <TableCell className="font-mono text-xs">{formatTimeShort(obj.transitTime)}</TableCell>
                   <TableCell className="text-xs text-right tabular-nums">{obj.maxElevation.toFixed(1)}°</TableCell>
+                  {showGalactic && (
+                    <>
+                      <TableCell className="text-xs text-right tabular-nums">{(obj as { galacticL?: number }).galacticL?.toFixed(2) ?? '--'}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{(obj as { galacticB?: number }).galacticB?.toFixed(2) ?? '--'}</TableCell>
+                    </>
+                  )}
+                  {showEcliptic && (
+                    <>
+                      <TableCell className="text-xs text-right tabular-nums">{(obj as { eclipticLon?: number }).eclipticLon?.toFixed(2) ?? '--'}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{(obj as { eclipticLat?: number }).eclipticLat?.toFixed(2) ?? '--'}</TableCell>
+                    </>
+                  )}
+                  <TableCell className="text-xs text-right tabular-nums">{(obj as { moonDistance?: number }).moonDistance?.toFixed(1) ?? '--'}</TableCell>
                   <TableCell className="w-8">
                     <Button
                       variant="ghost"

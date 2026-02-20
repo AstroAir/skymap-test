@@ -49,6 +49,12 @@ export interface AstroEvent {
   details: Record<string, unknown> | null;
 }
 
+export interface DailyAstroEvent extends AstroEvent {
+  occurrence_mode?: 'instant' | 'window';
+  starts_at?: string;
+  ends_at?: string;
+}
+
 export interface MoonPhaseEvent {
   phase_type: string;
   date: string;
@@ -104,6 +110,18 @@ export const eventsApi = {
   async getAstroEvents(startDate: string, endDate: string): Promise<AstroEvent[]> {
     const invoke = await getInvoke();
     return invoke('get_astro_events', { startDate, endDate });
+  },
+
+  /**
+   * Get astronomical events for a single day in a specific timezone
+   */
+  async getDailyAstroEvents(
+    date: string,
+    timezone: string,
+    includeOngoing: boolean = true
+  ): Promise<DailyAstroEvent[]> {
+    const invoke = await getInvoke();
+    return invoke('get_daily_astro_events', { date, timezone, includeOngoing });
   },
 
   /**

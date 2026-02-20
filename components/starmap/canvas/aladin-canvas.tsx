@@ -7,7 +7,17 @@ import { DEFAULT_FOV, MIN_FOV, MAX_FOV } from '@/lib/core/constants/fov';
 import { ALADIN_ZOOM_IN_FACTOR, ALADIN_ZOOM_OUT_FACTOR } from '@/lib/core/constants/aladin-canvas';
 import { buildClickCoords } from '@/lib/astronomy/coordinates/format-coords';
 import type { SkyMapCanvasRef, SkyMapCanvasProps } from '@/lib/core/types/sky-engine';
-import { useAladinLoader, useAladinEvents, useAladinSettingsSync, useAladinCatalogs, useAladinOverlays } from '@/lib/hooks/aladin';
+import { destroyAladinCompat, exportViewCompat, getFoVCompat, setFoVCompat } from '@/lib/aladin/aladin-compat';
+import {
+  useAladinCatalogs,
+  useAladinEvents,
+  useAladinFits,
+  useAladinLayers,
+  useAladinLoader,
+  useAladinMOC,
+  useAladinOverlays,
+  useAladinSettingsSync,
+} from '@/lib/hooks/aladin';
 import { LoadingOverlay } from './components';
 
 type AladinInstance = ReturnType<typeof A.aladin>;
@@ -92,6 +102,13 @@ export const AladinCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
     // ========================================================================
     useAladinCatalogs({ aladinRef, engineReady });
 
+    // HiPS/FITS image layers
+    useAladinLayers({ aladinRef, engineReady });
+    useAladinFits({ aladinRef, engineReady });
+
+    // MOC layers
+    useAladinMOC({ aladinRef, engineReady });
+
     // ========================================================================
     // Graphic Overlays (markers, targets)
     // ========================================================================
@@ -112,18 +129,18 @@ export const AladinCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
     const zoomIn = useCallback(() => {
       const aladin = aladinRef.current;
       if (!aladin) return;
-      const [fov] = aladin.getFov();
+      const fov = getFoVCompat(aladin) ?? DEFAULT_FOV;
       const newFov = Math.max(MIN_FOV, fov * ALADIN_ZOOM_IN_FACTOR);
-      aladin.setFov(newFov);
+      setFoVCompat(aladin, newFov);
       onFovChange?.(newFov);
     }, [onFovChange]);
 
     const zoomOut = useCallback(() => {
       const aladin = aladinRef.current;
       if (!aladin) return;
-      const [fov] = aladin.getFov();
+      const fov = getFoVCompat(aladin) ?? DEFAULT_FOV;
       const newFov = Math.min(MAX_FOV, fov * ALADIN_ZOOM_OUT_FACTOR);
-      aladin.setFov(newFov);
+      setFoVCompat(aladin, newFov);
       onFovChange?.(newFov);
     }, [onFovChange]);
 
@@ -131,7 +148,7 @@ export const AladinCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
       const aladin = aladinRef.current;
       if (!aladin) return;
       const clampedFov = Math.max(MIN_FOV, Math.min(MAX_FOV, fov));
-      aladin.setFov(clampedFov);
+      setFoVCompat(aladin, clampedFov);
       onFovChange?.(clampedFov);
     }, [onFovChange]);
 
@@ -157,14 +174,10 @@ export const AladinCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
     // ========================================================================
     // Export & Navigation
     // ========================================================================
-    const exportImage = useCallback(() => {
+    const exportImage = useCallback(async () => {
       const aladin = aladinRef.current;
       if (!aladin) return null;
-      try {
-        return aladin.getViewDataURL('image/png');
-      } catch {
-        return null;
-      }
+      return exportViewCompat(aladin, { format: 'image/png' });
     }, []);
 
     const gotoObject = useCallback((name: string) => {
@@ -187,7 +200,7 @@ export const AladinCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
       zoomOut,
       setFov,
       getFov: () => {
-        return aladinRef.current ? aladinRef.current.getFov()[0] : DEFAULT_FOV;
+        return getFoVCompat(aladinRef.current) ?? DEFAULT_FOV;
       },
       getClickCoordinates,
       reloadEngine,
@@ -204,6 +217,7 @@ export const AladinCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
       startLoading();
 
       return () => {
+        destroyAladinCompat(aladinRef.current);
         aladinRef.current = null;
         setAladin(null);
         // Clear helpers to prevent stale closures when switching engines

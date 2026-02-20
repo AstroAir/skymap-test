@@ -2,48 +2,58 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
 import { TOUR_STEPS, SETUP_WIZARD_STEPS } from '@/lib/constants/onboarding';
+import { resolveTourSteps } from '@/lib/constants/onboarding-capabilities';
 import type {
-  TourStep,
   OnboardingPhase,
-  SetupWizardStep,
+  SetupWizardMetadata,
   SetupWizardSetupData,
+  SetupWizardStep,
+  StepSkipReason,
+  TourId,
+  TourProgress,
+  TourStep,
 } from '@/types/starmap/onboarding';
 
 // Re-export for backward compatibility
 export type { TourStep, SetupWizardStep };
 export { TOUR_STEPS, SETUP_WIZARD_STEPS };
 
-// ============================================================================
-// Unified Onboarding State
-// ============================================================================
+type SetupSkippableStep = 'location' | 'equipment' | 'preferences';
 
 interface OnboardingState {
-  // --- Shared state ---
+  // Shared state
   hasCompletedOnboarding: boolean;
   hasSeenWelcome: boolean;
   showOnNextVisit: boolean;
   phase: OnboardingPhase;
 
-  // --- Setup wizard state ---
+  // Setup wizard state
   hasCompletedSetup: boolean;
   setupStep: SetupWizardStep;
   setupCompletedSteps: SetupWizardStep[];
   isSetupOpen: boolean;
   setupData: SetupWizardSetupData;
+  setupMetadata: SetupWizardMetadata;
 
-  // --- Tour state ---
+  // Tour state
   currentStepIndex: number;
   isTourActive: boolean;
   completedSteps: string[];
+  activeTourId: TourId | null;
+  activeTourSteps: TourStep[];
+  tourProgressById: Partial<Record<TourId, TourProgress>>;
+  completedTours: TourId[];
+  skippedCapabilities: Record<string, StepSkipReason>;
+  lastCompletedAt: string | null;
 
-  // --- Shared actions ---
+  // Shared actions
   setHasSeenWelcome: (seen: boolean) => void;
   setShowOnNextVisit: (show: boolean) => void;
   completeOnboarding: () => void;
   resetOnboarding: () => void;
   resetAll: () => void;
 
-  // --- Setup wizard actions ---
+  // Setup wizard actions
   openSetup: () => void;
   closeSetup: () => void;
   setupNextStep: () => void;
@@ -55,28 +65,35 @@ interface OnboardingState {
   updateSetupData: (data: Partial<SetupWizardSetupData>) => void;
   finishSetupAndStartTour: () => void;
   skipSetupStartTour: () => void;
+  recordSetupSkip: (step: SetupSkippableStep, reason: string) => void;
 
-  // --- Setup wizard getters ---
+  // Setup wizard getters
   getSetupStepIndex: () => number;
   getSetupTotalSteps: () => number;
   isSetupFirstStep: () => boolean;
   isSetupLastStep: () => boolean;
   canSetupProceed: () => boolean;
 
-  // --- Tour actions ---
+  // Tour actions
+  setActiveTourSteps: (steps: TourStep[]) => void;
   startTour: () => void;
+  startTourById: (tourId: TourId) => void;
+  resumeTour: (tourId: TourId) => void;
   endTour: () => void;
   nextStep: () => void;
   prevStep: () => void;
   goToStep: (index: number) => void;
   skipTour: () => void;
   markStepCompleted: (stepId: string) => void;
+  completeCapability: (capabilityId: string) => void;
+  skipCapability: (capabilityId: string, reason: StepSkipReason) => void;
 
-  // --- Tour getters ---
+  // Tour getters
   getCurrentStep: () => TourStep | null;
   getTotalSteps: () => number;
   isLastStep: () => boolean;
   isFirstStep: () => boolean;
+  getTourProgress: (tourId: TourId) => TourProgress;
 }
 
 const INITIAL_SETUP_DATA: SetupWizardSetupData = {
@@ -85,78 +102,161 @@ const INITIAL_SETUP_DATA: SetupWizardSetupData = {
   preferencesConfigured: false,
 };
 
+const INITIAL_SETUP_METADATA: SetupWizardMetadata = {
+  location: 'skipped',
+  equipment: 'skipped',
+  preferences: 'skipped',
+  skipReasons: {},
+  completedAt: null,
+};
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function getDefaultTourSteps(tourId: TourId): TourStep[] {
+  const resolved = resolveTourSteps(
+    {
+      isMobile: false,
+      isTauri: false,
+      skyEngine: 'stellarium',
+      stelAvailable: true,
+      featureVisibility: {},
+    },
+    tourId,
+  ).steps;
+  return resolved.length > 0 ? resolved : tourId === 'first-run-core' ? TOUR_STEPS : [];
+}
+
+function buildProgress(
+  currentStepIndex: number,
+  totalSteps: number,
+  completedStepIds: string[],
+  completed = false,
+): TourProgress {
+  return {
+    currentStepIndex,
+    totalSteps,
+    completedStepIds,
+    completed,
+    updatedAt: nowIso(),
+  };
+}
+
+function getPersistedLegacyState(storageKey: string): Record<string, unknown> | null {
+  try {
+    const zustandStorage = getZustandStorage();
+    const stored = zustandStorage.getItem(storageKey);
+    if (!stored || typeof stored !== 'object') return null;
+    const maybeState = (stored as { state?: unknown }).state;
+    if (!maybeState || typeof maybeState !== 'object') return null;
+    return maybeState as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set, get) => ({
-      // --- Shared state ---
+      // Shared state
       hasCompletedOnboarding: false,
       hasSeenWelcome: false,
       showOnNextVisit: true,
-      phase: 'idle' as OnboardingPhase,
+      phase: 'idle',
 
-      // --- Setup wizard state ---
+      // Setup wizard state
       hasCompletedSetup: false,
-      setupStep: 'welcome' as SetupWizardStep,
-      setupCompletedSteps: [] as SetupWizardStep[],
+      setupStep: 'welcome',
+      setupCompletedSteps: [],
       isSetupOpen: false,
       setupData: { ...INITIAL_SETUP_DATA },
+      setupMetadata: { ...INITIAL_SETUP_METADATA },
 
-      // --- Tour state ---
+      // Tour state
       currentStepIndex: -1,
       isTourActive: false,
-      completedSteps: [] as string[],
+      completedSteps: [],
+      activeTourId: null,
+      activeTourSteps: [],
+      tourProgressById: {},
+      completedTours: [],
+      skippedCapabilities: {},
+      lastCompletedAt: null,
 
-      // ================================================================
       // Shared actions
-      // ================================================================
+      setHasSeenWelcome: (seen) => set({ hasSeenWelcome: seen }),
 
-      setHasSeenWelcome: (seen: boolean) => set({ hasSeenWelcome: seen }),
+      setShowOnNextVisit: (show) => set({ showOnNextVisit: show }),
 
-      setShowOnNextVisit: (show: boolean) => set({ showOnNextVisit: show }),
+      completeOnboarding: () =>
+        set((state) => ({
+          hasCompletedOnboarding: true,
+          hasSeenWelcome: true,
+          showOnNextVisit: false,
+          isTourActive: false,
+          currentStepIndex: -1,
+          activeTourSteps: [],
+          phase: 'idle',
+          completedTours:
+            state.activeTourId === 'first-run-core' &&
+            !state.completedTours.includes('first-run-core')
+              ? [...state.completedTours, 'first-run-core']
+              : state.completedTours,
+          lastCompletedAt: nowIso(),
+        })),
 
-      completeOnboarding: () => set({
-        isTourActive: false,
-        currentStepIndex: -1,
-        hasCompletedOnboarding: true,
-        hasSeenWelcome: true,
-        showOnNextVisit: false,
-        phase: 'idle',
-      }),
+      resetOnboarding: () =>
+        set({
+          hasCompletedOnboarding: false,
+          hasSeenWelcome: false,
+          currentStepIndex: -1,
+          isTourActive: false,
+          completedSteps: [],
+          activeTourId: null,
+          activeTourSteps: [],
+          showOnNextVisit: true,
+          phase: 'idle',
+          tourProgressById: {},
+          completedTours: [],
+          skippedCapabilities: {},
+          lastCompletedAt: null,
+        }),
 
-      resetOnboarding: () => set({
-        hasCompletedOnboarding: false,
-        hasSeenWelcome: false,
-        currentStepIndex: -1,
-        isTourActive: false,
-        completedSteps: [],
-        showOnNextVisit: true,
-        phase: 'idle',
-      }),
+      resetAll: () =>
+        set({
+          hasCompletedOnboarding: false,
+          hasSeenWelcome: false,
+          showOnNextVisit: true,
+          phase: 'idle',
+          hasCompletedSetup: false,
+          setupStep: 'welcome',
+          setupCompletedSteps: [],
+          isSetupOpen: false,
+          setupData: { ...INITIAL_SETUP_DATA },
+          setupMetadata: { ...INITIAL_SETUP_METADATA },
+          currentStepIndex: -1,
+          isTourActive: false,
+          completedSteps: [],
+          activeTourId: null,
+          activeTourSteps: [],
+          tourProgressById: {},
+          completedTours: [],
+          skippedCapabilities: {},
+          lastCompletedAt: null,
+        }),
 
-      resetAll: () => set({
-        hasCompletedOnboarding: false,
-        hasSeenWelcome: false,
-        showOnNextVisit: true,
-        phase: 'idle',
-        hasCompletedSetup: false,
-        setupStep: 'welcome',
-        setupCompletedSteps: [],
-        isSetupOpen: false,
-        setupData: { ...INITIAL_SETUP_DATA },
-        currentStepIndex: -1,
-        isTourActive: false,
-        completedSteps: [],
-      }),
-
-      // ================================================================
       // Setup wizard actions
-      // ================================================================
-
-      openSetup: () => set({
-        isSetupOpen: true,
-        phase: 'setup',
-        setupStep: get().hasCompletedSetup ? 'location' : (get().setupStep === 'welcome' ? 'location' : get().setupStep),
-      }),
+      openSetup: () =>
+        set((state) => ({
+          isSetupOpen: true,
+          phase: 'setup',
+          setupStep: state.hasCompletedSetup
+            ? 'location'
+            : state.setupStep === 'welcome'
+              ? 'location'
+              : state.setupStep,
+        })),
 
       closeSetup: () => set({ isSetupOpen: false }),
 
@@ -165,16 +265,17 @@ export const useOnboardingStore = create<OnboardingState>()(
         const currentIndex = SETUP_WIZARD_STEPS.indexOf(setupStep);
 
         if (currentIndex < SETUP_WIZARD_STEPS.length - 1) {
-          const nextStepValue = SETUP_WIZARD_STEPS[currentIndex + 1];
+          const nextSetupStep = SETUP_WIZARD_STEPS[currentIndex + 1];
           set({
-            setupStep: nextStepValue,
+            setupStep: nextSetupStep,
             setupCompletedSteps: setupCompletedSteps.includes(setupStep)
               ? setupCompletedSteps
               : [...setupCompletedSteps, setupStep],
           });
-        } else {
-          get().completeSetup();
+          return;
         }
+
+        get().completeSetup();
       },
 
       setupPrevStep: () => {
@@ -185,37 +286,52 @@ export const useOnboardingStore = create<OnboardingState>()(
         }
       },
 
-      goToSetupStep: (step: SetupWizardStep) => {
+      goToSetupStep: (step) => {
         if (SETUP_WIZARD_STEPS.includes(step)) {
           set({ setupStep: step });
         }
       },
 
-      markSetupStepCompleted: (step: SetupWizardStep) => {
-        const { setupCompletedSteps } = get();
-        if (!setupCompletedSteps.includes(step)) {
-          set({ setupCompletedSteps: [...setupCompletedSteps, step] });
-        }
-      },
+      markSetupStepCompleted: (step) =>
+        set((state) => ({
+          setupCompletedSteps: state.setupCompletedSteps.includes(step)
+            ? state.setupCompletedSteps
+            : [...state.setupCompletedSteps, step],
+        })),
 
-      completeSetup: () => set({
-        hasCompletedSetup: true,
-        isSetupOpen: false,
-        setupStep: 'welcome',
-        setupCompletedSteps: [...SETUP_WIZARD_STEPS],
-      }),
+      completeSetup: () =>
+        set((state) => {
+          const metadata: SetupWizardMetadata = {
+            location: state.setupData.locationConfigured ? 'configured' : 'skipped',
+            equipment: state.setupData.equipmentConfigured ? 'configured' : 'skipped',
+            preferences: state.setupData.preferencesConfigured ? 'configured' : 'skipped',
+            skipReasons: state.setupMetadata.skipReasons,
+            completedAt: nowIso(),
+          };
 
-      resetSetup: () => set({
-        hasCompletedSetup: false,
-        setupStep: 'welcome',
-        isSetupOpen: false,
-        setupCompletedSteps: [],
-        setupData: { ...INITIAL_SETUP_DATA },
-      }),
+          return {
+            hasCompletedSetup: true,
+            isSetupOpen: false,
+            setupStep: 'welcome',
+            setupCompletedSteps: [...SETUP_WIZARD_STEPS],
+            setupMetadata: metadata,
+          };
+        }),
 
-      updateSetupData: (data) => set((state) => ({
-        setupData: { ...state.setupData, ...data },
-      })),
+      resetSetup: () =>
+        set({
+          hasCompletedSetup: false,
+          setupStep: 'welcome',
+          isSetupOpen: false,
+          setupCompletedSteps: [],
+          setupData: { ...INITIAL_SETUP_DATA },
+          setupMetadata: { ...INITIAL_SETUP_METADATA },
+        }),
+
+      updateSetupData: (data) =>
+        set((state) => ({
+          setupData: { ...state.setupData, ...data },
+        })),
 
       finishSetupAndStartTour: () => {
         set({
@@ -223,131 +339,338 @@ export const useOnboardingStore = create<OnboardingState>()(
           isSetupOpen: false,
           setupStep: 'welcome',
           setupCompletedSteps: [...SETUP_WIZARD_STEPS],
-          phase: 'tour',
-          isTourActive: true,
-          currentStepIndex: 0,
           hasSeenWelcome: true,
         });
+        get().startTourById('first-run-core');
       },
 
       skipSetupStartTour: () => {
         set({
           isSetupOpen: false,
-          phase: 'tour',
-          isTourActive: true,
-          currentStepIndex: 0,
           hasSeenWelcome: true,
+        });
+        get().startTourById('first-run-core');
+      },
+
+      recordSetupSkip: (step, reason) =>
+        set((state) => ({
+          setupMetadata: {
+            ...state.setupMetadata,
+            skipReasons: {
+              ...state.setupMetadata.skipReasons,
+              [step]: reason,
+            },
+          },
+        })),
+
+      // Setup wizard getters
+      getSetupStepIndex: () => SETUP_WIZARD_STEPS.indexOf(get().setupStep),
+      getSetupTotalSteps: () => SETUP_WIZARD_STEPS.length,
+      isSetupFirstStep: () => get().setupStep === SETUP_WIZARD_STEPS[0],
+      isSetupLastStep: () =>
+        get().setupStep === SETUP_WIZARD_STEPS[SETUP_WIZARD_STEPS.length - 1],
+      canSetupProceed: () => {
+        const { setupStep, setupData } = get();
+        if (setupStep === 'location') return setupData.locationConfigured;
+        if (setupStep === 'equipment') return setupData.equipmentConfigured;
+        if (setupStep === 'preferences') return true;
+        return true;
+      },
+
+      // Tour actions
+      setActiveTourSteps: (steps) =>
+        set((state) => {
+          if (!state.activeTourId) return { activeTourSteps: steps };
+          const previous = state.tourProgressById[state.activeTourId];
+          return {
+            activeTourSteps: steps,
+            tourProgressById: {
+              ...state.tourProgressById,
+              [state.activeTourId]: buildProgress(
+                Math.min(state.currentStepIndex, Math.max(steps.length - 1, 0)),
+                steps.length,
+                previous?.completedStepIds ?? [],
+                previous?.completed ?? false,
+              ),
+            },
+          };
+        }),
+
+      startTour: () => {
+        get().startTourById('first-run-core');
+      },
+
+      startTourById: (tourId) => {
+        const steps = getDefaultTourSteps(tourId);
+        set((state) => ({
+          activeTourId: tourId,
+          activeTourSteps: steps,
+          isTourActive: true,
+          currentStepIndex: steps.length > 0 ? 0 : -1,
+          phase: 'tour',
+          hasSeenWelcome: true,
+          tourProgressById: {
+            ...state.tourProgressById,
+            [tourId]: buildProgress(steps.length > 0 ? 0 : -1, steps.length, []),
+          },
+        }));
+      },
+
+      resumeTour: (tourId) => {
+        const progress = get().tourProgressById[tourId];
+        const steps = getDefaultTourSteps(tourId);
+        const stepIndex = progress
+          ? Math.min(progress.currentStepIndex, Math.max(steps.length - 1, 0))
+          : 0;
+        set((state) => ({
+          activeTourId: tourId,
+          activeTourSteps: steps,
+          isTourActive: true,
+          currentStepIndex: steps.length > 0 ? stepIndex : -1,
+          phase: 'tour',
+          hasSeenWelcome: true,
+          completedSteps: progress?.completedStepIds ?? state.completedSteps,
+          tourProgressById: {
+            ...state.tourProgressById,
+            [tourId]: buildProgress(
+              steps.length > 0 ? stepIndex : -1,
+              steps.length,
+              progress?.completedStepIds ?? [],
+              false,
+            ),
+          },
+        }));
+      },
+
+      endTour: () =>
+        set({
+          isTourActive: false,
+          currentStepIndex: -1,
+          phase: 'idle',
+          activeTourSteps: [],
+        }),
+
+      nextStep: () => {
+        const state = get();
+        if (!state.isTourActive || state.currentStepIndex < 0) return;
+
+        const totalSteps = state.activeTourSteps.length;
+        const activeTourId = state.activeTourId;
+        const currentStep = state.activeTourSteps[state.currentStepIndex];
+        const currentCapabilityId = currentStep?.capabilityId;
+
+        if (currentCapabilityId) {
+          state.completeCapability(currentCapabilityId);
+        } else if (currentStep?.id) {
+          state.markStepCompleted(currentStep.id);
+        }
+
+        if (state.currentStepIndex < totalSteps - 1) {
+          set((currentState) => {
+            if (!currentState.activeTourId) {
+              return { currentStepIndex: currentState.currentStepIndex + 1 };
+            }
+            const progress =
+              currentState.tourProgressById[currentState.activeTourId] ??
+              buildProgress(0, currentState.activeTourSteps.length, []);
+            return {
+              currentStepIndex: currentState.currentStepIndex + 1,
+              tourProgressById: {
+                ...currentState.tourProgressById,
+                [currentState.activeTourId]: buildProgress(
+                  currentState.currentStepIndex + 1,
+                  currentState.activeTourSteps.length,
+                  progress.completedStepIds,
+                ),
+              },
+            };
+          });
+          return;
+        }
+
+        set((currentState) => {
+          const completedAt = nowIso();
+          const tourId = activeTourId;
+          const completedTours =
+            tourId && !currentState.completedTours.includes(tourId)
+              ? [...currentState.completedTours, tourId]
+              : currentState.completedTours;
+
+          const nextState: Partial<OnboardingState> = {
+            isTourActive: false,
+            currentStepIndex: -1,
+            phase: 'idle',
+            activeTourSteps: [],
+            completedTours,
+            lastCompletedAt: completedAt,
+          };
+
+          if (tourId) {
+            const progress = currentState.tourProgressById[tourId];
+            nextState.tourProgressById = {
+              ...currentState.tourProgressById,
+              [tourId]: buildProgress(
+                progress?.currentStepIndex ?? totalSteps - 1,
+                totalSteps,
+                progress?.completedStepIds ?? currentState.completedSteps,
+                true,
+              ),
+            };
+          }
+
+          if (tourId === 'first-run-core') {
+            nextState.hasCompletedOnboarding = true;
+            nextState.hasSeenWelcome = true;
+            nextState.showOnNextVisit = false;
+          }
+
+          return nextState as OnboardingState;
         });
       },
 
-      // --- Setup wizard getters ---
-
-      getSetupStepIndex: () => SETUP_WIZARD_STEPS.indexOf(get().setupStep),
-
-      getSetupTotalSteps: () => SETUP_WIZARD_STEPS.length,
-
-      isSetupFirstStep: () => get().setupStep === SETUP_WIZARD_STEPS[0],
-
-      isSetupLastStep: () => get().setupStep === SETUP_WIZARD_STEPS[SETUP_WIZARD_STEPS.length - 1],
-
-      canSetupProceed: () => true,
-
-      // ================================================================
-      // Tour actions
-      // ================================================================
-
-      startTour: () => set({
-        isTourActive: true,
-        currentStepIndex: 0,
-        phase: 'tour',
-      }),
-
-      endTour: () => set({
-        isTourActive: false,
-        currentStepIndex: -1,
-        phase: 'idle',
-      }),
-
-      nextStep: () => {
-        const { currentStepIndex } = get();
-        const totalSteps = TOUR_STEPS.length;
-
-        if (currentStepIndex < totalSteps - 1) {
-          const currentStep = TOUR_STEPS[currentStepIndex];
-          set((state) => {
-            const stepId = currentStep?.id;
-            const completedSteps = stepId && !state.completedSteps.includes(stepId)
-              ? [...state.completedSteps, stepId]
-              : state.completedSteps;
-
-            return {
-              currentStepIndex: currentStepIndex + 1,
-              completedSteps,
-            };
-          });
-        } else {
-          get().completeOnboarding();
-        }
-      },
-
       prevStep: () => {
-        const { currentStepIndex } = get();
-        if (currentStepIndex > 0) {
-          set({ currentStepIndex: currentStepIndex - 1 });
-        }
+        const { currentStepIndex, activeTourId, activeTourSteps, tourProgressById } = get();
+        if (currentStepIndex <= 0) return;
+
+        set({
+          currentStepIndex: currentStepIndex - 1,
+          tourProgressById: activeTourId
+            ? {
+                ...tourProgressById,
+                [activeTourId]: buildProgress(
+                  currentStepIndex - 1,
+                  activeTourSteps.length,
+                  tourProgressById[activeTourId]?.completedStepIds ?? [],
+                ),
+              }
+            : tourProgressById,
+        });
       },
 
-      goToStep: (index: number) => {
-        if (index >= 0 && index < TOUR_STEPS.length) {
-          set({ currentStepIndex: index });
-        }
+      goToStep: (index) => {
+        const { activeTourSteps, activeTourId, tourProgressById } = get();
+        if (index < 0 || index >= activeTourSteps.length) return;
+
+        set({
+          currentStepIndex: index,
+          tourProgressById: activeTourId
+            ? {
+                ...tourProgressById,
+                [activeTourId]: buildProgress(
+                  index,
+                  activeTourSteps.length,
+                  tourProgressById[activeTourId]?.completedStepIds ?? [],
+                ),
+              }
+            : tourProgressById,
+        });
       },
 
-      skipTour: () => set({
-        isTourActive: false,
-        currentStepIndex: -1,
-        hasCompletedOnboarding: true,
-        hasSeenWelcome: true,
-        showOnNextVisit: false,
-        phase: 'idle',
-      }),
+      skipTour: () =>
+        set((state) => {
+          const nextState: Partial<OnboardingState> = {
+            isTourActive: false,
+            currentStepIndex: -1,
+            phase: 'idle',
+            activeTourSteps: [],
+          };
 
-      markStepCompleted: (stepId: string) => set((state) => ({
-        completedSteps: state.completedSteps.includes(stepId)
-          ? state.completedSteps
-          : [...state.completedSteps, stepId],
-      })),
+          if (!state.activeTourId || state.activeTourId === 'first-run-core') {
+            nextState.hasCompletedOnboarding = true;
+            nextState.hasSeenWelcome = true;
+            nextState.showOnNextVisit = false;
+          }
 
-      // --- Tour getters ---
+          return nextState as OnboardingState;
+        }),
 
+      markStepCompleted: (stepId) =>
+        set((state) => ({
+          completedSteps: state.completedSteps.includes(stepId)
+            ? state.completedSteps
+            : [...state.completedSteps, stepId],
+        })),
+
+      completeCapability: (capabilityId) =>
+        set((state) => {
+          const completedStepIds = state.completedSteps.includes(capabilityId)
+            ? state.completedSteps
+            : [...state.completedSteps, capabilityId];
+
+          if (!state.activeTourId) {
+            return { completedSteps: completedStepIds };
+          }
+
+          const progress =
+            state.tourProgressById[state.activeTourId] ??
+            buildProgress(state.currentStepIndex, state.activeTourSteps.length, []);
+          const mergedProgressIds = progress.completedStepIds.includes(capabilityId)
+            ? progress.completedStepIds
+            : [...progress.completedStepIds, capabilityId];
+
+          return {
+            completedSteps: completedStepIds,
+            tourProgressById: {
+              ...state.tourProgressById,
+              [state.activeTourId]: buildProgress(
+                state.currentStepIndex,
+                state.activeTourSteps.length,
+                mergedProgressIds,
+                progress.completed,
+              ),
+            },
+          };
+        }),
+
+      skipCapability: (capabilityId, reason) =>
+        set((state) => ({
+          skippedCapabilities: {
+            ...state.skippedCapabilities,
+            [capabilityId]: reason,
+          },
+        })),
+
+      // Tour getters
       getCurrentStep: () => {
-        const { currentStepIndex, isTourActive } = get();
-        if (!isTourActive || currentStepIndex < 0 || currentStepIndex >= TOUR_STEPS.length) {
+        const { currentStepIndex, isTourActive, activeTourSteps } = get();
+        if (
+          !isTourActive ||
+          currentStepIndex < 0 ||
+          currentStepIndex >= activeTourSteps.length
+        ) {
           return null;
         }
-        return TOUR_STEPS[currentStepIndex];
+        return activeTourSteps[currentStepIndex] ?? null;
       },
 
-      getTotalSteps: () => TOUR_STEPS.length,
+      getTotalSteps: () => {
+        const activeCount = get().activeTourSteps.length;
+        return activeCount > 0 ? activeCount : TOUR_STEPS.length;
+      },
 
       isLastStep: () => {
-        const { currentStepIndex } = get();
-        return currentStepIndex === TOUR_STEPS.length - 1;
+        const { currentStepIndex, activeTourSteps } = get();
+        return currentStepIndex === activeTourSteps.length - 1 && activeTourSteps.length > 0;
       },
 
-      isFirstStep: () => {
-        const { currentStepIndex } = get();
-        return currentStepIndex === 0;
+      isFirstStep: () => get().currentStepIndex === 0,
+
+      getTourProgress: (tourId) => {
+        const existing = get().tourProgressById[tourId];
+        if (existing) return existing;
+        const defaultSteps = getDefaultTourSteps(tourId);
+        return buildProgress(0, defaultSteps.length, []);
       },
     }),
     {
       name: 'starmap-onboarding',
       storage: getZustandStorage(),
-      version: 3,
+      version: 4,
       migrate: (persistedState, version) => {
-        const state = (persistedState && typeof persistedState === 'object')
-          ? persistedState as Record<string, unknown>
-          : {};
+        const state =
+          persistedState && typeof persistedState === 'object'
+            ? (persistedState as Record<string, unknown>)
+            : {};
 
         if (version < 2) {
           if ('hasSeenWelcome' in state) {
@@ -356,38 +679,64 @@ export const useOnboardingStore = create<OnboardingState>()(
         }
 
         if (version < 3) {
-          // Merge old setup-wizard persisted state if present
-          try {
-            const storageKey = 'starmap-setup-wizard';
-            const zustandStorage = getZustandStorage();
-            const stored = zustandStorage.getItem(storageKey);
-            if (stored) {
-              const wizardState = (stored as { state?: Record<string, unknown> }).state;
-              if (wizardState) {
-                state.hasCompletedSetup = (wizardState.hasCompletedSetup as boolean) ?? false;
-                state.setupCompletedSteps = (wizardState.completedSteps as string[]) ?? [];
-              }
-              // Clean up old key
-              zustandStorage.removeItem(storageKey);
+          const wizardState = getPersistedLegacyState('starmap-setup-wizard');
+          if (wizardState) {
+            state.hasCompletedSetup =
+              (wizardState.hasCompletedSetup as boolean) ?? false;
+            state.setupCompletedSteps =
+              (wizardState.completedSteps as string[]) ?? [];
+            try {
+              getZustandStorage().removeItem('starmap-setup-wizard');
+            } catch {
+              // noop
             }
-          } catch {
-            // Ignore parse errors
           }
-
-          // Ensure new fields have defaults
           if (!('hasCompletedSetup' in state)) state.hasCompletedSetup = false;
           if (!('setupCompletedSteps' in state)) state.setupCompletedSteps = [];
+        }
+
+        if (version < 4) {
+          const legacyOnboardingState = getPersistedLegacyState('onboarding-storage');
+          if (legacyOnboardingState) {
+            if (!('hasCompletedOnboarding' in state) && 'hasCompletedOnboarding' in legacyOnboardingState) {
+              state.hasCompletedOnboarding = legacyOnboardingState.hasCompletedOnboarding;
+            }
+            if (!('hasSeenWelcome' in state) && 'hasSeenWelcome' in legacyOnboardingState) {
+              state.hasSeenWelcome = legacyOnboardingState.hasSeenWelcome;
+            }
+            if (!('showOnNextVisit' in state) && 'showOnNextVisit' in legacyOnboardingState) {
+              state.showOnNextVisit = legacyOnboardingState.showOnNextVisit;
+            }
+          }
+
+          if (!('activeTourId' in state)) state.activeTourId = null;
+          if (!('tourProgressById' in state)) state.tourProgressById = {};
+          if (!('completedTours' in state)) state.completedTours = [];
+          if (!('skippedCapabilities' in state)) state.skippedCapabilities = {};
+          if (!('lastCompletedAt' in state)) state.lastCompletedAt = null;
+          if (!('setupData' in state)) state.setupData = { ...INITIAL_SETUP_DATA };
+          if (!('setupMetadata' in state)) {
+            state.setupMetadata = { ...INITIAL_SETUP_METADATA };
+          }
         }
 
         return state;
       },
       partialize: (state) => ({
         hasCompletedOnboarding: state.hasCompletedOnboarding,
+        hasSeenWelcome: state.hasSeenWelcome,
         hasCompletedSetup: state.hasCompletedSetup,
         completedSteps: state.completedSteps,
         setupCompletedSteps: state.setupCompletedSteps,
         showOnNextVisit: state.showOnNextVisit,
+        setupData: state.setupData,
+        setupMetadata: state.setupMetadata,
+        activeTourId: state.activeTourId,
+        tourProgressById: state.tourProgressById,
+        completedTours: state.completedTours,
+        skippedCapabilities: state.skippedCapabilities,
+        lastCompletedAt: state.lastCompletedAt,
       }),
-    }
-  )
+    },
+  ),
 );

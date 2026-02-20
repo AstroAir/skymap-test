@@ -6,6 +6,9 @@ import {
   shouldImage,
   rankTargets,
 } from '../feasibility';
+import { dateToJulianDate } from '../../time/julian';
+import { getMoonPhase } from '../../celestial/moon';
+import { getMoonDistance } from '../../celestial/separation';
 
 // Mock dependencies
 jest.mock('../../celestial/moon', () => ({
@@ -21,6 +24,8 @@ jest.mock('../../celestial/separation', () => ({
 describe('Imaging Feasibility', () => {
   const latitude = 39.9;
   const longitude = 116.4;
+  const mockedGetMoonPhase = getMoonPhase as jest.MockedFunction<typeof getMoonPhase>;
+  const mockedGetMoonDistance = getMoonDistance as jest.MockedFunction<typeof getMoonDistance>;
 
   // ============================================================================
   // calculateImagingFeasibility
@@ -75,8 +80,14 @@ describe('Imaging Feasibility', () => {
 
     it('accepts custom date', () => {
       const date = new Date('2024-06-21T00:00:00Z');
+      mockedGetMoonPhase.mockClear();
+      mockedGetMoonDistance.mockClear();
       const result = calculateImagingFeasibility(180, 45, latitude, longitude, 30, date);
       expect(result.score).toBeDefined();
+      expect(mockedGetMoonPhase).toHaveBeenCalled();
+      expect(mockedGetMoonPhase.mock.calls[0][0]).toBeCloseTo(dateToJulianDate(date), 8);
+      expect(mockedGetMoonDistance).toHaveBeenCalled();
+      expect(mockedGetMoonDistance.mock.calls[0][2]).toBeCloseTo(dateToJulianDate(date), 8);
     });
 
     it('accepts custom minAltitude', () => {

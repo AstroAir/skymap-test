@@ -63,7 +63,6 @@ function MapLocationPickerComponent({
   ], [t]);
 
   const [currentLocation, setCurrentLocation] = useState<Coordinates>(initialLocation);
-  const [prevInitialLocation, setPrevInitialLocation] = useState(initialLocation);
   const [zoom, setZoom] = useState(10);
   const [tileLayer, setTileLayer] = useState<TileLayerType>(initialTileLayer);
   const [showLightPollution, setShowLightPollution] = useState(false);
@@ -80,14 +79,19 @@ function MapLocationPickerComponent({
     }
   }, [currentLocation.latitude, currentLocation.longitude]);
 
-  // Sync with external initialLocation changes (render-time adjustment, no effect needed)
-  if (
-    initialLocation.latitude !== prevInitialLocation.latitude ||
-    initialLocation.longitude !== prevInitialLocation.longitude
-  ) {
-    setPrevInitialLocation(initialLocation);
-    setCurrentLocation(initialLocation);
-  }
+  // Sync with external initialLocation changes
+  const initialLocationKey = `${initialLocation.latitude}:${initialLocation.longitude}`;
+  const lastInitialLocationKeyRef = useRef(initialLocationKey);
+  useEffect(() => {
+    if (lastInitialLocationKeyRef.current === initialLocationKey) {
+      return;
+    }
+    lastInitialLocationKeyRef.current = initialLocationKey;
+    const timer = window.setTimeout(() => {
+      setCurrentLocation(initialLocation);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialLocation, initialLocationKey]);
 
   // Memoize map height style
   const mapHeight = useMemo(() => 

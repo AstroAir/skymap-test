@@ -47,6 +47,13 @@ jest.mock('@/components/ui/scroll-area', () => ({
 const mockToggleStellariumSetting = jest.fn();
 const mockSetFovEnabled = jest.fn();
 const mockSetViewDirection = jest.fn();
+const mockSetSkyEngine = jest.fn();
+const mockToggleCatalogLayer = jest.fn();
+const mockToggleMocLayer = jest.fn();
+const mockToggleFitsLayer = jest.fn();
+const mockToggleImageOverlayLayer = jest.fn();
+const mockUpdateImageOverlayLayer = jest.fn();
+let mockSkyEngine: 'stellarium' | 'aladin' = 'stellarium';
 
 jest.mock('@/lib/stores', () => ({
   useMountStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -64,6 +71,8 @@ jest.mock('@/lib/stores', () => ({
   ),
   useSettingsStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
     selector({
+      skyEngine: mockSkyEngine,
+      setSkyEngine: mockSetSkyEngine,
       stellarium: {
         constellationsLinesVisible: true,
         equatorialLinesVisible: false,
@@ -71,6 +80,31 @@ jest.mock('@/lib/stores', () => ({
         dsosVisible: true,
       },
       toggleStellariumSetting: mockToggleStellariumSetting,
+    })
+  ),
+  useAladinStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      catalogLayers: [
+        { id: 'simbad', name: 'SIMBAD', enabled: true },
+        { id: 'ned', name: 'NED', enabled: false },
+      ],
+      toggleCatalogLayer: mockToggleCatalogLayer,
+      mocLayers: [
+        { id: 'moc-1', name: 'MOC 1', visible: true },
+        { id: 'moc-2', name: 'MOC 2', visible: false },
+      ],
+      toggleMocLayer: mockToggleMocLayer,
+      imageOverlayLayers: [
+        { id: 'overlay-1', name: 'Overlay 1', enabled: true, opacity: 0.5 },
+        { id: 'overlay-2', name: 'Overlay 2', enabled: false, opacity: 0.2 },
+      ],
+      toggleImageOverlayLayer: mockToggleImageOverlayLayer,
+      updateImageOverlayLayer: mockUpdateImageOverlayLayer,
+      fitsLayers: [
+        { id: 'fits-1', name: 'FITS 1', enabled: true },
+        { id: 'fits-2', name: 'FITS 2', enabled: false },
+      ],
+      toggleFitsLayer: mockToggleFitsLayer,
     })
   ),
   useStellariumStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -127,6 +161,7 @@ jest.mock('@/lib/core/constants/fov', () => ({
 describe('QuickActionsPanel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSkyEngine = 'stellarium';
   });
 
   it('renders the trigger button', () => {
@@ -213,5 +248,41 @@ describe('QuickActionsPanel', () => {
     render(<QuickActionsPanel />);
     expect(screen.getByText('quickActions.totalTargets')).toBeDefined();
     expect(screen.getByText('2')).toBeDefined();
+  });
+
+  it('renders Aladin-specific layer controls without truncating lists', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    expect(screen.getByText('SIMBAD')).toBeDefined();
+    expect(screen.getByText('NED')).toBeDefined();
+    expect(screen.getByText('MOC 1')).toBeDefined();
+    expect(screen.getByText('MOC 2')).toBeDefined();
+    expect(screen.getByText('Overlay 1')).toBeDefined();
+    expect(screen.getByText('Overlay 2')).toBeDefined();
+    expect(screen.getByText('FITS 1')).toBeDefined();
+    expect(screen.getByText('FITS 2')).toBeDefined();
+  });
+
+  it('applies Aladin overlay opacity quick adjustments', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    const increaseBtn = screen.getByText('settings.aladinOverlayOpacity +10%').closest('button');
+    expect(increaseBtn).toBeDefined();
+    fireEvent.click(increaseBtn!);
+
+    expect(mockUpdateImageOverlayLayer).toHaveBeenCalledWith('overlay-1', { opacity: 0.6 });
+  });
+
+  it('provides one-click compensation to switch back to Stellarium in Aladin mode', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    const switchBtn = screen.getByText('settings.switchToStellarium').closest('button');
+    expect(switchBtn).toBeDefined();
+    fireEvent.click(switchBtn!);
+
+    expect(mockSetSkyEngine).toHaveBeenCalledWith('stellarium');
   });
 });

@@ -35,6 +35,7 @@ const mockSetStel = jest.fn();
 const mockSetBaseUrl = jest.fn();
 const mockSetHelpers = jest.fn();
 const mockUpdateStellariumCore = jest.fn();
+const mockSetProfileInfo = jest.fn();
 
 jest.mock('@/lib/stores', () => ({
   useStellariumStore: jest.fn((selector) => {
@@ -64,18 +65,32 @@ jest.mock('@/lib/stores', () => ({
       }),
     }
   ),
-  useMountStore: jest.fn((selector) => {
-    const state = {
-      profileInfo: {
-        AstrometrySettings: {
-          Latitude: 51.5,
-          Longitude: -0.1,
-          Elevation: 100,
+  useMountStore: Object.assign(
+    jest.fn((selector) => {
+      const state = {
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 51.5,
+            Longitude: -0.1,
+            Elevation: 100,
+          },
         },
-      },
-    };
-    return selector(state);
-  }),
+        setProfileInfo: mockSetProfileInfo,
+      };
+      return selector(state);
+    }),
+    {
+      getState: () => ({
+        profileInfo: {
+          AstrometrySettings: {
+            Latitude: 51.5,
+            Longitude: -0.1,
+            Elevation: 100,
+          },
+        },
+      }),
+    }
+  ),
 }));
 
 // Mock StelWebEngine - use explicit any for test mocks
@@ -84,6 +99,7 @@ const createMockStelEngine = (): any => ({
   core: {
     observer: { latitude: 0, longitude: 0, elevation: 0 },
     fov: 1.047, // ~60 degrees in radians
+    projection: 1,
     time_speed: 1,
     selection: null,
     stars: { addDataSource: jest.fn() },
@@ -362,6 +378,35 @@ describe('useObserverSync', () => {
     expect(mockStel.core.observer.latitude).toBeCloseTo(51.5 * (Math.PI / 180));
     expect(mockStel.core.observer.longitude).toBeCloseTo(-0.1 * (Math.PI / 180));
     expect(mockStel.core.observer.elevation).toBe(100);
+  });
+
+  it('supports persist hydration API when present', async () => {
+    const stores = await import('@/lib/stores');
+    const useMountStore = stores.useMountStore as unknown as {
+      persist?: {
+        onFinishHydration: (cb: () => void) => () => void;
+        hasHydrated: () => boolean;
+      };
+    };
+
+    useMountStore.persist = {
+      onFinishHydration: (cb: () => void) => {
+        cb();
+        return jest.fn();
+      },
+      hasHydrated: () => true,
+    };
+
+    const { useObserverSync } = await import('@/lib/hooks/stellarium/use-observer-sync');
+    const mockStel = createMockStelEngine();
+    const stelRef = { current: mockStel };
+
+    renderHook(() => useObserverSync(stelRef));
+
+    expect(mockStel.core.observer.latitude).toBeCloseTo(51.5 * (Math.PI / 180));
+    expect(mockStel.core.observer.longitude).toBeCloseTo(-0.1 * (Math.PI / 180));
+
+    delete useMountStore.persist;
   });
 
   it('returns profileInfo', async () => {

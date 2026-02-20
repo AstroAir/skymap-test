@@ -4,6 +4,7 @@
 
 import { deg2rad, rad2deg } from '../coordinates/conversions';
 import { dateToJulianDate } from '../time/julian';
+import { getLSTForDate } from '../time/sidereal';
 import { getSunPosition } from '../celestial/sun';
 import type { TwilightTimes, TwilightPhase } from '@/lib/core/types/astronomy';
 
@@ -47,17 +48,6 @@ export function calculateHourAngle(
   return rad2deg(Math.acos(cosH));
 }
 
-/**
- * Get LST for a specific date
- */
-function getLSTForDate(date: Date, longitude: number): number {
-  const jd = dateToJulianDate(date);
-  const S = jd - 2451545.0;
-  const T = S / 36525.0;
-  const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
-  return ((GST + longitude) % 360 + 360) % 360;
-}
-
 // ============================================================================
 // Twilight Time Calculations
 // ============================================================================
@@ -90,7 +80,7 @@ export function calculateTwilightTimes(
   const haAstro = calculateHourAngle(sunDec, latitude, TWILIGHT_THRESHOLDS.astronomical);
   
   // Convert hour angles to times
-  const lst12 = getLSTForDate(localNoon, longitude);
+  const lst12 = getLSTForDate(longitude, localNoon);
   
   const toLocalTime = (ha: number, isRise: boolean): Date | null => {
     if (isNaN(ha)) return null;
@@ -160,10 +150,7 @@ export function getCurrentTwilightPhase(
   const sunPos = getSunPosition(jd);
   
   // Calculate sun altitude
-  const S = jd - 2451545.0;
-  const T = S / 36525.0;
-  const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
-  const LST = ((GST + longitude) % 360 + 360) % 360;
+  const LST = getLSTForDate(longitude, date);
   const HA = deg2rad(LST - sunPos.ra);
   
   const latRad = deg2rad(latitude);

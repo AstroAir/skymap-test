@@ -23,6 +23,34 @@ static DEC_DMS_REGEX: Lazy<regex_lite::Regex> = Lazy::new(|| {
 const DEG_TO_RAD: f64 = PI / 180.0;
 const RAD_TO_DEG: f64 = 180.0 / PI;
 const HOURS_TO_DEG: f64 = 15.0;
+const EQ_TO_GAL_MATRIX: [[f64; 3]; 3] = [
+    [-0.0548755604162154, -0.873437090234885, -0.4838350155487132],
+    [0.4941094278755837, -0.4448296299600112, 0.7469822444972189],
+    [-0.8676661490190047, -0.1980763734312015, 0.4559837761750669],
+];
+const GAL_TO_EQ_MATRIX: [[f64; 3]; 3] = [
+    [
+        EQ_TO_GAL_MATRIX[0][0],
+        EQ_TO_GAL_MATRIX[1][0],
+        EQ_TO_GAL_MATRIX[2][0],
+    ],
+    [
+        EQ_TO_GAL_MATRIX[0][1],
+        EQ_TO_GAL_MATRIX[1][1],
+        EQ_TO_GAL_MATRIX[2][1],
+    ],
+    [
+        EQ_TO_GAL_MATRIX[0][2],
+        EQ_TO_GAL_MATRIX[1][2],
+        EQ_TO_GAL_MATRIX[2][2],
+    ],
+];
+
+/// Coordinate convention contract (aligned with TS pipeline):
+/// - Longitude is positive east
+/// - Azimuth is north=0°, east=90°
+const _LONGITUDE_EAST_POSITIVE: bool = true;
+const _AZIMUTH_NORTH_ZERO_EAST_NINETY: bool = true;
 
 // ============================================================================
 // Coordinate Types
@@ -211,59 +239,57 @@ pub fn horizontal_to_equatorial(
 /// Convert equatorial to galactic coordinates
 #[tauri::command]
 pub fn equatorial_to_galactic(ra: f64, dec: f64) -> GalacticCoords {
-    // North Galactic Pole (J2000): RA = 192.85948°, Dec = 27.12825°
-    // Galactic center longitude from celestial pole: 122.93192°
-    const NGP_RA: f64 = 192.85948;
-    const NGP_DEC: f64 = 27.12825;
-    const L_NCP: f64 = 122.93192;
-
     let ra_rad = ra * DEG_TO_RAD;
     let dec_rad = dec * DEG_TO_RAD;
-    let ngp_ra_rad = NGP_RA * DEG_TO_RAD;
-    let ngp_dec_rad = NGP_DEC * DEG_TO_RAD;
+    let cos_dec = dec_rad.cos();
+    let equatorial = [
+        cos_dec * ra_rad.cos(),
+        cos_dec * ra_rad.sin(),
+        dec_rad.sin(),
+    ];
 
-    let sin_b = dec_rad.sin() * ngp_dec_rad.sin()
-        + dec_rad.cos() * ngp_dec_rad.cos() * (ra_rad - ngp_ra_rad).cos();
-    let b = sin_b.asin();
+    let galactic = [
+        EQ_TO_GAL_MATRIX[0][0] * equatorial[0]
+            + EQ_TO_GAL_MATRIX[0][1] * equatorial[1]
+            + EQ_TO_GAL_MATRIX[0][2] * equatorial[2],
+        EQ_TO_GAL_MATRIX[1][0] * equatorial[0]
+            + EQ_TO_GAL_MATRIX[1][1] * equatorial[1]
+            + EQ_TO_GAL_MATRIX[1][2] * equatorial[2],
+        EQ_TO_GAL_MATRIX[2][0] * equatorial[0]
+            + EQ_TO_GAL_MATRIX[2][1] * equatorial[1]
+            + EQ_TO_GAL_MATRIX[2][2] * equatorial[2],
+    ];
 
-    let y = dec_rad.cos() * (ra_rad - ngp_ra_rad).sin();
-    let x = dec_rad.sin() * ngp_dec_rad.cos()
-        - dec_rad.cos() * ngp_dec_rad.sin() * (ra_rad - ngp_ra_rad).cos();
+    let l = normalize_degrees(galactic[1].atan2(galactic[0]) * RAD_TO_DEG);
+    let b = galactic[2].clamp(-1.0, 1.0).asin() * RAD_TO_DEG;
 
-    let l = normalize_degrees(L_NCP - y.atan2(x) * RAD_TO_DEG);
-
-    GalacticCoords {
-        l,
-        b: b * RAD_TO_DEG,
-    }
+    GalacticCoords { l, b }
 }
 
 /// Convert galactic to equatorial coordinates
 #[tauri::command]
 pub fn galactic_to_equatorial(l: f64, b: f64) -> EquatorialCoords {
-    const NGP_RA: f64 = 192.85948;
-    const NGP_DEC: f64 = 27.12825;
-    const L_NCP: f64 = 122.93192;
-
     let l_rad = l * DEG_TO_RAD;
     let b_rad = b * DEG_TO_RAD;
-    let ngp_dec_rad = NGP_DEC * DEG_TO_RAD;
-    let l_ncp_rad = L_NCP * DEG_TO_RAD;
+    let cos_b = b_rad.cos();
+    let galactic = [cos_b * l_rad.cos(), cos_b * l_rad.sin(), b_rad.sin()];
 
-    let sin_dec = b_rad.sin() * ngp_dec_rad.sin()
-        + b_rad.cos() * ngp_dec_rad.cos() * (l_ncp_rad - l_rad).sin();
-    let dec = sin_dec.asin();
+    let equatorial = [
+        GAL_TO_EQ_MATRIX[0][0] * galactic[0]
+            + GAL_TO_EQ_MATRIX[0][1] * galactic[1]
+            + GAL_TO_EQ_MATRIX[0][2] * galactic[2],
+        GAL_TO_EQ_MATRIX[1][0] * galactic[0]
+            + GAL_TO_EQ_MATRIX[1][1] * galactic[1]
+            + GAL_TO_EQ_MATRIX[1][2] * galactic[2],
+        GAL_TO_EQ_MATRIX[2][0] * galactic[0]
+            + GAL_TO_EQ_MATRIX[2][1] * galactic[1]
+            + GAL_TO_EQ_MATRIX[2][2] * galactic[2],
+    ];
 
-    let y = b_rad.cos() * (l_ncp_rad - l_rad).cos();
-    let x = b_rad.sin() * ngp_dec_rad.cos()
-        - b_rad.cos() * ngp_dec_rad.sin() * (l_ncp_rad - l_rad).sin();
+    let ra = normalize_degrees(equatorial[1].atan2(equatorial[0]) * RAD_TO_DEG);
+    let dec = equatorial[2].clamp(-1.0, 1.0).asin() * RAD_TO_DEG;
 
-    let ra = normalize_degrees(NGP_RA + y.atan2(x) * RAD_TO_DEG);
-
-    EquatorialCoords {
-        ra,
-        dec: dec * RAD_TO_DEG,
-    }
+    EquatorialCoords { ra, dec }
 }
 
 /// Convert equatorial to ecliptic coordinates
@@ -1173,9 +1199,19 @@ mod tests {
     use chrono::TimeZone;
 
     const EPSILON: f64 = 1e-6;
+    const ARCSEC_IN_DEGREES: f64 = 1.0 / 3600.0;
 
     fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
         (a - b).abs() < eps
+    }
+
+    fn angular_difference_degrees(a: f64, b: f64) -> f64 {
+        let diff = (a - b).abs() % 360.0;
+        if diff > 180.0 {
+            360.0 - diff
+        } else {
+            diff
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -1243,6 +1279,21 @@ mod tests {
     }
 
     #[test]
+    fn test_equatorial_to_galactic_m31_arcsec() {
+        let gal = equatorial_to_galactic(10.68470833, 41.26875);
+        assert!(
+            angular_difference_degrees(gal.l, 121.1743221) < ARCSEC_IN_DEGREES,
+            "M31 galactic l error exceeds 1 arcsec: got {}",
+            gal.l
+        );
+        assert!(
+            (gal.b - -21.5733112).abs() < ARCSEC_IN_DEGREES,
+            "M31 galactic b error exceeds 1 arcsec: got {}",
+            gal.b
+        );
+    }
+
+    #[test]
     fn test_galactic_to_equatorial() {
         // Test galactic_to_equatorial with known galactic coordinates
         // Galactic north pole (l=0, b=90) should be roughly at RA≈192.86°, Dec≈27.13°
@@ -1253,6 +1304,21 @@ mod tests {
         assert!(eq.dec >= -90.0 && eq.dec <= 90.0, "Dec out of range: {}", eq.dec);
         // Galactic north pole Dec should be positive (northern hemisphere)
         assert!(eq.dec > 0.0, "Galactic north pole should have positive Dec, got {}", eq.dec);
+    }
+
+    #[test]
+    fn test_galactic_to_equatorial_m31_arcsec() {
+        let eq = galactic_to_equatorial(121.1743221, -21.5733112);
+        assert!(
+            angular_difference_degrees(eq.ra, 10.68470833) < ARCSEC_IN_DEGREES,
+            "M31 RA error exceeds 1 arcsec: got {}",
+            eq.ra
+        );
+        assert!(
+            (eq.dec - 41.26875).abs() < ARCSEC_IN_DEGREES,
+            "M31 Dec error exceeds 1 arcsec: got {}",
+            eq.dec
+        );
     }
 
     #[test]

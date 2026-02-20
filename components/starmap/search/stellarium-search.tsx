@@ -83,6 +83,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const [isFocused, setIsFocused] = useState(false);
     const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const [historyIndex, setHistoryIndex] = useState(-1);
     const [showKeyboardHints, setShowKeyboardHints] = useState(false);
     const keyboardHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
@@ -168,6 +169,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const handleQueryChange = useCallback((newQuery: string) => {
       setQuery(newQuery);
       setHighlightedIndex(-1);
+      setHistoryIndex(-1);
     }, [setQuery]);
 
     // Handle focus change
@@ -206,12 +208,26 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
 
       switch (e.key) {
         case 'ArrowDown':
+          if (!query && recentSearches.length > 0) {
+            e.preventDefault();
+            const next = Math.min(historyIndex + 1, recentSearches.length - 1);
+            setHistoryIndex(next);
+            setQuery(recentSearches[next]);
+            return;
+          }
           e.preventDefault();
           setHighlightedIndex(prev => 
             prev < flatResults.length - 1 ? prev + 1 : prev
           );
           break;
         case 'ArrowUp':
+          if (!query && recentSearches.length > 0) {
+            e.preventDefault();
+            const next = Math.max(historyIndex - 1, 0);
+            setHistoryIndex(next);
+            setQuery(recentSearches[next]);
+            return;
+          }
           e.preventDefault();
           setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
           break;
@@ -236,7 +252,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           onFocusChange?.(false);
           break;
       }
-    }, [isFocused, flatResults, highlightedIndex, selectTarget, onFocusChange]);
+    }, [isFocused, query, recentSearches, historyIndex, flatResults, highlightedIndex, selectTarget, onFocusChange, setQuery]);
 
     // Type filter toggle
     const toggleTypeFilter = useCallback((type: ObjectType) => {
@@ -319,7 +335,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>{t('search.filterByType')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {(['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Constellation'] as ObjectType[]).map((type) => (
+              {(['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'Constellation'] as ObjectType[]).map((type) => (
                 <DropdownMenuCheckboxItem
                   key={type}
                   checked={filters.types.includes(type)}
@@ -344,6 +360,24 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
                 onCheckedChange={() => setSortBy('type')}
               >
                 {t('search.sortByType')}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={sortBy === 'magnitude'}
+                onCheckedChange={() => setSortBy('magnitude')}
+              >
+                {t('search.sortByMagnitude', { defaultValue: 'Magnitude' })}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={sortBy === 'altitude'}
+                onCheckedChange={() => setSortBy('altitude')}
+              >
+                {t('search.sortByAltitude', { defaultValue: 'Altitude' })}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={sortBy === 'distance'}
+                onCheckedChange={() => setSortBy('distance')}
+              >
+                {t('search.sortByDistance', { defaultValue: 'Distance' })}
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -440,6 +474,15 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
             <CircleDot className="h-8 w-8 mx-auto mb-2 opacity-30" />
             <p className="text-sm">{t('starmap.noObjectsFound')}</p>
             <p className="text-xs mt-1">{t('starmap.trySearching')}</p>
+          </div>
+        )}
+
+        {/* Command hint */}
+        {showResultsPanel && query && /^[a-z@]+:/i.test(query) && (
+          <div className="text-[10px] text-muted-foreground rounded-md border border-dashed px-2 py-1.5">
+            {t('search.commandModeHint', {
+              defaultValue: 'Command mode enabled. Supported prefixes: m:, ngc:, ic:, hd:, hip:, @',
+            })}
           </div>
         )}
 

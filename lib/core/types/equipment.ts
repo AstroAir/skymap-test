@@ -66,6 +66,7 @@ export interface FOVDisplaySettings {
 export type BinningType = '1x1' | '2x2' | '3x3' | '4x4';
 export type TrackingType = 'none' | 'basic' | 'guided';
 export type TargetType = 'galaxy' | 'nebula' | 'cluster' | 'planetary';
+export type GainStrategy = 'unity' | 'max_dynamic_range' | 'manual';
 
 export interface ExposureDefaults {
   exposureTime: number;
@@ -79,4 +80,17 @@ export interface ExposureDefaults {
   tracking: TrackingType;
   targetType: TargetType;
   bortle: number;
+  sqmOverride?: number;
+  filterBandwidthNm: number;
+  readNoiseLimitPercent: number;
+  gainStrategy: GainStrategy;
+  manualGain: number;
+  manualReadNoiseEnabled: boolean;
+  manualReadNoise: number;
+  manualDarkCurrent: number;
+  manualFullWell: number;
+  manualQE: number;
+  manualEPeraDu: number;
+  targetSurfaceBrightness: number;
+  targetSignalRate: number;
 }

@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from "sonner";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ThemeCustomizationSyncProvider } from "@/components/providers/theme-customization-sync";
+import { SettingsSyncProvider } from "@/components/providers/settings-sync-provider";
+import { SettingsToaster } from "@/components/providers/settings-toaster";
 import { TauriSyncProvider } from "@/lib/tauri/TauriSyncProvider";
 import "./globals.css";
 
@@ -54,6 +56,13 @@ export const metadata: Metadata = {
   category: "Science & Education",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -70,16 +79,16 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <I18nProvider>
-            <TauriSyncProvider>
-              {children}
-            </TauriSyncProvider>
-            <Toaster 
-              position="bottom-right" 
-              richColors
-              closeButton
-            />
-          </I18nProvider>
+          <ThemeCustomizationSyncProvider>
+            <SettingsSyncProvider>
+              <I18nProvider>
+                <TauriSyncProvider>
+                  {children}
+                </TauriSyncProvider>
+                <SettingsToaster />
+              </I18nProvider>
+            </SettingsSyncProvider>
+          </ThemeCustomizationSyncProvider>
         </ThemeProvider>
       </body>
     </html>

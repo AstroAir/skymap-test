@@ -49,10 +49,8 @@ describe('Target Visibility Calculations', () => {
     it('detects objects that never rise', () => {
       // Far southern object
       const visibility = calculateTargetVisibility(180, -70, latitude, longitude);
-      // Note: Current implementation marks objects with |dec| > (90 - |lat|) as circumpolar
       expect(visibility.neverRises).toBe(true);
-      // The isCircumpolar check uses |dec| > (90 - |lat|) which is true here
-      expect(visibility.isCircumpolar).toBe(true);
+      expect(visibility.isCircumpolar).toBe(false);
     });
 
     it('sets imagingHours to 24 for circumpolar objects', () => {
@@ -62,8 +60,7 @@ describe('Target Visibility Calculations', () => {
 
     it('sets imagingHours for objects that never rise', () => {
       const visibility = calculateTargetVisibility(180, -70, latitude, longitude);
-      // Objects marked as circumpolar get 24 hours, even if below horizon
-      expect(visibility.imagingHours).toBe(24);
+      expect(visibility.imagingHours).toBe(0);
     });
 
     it('respects minAltitude parameter', () => {
@@ -122,6 +119,14 @@ describe('Target Visibility Calculations', () => {
     it('dark imaging hours <= total imaging hours', () => {
       const visibility = calculateTargetVisibility(180, 45, latitude, longitude);
       expect(visibility.darkImagingHours).toBeLessThanOrEqual(visibility.imagingHours);
+    });
+
+    it('keeps dark imaging window for circumpolar targets', () => {
+      const winterDate = new Date('2025-01-10T20:00:00Z');
+      const visibility = calculateTargetVisibility(37.95, 89, latitude, longitude, 20, winterDate);
+      expect(visibility.isCircumpolar).toBe(true);
+      expect(visibility.darkImagingHours).toBeGreaterThanOrEqual(0);
+      expect(visibility.imagingHours).toBe(24);
     });
   });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import { useTheme } from 'next-themes';
 import { useTranslations } from 'next-intl';
 import {
   Download,
@@ -20,26 +21,50 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useSettingsStore, useEquipmentStore, useMountStore, useEventSourcesStore } from '@/lib/stores';
+import {
+  useDailyKnowledgeStore,
+  useSettingsStore,
+  useEquipmentStore,
+  useMountStore,
+  useEventSourcesStore,
+} from '@/lib/stores';
 import type { EventSourceConfig } from '@/lib/stores';
 import { useThemeStore } from '@/lib/stores/theme-store';
 import { useKeybindingStore } from '@/lib/stores/keybinding-store';
+import { useLocaleStore } from '@/lib/i18n/locale-store';
+import {
+  BARLOW_PRESETS,
+  EYEPIECE_PRESETS,
+  OCULAR_TELESCOPE_PRESETS,
+} from '@/lib/constants/equipment-presets';
 import { SettingsSection } from './settings-shared';
 
-interface ExportData {
+type ThemeMode = 'light' | 'dark' | 'system';
+
+function normalizeThemeMode(value: unknown): ThemeMode | null {
+  if (value === 'light' || value === 'dark' || value === 'system') {
+    return value;
+  }
+  return null;
+}
+
+export interface ExportData {
   version: number;
   exportedAt: string;
+  themeMode?: ThemeMode;
   settings: {
     connection: ReturnType<typeof useSettingsStore.getState>['connection'];
     backendProtocol: ReturnType<typeof useSettingsStore.getState>['backendProtocol'];
+    skyEngine: ReturnType<typeof useSettingsStore.getState>['skyEngine'];
     stellarium: ReturnType<typeof useSettingsStore.getState>['stellarium'];
     preferences: ReturnType<typeof useSettingsStore.getState>['preferences'];
     performance: ReturnType<typeof useSettingsStore.getState>['performance'];
     accessibility: ReturnType<typeof useSettingsStore.getState>['accessibility'];
     notifications: ReturnType<typeof useSettingsStore.getState>['notifications'];
     search: ReturnType<typeof useSettingsStore.getState>['search'];
+    aladinDisplay: ReturnType<typeof useSettingsStore.getState>['aladinDisplay'];
   };
-  theme: ReturnType<typeof useThemeStore.getState>['customization'];
+  theme?: Partial<ReturnType<typeof useThemeStore.getState>['customization']>;
   keybindings: ReturnType<typeof useKeybindingStore.getState>['customBindings'];
   equipment?: {
     sensorWidth: number;
@@ -50,12 +75,16 @@ interface ExportData {
     rotationAngle: number;
     mosaic: ReturnType<typeof useEquipmentStore.getState>['mosaic'];
     fovDisplay: ReturnType<typeof useEquipmentStore.getState>['fovDisplay'];
+    ocularDisplay: ReturnType<typeof useEquipmentStore.getState>['ocularDisplay'];
     exposureDefaults: ReturnType<typeof useEquipmentStore.getState>['exposureDefaults'];
     customCameras: ReturnType<typeof useEquipmentStore.getState>['customCameras'];
     customTelescopes: ReturnType<typeof useEquipmentStore.getState>['customTelescopes'];
     customEyepieces: ReturnType<typeof useEquipmentStore.getState>['customEyepieces'];
     customBarlows: ReturnType<typeof useEquipmentStore.getState>['customBarlows'];
     customOcularTelescopes: ReturnType<typeof useEquipmentStore.getState>['customOcularTelescopes'];
+    selectedOcularTelescopeId: ReturnType<typeof useEquipmentStore.getState>['selectedOcularTelescopeId'];
+    selectedEyepieceId: ReturnType<typeof useEquipmentStore.getState>['selectedEyepieceId'];
+    selectedBarlowId: ReturnType<typeof useEquipmentStore.getState>['selectedBarlowId'];
   };
   location?: {
     latitude: number;
@@ -63,10 +92,226 @@ interface ExportData {
     elevation: number;
   };
   eventSources?: EventSourceConfig[];
+  dailyKnowledge?: {
+    favorites: ReturnType<typeof useDailyKnowledgeStore.getState>['favorites'];
+    history: ReturnType<typeof useDailyKnowledgeStore.getState>['history'];
+    startupState: {
+      lastShownDate: ReturnType<typeof useDailyKnowledgeStore.getState>['lastShownDate'];
+      snoozedDate: ReturnType<typeof useDailyKnowledgeStore.getState>['snoozedDate'];
+      lastSeenItemId: ReturnType<typeof useDailyKnowledgeStore.getState>['lastSeenItemId'];
+    };
+  };
+}
+
+export function applyImportedSettings(
+  pendingImport: ExportData,
+  applyThemeMode?: (mode: ThemeMode) => void
+): void {
+  const { settings, theme, keybindings } = pendingImport;
+
+  // Apply settings
+  if (settings) {
+    const store = useSettingsStore.getState();
+    if (settings.connection) store.setConnection(settings.connection);
+    if (settings.backendProtocol) store.setBackendProtocol(settings.backendProtocol);
+    if (settings.skyEngine) store.setSkyEngine(settings.skyEngine);
+    if (settings.stellarium) store.setStellariumSettings(settings.stellarium);
+    if (settings.preferences) {
+      store.setPreferences(settings.preferences);
+      useLocaleStore.getState().setLocale(settings.preferences.locale);
+    }
+    if (settings.performance) store.setPerformanceSettings(settings.performance);
+    if (settings.accessibility) store.setAccessibilitySettings(settings.accessibility);
+    if (settings.notifications) store.setNotificationSettings(settings.notifications);
+    if (settings.search) store.setSearchSettings(settings.search);
+    if (settings.aladinDisplay) store.setAladinDisplaySettings(settings.aladinDisplay);
+  }
+
+  if (pendingImport.themeMode && applyThemeMode) {
+    const themeMode = normalizeThemeMode(pendingImport.themeMode);
+    if (themeMode) {
+      applyThemeMode(themeMode);
+    }
+  }
+
+  // Apply theme customization
+  if (theme) {
+    const themeStore = useThemeStore.getState();
+    themeStore.setCustomization({
+      radius: theme.radius,
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      animationsEnabled: theme.animationsEnabled,
+      activePreset: theme.activePreset,
+      customColors: theme.customColors,
+    });
+  }
+
+  // Apply keybindings
+  if (keybindings) {
+    const kbStore = useKeybindingStore.getState();
+    kbStore.resetAllBindings();
+    for (const [actionId, binding] of Object.entries(keybindings)) {
+      kbStore.setBinding(actionId as keyof typeof keybindings, binding);
+    }
+  }
+
+  // Apply equipment (v2+)
+  const { equipment, location, eventSources, dailyKnowledge } = pendingImport;
+  if (equipment) {
+    const eqStore = useEquipmentStore.getState();
+    if (equipment.sensorWidth !== undefined) eqStore.setSensorWidth(equipment.sensorWidth);
+    if (equipment.sensorHeight !== undefined) eqStore.setSensorHeight(equipment.sensorHeight);
+    if (equipment.focalLength !== undefined) eqStore.setFocalLength(equipment.focalLength);
+    if (equipment.pixelSize !== undefined) eqStore.setPixelSize(equipment.pixelSize);
+    if (equipment.aperture !== undefined) eqStore.setAperture(equipment.aperture);
+    if (equipment.rotationAngle !== undefined) eqStore.setRotationAngle(equipment.rotationAngle);
+    if (equipment.mosaic) eqStore.setMosaic(equipment.mosaic);
+    if (equipment.fovDisplay) eqStore.setFOVDisplay(equipment.fovDisplay);
+    if (equipment.ocularDisplay) eqStore.setOcularDisplay(equipment.ocularDisplay);
+    if (equipment.exposureDefaults) eqStore.setExposureDefaults(equipment.exposureDefaults);
+
+    // Restore custom presets (clear existing first to avoid duplicates)
+    if (equipment.customCameras) {
+      const existingCameras = eqStore.customCameras;
+      for (const c of existingCameras) { eqStore.removeCustomCamera(c.id); }
+      for (const cam of equipment.customCameras) {
+        eqStore.addCustomCamera({ name: cam.name, sensorWidth: cam.sensorWidth, sensorHeight: cam.sensorHeight, pixelSize: cam.pixelSize });
+      }
+    }
+    if (equipment.customTelescopes) {
+      const existingTelescopes = eqStore.customTelescopes;
+      for (const t of existingTelescopes) { eqStore.removeCustomTelescope(t.id); }
+      for (const tel of equipment.customTelescopes) {
+        eqStore.addCustomTelescope({ name: tel.name, focalLength: tel.focalLength, aperture: tel.aperture, type: tel.type });
+      }
+    }
+    if (equipment.customEyepieces) {
+      const existingEyepieces = eqStore.customEyepieces;
+      for (const eyepiece of existingEyepieces) { eqStore.removeCustomEyepiece(eyepiece.id); }
+      for (const eyepiece of equipment.customEyepieces) {
+        eqStore.addCustomEyepiece({
+          name: eyepiece.name,
+          focalLength: eyepiece.focalLength,
+          afov: eyepiece.afov,
+          fieldStop: eyepiece.fieldStop,
+        });
+      }
+    }
+    if (equipment.customBarlows) {
+      const existingBarlows = eqStore.customBarlows;
+      for (const barlow of existingBarlows) { eqStore.removeCustomBarlow(barlow.id); }
+      for (const barlow of equipment.customBarlows) {
+        eqStore.addCustomBarlow({
+          name: barlow.name,
+          magnification: barlow.magnification,
+        });
+      }
+    }
+    if (equipment.customOcularTelescopes) {
+      const existingOcularTelescopes = eqStore.customOcularTelescopes;
+      for (const telescope of existingOcularTelescopes) { eqStore.removeCustomOcularTelescope(telescope.id); }
+      for (const telescope of equipment.customOcularTelescopes) {
+        eqStore.addCustomOcularTelescope({
+          name: telescope.name,
+          focalLength: telescope.focalLength,
+          aperture: telescope.aperture,
+          type: telescope.type,
+        });
+      }
+    }
+    const latestEquipmentState = useEquipmentStore.getState();
+    const availableTelescopeIds = new Set([
+      ...OCULAR_TELESCOPE_PRESETS.map((item) => item.id),
+      ...latestEquipmentState.customOcularTelescopes.map((item) => item.id),
+    ]);
+    const availableEyepieceIds = new Set([
+      ...EYEPIECE_PRESETS.map((item) => item.id),
+      ...latestEquipmentState.customEyepieces.map((item) => item.id),
+    ]);
+    const availableBarlowIds = new Set([
+      ...BARLOW_PRESETS.map((item) => item.id),
+      ...latestEquipmentState.customBarlows.map((item) => item.id),
+    ]);
+
+    const fallbackTelescopeId = OCULAR_TELESCOPE_PRESETS[0]?.id;
+    const fallbackEyepieceId = EYEPIECE_PRESETS[0]?.id;
+    const fallbackBarlowId = BARLOW_PRESETS[0]?.id;
+
+    const nextTelescopeId = equipment.selectedOcularTelescopeId && availableTelescopeIds.has(equipment.selectedOcularTelescopeId)
+      ? equipment.selectedOcularTelescopeId
+      : fallbackTelescopeId;
+    const nextEyepieceId = equipment.selectedEyepieceId && availableEyepieceIds.has(equipment.selectedEyepieceId)
+      ? equipment.selectedEyepieceId
+      : fallbackEyepieceId;
+    const nextBarlowId = equipment.selectedBarlowId && availableBarlowIds.has(equipment.selectedBarlowId)
+      ? equipment.selectedBarlowId
+      : fallbackBarlowId;
+
+    if (nextTelescopeId) {
+      latestEquipmentState.setSelectedOcularTelescopeId(nextTelescopeId);
+    }
+    if (nextEyepieceId) {
+      latestEquipmentState.setSelectedEyepieceId(nextEyepieceId);
+    }
+    if (nextBarlowId) {
+      latestEquipmentState.setSelectedBarlowId(nextBarlowId);
+    }
+  }
+
+  // Apply location (v2+)
+  if (location) {
+    const mountStore = useMountStore.getState();
+    mountStore.setProfileInfo({
+      ...mountStore.profileInfo,
+      AstrometrySettings: {
+        Latitude: location.latitude,
+        Longitude: location.longitude,
+        Elevation: location.elevation,
+      },
+    });
+  }
+
+  // Apply event sources (v2+)
+  if (eventSources) {
+    const esStore = useEventSourcesStore.getState();
+    esStore.resetToDefaults();
+    for (const source of eventSources) {
+      esStore.updateSource(source.id, source);
+    }
+  }
+
+  const dailyKnowledgeStore = useDailyKnowledgeStore.getState();
+  if (pendingImport.version >= 4 && dailyKnowledge) {
+    dailyKnowledgeStore.hydrateFromImport({
+      favorites: dailyKnowledge.favorites ?? [],
+      history: dailyKnowledge.history ?? [],
+      lastShownDate: dailyKnowledge.startupState?.lastShownDate ?? null,
+      snoozedDate: dailyKnowledge.startupState?.snoozedDate ?? null,
+      lastSeenItemId: dailyKnowledge.startupState?.lastSeenItemId ?? null,
+    });
+  } else if (pendingImport.version >= 4) {
+    dailyKnowledgeStore.hydrateFromImport({
+      favorites: [],
+      history: [],
+      lastShownDate: null,
+      snoozedDate: null,
+      lastSeenItemId: null,
+    });
+  } else if (pendingImport.version <= 3) {
+    dailyKnowledgeStore.hydrateFromImport({
+      favorites: [],
+      history: [],
+      lastShownDate: null,
+      snoozedDate: null,
+      lastSeenItemId: null,
+    });
+  }
 }
 
 export function SettingsExportImport() {
   const t = useTranslations();
+  const { theme: currentThemeMode, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [importError, setImportError] = useState('');
@@ -80,19 +325,23 @@ export function SettingsExportImport() {
     const equipmentState = useEquipmentStore.getState();
     const mountState = useMountStore.getState();
     const eventSourcesState = useEventSourcesStore.getState();
+    const dailyKnowledgeState = useDailyKnowledgeStore.getState();
 
     const exportData: ExportData = {
-      version: 2,
+      version: 4,
       exportedAt: new Date().toISOString(),
+      themeMode: normalizeThemeMode(currentThemeMode) ?? 'system',
       settings: {
         connection: settingsState.connection,
         backendProtocol: settingsState.backendProtocol,
+        skyEngine: settingsState.skyEngine,
         stellarium: settingsState.stellarium,
         preferences: settingsState.preferences,
         performance: settingsState.performance,
         accessibility: settingsState.accessibility,
         notifications: settingsState.notifications,
         search: settingsState.search,
+        aladinDisplay: settingsState.aladinDisplay,
       },
       theme: themeState.customization,
       keybindings: keybindingState.customBindings,
@@ -105,12 +354,16 @@ export function SettingsExportImport() {
         rotationAngle: equipmentState.rotationAngle,
         mosaic: equipmentState.mosaic,
         fovDisplay: equipmentState.fovDisplay,
+        ocularDisplay: equipmentState.ocularDisplay,
         exposureDefaults: equipmentState.exposureDefaults,
         customCameras: equipmentState.customCameras,
         customTelescopes: equipmentState.customTelescopes,
         customEyepieces: equipmentState.customEyepieces,
         customBarlows: equipmentState.customBarlows,
         customOcularTelescopes: equipmentState.customOcularTelescopes,
+        selectedOcularTelescopeId: equipmentState.selectedOcularTelescopeId,
+        selectedEyepieceId: equipmentState.selectedEyepieceId,
+        selectedBarlowId: equipmentState.selectedBarlowId,
       },
       location: {
         latitude: mountState.profileInfo.AstrometrySettings.Latitude,
@@ -118,6 +371,15 @@ export function SettingsExportImport() {
         elevation: mountState.profileInfo.AstrometrySettings.Elevation,
       },
       eventSources: eventSourcesState.sources,
+      dailyKnowledge: {
+        favorites: dailyKnowledgeState.favorites,
+        history: dailyKnowledgeState.history,
+        startupState: {
+          lastShownDate: dailyKnowledgeState.lastShownDate,
+          snoozedDate: dailyKnowledgeState.snoozedDate,
+          lastSeenItemId: dailyKnowledgeState.lastSeenItemId,
+        },
+      },
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -129,7 +391,7 @@ export function SettingsExportImport() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, []);
+  }, [currentThemeMode]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,7 +401,7 @@ export function SettingsExportImport() {
     reader.onload = (event) => {
       try {
         const data = JSON.parse(event.target?.result as string) as ExportData;
-        if (!data.version || !data.settings) {
+        if (typeof data.version !== 'number' || !data.settings) {
           setImportStatus('error');
           setImportError(t('settingsNew.exportImport.invalidFile'));
           return;
@@ -160,90 +422,7 @@ export function SettingsExportImport() {
     if (!pendingImport) return;
 
     try {
-      const { settings, theme, keybindings } = pendingImport;
-
-      // Apply settings
-      if (settings) {
-        const store = useSettingsStore.getState();
-        if (settings.connection) store.setConnection(settings.connection);
-        if (settings.backendProtocol) store.setBackendProtocol(settings.backendProtocol);
-        if (settings.stellarium) store.setStellariumSettings(settings.stellarium);
-        if (settings.preferences) store.setPreferences(settings.preferences);
-        if (settings.performance) store.setPerformanceSettings(settings.performance);
-        if (settings.accessibility) store.setAccessibilitySettings(settings.accessibility);
-        if (settings.notifications) store.setNotificationSettings(settings.notifications);
-        if (settings.search) store.setSearchSettings(settings.search);
-      }
-
-      // Apply theme
-      if (theme) {
-        const themeStore = useThemeStore.getState();
-        if (theme.radius !== undefined) themeStore.setRadius(theme.radius);
-        if (theme.fontFamily) themeStore.setFontFamily(theme.fontFamily);
-        if (theme.fontSize) themeStore.setFontSize(theme.fontSize);
-        if (theme.activePreset !== undefined) themeStore.setActivePreset(theme.activePreset);
-      }
-
-      // Apply keybindings
-      if (keybindings) {
-        const kbStore = useKeybindingStore.getState();
-        kbStore.resetAllBindings();
-        for (const [actionId, binding] of Object.entries(keybindings)) {
-          kbStore.setBinding(actionId as keyof typeof keybindings, binding);
-        }
-      }
-
-      // Apply equipment (v2+)
-      const { equipment, location, eventSources } = pendingImport;
-      if (equipment) {
-        const eqStore = useEquipmentStore.getState();
-        if (equipment.sensorWidth) eqStore.setSensorWidth(equipment.sensorWidth);
-        if (equipment.sensorHeight) eqStore.setSensorHeight(equipment.sensorHeight);
-        if (equipment.focalLength) eqStore.setFocalLength(equipment.focalLength);
-        if (equipment.pixelSize) eqStore.setPixelSize(equipment.pixelSize);
-        if (equipment.aperture) eqStore.setAperture(equipment.aperture);
-        if (equipment.rotationAngle !== undefined) eqStore.setRotationAngle(equipment.rotationAngle);
-        if (equipment.mosaic) eqStore.setMosaic(equipment.mosaic);
-        if (equipment.fovDisplay) eqStore.setFOVDisplay(equipment.fovDisplay);
-        if (equipment.exposureDefaults) eqStore.setExposureDefaults(equipment.exposureDefaults);
-        // Restore custom presets (clear existing first to avoid duplicates)
-        if (equipment.customCameras) {
-          const existingCameras = eqStore.customCameras;
-          for (const c of existingCameras) { eqStore.removeCustomCamera(c.id); }
-          for (const cam of equipment.customCameras) {
-            eqStore.addCustomCamera({ name: cam.name, sensorWidth: cam.sensorWidth, sensorHeight: cam.sensorHeight, pixelSize: cam.pixelSize });
-          }
-        }
-        if (equipment.customTelescopes) {
-          const existingTelescopes = eqStore.customTelescopes;
-          for (const t of existingTelescopes) { eqStore.removeCustomTelescope(t.id); }
-          for (const tel of equipment.customTelescopes) {
-            eqStore.addCustomTelescope({ name: tel.name, focalLength: tel.focalLength, aperture: tel.aperture, type: tel.type });
-          }
-        }
-      }
-
-      // Apply location (v2+)
-      if (location) {
-        const mountStore = useMountStore.getState();
-        mountStore.setProfileInfo({
-          ...mountStore.profileInfo,
-          AstrometrySettings: {
-            Latitude: location.latitude,
-            Longitude: location.longitude,
-            Elevation: location.elevation,
-          },
-        });
-      }
-
-      // Apply event sources (v2+)
-      if (eventSources) {
-        const esStore = useEventSourcesStore.getState();
-        esStore.resetToDefaults();
-        for (const source of eventSources) {
-          esStore.updateSource(source.id, source);
-        }
-      }
+      applyImportedSettings(pendingImport, setTheme);
 
       setImportStatus('success');
       setTimeout(() => setImportStatus('idle'), 3000);
@@ -254,7 +433,7 @@ export function SettingsExportImport() {
 
     setPendingImport(null);
     setConfirmOpen(false);
-  }, [pendingImport, t]);
+  }, [pendingImport, setTheme, t]);
 
   return (
     <div className="space-y-4">

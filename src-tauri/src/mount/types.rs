@@ -175,6 +175,26 @@ pub struct DiscoveredDevice {
 }
 
 // ============================================================================
+// Observing Conditions & Safety
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservingConditions {
+    pub cloud_cover: Option<f64>,
+    pub humidity: Option<f64>,
+    pub wind_speed: Option<f64>,
+    pub dew_point: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SafetyState {
+    pub is_safe: bool,
+    pub source: String,
+}
+
+// ============================================================================
 // Error Types
 // ============================================================================
 

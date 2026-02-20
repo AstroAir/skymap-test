@@ -12,6 +12,7 @@ export type { GridType } from '@/lib/constants/equipment-presets';
 export type BinningType = '1x1' | '2x2' | '3x3' | '4x4';
 export type TrackingType = 'none' | 'basic' | 'guided';
 export type TargetType = 'galaxy' | 'nebula' | 'cluster' | 'planetary';
+export type GainStrategy = 'unity' | 'max_dynamic_range' | 'manual';
 
 export interface MosaicSettings {
   enabled: boolean;
@@ -53,6 +54,19 @@ export interface ExposureDefaults {
   tracking: TrackingType;
   targetType: TargetType;
   bortle: number;
+  sqmOverride?: number;
+  filterBandwidthNm: number;
+  readNoiseLimitPercent: number;
+  gainStrategy: GainStrategy;
+  manualGain: number;
+  manualReadNoiseEnabled: boolean;
+  manualReadNoise: number;
+  manualDarkCurrent: number;
+  manualFullWell: number;
+  manualQE: number;
+  manualEPeraDu: number;
+  targetSurfaceBrightness: number;
+  targetSignalRate: number;
 }
 
 export interface FOVDisplaySettings {
@@ -69,6 +83,13 @@ export interface FOVDisplaySettings {
   preserveAlignment: boolean;   // Adjust rotation for field curvature compensation
   dragToPosition: boolean;      // Enable drag to reposition FOV rectangle
   frameStyle: 'solid' | 'dashed' | 'dotted';
+}
+
+export interface OcularDisplaySettings {
+  enabled: boolean;
+  opacity: number;
+  showCrosshair: boolean;
+  appliedFov: number | null;
 }
 
 // ============================================================================
@@ -93,6 +114,7 @@ interface EquipmentState {
   
   // FOV display settings
   fovDisplay: FOVDisplaySettings;
+  ocularDisplay: OcularDisplaySettings;
   
   // Exposure defaults
   exposureDefaults: ExposureDefaults;
@@ -139,6 +161,7 @@ interface EquipmentState {
   setFOVDisplay: (settings: Partial<FOVDisplaySettings>) => void;
   setFOVEnabled: (enabled: boolean) => void;
   setGridType: (type: GridType) => void;
+  setOcularDisplay: (settings: Partial<OcularDisplaySettings>) => void;
   
   // Actions - Exposure Defaults
   setExposureDefaults: (defaults: Partial<ExposureDefaults>) => void;
@@ -214,6 +237,13 @@ const DEFAULT_FOV_DISPLAY: FOVDisplaySettings = {
   frameStyle: 'solid',
 };
 
+const DEFAULT_OCULAR_DISPLAY: OcularDisplaySettings = {
+  enabled: false,
+  opacity: 70,
+  showCrosshair: true,
+  appliedFov: null,
+};
+
 const DEFAULT_EXPOSURE: ExposureDefaults = {
   exposureTime: 120,
   gain: 100,
@@ -226,6 +256,18 @@ const DEFAULT_EXPOSURE: ExposureDefaults = {
   tracking: 'guided',
   targetType: 'nebula',
   bortle: 5,
+  filterBandwidthNm: 300,
+  readNoiseLimitPercent: 5,
+  gainStrategy: 'unity',
+  manualGain: 100,
+  manualReadNoiseEnabled: false,
+  manualReadNoise: 1.8,
+  manualDarkCurrent: 0.002,
+  manualFullWell: 50000,
+  manualQE: 0.8,
+  manualEPeraDu: 1,
+  targetSurfaceBrightness: 22,
+  targetSignalRate: 0,
 };
 
 // ============================================================================
@@ -248,6 +290,7 @@ export const useEquipmentStore = create<EquipmentState>()(
       
       mosaic: DEFAULT_MOSAIC,
       fovDisplay: DEFAULT_FOV_DISPLAY,
+      ocularDisplay: DEFAULT_OCULAR_DISPLAY,
       exposureDefaults: DEFAULT_EXPOSURE,
       
       customCameras: [],
@@ -315,6 +358,9 @@ export const useEquipmentStore = create<EquipmentState>()(
       })),
       setGridType: (gridType) => set((state) => ({
         fovDisplay: { ...state.fovDisplay, gridType },
+      })),
+      setOcularDisplay: (settings) => set((state) => ({
+        ocularDisplay: { ...state.ocularDisplay, ...settings },
       })),
       
       // Exposure Defaults
@@ -433,6 +479,7 @@ export const useEquipmentStore = create<EquipmentState>()(
         rotationAngle: 0,
         mosaic: DEFAULT_MOSAIC,
         fovDisplay: DEFAULT_FOV_DISPLAY,
+        ocularDisplay: DEFAULT_OCULAR_DISPLAY,
         exposureDefaults: DEFAULT_EXPOSURE,
       }),
       
@@ -487,7 +534,28 @@ export const useEquipmentStore = create<EquipmentState>()(
     {
       name: 'starmap-equipment',
       storage: getZustandStorage(),
-      version: 1,
+      version: 3,
+      migrate: (persistedState) => {
+        if (!persistedState || typeof persistedState !== 'object') {
+          return persistedState;
+        }
+
+        const state = persistedState as Record<string, unknown>;
+        const persistedExposureDefaults = state.exposureDefaults as Partial<ExposureDefaults> | undefined;
+        const persistedOcularDisplay = state.ocularDisplay as Partial<OcularDisplaySettings> | undefined;
+
+        return {
+          ...state,
+          exposureDefaults: {
+            ...DEFAULT_EXPOSURE,
+            ...(persistedExposureDefaults ?? {}),
+          },
+          ocularDisplay: {
+            ...DEFAULT_OCULAR_DISPLAY,
+            ...(persistedOcularDisplay ?? {}),
+          },
+        };
+      },
       partialize: (state) => ({
         activeCameraId: state.activeCameraId,
         activeTelescopeId: state.activeTelescopeId,
@@ -499,6 +567,7 @@ export const useEquipmentStore = create<EquipmentState>()(
         rotationAngle: state.rotationAngle,
         mosaic: state.mosaic,
         fovDisplay: state.fovDisplay,
+        ocularDisplay: state.ocularDisplay,
         exposureDefaults: state.exposureDefaults,
         customCameras: state.customCameras,
         customTelescopes: state.customTelescopes,

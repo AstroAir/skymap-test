@@ -41,6 +41,7 @@ import { toast } from 'sonner';
 import { useCache } from '@/lib/tauri/hooks';
 import { isTauri } from '@/lib/storage/platform';
 import { createLogger } from '@/lib/logger';
+import { useIsClient } from '@/lib/hooks/use-is-client';
 
 import { CacheLayersTab } from './cache-layers-tab';
 import { CacheSurveysTab } from './cache-surveys-tab';
@@ -51,6 +52,7 @@ const logger = createLogger('offline-cache-manager');
 export function OfflineCacheManager() {
   const t = useTranslations();
   const [activeTab, setActiveTab] = useState<'layers' | 'surveys' | 'unified'>('layers');
+  const isClient = useIsClient();
   
   // Storage info state
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
@@ -130,15 +132,22 @@ export function OfflineCacheManager() {
               <CardTitle className="text-base">{t('cache.offlineCache')}</CardTitle>
             </div>
             <div className="flex items-center gap-2">
-              {isOnline ? (
-                <Badge variant="outline" className="text-green-500 border-green-500/50">
-                  <Cloud className="h-3 w-3 mr-1" />
-                  {t('common.online')}
-                </Badge>
+              {isClient ? (
+                isOnline ? (
+                  <Badge variant="outline" className="text-green-500 border-green-500/50">
+                    <Cloud className="h-3 w-3 mr-1" />
+                    {t('common.online')}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-yellow-500 border-yellow-500/50">
+                    <CloudOff className="h-3 w-3 mr-1" />
+                    {t('common.offline')}
+                  </Badge>
+                )
               ) : (
-                <Badge variant="outline" className="text-yellow-500 border-yellow-500/50">
-                  <CloudOff className="h-3 w-3 mr-1" />
-                  {t('common.offline')}
+                <Badge variant="outline" className="text-green-500 border-green-500/50">
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  {t('common.loading')}
                 </Badge>
               )}
               <Button

@@ -234,6 +234,52 @@ describe('calculateOcularView', () => {
       expect(result.effectiveFocalLength).toBeCloseTo(630, 0);
     });
   });
+
+  describe('invalid input defense', () => {
+    it('clamps invalid/zero values and keeps finite output', () => {
+      const brokenScope = {
+        id: 'bad-scope',
+        name: 'Bad Scope',
+        focalLength: 0,
+        aperture: -1,
+        type: 'reflector',
+      } as OcularTelescopePreset;
+      const brokenEyepiece = {
+        id: 'bad-ep',
+        name: 'Bad EP',
+        focalLength: 0,
+        afov: -20,
+      } as EyepiecePreset;
+      const brokenBarlow = {
+        id: 'bad-barlow',
+        name: 'Bad Barlow',
+        magnification: 0,
+      } as BarlowPreset;
+
+      const result = calculateOcularView(brokenScope, brokenEyepiece, brokenBarlow);
+
+      expect(Number.isFinite(result.magnification)).toBe(true);
+      expect(Number.isFinite(result.tfov)).toBe(true);
+      expect(Number.isFinite(result.exitPupil)).toBe(true);
+      expect(result.magnification).toBeGreaterThanOrEqual(0);
+      expect(result.tfov).toBeGreaterThanOrEqual(0);
+      expect(result.effectiveFocalLength).toBeGreaterThanOrEqual(1);
+    });
+
+    it('falls back to AFOV formula when field stop is invalid', () => {
+      const eyepiece = {
+        id: 'ep-invalid-field-stop',
+        name: 'Invalid Field Stop',
+        focalLength: 10,
+        afov: 60,
+        fieldStop: -3,
+      } as EyepiecePreset;
+
+      const result = calculateOcularView(refractor80, eyepiece, noBarlow);
+
+      expect(result.tfov).toBeCloseTo(60 / (400 / 10), 3);
+    });
+  });
 });
 
 // ============================================================================

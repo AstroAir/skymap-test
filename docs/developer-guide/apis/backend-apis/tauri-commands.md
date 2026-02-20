@@ -354,7 +354,10 @@ console.log(`清理了 ${removed} 个过期条目`);
 | `get_moon_phases_for_month` | 获取月相 | year, month | MoonPhase[] |
 | `get_meteor_showers` | 获取流星雨 | year, month | MeteorShower[] |
 | `get_seasonal_events` | 获取季节性事件 | year | SeasonalEvent[] |
+| `get_daily_astro_events` | 获取单日事件 | date, timezone, includeOngoing | AstroEvent[] |
 | `get_tonight_highlights` | 今晚亮点 | date, location | Highlight[] |
+
+> 说明：旧版 NASA Eclipse Web Service 端点已停止维护，前端数据源现应使用 NASA GSFC 目录页面解析或本地计算兜底。
 
 ### 数据结构
 

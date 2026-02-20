@@ -9,7 +9,12 @@
 
 // Core stores
 export { useStellariumStore } from './stellarium-store';
-export { useSettingsStore } from './settings-store';
+export {
+  useSettingsStore,
+  type PrecisionMode,
+  type EopUpdatePolicy,
+  type MobileFeaturePreferences,
+} from './settings-store';
 export { useFramingStore } from './framing-store';
 export { useMountStore } from './mount-store';
 
@@ -39,6 +44,17 @@ export {
   type TrackedSatellite 
 } from './satellite-store';
 
+// Aladin layers/configuration store
+export {
+  useAladinStore,
+  type AladinCatalogLayer,
+  type AladinImageOverlayLayer,
+  type AladinMOCLayer,
+  type AladinFitsLayer,
+  type CatalogSourceType,
+  type AladinFitsMode,
+} from './aladin-store';
+
 // Equipment store with presets and helpers
 export {
   useEquipmentStore,
@@ -56,6 +72,7 @@ export {
   type TrackingType,
   type TargetType,
   type FOVDisplaySettings,
+  type OcularDisplaySettings,
   type ExposureDefaults,
 } from './equipment-store';
 
@@ -67,6 +84,9 @@ export {
   type TourStep,
   type SetupWizardStep,
 } from './onboarding-store';
+
+// Onboarding bridge store (cross-component guide actions)
+export { useOnboardingBridgeStore } from './onboarding-bridge-store';
 
 // @deprecated - Use useOnboardingStore instead
 export {
@@ -133,12 +153,19 @@ export {
   type EventSourceConfig,
 } from './event-sources-store';
 
+// Planning UI bridge store
+export { usePlanningUiStore } from './planning-ui-store';
+
 // Session plan store
 export {
   useSessionPlanStore,
   type SavedSessionPlan,
   type SavedScheduledTarget,
+  type SavedSessionTemplate,
 } from './session-plan-store';
+
+// Feedback store
+export { useFeedbackStore } from './feedback-store';
 
 // Updater store
 export {
@@ -154,3 +181,6 @@ export {
   type UpdaterActions,
   type UpdaterStore,
 } from './updater-store';
+
+// Daily knowledge store
+export { useDailyKnowledgeStore, getLocalDateKey } from './daily-knowledge-store';

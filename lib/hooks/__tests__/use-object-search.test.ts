@@ -15,21 +15,61 @@ jest.mock('@/lib/stores/target-list-store', () => ({
 }));
 
 const mockRecentSearches: { query: string }[] = [];
-jest.mock('@/lib/stores/search-store', () => ({
-  useSearchStore: jest.fn(() => ({
-    currentSearchMode: 'local',
-    settings: { timeout: 15000 },
-    getEnabledSources: () => ['sesame', 'simbad'],
-    addRecentSearch: jest.fn((query: string) => {
-      if (query.trim() && !mockRecentSearches.some(s => s.query === query)) {
-        mockRecentSearches.unshift({ query });
-      }
-    }),
-    getRecentSearches: jest.fn(() => mockRecentSearches),
-    clearRecentSearches: jest.fn(() => { mockRecentSearches.length = 0; }),
-    updateAllOnlineStatus: jest.fn(),
-  })),
-}));
+const mockSearchStoreState = {
+  currentSearchMode: 'local' as const,
+  settings: { timeout: 15000, groupBySource: false },
+  lastStatusCheck: Date.now(),
+  onlineStatus: {
+    local: true,
+    sesame: true,
+    simbad: true,
+    vizier: true,
+    ned: true,
+    mpc: true,
+  },
+  getEnabledSources: jest.fn(() => ['local', 'sesame', 'simbad']),
+  addRecentSearch: jest.fn((query: string) => {
+    if (query.trim() && !mockRecentSearches.some(s => s.query === query)) {
+      mockRecentSearches.unshift({ query });
+    }
+  }),
+  getRecentSearches: jest.fn(() => mockRecentSearches),
+  clearRecentSearches: jest.fn(() => { mockRecentSearches.length = 0; }),
+  updateAllOnlineStatus: jest.fn(),
+  cacheSearchResults: jest.fn(),
+  getCachedResults: jest.fn(() => null),
+  setMaxRecentSearches: jest.fn(),
+};
+
+const mockUseSearchStore = Object.assign(
+  jest.fn((selector?: (state: typeof mockSearchStoreState) => unknown) => {
+    if (typeof selector === 'function') {
+      return selector(mockSearchStoreState);
+    }
+    return mockSearchStoreState;
+  }),
+  {
+    getState: () => mockSearchStoreState,
+  }
+);
+const mockSettingsState = {
+  search: {
+    enableFuzzySearch: true,
+    autoSearchDelay: 150,
+    maxSearchResults: 50,
+    includeMinorObjects: true,
+    rememberSearchHistory: true,
+    maxHistoryItems: 20,
+  },
+};
+
+jest.mock('@/lib/stores/search-store', () => {
+  const useSearchStore = (...args: unknown[]) =>
+    (mockUseSearchStore as (...a: unknown[]) => unknown)(...args);
+  (useSearchStore as typeof useSearchStore & { getState: () => typeof mockSearchStoreState }).getState = () =>
+    mockUseSearchStore.getState();
+  return { useSearchStore };
+});
 
 jest.mock('@/lib/services/online-search-service', () => ({
   searchOnlineByName: jest.fn().mockResolvedValue({ results: [], sources: [], totalCount: 0, searchTimeMs: 0 }),
@@ -39,8 +79,7 @@ jest.mock('@/lib/services/online-search-service', () => ({
 
 jest.mock('@/lib/stores/settings-store', () => ({
   useSettingsStore: jest.fn((selector) => {
-    const state = { search: { enableFuzzySearch: true, autoSearchDelay: 150, maxSearchResults: 50 } };
-    return typeof selector === 'function' ? selector(state) : state;
+    return typeof selector === 'function' ? selector(mockSettingsState) : mockSettingsState;
   }),
 }));
 
@@ -59,6 +98,32 @@ describe('useObjectSearch', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     mockRecentSearches.length = 0;
+    mockSearchStoreState.currentSearchMode = 'local';
+    mockSearchStoreState.settings = { timeout: 15000, groupBySource: false };
+    mockSearchStoreState.lastStatusCheck = Date.now();
+    mockSearchStoreState.onlineStatus = {
+      local: true,
+      sesame: true,
+      simbad: true,
+      vizier: true,
+      ned: true,
+      mpc: true,
+    };
+    mockSearchStoreState.getEnabledSources.mockClear();
+    mockSearchStoreState.addRecentSearch.mockClear();
+    mockSearchStoreState.getRecentSearches.mockClear();
+    mockSearchStoreState.clearRecentSearches.mockClear();
+    mockSearchStoreState.updateAllOnlineStatus.mockClear();
+    mockSearchStoreState.cacheSearchResults.mockClear();
+    mockSearchStoreState.getCachedResults.mockClear();
+    mockSearchStoreState.getCachedResults.mockReturnValue(null);
+    mockSearchStoreState.setMaxRecentSearches.mockClear();
+    mockSettingsState.search.enableFuzzySearch = true;
+    mockSettingsState.search.autoSearchDelay = 150;
+    mockSettingsState.search.maxSearchResults = 50;
+    mockSettingsState.search.includeMinorObjects = true;
+    mockSettingsState.search.rememberSearchHistory = true;
+    mockSettingsState.search.maxHistoryItems = 20;
   });
 
   afterEach(() => {
@@ -127,7 +192,12 @@ describe('useObjectSearch', () => {
         expect(result.current.results.length).toBeGreaterThan(0);
       });
       
-      const m31 = result.current.results.find(r => r.Name === 'M31');
+      const m31 = result.current.results.find(
+        r =>
+          r.Name.toLowerCase() === 'm31' ||
+          r.Name.toLowerCase().includes('messier 31') ||
+          r['Common names']?.toLowerCase().includes('andromeda')
+      );
       expect(m31).toBeDefined();
     });
 
@@ -428,6 +498,18 @@ describe('useObjectSearch', () => {
       // recentSearches should be an array (from store)
       expect(Array.isArray(result.current.recentSearches)).toBe(true);
     });
+
+    it('should disable history when rememberSearchHistory is false', () => {
+      mockSettingsState.search.rememberSearchHistory = false;
+      const { result } = renderHook(() => useObjectSearch());
+
+      act(() => {
+        result.current.addRecentSearch('M31');
+      });
+
+      expect(mockSearchStoreState.addRecentSearch).not.toHaveBeenCalled();
+      expect(result.current.recentSearches).toEqual([]);
+    });
   });
 
   describe('search stats', () => {
@@ -462,6 +544,22 @@ describe('useObjectSearch', () => {
       });
       
       expect(result.current.groupedResults).toBeInstanceOf(Map);
+    });
+
+    it('should group by source when groupBySource is enabled', async () => {
+      mockSearchStoreState.settings = { timeout: 15000, groupBySource: true };
+      const { result } = renderHook(() => useObjectSearch());
+
+      act(() => {
+        result.current.search('M31');
+        jest.advanceTimersByTime(200);
+      });
+
+      await waitFor(() => {
+        expect(result.current.results.length).toBeGreaterThan(0);
+      });
+
+      expect(result.current.groupedResults.has('local')).toBe(true);
     });
   });
 

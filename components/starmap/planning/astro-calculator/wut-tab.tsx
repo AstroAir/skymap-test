@@ -48,6 +48,13 @@ interface WUTTabProps {
   onAddToList: (name: string, ra: number, dec: number) => void;
 }
 
+function isHourInWindow(hour: number, startHour: number, endHour: number): boolean {
+  if (startHour <= endHour) {
+    return hour >= startHour && hour <= endHour;
+  }
+  return hour >= startHour || hour <= endHour;
+}
+
 export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUTTabProps) {
   const t = useTranslations();
   const [objectType, setObjectType] = useState<'all' | 'galaxy' | 'nebula' | 'cluster' | 'planetary'>('all');
@@ -130,11 +137,11 @@ export function WUTTab({ latitude, longitude, onSelectObject, onAddToList }: WUT
         
         switch (timeWindow) {
           case 'evening':
-            return transitHour >= duskHour || transitHour <= 23;
+            return isHourInWindow(transitHour, duskHour, 23);
           case 'midnight':
-            return transitHour >= 22 || transitHour <= 2;
+            return isHourInWindow(transitHour, 22, 2);
           case 'morning':
-            return transitHour >= 2 && transitHour <= dawnHour;
+            return isHourInWindow(transitHour, 2, dawnHour);
         }
       }
       

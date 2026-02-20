@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getZustandStorage } from '@/lib/storage';
 import { isTauri } from '@/lib/storage/platform';
-import { targetListApi } from '@/lib/tauri/target-list-api';
+import { targetListApi, type ExposurePlan as TauriExposurePlan } from '@/lib/tauri/target-list-api';
 import { createLogger } from '@/lib/logger';
+import type { RecommendationProfile } from '@/lib/core/types';
 
 const logger = createLogger('target-list-store');
 
@@ -16,6 +17,42 @@ export interface ObservableWindow {
   maxAltitude: number;
   transitTime: Date;
   isCircumpolar: boolean;
+}
+
+export interface ExposurePlanAdvanced {
+  sqm?: number;
+  filterBandwidthNm?: number;
+  readNoiseLimitPercent?: number;
+  gainStrategy?: 'unity' | 'max_dynamic_range' | 'manual';
+  recommendedGain?: number;
+  recommendedExposureSec?: number;
+  skyFluxPerPixel?: number;
+  targetSignalPerPixelPerSec?: number;
+  dynamicRangeScore?: number;
+  dynamicRangeStops?: number;
+  readNoiseUsed?: number;
+  darkCurrentUsed?: number;
+  noiseFractions?: {
+    read?: number;
+    sky?: number;
+    dark?: number;
+  };
+  stackEstimate?: {
+    recommendedFrameCount?: number;
+    estimatedTotalMinutes?: number;
+    framesForTargetSNR?: number;
+    framesForTimeNoise?: number;
+    targetSNR?: number;
+    targetTimeNoiseRatio?: number;
+  };
+}
+
+export interface TargetExposurePlan {
+  singleExposure: number;
+  totalExposure: number;
+  subFrames: number;
+  filter?: string;
+  advanced?: ExposurePlanAdvanced;
 }
 
 /**
@@ -41,12 +78,7 @@ export interface TargetItem {
     overlap: number;
   };
   // Exposure plan
-  exposurePlan?: {
-    singleExposure: number; // seconds
-    totalExposure: number; // minutes
-    subFrames: number;
-    filter?: string;
-  };
+  exposurePlan?: TargetExposurePlan;
   // Notes
   notes?: string;
   // Timestamps
@@ -89,6 +121,9 @@ interface TargetListState {
   filterPriority: 'all' | TargetItem['priority'];
   sortBy: 'manual' | 'name' | 'priority' | 'status' | 'addedAt' | 'feasibility';
   sortOrder: 'asc' | 'desc';
+  scoreProfile: RecommendationProfile;
+  scoreVersion: 'v1' | 'v2';
+  scoreBreakdownVisibility: 'collapsed' | 'expanded';
   
   // Single target actions
   addTarget: (target: TargetInput) => void;
@@ -126,6 +161,9 @@ interface TargetListState {
   setFilterPriority: (priority: TargetListState['filterPriority']) => void;
   setSortBy: (sortBy: TargetListState['sortBy']) => void;
   setSortOrder: (order: TargetListState['sortOrder']) => void;
+  setScoreProfile: (profile: RecommendationProfile) => void;
+  setScoreVersion: (version: TargetListState['scoreVersion']) => void;
+  setScoreBreakdownVisibility: (visibility: TargetListState['scoreBreakdownVisibility']) => void;
   
   // Favorite/Archive
   toggleFavorite: (id: string) => void;
@@ -161,6 +199,94 @@ const findDuplicate = (targets: TargetItem[], name: string, ra: number, dec: num
   );
 };
 
+function toTauriExposurePlan(exposurePlan?: TargetExposurePlan): TauriExposurePlan | undefined {
+  if (!exposurePlan) return undefined;
+
+  return {
+    single_exposure: exposurePlan.singleExposure,
+    total_exposure: exposurePlan.totalExposure,
+    sub_frames: exposurePlan.subFrames,
+    filter: exposurePlan.filter,
+    advanced: exposurePlan.advanced
+      ? {
+          sqm: exposurePlan.advanced.sqm,
+          filter_bandwidth_nm: exposurePlan.advanced.filterBandwidthNm,
+          read_noise_limit_percent: exposurePlan.advanced.readNoiseLimitPercent,
+          gain_strategy: exposurePlan.advanced.gainStrategy,
+          recommended_gain: exposurePlan.advanced.recommendedGain,
+          recommended_exposure_sec: exposurePlan.advanced.recommendedExposureSec,
+          sky_flux_per_pixel: exposurePlan.advanced.skyFluxPerPixel,
+          target_signal_per_pixel_per_sec: exposurePlan.advanced.targetSignalPerPixelPerSec,
+          dynamic_range_score: exposurePlan.advanced.dynamicRangeScore,
+          dynamic_range_stops: exposurePlan.advanced.dynamicRangeStops,
+          read_noise_used: exposurePlan.advanced.readNoiseUsed,
+          dark_current_used: exposurePlan.advanced.darkCurrentUsed,
+          noise_fractions: exposurePlan.advanced.noiseFractions
+            ? {
+                read: exposurePlan.advanced.noiseFractions.read,
+                sky: exposurePlan.advanced.noiseFractions.sky,
+                dark: exposurePlan.advanced.noiseFractions.dark,
+              }
+            : undefined,
+          stack_estimate: exposurePlan.advanced.stackEstimate
+            ? {
+                recommended_frame_count: exposurePlan.advanced.stackEstimate.recommendedFrameCount,
+                estimated_total_minutes: exposurePlan.advanced.stackEstimate.estimatedTotalMinutes,
+                frames_for_target_snr: exposurePlan.advanced.stackEstimate.framesForTargetSNR,
+                frames_for_time_noise: exposurePlan.advanced.stackEstimate.framesForTimeNoise,
+                target_snr: exposurePlan.advanced.stackEstimate.targetSNR,
+                target_time_noise_ratio: exposurePlan.advanced.stackEstimate.targetTimeNoiseRatio,
+              }
+            : undefined,
+        }
+      : undefined,
+  };
+}
+
+function fromTauriExposurePlan(exposurePlan?: TauriExposurePlan): TargetExposurePlan | undefined {
+  if (!exposurePlan) return undefined;
+
+  return {
+    singleExposure: exposurePlan.single_exposure,
+    totalExposure: exposurePlan.total_exposure,
+    subFrames: exposurePlan.sub_frames,
+    filter: exposurePlan.filter,
+    advanced: exposurePlan.advanced
+      ? {
+          sqm: exposurePlan.advanced.sqm,
+          filterBandwidthNm: exposurePlan.advanced.filter_bandwidth_nm,
+          readNoiseLimitPercent: exposurePlan.advanced.read_noise_limit_percent,
+          gainStrategy: exposurePlan.advanced.gain_strategy,
+          recommendedGain: exposurePlan.advanced.recommended_gain,
+          recommendedExposureSec: exposurePlan.advanced.recommended_exposure_sec,
+          skyFluxPerPixel: exposurePlan.advanced.sky_flux_per_pixel,
+          targetSignalPerPixelPerSec: exposurePlan.advanced.target_signal_per_pixel_per_sec,
+          dynamicRangeScore: exposurePlan.advanced.dynamic_range_score,
+          dynamicRangeStops: exposurePlan.advanced.dynamic_range_stops,
+          readNoiseUsed: exposurePlan.advanced.read_noise_used,
+          darkCurrentUsed: exposurePlan.advanced.dark_current_used,
+          noiseFractions: exposurePlan.advanced.noise_fractions
+            ? {
+                read: exposurePlan.advanced.noise_fractions.read,
+                sky: exposurePlan.advanced.noise_fractions.sky,
+                dark: exposurePlan.advanced.noise_fractions.dark,
+              }
+            : undefined,
+          stackEstimate: exposurePlan.advanced.stack_estimate
+            ? {
+                recommendedFrameCount: exposurePlan.advanced.stack_estimate.recommended_frame_count,
+                estimatedTotalMinutes: exposurePlan.advanced.stack_estimate.estimated_total_minutes,
+                framesForTargetSNR: exposurePlan.advanced.stack_estimate.frames_for_target_snr,
+                framesForTimeNoise: exposurePlan.advanced.stack_estimate.frames_for_time_noise,
+                targetSNR: exposurePlan.advanced.stack_estimate.target_snr,
+                targetTimeNoiseRatio: exposurePlan.advanced.stack_estimate.target_time_noise_ratio,
+              }
+            : undefined,
+        }
+      : undefined,
+  };
+}
+
 export const useTargetListStore = create<TargetListState>()(
   persist(
     (set, get) => ({
@@ -176,6 +302,9 @@ export const useTargetListStore = create<TargetListState>()(
       filterPriority: 'all',
       sortBy: 'manual',
       sortOrder: 'asc',
+      scoreProfile: 'imaging',
+      scoreVersion: 'v2',
+      scoreBreakdownVisibility: 'collapsed',
       
       // ========== Single target actions ==========
       addTarget: (target) => {
@@ -206,6 +335,7 @@ export const useTargetListStore = create<TargetListState>()(
             sensor_height: newTarget.sensorHeight,
             focal_length: newTarget.focalLength,
             rotation_angle: newTarget.rotationAngle,
+            exposure_plan: toTauriExposurePlan(newTarget.exposurePlan),
           }).catch(err => logger.error('Failed to add target to Tauri', err));
         }
       },
@@ -246,6 +376,7 @@ export const useTargetListStore = create<TargetListState>()(
           if (updates.tags !== undefined) tauriUpdates.tags = updates.tags;
           if (updates.isFavorite !== undefined) tauriUpdates.is_favorite = updates.isFavorite;
           if (updates.isArchived !== undefined) tauriUpdates.is_archived = updates.isArchived;
+          if (updates.exposurePlan !== undefined) tauriUpdates.exposure_plan = toTauriExposurePlan(updates.exposurePlan);
           targetListApi.updateTarget(id, tauriUpdates).catch(err => logger.error('Failed to update target in Tauri', err));
         }
       },
@@ -409,6 +540,9 @@ export const useTargetListStore = create<TargetListState>()(
       setFilterPriority: (priority) => set({ filterPriority: priority }),
       setSortBy: (sortBy) => set({ sortBy }),
       setSortOrder: (order) => set({ sortOrder: order }),
+      setScoreProfile: (scoreProfile) => set({ scoreProfile }),
+      setScoreVersion: (scoreVersion) => set({ scoreVersion }),
+      setScoreBreakdownVisibility: (scoreBreakdownVisibility) => set({ scoreBreakdownVisibility }),
       
       // ========== Favorite/Archive ==========
       toggleFavorite: (id) => {
@@ -504,12 +638,7 @@ export const useTargetListStore = create<TargetListState>()(
                 sensorHeight: t.sensor_height,
                 focalLength: t.focal_length,
                 rotationAngle: t.rotation_angle,
-                exposurePlan: t.exposure_plan ? {
-                  singleExposure: t.exposure_plan.single_exposure,
-                  totalExposure: t.exposure_plan.total_exposure,
-                  subFrames: t.exposure_plan.sub_frames,
-                  filter: t.exposure_plan.filter,
-                } : undefined,
+                exposurePlan: fromTauriExposurePlan(t.exposure_plan),
               })),
               availableTags: data.available_tags,
               activeTargetId: data.active_target_id,
@@ -585,7 +714,7 @@ export const useTargetListStore = create<TargetListState>()(
                   const circumpolarBonus = w.isCircumpolar ? 0.2 : 0;
                   return durationHours * 0.5 + altScore * 0.3 + circumpolarBonus;
                 };
-                return dir * (calcScore(b) - calcScore(a));
+                return dir * (calcScore(a) - calcScore(b));
               }
               default:
                 return 0;
@@ -658,6 +787,9 @@ export const useTargetListStore = create<TargetListState>()(
         showArchived: state.showArchived,
         sortBy: state.sortBy,
         sortOrder: state.sortOrder,
+        scoreProfile: state.scoreProfile,
+        scoreVersion: state.scoreVersion,
+        scoreBreakdownVisibility: state.scoreBreakdownVisibility,
       }),
     }
   )

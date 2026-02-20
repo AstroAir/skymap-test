@@ -47,12 +47,43 @@ export interface ExposureSettings {
   ditherEnabled: boolean;
 }
 
+export type ExposureGainStrategy = 'unity' | 'max_dynamic_range' | 'manual';
+
+export interface ExposurePlanAdvanced {
+  sqm?: number;
+  filterBandwidthNm?: number;
+  readNoiseLimitPercent?: number;
+  gainStrategy?: ExposureGainStrategy;
+  recommendedGain?: number;
+  recommendedExposureSec?: number;
+  skyFluxPerPixel?: number;
+  targetSignalPerPixelPerSec?: number;
+  dynamicRangeScore?: number;
+  dynamicRangeStops?: number;
+  readNoiseUsed?: number;
+  darkCurrentUsed?: number;
+  noiseFractions?: {
+    read?: number;
+    sky?: number;
+    dark?: number;
+  };
+  stackEstimate?: {
+    recommendedFrameCount?: number;
+    estimatedTotalMinutes?: number;
+    framesForTargetSNR?: number;
+    framesForTimeNoise?: number;
+    targetSNR?: number;
+    targetTimeNoiseRatio?: number;
+  };
+}
+
 export interface ExposurePlan {
   settings: ExposureSettings;
   totalExposure: number; // minutes
   totalFrames: number;
   estimatedFileSize: number; // MB
   estimatedTime: string;
+  advanced?: ExposurePlanAdvanced;
 }
 
 export interface ExposureCalculatorProps {
@@ -88,6 +119,12 @@ export interface SessionPlan {
   gaps: Array<{ start: Date; end: Date; duration: number }>;
   recommendations: I18nMessage[];
   warnings: I18nMessage[];
+  conflicts?: SessionConflict[];
+}
+
+export interface SessionConflict {
+  type: string;
+  message: string;
 }
 
 export type OptimizationStrategy = 'altitude' | 'transit' | 'moon' | 'duration' | 'balanced';
@@ -212,7 +249,7 @@ export interface WUTObject {
 
 export interface PhenomenaEvent {
   date: Date;
-  type: 'conjunction' | 'opposition' | 'elongation' | 'occultation' | 'close_approach';
+  type: 'conjunction' | 'opposition' | 'elongation' | 'occultation' | 'close_approach' | 'moon_phase';
   object1: string;
   object2?: string;
   separation?: number;

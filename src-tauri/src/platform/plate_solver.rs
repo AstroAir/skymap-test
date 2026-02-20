@@ -2,7 +2,8 @@
 //! Integrates with ASTAP and Astrometry.net for astronomical plate solving
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
@@ -367,44 +368,57 @@ pub async fn get_solver_indexes(solver_type: PlateSolverType) -> Result<Vec<Astr
 
 #[tauri::command]
 pub fn get_downloadable_indexes() -> Vec<DownloadableIndex> {
-    vec![
-        DownloadableIndex {
-            name: "index-4107".to_string(),
-            url: "http://data.astrometry.net/4100/index-4107.fits".to_string(),
-            scale_low: 22.0, scale_high: 30.0, size_mb: 2,
-            description: "Wide field (22-30 arcmin/pixel)".to_string(),
-        },
-        DownloadableIndex {
-            name: "index-4108".to_string(),
-            url: "http://data.astrometry.net/4100/index-4108.fits".to_string(),
-            scale_low: 16.0, scale_high: 22.0, size_mb: 5,
-            description: "Medium-wide field (16-22 arcmin/pixel)".to_string(),
-        },
-        DownloadableIndex {
-            name: "index-4109".to_string(),
-            url: "http://data.astrometry.net/4100/index-4109.fits".to_string(),
-            scale_low: 11.0, scale_high: 16.0, size_mb: 11,
-            description: "Medium field (11-16 arcmin/pixel)".to_string(),
-        },
-        DownloadableIndex {
-            name: "index-4110".to_string(),
-            url: "http://data.astrometry.net/4100/index-4110.fits".to_string(),
-            scale_low: 8.0, scale_high: 11.0, size_mb: 22,
-            description: "Medium-narrow field (8-11 arcmin/pixel)".to_string(),
-        },
-        DownloadableIndex {
-            name: "index-4111".to_string(),
-            url: "http://data.astrometry.net/4100/index-4111.fits".to_string(),
-            scale_low: 5.6, scale_high: 8.0, size_mb: 44,
-            description: "Narrow field (5.6-8 arcmin/pixel)".to_string(),
-        },
-        DownloadableIndex {
-            name: "index-4112".to_string(),
-            url: "http://data.astrometry.net/4100/index-4112.fits".to_string(),
-            scale_low: 4.0, scale_high: 5.6, size_mb: 88,
-            description: "Very narrow field (4-5.6 arcmin/pixel)".to_string(),
-        },
+    astrometry_4100_index_definitions()
+        .iter()
+        .map(|def| DownloadableIndex {
+            name: def.name.to_string(),
+            url: format!("https://data.astrometry.net/4100/{}.fits", def.name),
+            scale_low: def.scale_low,
+            scale_high: def.scale_high,
+            size_mb: def.size_mb,
+            description: format!(
+                "Skymark diameters {}-{} arcmin",
+                trim_float(def.scale_low),
+                trim_float(def.scale_high)
+            ),
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Astrometry4100IndexDef {
+    name: &'static str,
+    scale_low: f64,
+    scale_high: f64,
+    size_mb: u64,
+}
+
+fn astrometry_4100_index_definitions() -> &'static [Astrometry4100IndexDef] {
+    // Official Astrometry.net 4100-series skymark diameters (arcminutes).
+    // Reference: https://astrometry.net/doc/readme.html
+    &[
+        Astrometry4100IndexDef { name: "index-4107", scale_low: 22.0, scale_high: 30.0, size_mb: 158 },
+        Astrometry4100IndexDef { name: "index-4108", scale_low: 30.0, scale_high: 42.0, size_mb: 91 },
+        Astrometry4100IndexDef { name: "index-4109", scale_low: 42.0, scale_high: 60.0, size_mb: 48 },
+        Astrometry4100IndexDef { name: "index-4110", scale_low: 60.0, scale_high: 85.0, size_mb: 24 },
+        Astrometry4100IndexDef { name: "index-4111", scale_low: 85.0, scale_high: 120.0, size_mb: 10 },
+        Astrometry4100IndexDef { name: "index-4112", scale_low: 120.0, scale_high: 170.0, size_mb: 6 },
+        Astrometry4100IndexDef { name: "index-4113", scale_low: 170.0, scale_high: 240.0, size_mb: 3 },
+        Astrometry4100IndexDef { name: "index-4114", scale_low: 240.0, scale_high: 340.0, size_mb: 2 },
+        Astrometry4100IndexDef { name: "index-4115", scale_low: 340.0, scale_high: 480.0, size_mb: 1 },
+        Astrometry4100IndexDef { name: "index-4116", scale_low: 480.0, scale_high: 680.0, size_mb: 1 },
+        Astrometry4100IndexDef { name: "index-4117", scale_low: 680.0, scale_high: 1000.0, size_mb: 1 },
+        Astrometry4100IndexDef { name: "index-4118", scale_low: 1000.0, scale_high: 1400.0, size_mb: 1 },
+        Astrometry4100IndexDef { name: "index-4119", scale_low: 1400.0, scale_high: 2000.0, size_mb: 1 },
     ]
+}
+
+fn trim_float(value: f64) -> String {
+    if value.fract() == 0.0 {
+        format!("{:.0}", value)
+    } else {
+        format!("{:.1}", value)
+    }
 }
 
 #[tauri::command]
@@ -542,8 +556,105 @@ fn get_astap_db_scale_range(name: &str) -> (f64, f64) {
 }
 
 fn get_local_astrometry_indexes() -> Result<Vec<AstrometryIndex>, PlateSolverError> {
-    // Simplified - would scan Astrometry.net index directory
-    Ok(Vec::new())
+    let mut directories = Vec::new();
+
+    if let Some(env_path) = std::env::var_os("SKYMAP_ASTROMETRY_INDEX_PATH") {
+        for p in std::env::split_paths(&env_path) {
+            if !p.as_os_str().is_empty() {
+                directories.push(p);
+            }
+        }
+    }
+
+    if directories.is_empty() {
+        if let Some(path) = get_astrometry_index_path() {
+            directories.push(PathBuf::from(path));
+        }
+        if let Some(path) = get_default_index_path_internal("astrometry_net") {
+            directories.push(PathBuf::from(path));
+        }
+    }
+
+    let mut all_indexes = Vec::new();
+    let mut seen_paths: HashSet<String> = HashSet::new();
+
+    for dir in directories {
+        if !dir.exists() || !dir.is_dir() {
+            continue;
+        }
+
+        for index in scan_astrometry_indexes_in_directory(&dir) {
+            if seen_paths.insert(index.path.clone()) {
+                all_indexes.push(index);
+            }
+        }
+    }
+
+    all_indexes.sort_by(compare_astrometry_indexes);
+    Ok(all_indexes)
+}
+
+fn scan_astrometry_indexes_in_directory(dir: &Path) -> Vec<AstrometryIndex> {
+    let mut indexes = Vec::new();
+
+    let Ok(entries) = fs::read_dir(dir) else {
+        return indexes;
+    };
+
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        if !entry_path.is_file() {
+            continue;
+        }
+
+        let is_fits = entry_path
+            .extension()
+            .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("fits"))
+            .unwrap_or(false);
+        if !is_fits {
+            continue;
+        }
+
+        let name = entry_path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if name.is_empty() {
+            continue;
+        }
+
+        let metadata = entry.metadata().ok();
+        let size_bytes = metadata.map(|m| m.len()).unwrap_or(0);
+        let size_mb = (size_bytes + (1024 * 1024) - 1) / (1024 * 1024);
+
+        let scale = parse_index_scale(&name);
+        indexes.push(AstrometryIndex {
+            name: name.clone(),
+            path: entry_path.to_string_lossy().to_string(),
+            scale_low: scale.as_ref().map(|s| s.min_arcmin).unwrap_or(0.0),
+            scale_high: scale.as_ref().map(|s| s.max_arcmin).unwrap_or(0.0),
+            size_mb,
+        });
+    }
+
+    indexes.sort_by(compare_astrometry_indexes);
+    indexes
+}
+
+fn compare_astrometry_indexes(a: &AstrometryIndex, b: &AstrometryIndex) -> std::cmp::Ordering {
+    match (parse_index_number(&a.name), parse_index_number(&b.name)) {
+        (Some(left), Some(right)) => left.cmp(&right).then_with(|| a.name.cmp(&b.name)),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a.name.cmp(&b.name),
+    }
+}
+
+fn parse_index_number(name: &str) -> Option<u32> {
+    let normalized = name.trim().to_ascii_lowercase();
+    let index_part = normalized.strip_prefix("index-")?;
+    let number_part = index_part.split('-').next()?;
+    number_part.parse::<u32>().ok()
 }
 
 async fn solve_with_astap(config: &PlateSolverConfig) -> Result<PlateSolveResult, PlateSolverError> {
@@ -1313,26 +1424,14 @@ pub async fn get_installed_indexes(solver_type: String, index_path: Option<Strin
 }
 
 fn parse_index_scale(name: &str) -> Option<ScaleRange> {
-    // Parse scale from index name like "index-4107"
-    if let Some(num_str) = name.strip_prefix("index-") {
-        if let Ok(num) = num_str.parse::<u32>() {
-            let scale = match num {
-                4107 => Some((22.0, 30.0)),
-                4108 => Some((16.0, 22.0)),
-                4109 => Some((11.0, 16.0)),
-                4110 => Some((8.0, 11.0)),
-                4111 => Some((5.6, 8.0)),
-                4112 => Some((4.0, 5.6)),
-                4113 => Some((2.8, 4.0)),
-                4114 => Some((2.0, 2.8)),
-                4115 => Some((1.4, 2.0)),
-                4116 => Some((1.0, 1.4)),
-                4117 => Some((0.7, 1.0)),
-                4118 => Some((0.5, 0.7)),
-                4119 => Some((0.35, 0.5)),
-                _ => None,
-            };
-            return scale.map(|(min, max)| ScaleRange { min_arcmin: min, max_arcmin: max });
+    if let Some(index_number) = parse_index_number(name) {
+        for def in astrometry_4100_index_definitions() {
+            if parse_index_number(def.name) == Some(index_number) {
+                return Some(ScaleRange {
+                    min_arcmin: def.scale_low,
+                    max_arcmin: def.scale_high,
+                });
+            }
         }
     }
     None
@@ -1353,16 +1452,60 @@ pub async fn delete_index(path: String) -> Result<(), PlateSolverError> {
 
 #[tauri::command]
 pub async fn get_recommended_indexes(solver_type: String, fov_degrees: f64) -> Result<Vec<DownloadableIndexFull>, PlateSolverError> {
+    if !fov_degrees.is_finite() || fov_degrees <= 0.0 {
+        return Ok(Vec::new());
+    }
+
     let fov_arcmin = fov_degrees * 60.0;
+    let desired_min = fov_arcmin * 0.1;
+    let desired_max = fov_arcmin;
+    let desired_width = (desired_max - desired_min).max(1e-9);
     let all_indexes = get_available_indexes(solver_type).await?;
-    
-    Ok(all_indexes.into_iter()
-        .filter(|idx| {
-            let scale_mid = (idx.scale_range.min_arcmin + idx.scale_range.max_arcmin) / 2.0;
-            // Recommend indexes where FOV is roughly 10-100x the scale
-            fov_arcmin >= scale_mid * 10.0 && fov_arcmin <= scale_mid * 100.0
+
+    let mut ranked: Vec<(DownloadableIndexFull, f64, f64)> = all_indexes
+        .into_iter()
+        .filter_map(|idx| {
+            let intersects = idx.scale_range.max_arcmin >= desired_min
+                && idx.scale_range.min_arcmin <= desired_max;
+            if !intersects {
+                return None;
+            }
+
+            let overlap = overlap_arcmin(
+                idx.scale_range.min_arcmin,
+                idx.scale_range.max_arcmin,
+                desired_min,
+                desired_max,
+            );
+
+            let index_width = (idx.scale_range.max_arcmin - idx.scale_range.min_arcmin).max(1e-9);
+            let coverage_in_target = overlap / desired_width;
+            let coverage_in_index = overlap / index_width;
+            let score = (coverage_in_target * 0.6) + (coverage_in_index * 0.4);
+            let center = (idx.scale_range.min_arcmin + idx.scale_range.max_arcmin) / 2.0;
+            let target_center = (desired_min + desired_max) / 2.0;
+            let center_delta = (center - target_center).abs();
+            Some((idx, score, center_delta))
         })
-        .collect())
+        .collect();
+
+    ranked.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| {
+                a.0.scale_range
+                    .min_arcmin
+                    .partial_cmp(&b.0.scale_range.min_arcmin)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+    });
+
+    Ok(ranked.into_iter().map(|(idx, _, _)| idx).collect())
+}
+
+fn overlap_arcmin(a_min: f64, a_max: f64, b_min: f64, b_max: f64) -> f64 {
+    (a_max.min(b_max) - a_min.max(b_min)).max(0.0)
 }
 
 fn get_default_index_path_internal(solver_type: &str) -> Option<String> {
@@ -1760,6 +1903,11 @@ pub async fn solve_online(app: AppHandle, config: OnlineSolveConfig) -> Result<O
     let calibration = astrometry_get_calibration(&client, &base_url, jid).await?;
     let objects = astrometry_get_objects_in_field(&client, &base_url, jid).await.unwrap_or_default();
     let annotations = astrometry_get_annotations(&client, &base_url, jid).await.unwrap_or_default();
+    let wcs = astrometry_get_wcs(&client, &base_url, jid).await?;
+    let (derived_fov_width, derived_fov_height) = calculate_fov_from_wcs(&wcs);
+    let calibration_radius = calibration.get("radius").and_then(|v| v.as_f64());
+    let fov_width = derived_fov_width.or_else(|| calibration_radius.map(|r| r * 2.0));
+    let fov_height = derived_fov_height.or_else(|| calibration_radius.map(|r| r * 2.0));
 
     emit_progress(&app, "complete", 100.0, "Solve complete!", Some(sub_id), Some(jid));
 
@@ -1771,14 +1919,14 @@ pub async fn solve_online(app: AppHandle, config: OnlineSolveConfig) -> Result<O
         dec: calibration.get("dec").and_then(|v| v.as_f64()),
         orientation: calibration.get("orientation").and_then(|v| v.as_f64()),
         pixscale: calibration.get("pixscale").and_then(|v| v.as_f64()),
-        radius: calibration.get("radius").and_then(|v| v.as_f64()),
+        radius: calibration_radius,
         parity: calibration.get("parity").and_then(|v| v.as_f64()),
-        fov_width: None,
-        fov_height: None,
+        fov_width,
+        fov_height,
         objects_in_field: objects,
         annotations,
         job_id: Some(jid),
-        wcs: None,
+        wcs: Some(wcs),
         solve_time_ms,
         error_message: None,
     })
@@ -1981,6 +2129,195 @@ async fn astrometry_get_annotations(client: &reqwest::Client, base_url: &str, jo
     Ok(annotations)
 }
 
+async fn astrometry_get_wcs(client: &reqwest::Client, base_url: &str, job_id: u64) -> Result<WcsResult, PlateSolverError> {
+    let url = format!("{}/wcs_file/{}", base_url, job_id);
+    let resp = client.get(&url).send().await
+        .map_err(|e| PlateSolverError::SolveFailed(format!("WCS fetch failed: {}", e)))?;
+
+    if !resp.status().is_success() {
+        return Err(PlateSolverError::SolveFailed(format!(
+            "WCS fetch failed with status {}",
+            resp.status()
+        )));
+    }
+
+    let bytes = resp.bytes().await
+        .map_err(|e| PlateSolverError::SolveFailed(format!("WCS bytes read failed: {}", e)))?;
+
+    parse_wcs_result_from_fits_bytes(&bytes)
+}
+
+fn parse_wcs_result_from_fits_bytes(data: &[u8]) -> Result<WcsResult, PlateSolverError> {
+    let header = parse_fits_header_map_from_bytes(data);
+    let wcs = wcs_from_header_map(&header);
+
+    if wcs.crval1.is_none() && wcs.crval2.is_none() && wcs.cd1_1.is_none() && wcs.cdelt1.is_none() {
+        return Err(PlateSolverError::SolveFailed("WCS header did not contain usable calibration fields".to_string()));
+    }
+
+    Ok(wcs)
+}
+
+fn calculate_fov_from_wcs(wcs: &WcsResult) -> (Option<f64>, Option<f64>) {
+    let (Some(naxis1), Some(naxis2)) = (wcs.naxis1, wcs.naxis2) else {
+        return (None, None);
+    };
+
+    if let (Some(cd1_1), Some(cd1_2), Some(cd2_1), Some(cd2_2)) = (wcs.cd1_1, wcs.cd1_2, wcs.cd2_1, wcs.cd2_2) {
+        let scale_x = (cd1_1 * cd1_1 + cd2_1 * cd2_1).sqrt();
+        let scale_y = (cd1_2 * cd1_2 + cd2_2 * cd2_2).sqrt();
+        return (Some(scale_x * naxis1 as f64), Some(scale_y * naxis2 as f64));
+    }
+
+    if let (Some(cdelt1), Some(cdelt2)) = (wcs.cdelt1, wcs.cdelt2) {
+        return (Some(cdelt1.abs() * naxis1 as f64), Some(cdelt2.abs() * naxis2 as f64));
+    }
+
+    (None, None)
+}
+
+fn wcs_from_header_map(header: &HashMap<String, String>) -> WcsResult {
+    let sip = parse_sip_coefficients(header);
+    WcsResult {
+        crpix1: parse_f64_header_value(header, "CRPIX1"),
+        crpix2: parse_f64_header_value(header, "CRPIX2"),
+        crval1: parse_f64_header_value(header, "CRVAL1"),
+        crval2: parse_f64_header_value(header, "CRVAL2"),
+        cdelt1: parse_f64_header_value(header, "CDELT1"),
+        cdelt2: parse_f64_header_value(header, "CDELT2"),
+        crota1: parse_f64_header_value(header, "CROTA1"),
+        crota2: parse_f64_header_value(header, "CROTA2"),
+        cd1_1: parse_f64_header_value(header, "CD1_1"),
+        cd1_2: parse_f64_header_value(header, "CD1_2"),
+        cd2_1: parse_f64_header_value(header, "CD2_1"),
+        cd2_2: parse_f64_header_value(header, "CD2_2"),
+        ctype1: parse_string_header_value(header, "CTYPE1"),
+        ctype2: parse_string_header_value(header, "CTYPE2"),
+        naxis1: parse_u32_header_value(header, "NAXIS1"),
+        naxis2: parse_u32_header_value(header, "NAXIS2"),
+        sip,
+    }
+}
+
+fn parse_fits_header_map_from_bytes(data: &[u8]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    let card_size = 80;
+    let mut offset = 0;
+
+    while offset + card_size <= data.len() {
+        let card = &data[offset..offset + card_size];
+        let card_str: String = card
+            .iter()
+            .map(|&b| if (0x20..=0x7E).contains(&b) { b as char } else { ' ' })
+            .collect();
+
+        let key = card_str.get(0..8).unwrap_or("").trim().to_string();
+        if key.is_empty() {
+            offset += card_size;
+            continue;
+        }
+        if key == "END" {
+            break;
+        }
+
+        if card_str.as_bytes().get(8) == Some(&b'=') {
+            let raw_value = card_str.get(10..).unwrap_or("").trim_end();
+            map.insert(key, parse_fits_card_value(raw_value));
+        }
+
+        offset += card_size;
+    }
+
+    map
+}
+
+fn parse_fits_card_value(value: &str) -> String {
+    let mut in_quotes = false;
+    let mut result = String::new();
+
+    for ch in value.chars() {
+        if ch == '\'' {
+            in_quotes = !in_quotes;
+            result.push(ch);
+            continue;
+        }
+        if ch == '/' && !in_quotes {
+            break;
+        }
+        result.push(ch);
+    }
+
+    result.trim().to_string()
+}
+
+fn parse_f64_header_value(header: &HashMap<String, String>, key: &str) -> Option<f64> {
+    let raw = header.get(key)?;
+    let normalized = raw.trim().replace('D', "E");
+    normalized.parse::<f64>().ok()
+}
+
+fn parse_u32_header_value(header: &HashMap<String, String>, key: &str) -> Option<u32> {
+    let value = parse_f64_header_value(header, key)?;
+    if value >= 0.0 {
+        Some(value.round() as u32)
+    } else {
+        None
+    }
+}
+
+fn parse_string_header_value(header: &HashMap<String, String>, key: &str) -> Option<String> {
+    let raw = header.get(key)?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let unquoted = raw
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_suffix('\''))
+        .unwrap_or(raw)
+        .trim();
+    if unquoted.is_empty() {
+        None
+    } else {
+        Some(unquoted.to_string())
+    }
+}
+
+fn parse_sip_coefficients(header: &HashMap<String, String>) -> Option<SipCoefficients> {
+    let mut sip = SipCoefficients::default();
+    sip.a_order = parse_u32_header_value(header, "A_ORDER");
+    sip.b_order = parse_u32_header_value(header, "B_ORDER");
+    sip.ap_order = parse_u32_header_value(header, "AP_ORDER");
+    sip.bp_order = parse_u32_header_value(header, "BP_ORDER");
+
+    for (key, raw) in header {
+        let parsed = raw.trim().replace('D', "E").parse::<f64>();
+        let Ok(value) = parsed else {
+            continue;
+        };
+
+        if key.starts_with("A_") && key != "A_ORDER" {
+            sip.a_coeffs.insert(key.clone(), value);
+        } else if key.starts_with("B_") && key != "B_ORDER" {
+            sip.b_coeffs.insert(key.clone(), value);
+        } else if key.starts_with("AP_") && key != "AP_ORDER" {
+            sip.ap_coeffs.insert(key.clone(), value);
+        } else if key.starts_with("BP_") && key != "BP_ORDER" {
+            sip.bp_coeffs.insert(key.clone(), value);
+        }
+    }
+
+    let has_sip = sip.a_order.is_some()
+        || sip.b_order.is_some()
+        || sip.ap_order.is_some()
+        || sip.bp_order.is_some()
+        || !sip.a_coeffs.is_empty()
+        || !sip.b_coeffs.is_empty()
+        || !sip.ap_coeffs.is_empty()
+        || !sip.bp_coeffs.is_empty();
+
+    if has_sip { Some(sip) } else { None }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -2067,8 +2404,17 @@ mod tests {
         let scale = parse_index_scale("index-4112");
         assert!(scale.is_some());
         let scale = scale.unwrap();
-        assert!(approx_eq(scale.min_arcmin, 4.0));
-        assert!(approx_eq(scale.max_arcmin, 5.6));
+        assert!(approx_eq(scale.min_arcmin, 120.0));
+        assert!(approx_eq(scale.max_arcmin, 170.0));
+    }
+
+    #[test]
+    fn test_parse_index_scale_4119() {
+        let scale = parse_index_scale("index-4119");
+        assert!(scale.is_some());
+        let scale = scale.unwrap();
+        assert!(approx_eq(scale.min_arcmin, 1400.0));
+        assert!(approx_eq(scale.max_arcmin, 2000.0));
     }
 
     #[test]
@@ -2206,10 +2552,11 @@ mod tests {
         let indexes = get_downloadable_indexes();
         assert!(!indexes.is_empty());
         
-        // Should have index-4107 to index-4112
+        // Should have the full 4107..4119 set
         let names: Vec<&str> = indexes.iter().map(|i| i.name.as_str()).collect();
         assert!(names.contains(&"index-4107"));
-        assert!(names.contains(&"index-4112"));
+        assert!(names.contains(&"index-4119"));
+        assert_eq!(indexes.len(), 13);
     }
 
     #[test]
@@ -2270,10 +2617,10 @@ mod tests {
 
     #[test]
     fn test_scale_range_serialization() {
-        let range = ScaleRange { min_arcmin: 4.0, max_arcmin: 5.6 };
+        let range = ScaleRange { min_arcmin: 120.0, max_arcmin: 170.0 };
         let json = serde_json::to_string(&range).unwrap();
-        assert!(json.contains("4.0") || json.contains("4"));
-        assert!(json.contains("5.6"));
+        assert!(json.contains("120.0") || json.contains("120"));
+        assert!(json.contains("170.0") || json.contains("170"));
     }
 
     // ------------------------------------------------------------------------
@@ -2368,6 +2715,114 @@ mod tests {
     fn test_parse_value_invalid() {
         assert!(parse_value("invalid").is_none());
         assert!(parse_value("KEY = abc").is_none());
+    }
+
+    #[test]
+    fn test_get_local_astrometry_indexes_scans_directory() {
+        let temp_root = std::env::temp_dir().join(format!(
+            "skymap-plate-index-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_root).unwrap();
+
+        let idx_4107 = temp_root.join("index-4107.fits");
+        let idx_4112 = temp_root.join("index-4112.fits");
+        fs::write(&idx_4107, vec![0_u8; 1024]).unwrap();
+        fs::write(&idx_4112, vec![0_u8; 2048]).unwrap();
+
+        let indexes = scan_astrometry_indexes_in_directory(&temp_root);
+        fs::remove_dir_all(&temp_root).unwrap();
+
+        assert_eq!(indexes.len(), 2);
+        let index_4107 = indexes.iter().find(|i| i.name == "index-4107").unwrap();
+        let index_4112 = indexes.iter().find(|i| i.name == "index-4112").unwrap();
+        assert!(approx_eq(index_4107.scale_low, 22.0));
+        assert!(approx_eq(index_4107.scale_high, 30.0));
+        assert!(approx_eq(index_4112.scale_low, 120.0));
+        assert!(approx_eq(index_4112.scale_high, 170.0));
+    }
+
+    #[tokio::test]
+    async fn test_get_recommended_indexes_for_two_degree_fov() {
+        let recommended = get_recommended_indexes("astrometry_net".to_string(), 2.0).await.unwrap();
+        let names: Vec<&str> = recommended.iter().map(|i| i.name.as_str()).collect();
+
+        // 2° = 120 arcmin -> target skymark range is roughly 12..120 arcmin
+        assert!(names.contains(&"index-4107"));
+        assert!(names.contains(&"index-4110"));
+        assert!(names.contains(&"index-4111"));
+        assert!(names.contains(&"index-4112"));
+        assert!(!names.contains(&"index-4118"));
+        assert!(!names.contains(&"index-4119"));
+    }
+
+    #[test]
+    fn test_parse_wcs_result_from_fits_bytes_with_sip() {
+        let fits_data = build_test_fits(&[
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                 3000",
+            "NAXIS2  =                 2000",
+            "CRPIX1  =              1500.5",
+            "CRPIX2  =              1000.5",
+            "CRVAL1  =               83.633",
+            "CRVAL2  =               22.014",
+            "CD1_1   =            -1.2E-04",
+            "CD1_2   =             0.0E+00",
+            "CD2_1   =             0.0E+00",
+            "CD2_2   =             1.2E-04",
+            "CTYPE1  = 'RA---TAN-SIP'",
+            "CTYPE2  = 'DEC--TAN-SIP'",
+            "A_ORDER =                    2",
+            "B_ORDER =                    2",
+            "A_0_2   =             1.0E-05",
+            "B_1_1   =            -2.0E-05",
+        ]);
+
+        let wcs = parse_wcs_result_from_fits_bytes(&fits_data).unwrap();
+        let (fov_w, fov_h) = calculate_fov_from_wcs(&wcs);
+
+        assert!(approx_eq(wcs.crval1.unwrap(), 83.633));
+        assert!(approx_eq(wcs.crval2.unwrap(), 22.014));
+        assert!(approx_eq(wcs.cd1_1.unwrap(), -1.2e-4));
+        assert!(wcs.ctype1.unwrap().contains("RA---TAN"));
+        assert!(wcs.sip.is_some());
+        let sip = wcs.sip.unwrap();
+        assert_eq!(sip.a_order, Some(2));
+        assert_eq!(sip.b_order, Some(2));
+        assert!(sip.a_coeffs.get("A_0_2").is_some());
+        assert!(sip.b_coeffs.get("B_1_1").is_some());
+        assert!(fov_w.unwrap() > 0.3 && fov_w.unwrap() < 0.4);
+        assert!(fov_h.unwrap() > 0.2 && fov_h.unwrap() < 0.3);
+    }
+
+    fn build_test_fits(cards: &[&str]) -> Vec<u8> {
+        let mut data = Vec::new();
+        for card in cards {
+            let mut padded = String::from(*card);
+            if padded.len() > 80 {
+                padded.truncate(80);
+            } else if padded.len() < 80 {
+                padded.push_str(&" ".repeat(80 - padded.len()));
+            }
+            data.extend_from_slice(padded.as_bytes());
+        }
+
+        let mut end_card = String::from("END");
+        end_card.push_str(&" ".repeat(77));
+        data.extend_from_slice(end_card.as_bytes());
+
+        let remainder = data.len() % 2880;
+        if remainder != 0 {
+            data.extend_from_slice(&vec![b' '; 2880 - remainder]);
+        }
+
+        data
     }
 
     // ------------------------------------------------------------------------
