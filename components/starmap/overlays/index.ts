@@ -6,3 +6,5 @@ export { SatelliteTracker } from './satellite-tracker';
 export { SatelliteOverlay } from './satellite-overlay';
 export { SkyMarkers } from './sky-markers';
 export { StatusBar } from './status-bar';
+export { ARCameraBackground } from './ar-camera-background';
+export { ARCompassOverlay } from './ar-compass-overlay';

@@ -4,12 +4,12 @@ import packageJson from './package.json';
 const isProd = process.env.NODE_ENV === "production";
 
 const internalHost = process.env.TAURI_DEV_HOST || "localhost";
-const devPort = process.env.PORT || "3000";
+const devPort = process.env.PORT || "1420";
 
 // Enable static export for Tauri production builds.
 // This makes `pnpm build` generate the `out/` directory that Tauri loads from `src-tauri/tauri.conf.json` (frontendDist: "../out").
 const nextConfig: NextConfig = {
-  output: "export",
+  output: isProd ? "export" : undefined,
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_BUILD_DATE: new Date().toISOString().split('T')[0],

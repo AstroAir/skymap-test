@@ -161,7 +161,6 @@ export function optimizeScheduleV2(
 
   const targetMap = new Map(targets.map((target) => [target.id, target]));
   const scheduledMap = new Map(basePlan.targets.map((scheduled) => [scheduled.target.id, scheduled]));
-  const moonPosition = getMoonPosition(getJulianDateFromDate(planDate));
 
   for (const edit of manualEdits) {
     const target = targetMap.get(edit.targetId);
@@ -177,6 +176,9 @@ export function optimizeScheduleV2(
       endTime = new Date(startTime.getTime() + edit.durationMinutes * 60000);
     }
     if (!startTime || !endTime || endTime <= startTime) continue;
+
+    const sampleTime = new Date(Math.floor((startTime.getTime() + endTime.getTime()) / 2));
+    const moonPosition = getMoonPosition(getJulianDateFromDate(sampleTime));
 
     const visibilityData = calculateTargetVisibility(
       target.ra,

@@ -2,8 +2,18 @@
  * Sun position calculations
  */
 
+import {
+  Body,
+  Equator,
+  EquatorFromVector,
+  GeoVector,
+  Horizon,
+  Observer,
+  RotateVector,
+  Rotation_EQJ_EQD,
+} from 'astronomy-engine';
 import { deg2rad, rad2deg } from '../coordinates/conversions';
-import { getJulianDate } from '../time/julian';
+import { getJulianDate, julianDateToDate } from '../time/julian';
 
 // ============================================================================
 // Sun Position
@@ -15,31 +25,14 @@ import { getJulianDate } from '../time/julian';
  * @returns Sun position in equatorial coordinates
  */
 export function getSunPosition(jd?: number): { ra: number; dec: number } {
-  const JD = jd ?? getJulianDate();
-  const T = (JD - 2451545.0) / 36525;
-  
-  // Mean longitude of the Sun
-  const L0 = 280.46646 + 36000.76983 * T;
-  // Mean anomaly of the Sun
-  const M = 357.52911 + 35999.05029 * T;
-  
-  // Equation of center
-  const C = (1.914602 - 0.004817 * T) * Math.sin(deg2rad(M))
-          + 0.019993 * Math.sin(deg2rad(2 * M));
-  
-  // True longitude
-  const lon = L0 + C;
-  
-  // Obliquity of ecliptic
-  const obliquity = 23.439 - 0.00000036 * (JD - 2451545.0);
-  
-  const lonRad = deg2rad(lon);
-  const oblRad = deg2rad(obliquity);
-  
-  const ra = rad2deg(Math.atan2(Math.cos(oblRad) * Math.sin(lonRad), Math.cos(lonRad)));
-  const dec = rad2deg(Math.asin(Math.sin(oblRad) * Math.sin(lonRad)));
-  
-  return { ra: ((ra % 360) + 360) % 360, dec };
+  const date = jd === undefined ? new Date() : julianDateToDate(jd);
+  const eqj = GeoVector(Body.Sun, date, true);
+  const rotation = Rotation_EQJ_EQD(date);
+  const eqd = RotateVector(rotation, eqj);
+  const equator = EquatorFromVector(eqd);
+
+  const raDeg = ((equator.ra * 15) % 360 + 360) % 360;
+  return { ra: raDeg, dec: equator.dec };
 }
 
 /**
@@ -54,23 +47,10 @@ export function getSunAltitude(
   longitude: number, 
   date: Date = new Date()
 ): number {
-  const jd = date.getTime() / 86400000 + 2440587.5;
-  const sunPos = getSunPosition(jd);
-  
-  // Calculate hour angle
-  const S = jd - 2451545.0;
-  const T = S / 36525.0;
-  const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
-  const LST = ((GST + longitude) % 360 + 360) % 360;
-  const HA = deg2rad(LST - sunPos.ra);
-  
-  const latRad = deg2rad(latitude);
-  const decRad = deg2rad(sunPos.dec);
-  
-  const sinAlt = Math.sin(decRad) * Math.sin(latRad) +
-                 Math.cos(decRad) * Math.cos(latRad) * Math.cos(HA);
-  
-  return rad2deg(Math.asin(sinAlt));
+  const observer = new Observer(latitude, longitude, 0);
+  const eq = Equator(Body.Sun, date, observer, true, true);
+  const hor = Horizon(date, observer, eq.ra, eq.dec);
+  return hor.altitude;
 }
 
 /**

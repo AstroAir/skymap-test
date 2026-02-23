@@ -1,51 +1,57 @@
 /**
- * Twilight time calculations
+ * Twilight time calculations.
+ *
+ * Definition notes (cross-checked against authoritative sources):
+ * - Sunrise/Sunset: `astronomy-engine` `SearchRiseSet` uses the apparent upper limb of the Sun/Moon
+ *   and corrects for standard atmospheric refraction (34 arcminutes) plus the body's angular radius.
+ *   For the Sun this matches the common NOAA-style ~0.833° sunrise/sunset convention.
+ * - Civil/Nautical/Astronomical twilight: `SearchAltitude` searches for the Sun's center crossing
+ *   -6/-12/-18 degrees and, by convention, is NOT corrected for atmospheric refraction.
  */
 
+import { Body, Equator, Horizon, Observer, SearchAltitude, SearchRiseSet } from 'astronomy-engine';
 import { deg2rad, rad2deg } from '../coordinates/conversions';
-import { dateToJulianDate } from '../time/julian';
-import { getLSTForDate } from '../time/sidereal';
-import { getSunPosition } from '../celestial/sun';
-import type { TwilightTimes, TwilightPhase } from '@/lib/core/types/astronomy';
+import type { TwilightPhase, TwilightTimes } from '@/lib/core/types/astronomy';
 
 // ============================================================================
 // Twilight Thresholds
 // ============================================================================
 
 export const TWILIGHT_THRESHOLDS = {
-  sunrise: -0.833,      // Sun at horizon (refraction corrected)
-  civil: -6,            // Civil twilight
-  nautical: -12,        // Nautical twilight
-  astronomical: -18,    // Astronomical twilight
+  sunrise: -0.833, // Common sunrise/sunset definition (~upper limb + refraction)
+  civil: -6,
+  nautical: -12,
+  astronomical: -18,
 } as const;
 
 // ============================================================================
-// Hour Angle Calculation
+// Hour Angle Calculation (legacy utility; still exported)
 // ============================================================================
 
 /**
- * Calculate hour angle for a given altitude threshold
+ * Calculate hour angle for a given altitude threshold.
+ *
  * @param dec - Declination in degrees
  * @param lat - Observer latitude in degrees
  * @param altThreshold - Altitude threshold in degrees
  * @returns Hour angle in degrees, or NaN if object never reaches threshold
  */
-export function calculateHourAngle(
-  dec: number, 
-  lat: number, 
-  altThreshold: number
-): number {
+export function calculateHourAngle(dec: number, lat: number, altThreshold: number): number {
   const latRad = deg2rad(lat);
   const decRad = deg2rad(dec);
   const altRad = deg2rad(altThreshold);
-  
-  const cosH = (Math.sin(altRad) - Math.sin(latRad) * Math.sin(decRad)) /
-               (Math.cos(latRad) * Math.cos(decRad));
-  
-  if (cosH > 1) return NaN;  // Never rises above threshold
-  if (cosH < -1) return 180; // Always above threshold (circumpolar sun)
-  
+
+  const cosH =
+    (Math.sin(altRad) - Math.sin(latRad) * Math.sin(decRad)) / (Math.cos(latRad) * Math.cos(decRad));
+
+  if (cosH > 1) return NaN; // Never rises above threshold
+  if (cosH < -1) return 180; // Always above threshold (circumpolar)
+
   return rad2deg(Math.acos(cosH));
+}
+
+function toDateOrNull(time: { date: Date } | null): Date | null {
+  return time ? time.date : null;
 }
 
 // ============================================================================
@@ -53,81 +59,77 @@ export function calculateHourAngle(
 // ============================================================================
 
 /**
- * Calculate precise twilight times for a given date and location
- * @param latitude - Observer latitude in degrees
- * @param longitude - Observer longitude in degrees
- * @param date - Date for calculation (defaults to today)
- * @returns Complete twilight times
+ * Calculate precise twilight times for a given date and location.
+ *
+ * Sunrise/Sunset use `SearchRiseSet` (upper limb + refraction).
+ * Twilight levels use `SearchAltitude` (Sun center, no refraction).
  */
 export function calculateTwilightTimes(
   latitude: number,
   longitude: number,
   date: Date = new Date()
 ): TwilightTimes {
-  // Get sun position at local noon
-  const localNoon = new Date(date);
-  localNoon.setHours(12, 0, 0, 0);
-  
-  const jdNoon = dateToJulianDate(localNoon);
-  const sunPos = getSunPosition(jdNoon);
-  const sunDec = sunPos.dec;
-  const sunRa = sunPos.ra;
-  
-  // Calculate hour angles for different twilight thresholds
-  const haSet = calculateHourAngle(sunDec, latitude, TWILIGHT_THRESHOLDS.sunrise);
-  const haCivil = calculateHourAngle(sunDec, latitude, TWILIGHT_THRESHOLDS.civil);
-  const haNautical = calculateHourAngle(sunDec, latitude, TWILIGHT_THRESHOLDS.nautical);
-  const haAstro = calculateHourAngle(sunDec, latitude, TWILIGHT_THRESHOLDS.astronomical);
-  
-  // Convert hour angles to times
-  const lst12 = getLSTForDate(longitude, localNoon);
-  
-  const toLocalTime = (ha: number, isRise: boolean): Date | null => {
-    if (isNaN(ha)) return null;
-    const lstEvent = isRise ? (sunRa - ha + 360) % 360 : (sunRa + ha) % 360;
-    let hourDiff = (lstEvent - lst12) / 15;
-    if (hourDiff > 12) hourDiff -= 24;
-    if (hourDiff < -12) hourDiff += 24;
-    const eventTime = new Date(localNoon.getTime() + hourDiff * 3600000);
-    return eventTime;
+  const observer = new Observer(latitude, longitude, 0);
+
+  const noon = new Date(date);
+  noon.setHours(12, 0, 0, 0);
+
+  const sunset = toDateOrNull(SearchRiseSet(Body.Sun, observer, -1, noon, 2));
+  const sunrise = toDateOrNull(SearchRiseSet(Body.Sun, observer, +1, noon, 3));
+
+  const civilDusk = toDateOrNull(SearchAltitude(Body.Sun, observer, -1, noon, 3, TWILIGHT_THRESHOLDS.civil));
+  let civilDawn = toDateOrNull(SearchAltitude(Body.Sun, observer, +1, noon, 3, TWILIGHT_THRESHOLDS.civil));
+
+  const nauticalDusk = toDateOrNull(
+    SearchAltitude(Body.Sun, observer, -1, noon, 3, TWILIGHT_THRESHOLDS.nautical)
+  );
+  let nauticalDawn = toDateOrNull(
+    SearchAltitude(Body.Sun, observer, +1, noon, 3, TWILIGHT_THRESHOLDS.nautical)
+  );
+
+  const astronomicalDusk = toDateOrNull(
+    SearchAltitude(Body.Sun, observer, -1, noon, 3, TWILIGHT_THRESHOLDS.astronomical)
+  );
+  let astronomicalDawn = toDateOrNull(
+    SearchAltitude(Body.Sun, observer, +1, noon, 3, TWILIGHT_THRESHOLDS.astronomical)
+  );
+
+  const ensureDawnAfterDusk = (dusk: Date | null, dawn: Date | null, altitude: number): Date | null => {
+    if (!dusk || !dawn) return dawn;
+    if (dawn.getTime() > dusk.getTime()) return dawn;
+    return toDateOrNull(SearchAltitude(Body.Sun, observer, +1, dusk, 3, altitude));
   };
-  
-  const sunset = toLocalTime(haSet, false);
-  const sunrise = toLocalTime(haSet, true);
-  const civilDusk = toLocalTime(haCivil, false);
-  const civilDawn = toLocalTime(haCivil, true);
-  const nauticalDusk = toLocalTime(haNautical, false);
-  const nauticalDawn = toLocalTime(haNautical, true);
-  const astronomicalDusk = toLocalTime(haAstro, false);
-  const astronomicalDawn = toLocalTime(haAstro, true);
-  
-  // If dawn is before dusk, add a day
-  const adjustedAstroDawn = astronomicalDawn && astronomicalDusk && astronomicalDawn < astronomicalDusk
-    ? new Date(astronomicalDawn.getTime() + 86400000)
-    : astronomicalDawn;
-  
-  // Calculate night duration
+
+  civilDawn = ensureDawnAfterDusk(civilDusk, civilDawn, TWILIGHT_THRESHOLDS.civil);
+  nauticalDawn = ensureDawnAfterDusk(nauticalDusk, nauticalDawn, TWILIGHT_THRESHOLDS.nautical);
+  astronomicalDawn = ensureDawnAfterDusk(astronomicalDusk, astronomicalDawn, TWILIGHT_THRESHOLDS.astronomical);
+
+  // Durations (hours)
   let nightDuration = 0;
   let darknessDuration = 0;
-  
+
   if (sunset && sunrise) {
-    const nextSunrise = sunrise < sunset ? new Date(sunrise.getTime() + 86400000) : sunrise;
-    nightDuration = (nextSunrise.getTime() - sunset.getTime()) / 3600000;
+    const sunriseAfterSunset =
+      sunrise.getTime() <= sunset.getTime() ? new Date(sunrise.getTime() + 86400000) : sunrise;
+    nightDuration = Math.max(0, (sunriseAfterSunset.getTime() - sunset.getTime()) / 3600000);
   }
-  
-  if (astronomicalDusk && adjustedAstroDawn) {
-    darknessDuration = (adjustedAstroDawn.getTime() - astronomicalDusk.getTime()) / 3600000;
+
+  if (astronomicalDusk && astronomicalDawn) {
+    const astroDawnAfterDusk =
+      astronomicalDawn.getTime() <= astronomicalDusk.getTime()
+        ? new Date(astronomicalDawn.getTime() + 86400000)
+        : astronomicalDawn;
+    darknessDuration = Math.max(0, (astroDawnAfterDusk.getTime() - astronomicalDusk.getTime()) / 3600000);
   }
-  
-  // Determine current twilight phase based on the provided date
+
   const currentPhase = getCurrentTwilightPhase(latitude, longitude, date);
-  
+
   return {
     sunset,
     civilDusk,
     nauticalDusk,
     astronomicalDusk,
-    astronomicalDawn: adjustedAstroDawn,
+    astronomicalDawn,
     nauticalDawn,
     civilDawn,
     sunrise,
@@ -139,27 +141,18 @@ export function calculateTwilightTimes(
 }
 
 /**
- * Get current twilight phase
+ * Get current twilight phase using topocentric Sun altitude (geometric, no refraction).
  */
 export function getCurrentTwilightPhase(
   latitude: number,
   longitude: number,
   date: Date = new Date()
 ): TwilightPhase {
-  const jd = dateToJulianDate(date);
-  const sunPos = getSunPosition(jd);
-  
-  // Calculate sun altitude
-  const LST = getLSTForDate(longitude, date);
-  const HA = deg2rad(LST - sunPos.ra);
-  
-  const latRad = deg2rad(latitude);
-  const decRad = deg2rad(sunPos.dec);
-  
-  const sinAlt = Math.sin(decRad) * Math.sin(latRad) +
-                 Math.cos(decRad) * Math.cos(latRad) * Math.cos(HA);
-  const sunAlt = rad2deg(Math.asin(sinAlt));
-  
+  const observer = new Observer(latitude, longitude, 0);
+  const eq = Equator(Body.Sun, date, observer, true, true);
+  const hor = Horizon(date, observer, eq.ra, eq.dec);
+  const sunAlt = hor.altitude;
+
   if (sunAlt > 0) return 'day';
   if (sunAlt > TWILIGHT_THRESHOLDS.civil) return 'civil';
   if (sunAlt > TWILIGHT_THRESHOLDS.nautical) return 'nautical';
@@ -168,41 +161,27 @@ export function getCurrentTwilightPhase(
 }
 
 /**
- * Check if it's currently dark enough for deep sky imaging
- * @param latitude - Observer latitude
- * @param longitude - Observer longitude
- * @param date - Date to check
- * @returns Whether conditions are dark enough
+ * Check if it's currently dark enough for deep sky imaging.
  */
-export function isDarkEnough(
-  latitude: number,
-  longitude: number,
-  date: Date = new Date()
-): boolean {
+export function isDarkEnough(latitude: number, longitude: number, date: Date = new Date()): boolean {
   const phase = getCurrentTwilightPhase(latitude, longitude, date);
   return phase === 'night' || phase === 'astronomical';
 }
 
 /**
- * Get time until darkness
- * @param latitude - Observer latitude
- * @param longitude - Observer longitude
- * @param date - Start date
- * @returns Minutes until astronomical darkness, or 0 if already dark
+ * Get time until astronomical darkness.
+ *
+ * @returns Minutes until astronomical dusk, 0 if already dark, -1 if no darkness tonight.
  */
-export function getTimeUntilDarkness(
-  latitude: number,
-  longitude: number,
-  date: Date = new Date()
-): number {
+export function getTimeUntilDarkness(latitude: number, longitude: number, date: Date = new Date()): number {
   const twilight = calculateTwilightTimes(latitude, longitude, date);
-  
+
   if (twilight.currentTwilightPhase === 'night') return 0;
-  if (!twilight.astronomicalDusk) return -1; // No darkness tonight
-  
+  if (!twilight.astronomicalDusk) return -1;
+
   const now = date.getTime();
   const dusk = twilight.astronomicalDusk.getTime();
-  
   if (dusk <= now) return 0;
   return Math.round((dusk - now) / 60000);
 }
+

@@ -116,10 +116,11 @@ export const coordinateApi = {
     dec: number,
     latitude: number,
     longitude: number,
-    timestamp?: number
+    timestamp?: number,
+    applyRefraction?: boolean
   ): Promise<HorizontalCoords> {
     const invoke = await getInvoke();
-    return invoke('equatorial_to_horizontal', { ra, dec, latitude, longitude, timestamp });
+    return invoke('equatorial_to_horizontal', { ra, dec, latitude, longitude, timestamp, applyRefraction });
   },
 
   async horizontalToEquatorial(

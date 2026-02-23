@@ -8,6 +8,7 @@
 export const SCRIPT_LOAD_TIMEOUT = 15000; // 15s for script
 export const WASM_INIT_TIMEOUT = 30000;   // 30s for WASM init
 export const MAX_RETRY_COUNT = 2;
+export const OVERALL_LOADING_TIMEOUT = 45000; // 45s - maximum total time for entire loading flow (incl. retries)
 
 // Resource paths
 export const SCRIPT_PATH = '/stellarium-js/stellarium-web-engine.js';

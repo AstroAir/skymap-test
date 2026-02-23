@@ -26,6 +26,7 @@ import { LanguageSwitcher } from '@/components/common/language-switcher';
 import { ThemeToggle } from '@/components/common/theme-toggle';
 import { NightModeToggle } from '@/components/common/night-mode-toggle';
 import { SensorControlToggle } from '@/components/common/sensor-control-toggle';
+import { ARModeToggle } from '@/components/common/ar-mode-toggle';
 import { AppControlMenu } from '@/components/common/app-control-menu';
 
 import { StellariumClock } from '../time/stellarium-clock';
@@ -121,9 +122,10 @@ export const TopToolbar = memo(function TopToolbar({
           {/* Mobile Menu */}
           <MobileMenuDrawer stel={stel} onSetFov={onSetFov} currentFov={currentFov} />
 
-          {/* Mobile Sensor Quick Access */}
-          <div className="md:hidden">
+          {/* Mobile Sensor & AR Quick Access */}
+          <div className="md:hidden flex items-center gap-1">
             <SensorControlToggle />
+            <ARModeToggle />
           </div>
 
           {/* Search Button */}
@@ -239,6 +241,7 @@ export const TopToolbar = memo(function TopToolbar({
                 <NightModeToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
               </div>
               <SensorControlToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
+              <ARModeToggle className="h-9 w-9 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md" />
               <ObjectTypeLegend variant="popover" />
             </ToolbarGroup>
 

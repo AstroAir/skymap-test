@@ -29,7 +29,7 @@ A desktop star map and astronomy planning application built with Next.js 16 + Ta
 
 ```bash
 # Development
-pnpm dev                    # Run Next.js dev server (localhost:3000)
+pnpm dev                    # Run Next.js dev server (localhost:1420)
 pnpm tauri dev              # Launch desktop app with hot-reload
 
 # Build

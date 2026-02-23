@@ -1,7 +1,7 @@
 'use client';
 
-import { forwardRef } from 'react';
-import { useSettingsStore } from '@/lib/stores';
+import { forwardRef, useLayoutEffect, useRef } from 'react';
+import { useSettingsStore, useStellariumStore } from '@/lib/stores';
 import type { SkyMapCanvasRef, SkyMapCanvasProps } from '@/lib/core/types/sky-engine';
 import { StellariumCanvas } from './stellarium-canvas';
 import { AladinCanvas } from './aladin-canvas';
@@ -16,6 +16,14 @@ import { AladinCanvas } from './aladin-canvas';
 export const SkyMapCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
   function SkyMapCanvas(props, ref) {
     const skyEngine = useSettingsStore((s) => s.skyEngine);
+    const prevEngineRef = useRef(skyEngine);
+
+    useLayoutEffect(() => {
+      if (prevEngineRef.current !== skyEngine) {
+        useStellariumStore.getState().saveViewState();
+        prevEngineRef.current = skyEngine;
+      }
+    }, [skyEngine]);
 
     if (skyEngine === 'aladin') {
       return <AladinCanvas key="aladin" ref={ref} {...props} />;

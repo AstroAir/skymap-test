@@ -2,8 +2,19 @@
  * Moon position and phase calculations
  */
 
-import { deg2rad, rad2deg } from '../coordinates/conversions';
-import { getJulianDate } from '../time/julian';
+import {
+  Body,
+  Equator,
+  EquatorFromVector,
+  GeoVector,
+  Horizon,
+  MoonPhase as AstronomyMoonPhase,
+  Observer,
+  RotateVector,
+  Rotation_EQJ_EQD,
+  SearchMoonPhase,
+} from 'astronomy-engine';
+import { dateToJulianDate, julianDateToDate } from '../time/julian';
 import type { MoonPhase } from '@/lib/core/types/astronomy';
 
 // ============================================================================
@@ -33,12 +44,10 @@ export const MOON_PHASE_NAMES: Record<MoonPhase, string> = {
  * @returns Phase value from 0 to 1
  */
 export function getMoonPhase(jd?: number): number {
-  const JD = jd ?? getJulianDate();
-  // Known new moon reference (Jan 6, 2000)
-  const knownNewMoon = 2451550.1;
-  const daysSinceNew = JD - knownNewMoon;
-  const phase = (daysSinceNew % SYNODIC_MONTH) / SYNODIC_MONTH;
-  return phase < 0 ? phase + 1 : phase;
+  const date = jd === undefined ? new Date() : julianDateToDate(jd);
+  const phaseDegrees = AstronomyMoonPhase(date);
+  const normalized = ((phaseDegrees % 360) + 360) % 360;
+  return normalized / 360;
 }
 
 /**
@@ -95,45 +104,14 @@ export function getMoonInfo(jd?: number): {
  * @returns Moon position in equatorial coordinates
  */
 export function getMoonPosition(jd?: number): { ra: number; dec: number } {
-  const JD = jd ?? getJulianDate();
-  const T = (JD - 2451545.0) / 36525;
-  
-  // Mean longitude of the Moon
-  const L0 = 218.3164477 + 481267.88123421 * T;
-  // Mean anomaly of the Moon
-  const M = 134.9633964 + 477198.8675055 * T;
-  // Mean anomaly of the Sun
-  const Ms = 357.5291092 + 35999.0502909 * T;
-  // Moon's argument of latitude
-  const F = 93.2720950 + 483202.0175233 * T;
-  // Mean elongation of the Moon
-  const D = 297.8501921 + 445267.1114034 * T;
-  
-  // Simplified longitude correction
-  const lon = L0 + 6.289 * Math.sin(deg2rad(M))
-            + 1.274 * Math.sin(deg2rad(2 * D - M))
-            + 0.658 * Math.sin(deg2rad(2 * D))
-            - 0.186 * Math.sin(deg2rad(Ms));
-  
-  // Simplified latitude
-  const lat = 5.128 * Math.sin(deg2rad(F));
-  
-  // Convert ecliptic to equatorial (simplified, assumes obliquity ~23.44°)
-  const obliquity = 23.44;
-  const lonRad = deg2rad(lon);
-  const latRad = deg2rad(lat);
-  const oblRad = deg2rad(obliquity);
-  
-  const ra = rad2deg(Math.atan2(
-    Math.sin(lonRad) * Math.cos(oblRad) - Math.tan(latRad) * Math.sin(oblRad),
-    Math.cos(lonRad)
-  ));
-  
-  const dec = rad2deg(Math.asin(
-    Math.sin(latRad) * Math.cos(oblRad) + Math.cos(latRad) * Math.sin(oblRad) * Math.sin(lonRad)
-  ));
-  
-  return { ra: ((ra % 360) + 360) % 360, dec };
+  const date = jd === undefined ? new Date() : julianDateToDate(jd);
+  const eqj = GeoVector(Body.Moon, date, true);
+  const rotation = Rotation_EQJ_EQD(date);
+  const eqd = RotateVector(rotation, eqj);
+  const equator = EquatorFromVector(eqd);
+
+  const raDeg = ((equator.ra * 15) % 360 + 360) % 360;
+  return { ra: raDeg, dec: equator.dec };
 }
 
 /**
@@ -148,23 +126,10 @@ export function getMoonAltitude(
   longitude: number,
   date: Date = new Date()
 ): number {
-  const jd = date.getTime() / 86400000 + 2440587.5;
-  const moonPos = getMoonPosition(jd);
-  
-  // Calculate hour angle
-  const S = jd - 2451545.0;
-  const T = S / 36525.0;
-  const GST = 280.46061837 + 360.98564736629 * S + T ** 2 * (0.000387933 - T / 38710000);
-  const LST = ((GST + longitude) % 360 + 360) % 360;
-  const HA = deg2rad(LST - moonPos.ra);
-  
-  const latRad = deg2rad(latitude);
-  const decRad = deg2rad(moonPos.dec);
-  
-  const sinAlt = Math.sin(decRad) * Math.sin(latRad) +
-                 Math.cos(decRad) * Math.cos(latRad) * Math.cos(HA);
-  
-  return rad2deg(Math.asin(sinAlt));
+  const observer = new Observer(latitude, longitude, 0);
+  const eq = Equator(Body.Moon, date, observer, true, true);
+  const hor = Horizon(date, observer, eq.ra, eq.dec);
+  return hor.altitude;
 }
 
 /**
@@ -191,11 +156,20 @@ export function getNextMoonPhase(
   targetPhase: number, 
   from: Date = new Date()
 ): Date {
-  const startJD = from.getTime() / 86400000 + 2440587.5;
+  const normalizedTarget = ((targetPhase % 1) + 1) % 1;
+
+  try {
+    const time = SearchMoonPhase(normalizedTarget * 360, from, 40);
+    if (time) return time.date;
+  } catch {
+    // Fall back to legacy approximation below.
+  }
+
+  const startJD = dateToJulianDate(from);
   const currentPhase = getMoonPhase(startJD);
-  
-  let daysUntil = (targetPhase - currentPhase) * SYNODIC_MONTH;
+
+  let daysUntil = (normalizedTarget - currentPhase) * SYNODIC_MONTH;
   if (daysUntil <= 0) daysUntil += SYNODIC_MONTH;
-  
+
   return new Date(from.getTime() + daysUntil * 86400000);
 }

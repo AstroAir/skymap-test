@@ -311,6 +311,10 @@ jest.mock('../../settings/keyboard-settings', () => ({
   KeyboardSettings: () => <div data-testid="keyboard-settings">KeyboardSettings</div>,
 }));
 
+jest.mock('../../settings/mobile-settings', () => ({
+  MobileSettings: () => <div data-testid="mobile-settings">MobileSettings</div>,
+}));
+
 jest.mock('../../settings/about-settings', () => ({
   AboutSettings: () => <div data-testid="about-settings">AboutSettings</div>,
 }));

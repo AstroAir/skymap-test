@@ -65,7 +65,7 @@ pnpm tauri build
   "build": {
     "beforeBuildCommand": "pnpm build",
     "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://localhost:1420",
     "frontendDist": "../out"
   },
   "bundle": {

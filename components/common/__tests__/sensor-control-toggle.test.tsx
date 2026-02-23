@@ -219,7 +219,11 @@ describe('SensorControlToggle', () => {
     });
 
     const expected = altAzToRaDec(45, 120, 40, -74);
-    expect(mockSetViewDirection).toHaveBeenCalledWith(expected.ra, expected.dec);
+    expect(mockSetViewDirection).toHaveBeenCalledTimes(1);
+    const [ra, dec] = mockSetViewDirection.mock.calls[0] as [number, number];
+    // Small timing differences (ms-level) can cause tiny sidereal-time deltas; allow a tight tolerance.
+    expect(ra).toBeCloseTo(expected.ra, 4);
+    expect(dec).toBeCloseTo(expected.dec, 4);
   });
 
   it('shows calibration dialog after enabling when calibration is required', async () => {

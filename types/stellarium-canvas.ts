@@ -23,6 +23,7 @@ export interface LoadingState {
   isLoading: boolean;
   loadingStatus: string;
   errorMessage: string | null;
+  startTime: number | null;
 }
 
 export interface ViewDirection {

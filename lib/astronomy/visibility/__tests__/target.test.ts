@@ -5,6 +5,7 @@ import {
   calculateTargetVisibility,
   getTransitTime,
 } from '../target';
+import { getLSTForDate } from '../../time/sidereal';
 
 describe('Target Visibility Calculations', () => {
   // Test location: Beijing (39.9°N, 116.4°E)
@@ -80,6 +81,23 @@ describe('Target Visibility Calculations', () => {
       const diff = visibility.transitTime!.getTime() - now.getTime();
       expect(diff).toBeGreaterThan(-1000); // Allow small negative for immediate transit
       expect(diff).toBeLessThan(24 * 3600 * 1000);
+    });
+
+    it('converts sidereal-hour deltas into solar time (minutes-level correction)', () => {
+      // If we put the target 180° (12 sidereal hours) ahead of the current LST,
+      // naive code would add 12 *solar* hours. Correct code must adjust by the
+      // sidereal/solar ratio, yielding a ~2 minute difference.
+      const now = new Date('2024-06-21T00:00:00Z');
+      const lst = getLSTForDate(longitude, now);
+      const ra = (lst + 180) % 360;
+
+      const visibility = calculateTargetVisibility(ra, 0, 0, longitude, 0, now);
+      expect(visibility.transitTime).toBeInstanceOf(Date);
+      const naiveTransit = new Date(now.getTime() + 12 * 3600000);
+      const diffMinutes = Math.abs(visibility.transitTime!.getTime() - naiveTransit.getTime()) / 60000;
+
+      expect(diffMinutes).toBeGreaterThan(1);
+      expect(diffMinutes).toBeLessThan(3);
     });
 
     it('rise comes before transit for non-circumpolar', () => {

@@ -152,6 +152,7 @@ export interface ObservationSession {
   seeing?: number;        // 1-5
   transparency?: number;  // 1-5
   equipment_ids: string[];
+  bortle_class?: number;   // 1-9
   notes?: string;
   observations: Observation[];
   created_at: string;

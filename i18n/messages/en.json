@@ -35,7 +35,9 @@
     "pixels": "px",
     "unknown": "Unknown",
     "update": "Update",
-    "retry": "Retry"
+    "retry": "Retry",
+    "confirmDelete": "Confirm Delete",
+    "select": "Select..."
   },
   "splash": {
     "tagline": "Explore the Universe",
@@ -116,6 +118,12 @@
     "closeConfirmMessage": "Are you sure you want to close the star map and return to the home page?",
     "confirmClose": "Close",
     "dontShowAgain": "Don't show this again"
+  },
+  "compass": {
+    "n": "N",
+    "s": "S",
+    "e": "E",
+    "w": "W"
   },
   "coordinates": {
     "title": "Coordinates",
@@ -459,6 +467,14 @@
     "sensorStatusActive": "Tracking",
     "sensorStatusPermissionDenied": "Permission denied",
     "sensorStatusUnsupported": "Not supported",
+    "arMode": "AR Mode",
+    "arModeEnable": "Enable AR sky overlay",
+    "arModeDisable": "Disable AR mode",
+    "arOpacity": "Sky overlay opacity",
+    "arShowCompass": "Show compass indicator",
+    "arCameraError": "Camera unavailable",
+    "arCameraPermission": "Camera permission required",
+    "arNotSupported": "AR not supported on this device",
     "stellariumFeatureUnavailable": "This feature is available only in Stellarium mode.",
     "switchToStellarium": "Switch to Stellarium",
     "constellationArt": "Constellation Art",
@@ -757,7 +773,15 @@
     "hard": "Hard",
     "usingSelected": "Using selected: {name}",
     "selectType": "Select type...",
-    "moreObservations": "+{count} more"
+    "moreObservations": "+{count} more",
+    "deleteConfirmDesc": "This action cannot be undone. Are you sure you want to delete this?",
+    "editSession": "Edit Session",
+    "editSessionDesc": "Update this observation session.",
+    "observationDeleted": "Observation deleted",
+    "monthlyTrend": "Monthly Trend",
+    "exportSuccess": "Export completed",
+    "exportFailed": "Export failed",
+    "allTime": "All"
   },
   "search": {
     "filterByType": "Filter by Type",
@@ -3298,7 +3322,10 @@
     "engineScriptNotLoaded": "Engine script not loaded",
     "canvasContainerNotReady": "Canvas container not ready",
     "engineScriptTimedOut": "Engine script timed out",
-    "starmapInitTimedOut": "Star map initialization timed out"
+    "starmapInitTimedOut": "Star map initialization timed out",
+    "overallTimeout": "Loading timed out. Please retry.",
+    "loadingSlowHint": "Loading is taking longer than expected",
+    "elapsedTime": "{seconds}s"
   },
   "logViewer": {
     "title": "Application Logs",

@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { useStellariumStore } from '@/lib/stores';
+import { useStellariumStore, useSettingsStore } from '@/lib/stores';
 import type { StellariumEngine } from '@/lib/core/types';
 
 // Import from lib modules
 import { DEFAULT_FOV } from '@/lib/core/constants/fov';
-import { fovToDeg } from '@/lib/core/stellarium-canvas-utils';
+import { fovToDeg, getEffectiveDpr } from '@/lib/core/stellarium-canvas-utils';
 import type { StellariumCanvasRef, StellariumCanvasProps } from '@/types/stellarium-canvas';
 import {
   useClickCoordinates,
@@ -135,8 +135,39 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
     useEffect(() => {
       if (engineReady && stelRef.current) {
         bindEngineEvents(stelRef.current);
+
+        // Restore saved view state from engine switch
+        const { savedViewState, clearSavedViewState, setViewDirection: restoreDir } = useStellariumStore.getState();
+        if (savedViewState && restoreDir) {
+          restoreDir(savedViewState.raDeg, savedViewState.decDeg);
+          stelRef.current.core.fov = savedViewState.fov * (Math.PI / 180);
+          clearSavedViewState();
+        }
       }
     }, [engineReady, bindEngineEvents]);
+
+    // ============================================================================
+    // Export & Navigation
+    // ============================================================================
+    const exportImage = useCallback(async () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      try {
+        return canvas.toDataURL('image/png');
+      } catch {
+        return null;
+      }
+    }, []);
+
+    const gotoObject = useCallback((name: string) => {
+      const stel = stelRef.current;
+      if (!stel) return;
+      const obj = stel.getObj(name) ?? stel.getObj(`NAME ${name}`);
+      if (obj) {
+        stel.core.selection = obj;
+        stel.pointAndLock(obj, 1.0);
+      }
+    }, []);
 
     // ============================================================================
     // Engine Status
@@ -166,7 +197,9 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
       onEngineEvent,
       setEngineFont,
       runCalendar,
-    }), [zoomIn, zoomOut, setFov, getClickCoordinates, reloadEngine, getEngineStatus, onEngineEvent, setEngineFont, runCalendar]);
+      exportImage,
+      gotoObject,
+    }), [zoomIn, zoomOut, setFov, getClickCoordinates, reloadEngine, getEngineStatus, onEngineEvent, setEngineFont, runCalendar, exportImage, gotoObject]);
 
     // ============================================================================
     // Effect: Start Loading on Mount
@@ -206,7 +239,7 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
         if (rafId !== null) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
           const rect = container.getBoundingClientRect();
-          const dpr = window.devicePixelRatio || 1;
+          const dpr = getEffectiveDpr(useSettingsStore.getState().performance.renderQuality);
           const newWidth = Math.round(rect.width * dpr);
           const newHeight = Math.round(rect.height * dpr);
           if (canvas.width !== newWidth || canvas.height !== newHeight) {

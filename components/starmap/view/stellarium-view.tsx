@@ -24,6 +24,10 @@ import { useStellariumViewState } from './use-stellarium-view-state';
 import { UpdateBanner } from '../management/updater/update-banner';
 import { UpdateDialog } from '../management/updater/update-dialog';
 import { isTauri } from '@/lib/tauri/app-control-api';
+import { useSettingsStore } from '@/lib/stores/settings-store';
+import { ARCameraBackground } from '../overlays/ar-camera-background';
+import { ARCompassOverlay } from '../overlays/ar-compass-overlay';
+import { cn } from '@/lib/utils';
 
 interface StellariumViewProps {
   showSplash?: boolean;
@@ -100,10 +104,13 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
   } = useStellariumViewState();
 
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const arMode = useSettingsStore((s) => s.stellarium.arMode);
+  const arOpacity = useSettingsStore((s) => s.stellarium.arOpacity);
+  const arShowCompass = useSettingsStore((s) => s.stellarium.arShowCompass);
 
   return (
     <TooltipProvider>
-      <div ref={containerRef} className="relative w-full h-full bg-black overflow-hidden" data-tour-id="canvas">
+      <div ref={containerRef} className={cn("relative w-full h-full overflow-hidden", arMode ? "bg-transparent" : "bg-black")} data-tour-id="canvas">
         {/* Unified Onboarding (Welcome + Setup Wizard + Tour) */}
         <UnifiedOnboarding />
         <StartupModalCoordinator showSplash={showSplash} />
@@ -122,8 +129,11 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
           enabled={!!stel || skyEngine === 'aladin'}
         />
 
+        {/* AR Camera Background (behind canvas) */}
+        {arMode && <ARCameraBackground enabled={arMode} />}
+
         {/* Canvas — switches between Stellarium and Aladin based on skyEngine setting */}
-        <div className="absolute inset-0">
+        <div className="absolute inset-0" style={arMode ? { mixBlendMode: 'screen' as const, opacity: arOpacity } : undefined}>
           <SkyMapCanvas
             ref={canvasRef}
             onSelectionChange={handleSelectionChange}
@@ -160,6 +170,9 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
           onOpenChange={setGoToDialogOpen}
           onNavigate={handleGoToCoordinates}
         />
+
+        {/* AR Compass Overlay */}
+        {arMode && arShowCompass && <ARCompassOverlay enabled />}
 
         {/* Overlays */}
         <OverlaysContainer

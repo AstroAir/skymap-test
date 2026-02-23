@@ -195,6 +195,9 @@ export interface StellariumSettings {
   sensorCalibrationAzimuthOffsetDeg: number;
   sensorCalibrationAltitudeOffsetDeg: number;
   sensorCalibrationUpdatedAt: number | null;
+  arMode: boolean;
+  arOpacity: number;
+  arShowCompass: boolean;
   crosshairVisible: boolean;
   crosshairColor: string;
 

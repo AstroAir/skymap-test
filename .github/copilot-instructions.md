@@ -12,7 +12,7 @@ A desktop star map and astronomy planning application built with **Next.js 16 (A
 
 ### Dual Runtime Model
 
-1. **Web mode** (`pnpm dev`): Next.js dev server at http://localhost:3000
+1. **Web mode** (`pnpm dev`): Next.js dev server at http://localhost:1420
 2. **Desktop mode** (`pnpm tauri dev`): Tauri wraps the Next.js app in a native window
 
 **Critical:** For Tauri production builds, Next.js must use static export. Ensure `output: "export"` is set in `next.config.ts` as `tauri.conf.json` expects the `out/` directory.

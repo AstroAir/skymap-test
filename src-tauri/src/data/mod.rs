@@ -86,6 +86,7 @@ pub use observation_log::{
     // Types
     Observation, ObservationLogData, ObservationSession, ObservationStats, WeatherConditions,
     // Commands
-    add_observation, create_session, delete_session, end_session, get_observation_stats,
-    load_observation_log, save_observation_log, search_observations, update_session,
+    add_observation, create_session, delete_observation, delete_session, end_session,
+    get_observation_stats, load_observation_log, save_observation_log, search_observations,
+    export_observation_log, update_observation, update_session,
 };

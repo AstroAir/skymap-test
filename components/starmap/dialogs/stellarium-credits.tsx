@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Database, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { StellariumIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -27,7 +28,7 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
       aria-label={t('credits.dataCredits')}
     >
       <span className="flex items-center gap-2">
-        <Database className="h-4 w-4" />
+        <StellariumIcon className="h-4 w-4" />
         {t('credits.dataCredits')}
       </span>
       <ChevronRight className="h-4 w-4" />
@@ -42,7 +43,7 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-primary" />
+            <StellariumIcon className="h-5 w-5 text-primary" />
             {t('credits.dataCredits')}
           </DialogTitle>
           <DialogDescription className="sr-only">

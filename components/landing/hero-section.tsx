@@ -11,7 +11,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { StarField } from './star-field';
-import { Rocket, BookOpen, ChevronDown, Sparkles, Monitor, Apple, Terminal } from 'lucide-react';
+import { Rocket, BookOpen, ChevronDown, Sparkles } from 'lucide-react';
+import { WindowsIcon, AppleIcon, LinuxIcon } from '@/components/icons';
 
 function PlatformIcon({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -111,13 +112,13 @@ export function HeroSection() {
         {/* Platform support */}
         <div className="mt-10 flex items-center justify-center gap-6 animate-fade-in" style={{ animationDelay: '0.8s' }}>
           <PlatformIcon label="Windows">
-            <Monitor className="h-4 w-4" />
+            <WindowsIcon className="h-4 w-4" />
           </PlatformIcon>
           <PlatformIcon label="macOS">
-            <Apple className="h-4 w-4" />
+            <AppleIcon className="h-4 w-4" />
           </PlatformIcon>
           <PlatformIcon label="Linux">
-            <Terminal className="h-4 w-4" />
+            <LinuxIcon className="h-4 w-4" />
           </PlatformIcon>
         </div>
         <p className="mt-3 text-xs text-muted-foreground/40 animate-fade-in" style={{ animationDelay: '0.9s' }}>

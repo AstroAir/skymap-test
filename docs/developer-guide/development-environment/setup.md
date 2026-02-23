@@ -179,7 +179,7 @@ NEXT_PUBLIC_APP_NAME=SkyMap Test
 NEXT_PUBLIC_APP_VERSION=0.1.0
 
 # API 配置（如果需要）
-NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:1420
 
 # 开发模式
 NODE_ENV=development
@@ -193,7 +193,7 @@ NODE_ENV=development
 # 启动 Next.js 开发服务器
 pnpm dev
 
-# 访问 http://localhost:3000
+# 访问 http://localhost:1420
 ```
 
 **特性**:
@@ -279,7 +279,7 @@ code --install-extension rust-lang.rust-analyzer
       "type": "chrome",
       "request": "launch",
       "name": "Next.js: debug client-side",
-      "url": "http://localhost:3000",
+      "url": "http://localhost:1420",
       "webRoot": "${workspaceFolder}"
     }
   ]

@@ -35,6 +35,7 @@ export function useAladinLoader({
     isLoading: false,
     loadingStatus: '',
     errorMessage: null,
+    startTime: null,
   });
   const [engineReady, setEngineReady] = useState(false);
   const loadingRef = useRef(false);
@@ -49,6 +50,7 @@ export function useAladinLoader({
         isLoading: false,
         loadingStatus: '',
         errorMessage: 'Container element not found',
+        startTime: null,
       });
       loadingRef.current = false;
       return;
@@ -58,6 +60,7 @@ export function useAladinLoader({
       isLoading: true,
       loadingStatus: 'Loading Aladin Lite WASM...',
       errorMessage: null,
+      startTime: Date.now(),
     });
     setEngineReady(false);
 
@@ -164,6 +167,7 @@ export function useAladinLoader({
         isLoading: false,
         loadingStatus: 'Aladin Lite ready',
         errorMessage: null,
+        startTime: null,
       });
       setEngineReady(true);
       loadingRef.current = false;
@@ -176,6 +180,7 @@ export function useAladinLoader({
         isLoading: false,
         loadingStatus: '',
         errorMessage: message,
+        startTime: null,
       });
       loadingRef.current = false;
     }

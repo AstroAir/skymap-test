@@ -22,6 +22,8 @@ pub struct ObservationSession {
     pub seeing: Option<u8>,
     pub transparency: Option<u8>,
     pub equipment_ids: Vec<String>,
+    #[serde(default)]
+    pub bortle_class: Option<u8>,
     pub notes: Option<String>,
     pub observations: Vec<Observation>,
     pub created_at: DateTime<Utc>,
@@ -107,7 +109,7 @@ pub async fn create_session(app: AppHandle, date: String, location_id: Option<St
         id: generate_id("session"), date, location_id, location_name,
         start_time: Some(Utc::now()), end_time: None, weather: None,
         seeing: None, transparency: None, equipment_ids: Vec::new(),
-        notes: None, observations: Vec::new(), created_at: Utc::now(), updated_at: Utc::now(),
+        bortle_class: None, notes: None, observations: Vec::new(), created_at: Utc::now(), updated_at: Utc::now(),
     };
     log.sessions.push(session.clone());
     save_observation_log(app, log).await?;
@@ -143,6 +145,7 @@ pub async fn update_session(app: AppHandle, session: ObservationSession) -> Resu
         existing.seeing = session.seeing;
         existing.transparency = session.transparency;
         existing.equipment_ids = session.equipment_ids;
+        existing.bortle_class = session.bortle_class;
         existing.notes = session.notes;
         existing.updated_at = Utc::now();
         let result = existing.clone();
@@ -170,6 +173,56 @@ pub async fn delete_session(app: AppHandle, session_id: String) -> Result<(), St
     log.sessions.retain(|s| s.id != session_id);
     save_observation_log(app, log).await?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn update_observation(app: AppHandle, session_id: String, observation: Observation) -> Result<ObservationSession, StorageError> {
+    let mut log = load_observation_log(app.clone()).await?;
+    let session = log.sessions.iter_mut().find(|s| s.id == session_id)
+        .ok_or_else(|| StorageError::StoreNotFound(session_id.clone()))?;
+
+    if let Some(existing) = session.observations.iter_mut().find(|o| o.id == observation.id) {
+        existing.object_name = observation.object_name;
+        existing.object_type = observation.object_type;
+        existing.ra = observation.ra;
+        existing.dec = observation.dec;
+        existing.constellation = observation.constellation;
+        existing.telescope_id = observation.telescope_id;
+        existing.eyepiece_id = observation.eyepiece_id;
+        existing.camera_id = observation.camera_id;
+        existing.filter_id = observation.filter_id;
+        existing.magnification = observation.magnification;
+        existing.rating = observation.rating;
+        existing.difficulty = observation.difficulty;
+        existing.notes = observation.notes;
+        existing.sketch_path = observation.sketch_path;
+        existing.image_paths = observation.image_paths;
+    } else {
+        return Err(StorageError::StoreNotFound(observation.id));
+    }
+
+    session.updated_at = Utc::now();
+    let result = session.clone();
+    save_observation_log(app, log).await?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn delete_observation(app: AppHandle, session_id: String, observation_id: String) -> Result<ObservationSession, StorageError> {
+    let mut log = load_observation_log(app.clone()).await?;
+    let session = log.sessions.iter_mut().find(|s| s.id == session_id)
+        .ok_or_else(|| StorageError::StoreNotFound(session_id.clone()))?;
+
+    let before = session.observations.len();
+    session.observations.retain(|o| o.id != observation_id);
+    if session.observations.len() == before {
+        return Err(StorageError::StoreNotFound(observation_id));
+    }
+
+    session.updated_at = Utc::now();
+    let result = session.clone();
+    save_observation_log(app, log).await?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -226,6 +279,40 @@ pub async fn search_observations(app: AppHandle, query: String) -> Result<Vec<Ob
         }
     }
     Ok(results)
+}
+
+#[tauri::command]
+pub async fn export_observation_log(app: AppHandle, format: String) -> Result<String, StorageError> {
+    let log = load_observation_log(app).await?;
+    match format.as_str() {
+        "json" => serde_json::to_string_pretty(&log)
+            .map_err(|e| StorageError::Other(e.to_string())),
+        "csv" => {
+            let mut csv = String::from("Session Date,Location,Object,Type,RA,Dec,Constellation,Rating,Difficulty,Seeing,Transparency,Bortle,Notes\n");
+            for session in &log.sessions {
+                for obs in &session.observations {
+                    csv.push_str(&format!(
+                        "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                        session.date,
+                        session.location_name.as_deref().unwrap_or(""),
+                        obs.object_name,
+                        obs.object_type.as_deref().unwrap_or(""),
+                        obs.ra.map(|v| v.to_string()).unwrap_or_default(),
+                        obs.dec.map(|v| v.to_string()).unwrap_or_default(),
+                        obs.constellation.as_deref().unwrap_or(""),
+                        obs.rating.map(|v| v.to_string()).unwrap_or_default(),
+                        obs.difficulty.map(|v| v.to_string()).unwrap_or_default(),
+                        session.seeing.map(|v| v.to_string()).unwrap_or_default(),
+                        session.transparency.map(|v| v.to_string()).unwrap_or_default(),
+                        session.bortle_class.map(|v| v.to_string()).unwrap_or_default(),
+                        obs.notes.as_deref().unwrap_or("").replace(',', ";"),
+                    ));
+                }
+            }
+            Ok(csv)
+        }
+        _ => Err(StorageError::Other(format!("Unsupported format: {}", format))),
+    }
 }
 
 // ============================================================================
@@ -367,6 +454,7 @@ mod tests {
             seeing: Some(4),
             transparency: Some(3),
             equipment_ids: vec!["tel-1".to_string()],
+            bortle_class: Some(3),
             notes: Some("Clear night".to_string()),
             observations: vec![],
             created_at: Utc::now(),
@@ -428,6 +516,7 @@ mod tests {
             seeing: None,
             transparency: None,
             equipment_ids: vec![],
+            bortle_class: None,
             notes: None,
             observations: vec![],
             created_at: Utc::now(),
@@ -507,6 +596,7 @@ mod tests {
             seeing: Some(5),
             transparency: Some(5),
             equipment_ids: vec!["t1".to_string(), "c1".to_string()],
+            bortle_class: Some(2),
             notes: Some("Perfect conditions".to_string()),
             observations: vec![],
             created_at: Utc::now(),
@@ -564,6 +654,7 @@ mod tests {
             seeing: None,
             transparency: None,
             equipment_ids: vec![],
+            bortle_class: None,
             notes: None,
             observations: vec![
                 Observation {

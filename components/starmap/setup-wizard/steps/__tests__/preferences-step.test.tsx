@@ -58,6 +58,9 @@ describe('PreferencesStep', () => {
         tonemapperP: 0.5,
         mountFrame: 5,
         viewYOffset: 0,
+        arMode: false,
+        arOpacity: 0.5,
+        arShowCompass: true,
       },
     });
   });

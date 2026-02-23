@@ -26,6 +26,7 @@ describe('LoadingOverlay', () => {
             isLoading: false,
             loadingStatus: '',
             errorMessage: null,
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -41,6 +42,7 @@ describe('LoadingOverlay', () => {
             isLoading: true,
             loadingStatus: 'Loading engine...',
             errorMessage: null,
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -56,6 +58,7 @@ describe('LoadingOverlay', () => {
             isLoading: true,
             loadingStatus: 'Initializing...',
             errorMessage: null,
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -73,6 +76,7 @@ describe('LoadingOverlay', () => {
             isLoading: false,
             loadingStatus: 'Failed',
             errorMessage: 'Script load failed',
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -88,6 +92,7 @@ describe('LoadingOverlay', () => {
             isLoading: false,
             loadingStatus: 'Error',
             errorMessage: 'Connection failed',
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -104,6 +109,7 @@ describe('LoadingOverlay', () => {
             isLoading: true,
             loadingStatus: 'Error',
             errorMessage: 'Something went wrong',
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -123,6 +129,7 @@ describe('LoadingOverlay', () => {
             isLoading: false,
             loadingStatus: 'Error',
             errorMessage: 'Load failed',
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -143,6 +150,7 @@ describe('LoadingOverlay', () => {
             isLoading: true,
             loadingStatus: 'Loading...',
             errorMessage: null,
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -159,6 +167,7 @@ describe('LoadingOverlay', () => {
             isLoading: false,
             loadingStatus: 'Error',
             errorMessage: 'Critical error',
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -177,6 +186,7 @@ describe('LoadingOverlay', () => {
             isLoading: true,
             loadingStatus: 'Preparing resources...',
             errorMessage: null,
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />
@@ -192,6 +202,7 @@ describe('LoadingOverlay', () => {
             isLoading: false,
             loadingStatus: 'Initialization failed',
             errorMessage: 'WASM error',
+            startTime: null,
           }}
           onRetry={mockOnRetry}
         />

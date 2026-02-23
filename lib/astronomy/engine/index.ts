@@ -24,13 +24,23 @@ const CACHE_TTL = {
   almanac: 60_000,
 } as const;
 
-function serializeCacheKey(payload: unknown): string {
-  return JSON.stringify(payload, (_key, value) => {
-    if (value instanceof Date) {
-      return value.toISOString();
+function truncateDates(obj: unknown): unknown {
+  if (obj instanceof Date) {
+    return new Date(Math.floor(obj.getTime() / 1000) * 1000).toISOString();
+  }
+  if (Array.isArray(obj)) return obj.map(truncateDates);
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = truncateDates(value);
     }
-    return value;
-  });
+    return result;
+  }
+  return obj;
+}
+
+export function serializeCacheKey(payload: unknown): string {
+  return JSON.stringify(truncateDates(payload));
 }
 
 async function withCache<T>(key: string, ttlMs: number, factory: () => Promise<T>): Promise<T> {

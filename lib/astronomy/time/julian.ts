@@ -24,7 +24,7 @@ export function dateToJulianDate(date: Date): number {
   const day = date.getUTCDate();
   const hour = date.getUTCHours();
   const minute = date.getUTCMinutes();
-  const second = date.getUTCSeconds();
+  const second = date.getUTCSeconds() + date.getUTCMilliseconds() / 1000;
 
   if (month <= 2) {
     year -= 1;

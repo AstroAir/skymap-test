@@ -12,6 +12,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Star, Github, Heart, ExternalLink, Map, BookOpen, ArrowUp, Mail } from 'lucide-react';
+import { SkyMapLogo, StellariumIcon } from '@/components/icons';
 import type { LucideIcon } from 'lucide-react';
 
 interface FooterLinkProps {
@@ -71,7 +72,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-2 mb-4 group">
-              <Star className="h-6 w-6 text-primary group-hover:text-secondary transition-colors" />
+              <SkyMapLogo className="h-6 w-6 text-primary group-hover:text-secondary transition-colors" />
               <span className="font-serif text-xl font-bold text-foreground">
                 SkyMap
               </span>
@@ -109,7 +110,7 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-4">{t('credits')}</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-1.5">
-                <Star className="h-3 w-3 text-primary" />
+                <StellariumIcon className="h-3 w-3 text-primary" />
                 {t('stellariumEngine')}
               </li>
               <li className="flex items-center gap-1.5">

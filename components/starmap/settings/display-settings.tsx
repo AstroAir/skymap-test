@@ -464,6 +464,25 @@ export function DisplaySettings() {
                 </Button>
               </div>
             </div>
+            <div className="space-y-1 py-1 px-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">{t('settings.arOpacity')}</Label>
+                <span className="text-xs text-muted-foreground">{(stellarium.arOpacity * 100).toFixed(0)}%</span>
+              </div>
+              <Slider
+                value={[stellarium.arOpacity]}
+                min={0.1}
+                max={1}
+                step={0.05}
+                onValueChange={([value]) => setStellariumSetting('arOpacity', value)}
+              />
+            </div>
+            <ToggleItem
+              id="ar-show-compass"
+              label={t('settings.arShowCompass')}
+              checked={stellarium.arShowCompass}
+              onCheckedChange={() => toggleStellariumSetting('arShowCompass')}
+            />
           </SettingsSection>
         </>
       )}

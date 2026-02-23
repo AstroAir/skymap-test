@@ -144,7 +144,8 @@ async function computeCoordinates(input: CoordinateComputationInput): Promise<Co
       input.coordinate.dec,
       input.observer.latitude,
       input.observer.longitude,
-      timestamp
+      timestamp,
+      input.refraction !== 'none'
     ),
     astronomyApi.coordinates.equatorialToGalactic(input.coordinate.ra, input.coordinate.dec),
     astronomyApi.coordinates.equatorialToEcliptic(input.coordinate.ra, input.coordinate.dec, timestamp),

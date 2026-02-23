@@ -28,3 +28,23 @@ export const prefetchWasm = async (): Promise<boolean> => {
 // FOV conversion utilities (engine uses radians internally)
 export const fovToRad = (deg: number): number => deg * (Math.PI / 180);
 export const fovToDeg = (rad: number): number => rad * (180 / Math.PI);
+
+/**
+ * Calculate the maximum device pixel ratio based on render quality setting.
+ * Used by both the Stellarium canvas ResizeObserver and initial loader setup.
+ */
+export function getMaxDprForQuality(renderQuality: string): number {
+  switch (renderQuality) {
+    case 'low': return 1;
+    case 'medium': return 1.5;
+    case 'high': return 2;
+    default: return Infinity; // 'ultra' or unknown → no cap
+  }
+}
+
+/**
+ * Compute the effective DPR clamped by render quality.
+ */
+export function getEffectiveDpr(renderQuality: string): number {
+  return Math.min(window.devicePixelRatio || 1, getMaxDprForQuality(renderQuality));
+}

@@ -43,6 +43,24 @@ describe('coordinateApi', () => {
       latitude: 45.0,
       longitude: -75.0,
       timestamp: 1704067200,
+      applyRefraction: undefined,
+    });
+    expect(result).toEqual(mockResult);
+  });
+
+  it('should pass applyRefraction parameter to equatorial_to_horizontal', async () => {
+    const mockResult = { alt: 45.5, az: 120.3 };
+    mockInvoke.mockResolvedValue(mockResult);
+
+    const result = await coordinateApi.equatorialToHorizontal(10.68, 41.27, 45.0, -75.0, 1704067200, false);
+
+    expect(mockInvoke).toHaveBeenCalledWith('equatorial_to_horizontal', {
+      ra: 10.68,
+      dec: 41.27,
+      latitude: 45.0,
+      longitude: -75.0,
+      timestamp: 1704067200,
+      applyRefraction: false,
     });
     expect(result).toEqual(mockResult);
   });

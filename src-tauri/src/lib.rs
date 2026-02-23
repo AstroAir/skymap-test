@@ -32,8 +32,9 @@ use data::{
     add_location, delete_location, get_current_location, load_locations, save_locations,
     set_current_location, update_location,
     // Observation log
-    add_observation, create_session, delete_session, end_session, get_observation_stats,
-    load_observation_log, save_observation_log, search_observations, update_session,
+    add_observation, create_session, delete_observation, delete_session, end_session,
+    get_observation_stats, load_observation_log, save_observation_log, search_observations,
+    export_observation_log, update_observation, update_session,
     // Target I/O
     export_targets, import_targets,
     // Session I/O
@@ -140,11 +141,14 @@ pub fn run() {
             #[cfg(mobile)]
             app.handle().plugin(tauri_plugin_geolocation::init())?;
 
-            // Updater and process plugins (desktop only)
+            // Process plugin (desktop only)
+            // Note: updater plugin is NOT registered by default.
+            // To enable, add `plugins.updater` with `pubkey` + `endpoints` in tauri.conf.json
+            // and uncomment the updater line below.
             #[cfg(desktop)]
             {
-                app.handle()
-                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+                // app.handle()
+                //     .plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
             }
 
@@ -207,11 +211,14 @@ pub fn run() {
             save_observation_log,
             create_session,
             add_observation,
+            update_observation,
+            delete_observation,
             update_session,
             end_session,
             delete_session,
             get_observation_stats,
             search_observations,
+            export_observation_log,
             // Target import/export
             export_targets,
             import_targets,

@@ -35,7 +35,9 @@
     "pixels": "像素",
     "unknown": "未知",
     "update": "更新",
-    "retry": "重试"
+    "retry": "重试",
+    "confirmDelete": "确认删除",
+    "select": "选择..."
   },
   "splash": {
     "tagline": "探索宇宙",
@@ -116,6 +118,12 @@
     "closeConfirmMessage": "确定要关闭星图并返回首页吗？",
     "confirmClose": "关闭",
     "dontShowAgain": "不再显示此提示"
+  },
+  "compass": {
+    "n": "北",
+    "s": "南",
+    "e": "东",
+    "w": "西"
   },
   "coordinates": {
     "title": "坐标",
@@ -459,6 +467,14 @@
     "sensorStatusActive": "追踪中",
     "sensorStatusPermissionDenied": "权限被拒绝",
     "sensorStatusUnsupported": "不支持",
+    "arMode": "AR 模式",
+    "arModeEnable": "启用 AR 天空叠加",
+    "arModeDisable": "关闭 AR 模式",
+    "arOpacity": "星图叠加透明度",
+    "arShowCompass": "显示罗盘指示器",
+    "arCameraError": "相机不可用",
+    "arCameraPermission": "需要相机权限",
+    "arNotSupported": "此设备不支持 AR",
     "stellariumFeatureUnavailable": "该功能仅在 Stellarium 模式下可用。",
     "switchToStellarium": "切换到 Stellarium",
     "constellationArt": "星座图案",
@@ -757,7 +773,15 @@
     "hard": "困难",
     "usingSelected": "使用已选：{name}",
     "selectType": "选择类型...",
-    "moreObservations": "+{count} 条更多"
+    "moreObservations": "+{count} 条更多",
+    "deleteConfirmDesc": "此操作无法撤销，确定要删除吗？",
+    "editSession": "编辑会话",
+    "editSessionDesc": "更新此观测会话。",
+    "observationDeleted": "观测记录已删除",
+    "monthlyTrend": "月度趋势",
+    "exportSuccess": "导出完成",
+    "exportFailed": "导出失败",
+    "allTime": "全部"
   },
   "search": {
     "filterByType": "按类型筛选",
@@ -3298,7 +3322,10 @@
     "engineScriptNotLoaded": "引擎脚本未加载",
     "canvasContainerNotReady": "画布容器未就绪",
     "engineScriptTimedOut": "引擎脚本加载超时",
-    "starmapInitTimedOut": "星图初始化超时"
+    "starmapInitTimedOut": "星图初始化超时",
+    "overallTimeout": "加载超时，请重试",
+    "loadingSlowHint": "加载时间较长",
+    "elapsedTime": "{seconds}秒"
   },
   "logViewer": {
     "title": "应用日志",

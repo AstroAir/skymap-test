@@ -9,10 +9,10 @@ import {
   Github,
   ExternalLink,
   Heart,
-  Star,
   ChevronRight,
   MessageCircleWarning,
 } from 'lucide-react';
+import { SkyMapLogo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -145,7 +145,7 @@ export function AboutDialog() {
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
         <DialogHeader className="p-6 pb-0 shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            <Star className="h-5 w-5 text-primary" />
+            <SkyMapLogo className="h-5 w-5 text-primary" />
             {t('about.title')}
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -176,7 +176,7 @@ export function AboutDialog() {
                 {/* App Info */}
                 <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-muted/50">
                   <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center">
-                    <Star className="h-8 w-8 text-primary" />
+                    <SkyMapLogo className="h-8 w-8 text-primary" />
                   </div>
                   <div className="text-center sm:text-left">
                     <h2 className="text-xl font-bold">{APP_INFO.name}</h2>

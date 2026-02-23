@@ -10,28 +10,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Star, Zap, Atom, Code, Palette, Monitor, Database, Component } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getScrollAnimationProps } from '@/lib/utils/scroll-animation';
 import { useInView } from '@/lib/hooks/use-in-view';
 import { SectionHeader } from './section-header';
 import { TECHNOLOGIES, TECH_CATEGORY_COLORS } from '@/lib/constants/landing';
+import { techBrandIconMap, StellariumIcon } from '@/components/icons';
 
-const techIconMap: Record<string, LucideIcon> = {
-  stellariumEngine: Star,
-  nextjs: Zap,
-  react: Atom,
-  typescript: Code,
-  tailwind: Palette,
-  tauri: Monitor,
-  zustand: Database,
-  shadcnui: Component,
-};
+type IconProps = { className?: string; style?: React.CSSProperties };
 
 const technologies = TECHNOLOGIES.map((tech) => ({
   ...tech,
-  icon: techIconMap[tech.i18nKey] ?? Star,
+  icon: (techBrandIconMap[tech.i18nKey] ?? StellariumIcon) as React.ComponentType<IconProps>,
 }));
 
 export function TechStack() {
@@ -80,7 +70,7 @@ export function TechStack() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                <Star className="h-5 w-5 text-primary" />
+                <StellariumIcon className="h-5 w-5 text-primary" />
               </div>
               {t('engineTitle')}
             </CardTitle>

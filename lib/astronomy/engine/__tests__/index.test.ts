@@ -7,6 +7,7 @@ import {
   computeEphemeris,
   computeRiseTransitSet,
   searchPhenomena,
+  serializeCacheKey,
 } from '../index';
 
 describe('astronomy engine integration', () => {
@@ -95,5 +96,43 @@ describe('astronomy engine integration', () => {
     expect(result.moon.illumination).toBeGreaterThanOrEqual(0);
     expect(result.moon.illumination).toBeLessThanOrEqual(100);
     expect(result.twilight.darknessDuration).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('serializeCacheKey', () => {
+  it('should truncate Date milliseconds to second precision', () => {
+    const date1 = new Date('2025-01-01T12:00:00.123Z');
+    const date2 = new Date('2025-01-01T12:00:00.987Z');
+
+    const key1 = serializeCacheKey({ date: date1 });
+    const key2 = serializeCacheKey({ date: date2 });
+
+    expect(key1).toBe(key2);
+    expect(key1).toContain('2025-01-01T12:00:00.000Z');
+  });
+
+  it('should produce different keys for dates 1 second apart', () => {
+    const date1 = new Date('2025-01-01T12:00:00.500Z');
+    const date2 = new Date('2025-01-01T12:00:01.500Z');
+
+    const key1 = serializeCacheKey({ date: date1 });
+    const key2 = serializeCacheKey({ date: date2 });
+
+    expect(key1).not.toBe(key2);
+  });
+
+  it('should serialize non-Date values normally', () => {
+    const key = serializeCacheKey({ name: 'Mars', value: 42, flag: true });
+    expect(key).toBe('{"name":"Mars","value":42,"flag":true}');
+  });
+
+  it('should handle nested Dates', () => {
+    const payload = {
+      observer: { lat: 39.9 },
+      date: new Date('2025-06-15T03:00:00.456Z'),
+    };
+    const key = serializeCacheKey(payload);
+    expect(key).toContain('2025-06-15T03:00:00.000Z');
+    expect(key).not.toContain('.456');
   });
 });

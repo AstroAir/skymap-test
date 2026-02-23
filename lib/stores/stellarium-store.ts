@@ -186,6 +186,9 @@ interface StellariumState {
   }) | null;
   setViewDirection: ((raDeg: number, decDeg: number) => void) | null;
   
+  // Saved view state for engine switching (degrees + FOV)
+  savedViewState: { raDeg: number; decDeg: number; fov: number } | null;
+
   // Cached view direction (radians) — updated by a single polling source
   viewDirection: {
     ra: number;
@@ -210,6 +213,8 @@ interface StellariumState {
   }) => void;
   updateViewDirection: () => void;
   updateStellariumCore: (settings: StellariumSettings) => void;
+  saveViewState: (fov?: number) => void;
+  clearSavedViewState: () => void;
 }
 
 export const useStellariumStore = create<StellariumState>((set, get) => ({
@@ -226,6 +231,7 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
   getCurrentViewDirection: null,
   setViewDirection: null,
   viewDirection: null,
+  savedViewState: null,
   
   setStel: (stel) => set({ stel }),
   setAladin: (aladin) => set({ aladin }),
@@ -257,6 +263,25 @@ export const useStellariumStore = create<StellariumState>((set, get) => ({
     }
   },
   
+  saveViewState: (fov?: number) => {
+    const { viewDirection, stel, aladin } = get();
+    if (!viewDirection) return;
+    const raDeg = viewDirection.ra * (180 / Math.PI);
+    const decDeg = viewDirection.dec * (180 / Math.PI);
+    let currentFov = fov;
+    if (currentFov === undefined) {
+      if (stel) {
+        currentFov = stel.core.fov * (180 / Math.PI);
+      } else if (aladin) {
+        currentFov = (aladin as { getFov?: () => number[] }).getFov?.()[0] ?? 60;
+      } else {
+        currentFov = 60;
+      }
+    }
+    set({ savedViewState: { raDeg, decDeg, fov: currentFov } });
+  },
+  clearSavedViewState: () => set({ savedViewState: null }),
+
   updateStellariumCore: (settings) => {
     const { stel, baseUrl } = get();
     if (!stel) {

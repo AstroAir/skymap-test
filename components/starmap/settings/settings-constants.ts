@@ -123,6 +123,9 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   sensorCalibrationAzimuthOffsetDeg: 0,
   sensorCalibrationAltitudeOffsetDeg: 0,
   sensorCalibrationUpdatedAt: null,
+  arMode: false,
+  arOpacity: 0.7,
+  arShowCompass: true,
   crosshairVisible: true,
   crosshairColor: 'rgba(255, 255, 255, 0.3)',
 

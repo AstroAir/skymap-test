@@ -25,6 +25,11 @@
 - `reloadEngine()`
 - `getEngineStatus()`
 
+共享扩展能力（两个引擎均支持）：
+
+- `exportImage()`：导出当前画布为 PNG data URL
+- `gotoObject(name)`：导航到指定天体（Stellarium 用 `getObj` + `pointAndLock`，Aladin 用内置 `gotoObject`）
+
 Stellarium 扩展能力（可选）：
 
 - `getEngine()`：返回当前 `StellariumEngine | null`

@@ -7,6 +7,7 @@ import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-uti
 import { createStellariumTranslator } from '@/lib/translations';
 import { createLogger } from '@/lib/logger';
 import { DEFAULT_FOV } from '@/lib/core/constants/fov';
+import { getEffectiveDpr } from '@/lib/core/stellarium-canvas-utils';
 import {
   SCRIPT_LOAD_TIMEOUT,
   WASM_INIT_TIMEOUT,
@@ -16,6 +17,7 @@ import {
   ENGINE_FOV_INIT_DELAY,
   ENGINE_SETTINGS_INIT_DELAY,
   RETRY_DELAY_MS,
+  OVERALL_LOADING_TIMEOUT,
 } from '@/lib/core/constants/stellarium-canvas';
 import { withTimeout, prefetchWasm, fovToRad } from '@/lib/core/stellarium-canvas-utils';
 import { pointAndLockTargetAt } from './target-object-pool';
@@ -74,9 +76,13 @@ export function useStellariumLoader({
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const overallDeadlineRef = useRef<number>(0);
   
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingStatus, setLoadingStatus] = useState('');
+  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
+  // Provide an immediate, non-empty status so the loading overlay doesn't render blank
+  // for a frame before startLoading kicks in (scheduled via requestAnimationFrame).
+  const [loadingStatus, setLoadingStatus] = useState(() => t('preparingResources'));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [engineReady, setEngineReady] = useState(false);
   
@@ -181,34 +187,53 @@ export function useStellariumLoader({
 
     const core = stel.core;
 
-    // Add all data sources from local stellarium-data directory
-    core.stars.addDataSource({ url: baseUrl + 'stars' });
-    core.skycultures.addDataSource({ url: baseUrl + 'skycultures/western', key: 'western' });
-    core.dsos.addDataSource({ url: baseUrl + 'dso' });
-    core.dss.addDataSource({ url: baseUrl + 'surveys/dss' });
-    core.milkyway.addDataSource({ url: baseUrl + 'surveys/milkyway' });
-    core.minor_planets.addDataSource({ url: baseUrl + 'mpcorb.dat', key: 'mpc_asteroids' });
-    
+    // Safe wrapper: isolate each data source load so one failure doesn't block others
+    const safeAdd = (
+      module: { addDataSource?: (opts: { url: string; key?: string }) => void },
+      options: { url: string; key?: string },
+      label: string
+    ) => {
+      try {
+        module.addDataSource?.(options);
+      } catch (error) {
+        logger.warn(`Failed to load data source: ${label}`, error);
+      }
+    };
+
+    // Core data sources (loaded immediately)
+    safeAdd(core.stars, { url: baseUrl + 'stars' }, 'stars');
+    safeAdd(core.skycultures, { url: baseUrl + 'skycultures/western', key: 'western' }, 'skycultures');
+    safeAdd(core.dsos, { url: baseUrl + 'dso' }, 'dsos');
+    safeAdd(core.dss, { url: baseUrl + 'surveys/dss' }, 'dss');
+    safeAdd(core.milkyway, { url: baseUrl + 'surveys/milkyway' }, 'milkyway');
+
     // Planets - use local surveys
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/moon', key: 'moon' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/sun', key: 'sun' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/mercury', key: 'mercury' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/venus', key: 'venus' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/mars', key: 'mars' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/jupiter', key: 'jupiter' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/saturn', key: 'saturn' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/uranus', key: 'uranus' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/neptune', key: 'neptune' });
-    
-    // Jupiter moons
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/io', key: 'io' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/europa', key: 'europa' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/ganymede', key: 'ganymede' });
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso/callisto', key: 'callisto' });
-    
-    core.planets.addDataSource({ url: baseUrl + 'surveys/sso', key: 'default' });
-    // Comet elements file
-    core.comets.addDataSource({ url: baseUrl + 'CometEls.txt', key: 'mpc_comets' });
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/moon', key: 'moon' }, 'moon');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/sun', key: 'sun' }, 'sun');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/mercury', key: 'mercury' }, 'mercury');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/venus', key: 'venus' }, 'venus');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/mars', key: 'mars' }, 'mars');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/jupiter', key: 'jupiter' }, 'jupiter');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/saturn', key: 'saturn' }, 'saturn');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/uranus', key: 'uranus' }, 'uranus');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/neptune', key: 'neptune' }, 'neptune');
+    safeAdd(core.planets, { url: baseUrl + 'surveys/sso', key: 'default' }, 'planets-default');
+
+    // Non-core data sources (deferred to avoid slowing initialization)
+    const loadDeferredSources = () => {
+      safeAdd(core.minor_planets, { url: baseUrl + 'mpcorb.dat', key: 'mpc_asteroids' }, 'minor_planets');
+      safeAdd(core.comets, { url: baseUrl + 'CometEls.txt', key: 'mpc_comets' }, 'comets');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/io', key: 'io' }, 'io');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/europa', key: 'europa' }, 'europa');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/ganymede', key: 'ganymede' }, 'ganymede');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/callisto', key: 'callisto' }, 'callisto');
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(loadDeferredSources);
+    } else {
+      setTimeout(loadDeferredSources, 0);
+    }
 
     // Apply initial settings - get latest from store to avoid stale closure
     const currentSettings = useSettingsStore.getState().stellarium;
@@ -274,10 +299,11 @@ export function useStellariumLoader({
       // Check if script tag already exists
       const existingScript = document.querySelector(`script[src="${SCRIPT_PATH}"]`);
       if (existingScript) {
-        // Wait for existing script to load
-        existingScript.addEventListener('load', () => resolve());
-        existingScript.addEventListener('error', () => reject(new Error(t('scriptLoadFailed'))));
-        return;
+        // Script tag exists but StelWebEngine is not set (checked above).
+        // The script may have already loaded/errored — event listeners won't re-fire.
+        // Remove the stale tag and fall through to create a fresh one.
+        logger.warn('Removing stale script tag — StelWebEngine not available');
+        existingScript.remove();
       }
 
       const script = document.createElement('script');
@@ -380,6 +406,12 @@ export function useStellariumLoader({
     const loadAbortController = new AbortController();
     abortControllerRef.current = loadAbortController;
 
+    // Set overall deadline on first attempt (not retries)
+    if (retryCountRef.current === 0) {
+      overallDeadlineRef.current = Date.now() + OVERALL_LOADING_TIMEOUT;
+      setLoadingStartTime(Date.now());
+    }
+
     if (mountedRef.current) {
       setErrorMessage(null);
       setIsLoading(true);
@@ -404,7 +436,7 @@ export function useStellariumLoader({
         shouldRetry = true;
         return;
       }
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = getEffectiveDpr(useSettingsStore.getState().performance.renderQuality);
       canvas.width = Math.round(rect.width * dpr);
       canvas.height = Math.round(rect.height * dpr);
 
@@ -464,15 +496,16 @@ export function useStellariumLoader({
 
       const errorMsg = err instanceof Error ? err.message : t('loadFailed');
       
-      // Auto-retry if under limit
-      if (retryCountRef.current < MAX_RETRY_COUNT) {
+      // Auto-retry if under limit and within overall deadline
+      const withinDeadline = Date.now() < overallDeadlineRef.current;
+      if (retryCountRef.current < MAX_RETRY_COUNT && withinDeadline) {
         retryCountRef.current++;
         setLoadingStatus(t('retrying', { current: retryCountRef.current, max: MAX_RETRY_COUNT }));
         shouldRetry = true;
       } else {
-        // Max retries reached
+        // Max retries or overall deadline exceeded
         if (mountedRef.current) {
-          setErrorMessage(errorMsg);
+          setErrorMessage(withinDeadline ? errorMsg : t('overallTimeout'));
           setIsLoading(false);
         }
       }
@@ -493,6 +526,7 @@ export function useStellariumLoader({
   // Retry loading (user-triggered)
   const handleRetry = useCallback(() => {
     retryCountRef.current = 0;
+    overallDeadlineRef.current = 0;
     initializingRef.current = false;
     startLoading();
   }, [startLoading]);
@@ -522,6 +556,7 @@ export function useStellariumLoader({
     // Reset state
     setEngineReady(false);
     retryCountRef.current = 0;
+    overallDeadlineRef.current = 0;
     initializingRef.current = false;
     
     // Start fresh loading
@@ -533,6 +568,7 @@ export function useStellariumLoader({
       isLoading,
       loadingStatus,
       errorMessage,
+      startTime: loadingStartTime,
     },
     engineReady,
     startLoading,

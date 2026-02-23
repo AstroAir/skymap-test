@@ -74,7 +74,7 @@ Before you begin, ensure you have the following installed:
 pnpm dev
 ```
 
-Starts the Next.js dev server at [http://localhost:3000](http://localhost:3000).
+Starts the Next.js dev server at [http://localhost:1420](http://localhost:1420).
 
 ### Desktop Development
 

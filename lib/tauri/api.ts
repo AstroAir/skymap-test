@@ -223,6 +223,27 @@ export const observationLogApi = {
     const invoke = await getInvoke();
     return invoke('search_observations', { query });
   },
+
+  async updateObservation(
+    sessionId: string,
+    observation: Observation
+  ): Promise<ObservationSession> {
+    const invoke = await getInvoke();
+    return invoke('update_observation', { sessionId, observation });
+  },
+
+  async deleteObservation(
+    sessionId: string,
+    observationId: string
+  ): Promise<ObservationSession> {
+    const invoke = await getInvoke();
+    return invoke('delete_observation', { sessionId, observationId });
+  },
+
+  async exportLog(format: 'csv' | 'json'): Promise<string> {
+    const invoke = await getInvoke();
+    return invoke('export_observation_log', { format });
+  },
 };
 
 // ============================================================================

@@ -11,11 +11,13 @@ import {
   Eye,
   Search,
   Trash2,
+  Pencil,
   ChevronRight,
   BarChart3,
   Cloud,
   Thermometer,
   Wind,
+  Download,
 } from 'lucide-react';
 import { StarRating } from './star-rating';
 import { StatCard } from './stat-card';
@@ -42,6 +44,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -65,6 +77,7 @@ import { tauriApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
 import { usePlanningUiStore } from '@/lib/stores/planning-ui-store';
 import { useSessionPlanStore } from '@/lib/stores/session-plan-store';
+import { useLocations, useEquipment } from '@/lib/tauri/hooks';
 import type { 
   ObservationSession, 
   Observation, 
@@ -78,6 +91,8 @@ const logger = createLogger('observation-log');
 
 export function ObservationLog({ currentSelection }: ObservationLogProps) {
   const t = useTranslations();
+  const { locations } = useLocations();
+  const { equipment } = useEquipment();
   const [open, setOpen] = useState(false);
   const [sessions, setSessions] = useState<ObservationSession[]>([]);
   const [stats, setStats] = useState<ObservationStats | null>(null);
@@ -85,16 +100,20 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Observation[]>([]);
   const [selectedSession, setSelectedSession] = useState<ObservationSession | null>(null);
+  const [dateFilter, setDateFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   
   // Dialog states
   const [showNewSession, setShowNewSession] = useState(false);
   const [showAddObservation, setShowAddObservation] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'session' | 'observation'; id: string; sessionId?: string } | null>(null);
+  const [editingSession, setEditingSession] = useState<ObservationSession | null>(null);
   
   // New session form
   const [newSessionDate, setNewSessionDate] = useState(
     new Date().toISOString().split('T')[0]
   );
   const [newSessionLocation, setNewSessionLocation] = useState('');
+  const [newSessionLocationId, setNewSessionLocationId] = useState<string | undefined>(undefined);
   const [newSessionNotes, setNewSessionNotes] = useState('');
   const [newSessionSeeing, setNewSessionSeeing] = useState<number>(3);
   const [newSessionTransparency, setNewSessionTransparency] = useState<number>(3);
@@ -106,6 +125,8 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
   const [obsRating, setObsRating] = useState<number>(3);
   const [obsDifficulty, setObsDifficulty] = useState<number>(3);
   const [obsNotes, setObsNotes] = useState('');
+  const [obsTelescopeId, setObsTelescopeId] = useState('');
+  const [obsCameraId, setObsCameraId] = useState('');
   const savedPlans = useSessionPlanStore((state) => state.savedPlans);
   const importPlanV2 = useSessionPlanStore((state) => state.importPlanV2);
   const openSessionPlanner = usePlanningUiStore((state) => state.openSessionPlanner);
@@ -120,7 +141,8 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
         tauriApi.observationLog.load(),
         tauriApi.observationLog.getStats(),
       ]);
-      setSessions(logData.sessions || []);
+      const sorted = (logData.sessions || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+      setSessions(sorted);
       setStats(statsData);
     } catch (error) {
       logger.error('Failed to load observation log', error);
@@ -136,6 +158,44 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     }
   }, [open, loadData]);
 
+  // Open edit session dialog with pre-filled data
+  const handleStartEditSession = useCallback((session: ObservationSession) => {
+    setEditingSession(session);
+    setNewSessionDate(session.date);
+    setNewSessionLocation(session.location_name || '');
+    setNewSessionLocationId(session.location_id || undefined);
+    setNewSessionNotes(session.notes || '');
+    setNewSessionSeeing(session.seeing ?? 3);
+    setNewSessionTransparency(session.transparency ?? 3);
+    setNewSessionBortle(session.bortle_class ?? 5);
+    setShowNewSession(true);
+  }, []);
+
+  // Save edited session
+  const handleSaveEditSession = useCallback(async () => {
+    if (!isTauri() || !editingSession) return;
+
+    try {
+      await tauriApi.observationLog.updateSession({
+        ...editingSession,
+        location_id: newSessionLocationId,
+        location_name: newSessionLocation || undefined,
+        seeing: newSessionSeeing,
+        transparency: newSessionTransparency,
+        bortle_class: newSessionBortle,
+        notes: newSessionNotes || undefined,
+      });
+
+      toast.success(t('observationLog.sessionCreated'));
+      setShowNewSession(false);
+      setEditingSession(null);
+      loadData();
+    } catch (error) {
+      logger.error('Failed to update session', error);
+      toast.error(t('observationLog.createFailed'));
+    }
+  }, [editingSession, newSessionLocationId, newSessionLocation, newSessionNotes, newSessionSeeing, newSessionTransparency, newSessionBortle, t, loadData]);
+
   // Create new session
   const handleCreateSession = useCallback(async () => {
     if (!isTauri()) return;
@@ -143,7 +203,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     try {
       const session = await tauriApi.observationLog.createSession(
         newSessionDate,
-        undefined,
+        newSessionLocationId,
         newSessionLocation || undefined
       );
       
@@ -152,23 +212,22 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
         ...session,
         seeing: newSessionSeeing,
         transparency: newSessionTransparency,
-        notes: [
-          newSessionNotes,
-          `Bortle: ${newSessionBortle}`,
-        ].filter(Boolean).join('\n') || undefined,
+        bortle_class: newSessionBortle,
+        notes: newSessionNotes || undefined,
       });
       
       toast.success(t('observationLog.sessionCreated'));
       setShowNewSession(false);
       setNewSessionDate(new Date().toISOString().split('T')[0]);
       setNewSessionLocation('');
+      setNewSessionLocationId(undefined);
       setNewSessionNotes('');
       loadData();
     } catch (error) {
       logger.error('Failed to create session', error);
       toast.error(t('observationLog.createFailed'));
     }
-  }, [newSessionDate, newSessionLocation, newSessionNotes, newSessionSeeing, newSessionTransparency, newSessionBortle, t, loadData]);
+  }, [newSessionDate, newSessionLocationId, newSessionLocation, newSessionNotes, newSessionSeeing, newSessionTransparency, newSessionBortle, t, loadData]);
 
   const handleCreateDraftFromLatestPlan = useCallback(() => {
     if (savedPlans.length === 0) {
@@ -224,6 +283,8 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
         ra: currentSelection?.ra,
         dec: currentSelection?.dec,
         constellation: currentSelection?.constellation,
+        telescope_id: obsTelescopeId || undefined,
+        camera_id: obsCameraId || undefined,
         rating: obsRating,
         difficulty: obsDifficulty,
         notes: obsNotes || undefined,
@@ -237,12 +298,14 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       setObsRating(3);
       setObsDifficulty(3);
       setObsNotes('');
+      setObsTelescopeId('');
+      setObsCameraId('');
       loadData();
     } catch (error) {
       logger.error('Failed to add observation', error);
       toast.error(t('observationLog.addFailed'));
     }
-  }, [selectedSession, obsObjectName, obsObjectType, obsRating, obsDifficulty, obsNotes, currentSelection, t, loadData]);
+  }, [selectedSession, obsObjectName, obsObjectType, obsTelescopeId, obsCameraId, obsRating, obsDifficulty, obsNotes, currentSelection, t, loadData]);
 
   // End session
   const handleEndSession = useCallback(async (sessionId: string) => {
@@ -275,6 +338,40 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     }
   }, [selectedSession, t, loadData]);
 
+  // Delete observation
+  const handleDeleteObservation = useCallback(async (sessionId: string, observationId: string) => {
+    if (!isTauri()) return;
+    
+    try {
+      await tauriApi.observationLog.deleteObservation(sessionId, observationId);
+      toast.success(t('observationLog.observationDeleted'));
+      loadData();
+    } catch (error) {
+      logger.error('Failed to delete observation', error);
+      toast.error(t('observationLog.deleteFailed'));
+    }
+  }, [t, loadData]);
+
+  // Export observation log
+  const handleExport = useCallback(async (format: 'csv' | 'json') => {
+    if (!isTauri()) return;
+    
+    try {
+      const data = await tauriApi.observationLog.exportLog(format);
+      const blob = new Blob([data], { type: format === 'csv' ? 'text/csv' : 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `observation-log.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(t('observationLog.exportSuccess'));
+    } catch (error) {
+      logger.error('Export failed', error);
+      toast.error(t('observationLog.exportFailed'));
+    }
+  }, [t]);
+
   // Search observations
   const handleSearch = useCallback(async () => {
     if (!isTauri() || !searchQuery.trim()) return;
@@ -306,6 +403,14 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     }
   };
 
+
+  const filteredSessions = sessions.filter((s) => {
+    if (dateFilter === 'all') return true;
+    const days = dateFilter === '7d' ? 7 : dateFilter === '30d' ? 30 : 90;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    return new Date(s.date) >= cutoff;
+  });
 
   const activeSession = sessions.find(s => !s.end_time);
 
@@ -381,6 +486,24 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                     {t('observationLog.usePlannerSession')}
                   </Button>
 
+                  {/* Date Filter */}
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <div className="flex gap-1 flex-1">
+                      {(['all', '7d', '30d', '90d'] as const).map((f) => (
+                        <Button
+                          key={f}
+                          variant={dateFilter === f ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="h-6 text-[10px] px-2 flex-1"
+                          onClick={() => setDateFilter(f)}
+                        >
+                          {f === 'all' ? t('observationLog.allTime') : f === '7d' ? '7d' : f === '30d' ? '30d' : '90d'}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Active Session Indicator */}
                   {activeSession && (
                     <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30">
@@ -409,7 +532,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                   <Separator />
 
                   {/* Sessions List */}
-                  <ScrollArea className="flex-1 min-h-0">
+                  <ScrollArea className="h-[calc(100vh-320px)] min-h-0">
                     {loading ? (
                       <div className="text-center py-8 text-muted-foreground">
                         {t('common.loading')}
@@ -422,7 +545,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {sessions.map((session) => (
+                        {filteredSessions.map((session) => (
                           <div
                             key={session.id}
                             className={`p-3 rounded-lg border transition-colors cursor-pointer ${
@@ -494,9 +617,24 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                   <div className="space-y-1">
                                     <p className="text-xs font-medium">{t('observationLog.observations')}:</p>
                                     {session.observations.slice(0, 5).map((obs) => (
-                                      <div key={obs.id} className="flex items-center justify-between text-xs p-1 rounded bg-background/50">
+                                      <div key={obs.id} className="flex items-center justify-between text-xs p-1 rounded bg-background/50 group/obs">
                                         <span className="truncate">{obs.object_name}</span>
-                                        {obs.rating ? <StarRating value={obs.rating} /> : null}
+                                        <div className="flex items-center gap-1">
+                                          {obs.rating ? <StarRating value={obs.rating} /> : null}
+                                          {!session.end_time && (
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-5 w-5 opacity-0 group-hover/obs:opacity-100 text-red-400 hover:text-red-300"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeleteTarget({ type: 'observation', id: obs.id, sessionId: session.id });
+                                              }}
+                                            >
+                                              <Trash2 className="h-2.5 w-2.5" />
+                                            </Button>
+                                          )}
+                                        </div>
                                       </div>
                                     ))}
                                     {session.observations.length > 5 && (
@@ -526,10 +664,21 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                   <Button
                                     variant="ghost"
                                     size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartEditSession(session);
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     className="h-7 text-xs text-red-400 hover:text-red-300"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteSession(session.id);
+                                      setDeleteTarget({ type: 'session', id: session.id });
                                     }}
                                   >
                                     <Trash2 className="h-3 w-3" />
@@ -619,6 +768,42 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                         </div>
                       </div>
                     )}
+
+                    {stats.monthly_counts.length > 0 && (() => {
+                      const maxCount = Math.max(...stats.monthly_counts.map(([, c]) => c), 1);
+                      const recent = stats.monthly_counts.slice(-12);
+                      return (
+                        <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                          <p className="text-sm font-medium mb-3">{t('observationLog.monthlyTrend')}</p>
+                          <div className="flex items-end gap-1 h-24">
+                            {recent.map(([month, count]) => (
+                              <div key={month} className="flex-1 flex flex-col items-center gap-1">
+                                <span className="text-[9px] text-muted-foreground">{count}</span>
+                                <div
+                                  className="w-full rounded-t bg-primary/70 min-h-[2px]"
+                                  style={{ height: `${(count / maxCount) * 100}%` }}
+                                />
+                                <span className="text-[8px] text-muted-foreground truncate w-full text-center">
+                                  {month.slice(5)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <Separator />
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => handleExport('csv')}>
+                        <Download className="h-3 w-3 mr-1" />
+                        CSV
+                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => handleExport('json')}>
+                        <Download className="h-3 w-3 mr-1" />
+                        JSON
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
@@ -632,13 +817,16 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
         </DrawerContent>
       </Drawer>
 
-      {/* New Session Dialog */}
-      <Dialog open={showNewSession} onOpenChange={setShowNewSession}>
+      {/* New/Edit Session Dialog */}
+      <Dialog open={showNewSession} onOpenChange={(open) => {
+        setShowNewSession(open);
+        if (!open) setEditingSession(null);
+      }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>{t('observationLog.newSession')}</DialogTitle>
+            <DialogTitle>{editingSession ? t('observationLog.editSession') : t('observationLog.newSession')}</DialogTitle>
             <DialogDescription>
-              {t('observationLog.newSessionDesc')}
+              {editingSession ? t('observationLog.editSessionDesc') : t('observationLog.newSessionDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -652,11 +840,43 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
             </div>
             <div className="space-y-2">
               <Label>{t('observationLog.location')}</Label>
-              <Input
-                placeholder={t('observationLog.locationPlaceholder')}
-                value={newSessionLocation}
-                onChange={(e) => setNewSessionLocation(e.target.value)}
-              />
+              {locations && locations.locations.length > 0 ? (
+                <Select
+                  value={newSessionLocationId || '_manual'}
+                  onValueChange={(v) => {
+                    if (v === '_manual') {
+                      setNewSessionLocationId(undefined);
+                      setNewSessionLocation('');
+                      setNewSessionBortle(5);
+                    } else {
+                      const loc = locations.locations.find(l => l.id === v);
+                      if (loc) {
+                        setNewSessionLocationId(loc.id);
+                        setNewSessionLocation(loc.name);
+                        if (loc.bortle_class) setNewSessionBortle(loc.bortle_class);
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('observationLog.locationPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_manual">{t('observationLog.locationPlaceholder')}</SelectItem>
+                    {locations.locations.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}{loc.bortle_class ? ` (B${loc.bortle_class})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  placeholder={t('observationLog.locationPlaceholder')}
+                  value={newSessionLocation}
+                  onChange={(e) => setNewSessionLocation(e.target.value)}
+                />
+              )}
             </div>
             {/* Weather Conditions */}
             <div className="space-y-3 p-3 rounded-lg bg-muted/50">
@@ -737,11 +957,11 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewSession(false)}>
+            <Button variant="outline" onClick={() => { setShowNewSession(false); setEditingSession(null); }}>
               {t('common.cancel')}
             </Button>
-            <Button onClick={handleCreateSession}>
-              {t('observationLog.startSession')}
+            <Button onClick={editingSession ? handleSaveEditSession : handleCreateSession}>
+              {editingSession ? t('common.save') : t('observationLog.startSession')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -789,6 +1009,42 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                 </SelectContent>
               </Select>
             </div>
+            {equipment && (equipment.telescopes.length > 0 || equipment.cameras.length > 0) && (
+              <div className="grid grid-cols-2 gap-3">
+                {equipment.telescopes.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{t('equipment.telescopes')}</Label>
+                    <Select value={obsTelescopeId} onValueChange={setObsTelescopeId}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder={t('common.select')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">{t('common.select')}</SelectItem>
+                        {equipment.telescopes.map((tel) => (
+                          <SelectItem key={tel.id} value={tel.id}>{tel.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {equipment.cameras.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{t('equipment.cameras')}</Label>
+                    <Select value={obsCameraId} onValueChange={setObsCameraId}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder={t('common.select')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">{t('common.select')}</SelectItem>
+                        {equipment.cameras.map((cam) => (
+                          <SelectItem key={cam.id} value={cam.id}>{cam.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t('observationLog.rating')}</Label>
@@ -830,6 +1086,34 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('common.confirmDelete')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('observationLog.deleteConfirmDesc')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTarget?.type === 'session') {
+                  handleDeleteSession(deleteTarget.id);
+                } else if (deleteTarget?.type === 'observation' && deleteTarget.sessionId) {
+                  handleDeleteObservation(deleteTarget.sessionId, deleteTarget.id);
+                }
+                setDeleteTarget(null);
+              }}
+            >
+              {t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }

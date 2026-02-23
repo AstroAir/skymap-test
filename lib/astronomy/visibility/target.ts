@@ -3,7 +3,7 @@
  */
 
 import { deg2rad, rad2deg } from '../coordinates/conversions';
-import { getLSTForDate } from '../time/sidereal';
+import { getLSTForDate, SIDEREAL_RATIO } from '../time/sidereal';
 import { calculateTwilightTimes } from '../twilight/calculator';
 import { isCircumpolar, neverRises } from './circumpolar';
 import { getMaxAltitude } from './altitude';
@@ -53,6 +53,10 @@ export function calculateTargetVisibility(
   date: Date = new Date()
 ): TargetVisibility {
   const now = date;
+
+  const solarMsFromSiderealHours = (siderealHours: number): number => {
+    return (siderealHours * 3600000) / SIDEREAL_RATIO;
+  };
   
   // Check if circumpolar or never rises
   const maxAlt = getMaxAltitude(dec, latitude);
@@ -75,10 +79,9 @@ export function calculateTargetVisibility(
   
   // Calculate transit time
   const lstNow = getLSTForDate(longitude, now);
-  let hoursToTransit = (ra - lstNow) / 15;
-  if (hoursToTransit < 0) hoursToTransit += 24;
-  if (hoursToTransit > 24) hoursToTransit -= 24;
-  const transitTime = new Date(now.getTime() + hoursToTransit * 3600000);
+  let deltaSiderealHours = (ra - lstNow) / 15;
+  deltaSiderealHours = ((deltaSiderealHours % 24) + 24) % 24;
+  const transitTime = new Date(now.getTime() + solarMsFromSiderealHours(deltaSiderealHours));
   
   // Calculate rise and set times
   let riseTime: Date | null = null;
@@ -87,14 +90,16 @@ export function calculateTargetVisibility(
   let imagingWindowEnd: Date | null = null;
   
   if (!neverRisesFlag && !circumpolar && !isNaN(haHorizon)) {
-    riseTime = new Date(transitTime.getTime() - (haHorizon / 15) * 3600000);
-    setTime = new Date(transitTime.getTime() + (haHorizon / 15) * 3600000);
+    const horizonOffsetMs = solarMsFromSiderealHours(haHorizon / 15);
+    riseTime = new Date(transitTime.getTime() - horizonOffsetMs);
+    setTime = new Date(transitTime.getTime() + horizonOffsetMs);
   }
   
   // Imaging window (above minAltitude)
   if (!isNaN(haMinAlt) && haMinAlt !== 180) {
-    imagingWindowStart = new Date(transitTime.getTime() - (haMinAlt / 15) * 3600000);
-    imagingWindowEnd = new Date(transitTime.getTime() + (haMinAlt / 15) * 3600000);
+    const minAltOffsetMs = solarMsFromSiderealHours(haMinAlt / 15);
+    imagingWindowStart = new Date(transitTime.getTime() - minAltOffsetMs);
+    imagingWindowEnd = new Date(transitTime.getTime() + minAltOffsetMs);
   } else if (haMinAlt === 180 || circumpolar) {
     // For circumpolar/always-above-threshold targets we create a full 24h window
     // centered on the calculation date so dark-window intersection still works.
@@ -159,9 +164,9 @@ export function getTransitTime(
   const LST = getLSTForDate(longitude, new Date());
   const transitLST = ra;
   
-  let hoursUntilTransit = (transitLST - LST) / 15;
-  if (hoursUntilTransit < 0) hoursUntilTransit += 24;
-  if (hoursUntilTransit > 24) hoursUntilTransit -= 24;
+  let deltaSiderealHours = (transitLST - LST) / 15;
+  deltaSiderealHours = ((deltaSiderealHours % 24) + 24) % 24;
+  const hoursUntilTransit = deltaSiderealHours / SIDEREAL_RATIO;
   
   return { transitLST, hoursUntilTransit };
 }

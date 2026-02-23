@@ -226,12 +226,24 @@ export const AladinCanvas = forwardRef<SkyMapCanvasRef, SkyMapCanvasProps>(
       };
     }, [startLoading, setAladin, setActiveEngine]);
 
-    // Effect: Store aladin instance when ready
+    // Effect: Store aladin instance when ready + restore saved view state
     useEffect(() => {
       if (engineReady && aladinRef.current) {
         setAladin(aladinRef.current);
+
+        // Restore saved view state from engine switch
+        const { savedViewState, clearSavedViewState } = useStellariumStore.getState();
+        if (savedViewState) {
+          const aladin = aladinRef.current;
+          if (typeof aladin.gotoRaDec === 'function') {
+            aladin.gotoRaDec(savedViewState.raDeg, savedViewState.decDeg);
+          }
+          setFoVCompat(aladin, savedViewState.fov);
+          onFovChange?.(savedViewState.fov);
+          clearSavedViewState();
+        }
       }
-    }, [engineReady, setAladin]);
+    }, [engineReady, setAladin, onFovChange]);
 
     // ========================================================================
     // Render

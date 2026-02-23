@@ -62,6 +62,9 @@ const createMockSettings = (overrides?: Partial<StellariumSettings>): Stellarium
   tonemapperP: 0.5,
   mountFrame: 5,
   viewYOffset: 0.1,
+  arMode: false,
+  arOpacity: 0.5,
+  arShowCompass: true,
   ...overrides,
 });
 
@@ -444,6 +447,114 @@ describe('useStellariumStore', () => {
       });
 
       expect(mockCore.hips.visible).toBe(false);
+    });
+  });
+
+  describe('saveViewState / clearSavedViewState', () => {
+    it('should have null savedViewState initially', () => {
+      const { result } = renderHook(() => useStellariumStore());
+      expect(result.current.savedViewState).toBeNull();
+    });
+
+    it('should save view state from current viewDirection', () => {
+      const { result } = renderHook(() => useStellariumStore());
+
+      // Set up viewDirection (radians) and a mock stel with FOV
+      const raRad = (180 * Math.PI) / 180; // 180 deg
+      const decRad = (45 * Math.PI) / 180;  // 45 deg
+      const fovRad = (60 * Math.PI) / 180;  // 60 deg
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mockStel = { core: { fov: fovRad } } as any;
+
+      act(() => {
+        result.current.setStel(mockStel);
+        // Directly set viewDirection to simulate a polled update
+        useStellariumStore.setState({
+          viewDirection: { ra: raRad, dec: decRad, alt: 0.5, az: 1.0 },
+        });
+      });
+
+      act(() => {
+        result.current.saveViewState();
+      });
+
+      expect(result.current.savedViewState).not.toBeNull();
+      expect(result.current.savedViewState!.raDeg).toBeCloseTo(180, 5);
+      expect(result.current.savedViewState!.decDeg).toBeCloseTo(45, 5);
+      expect(result.current.savedViewState!.fov).toBeCloseTo(60, 5);
+    });
+
+    it('should use explicit fov when provided', () => {
+      const { result } = renderHook(() => useStellariumStore());
+
+      act(() => {
+        useStellariumStore.setState({
+          viewDirection: { ra: 0, dec: 0, alt: 0, az: 0 },
+        });
+      });
+
+      act(() => {
+        result.current.saveViewState(120);
+      });
+
+      expect(result.current.savedViewState).not.toBeNull();
+      expect(result.current.savedViewState!.fov).toBe(120);
+    });
+
+    it('should not save when viewDirection is null', () => {
+      const { result } = renderHook(() => useStellariumStore());
+
+      act(() => {
+        useStellariumStore.setState({ viewDirection: null, savedViewState: null });
+      });
+
+      act(() => {
+        result.current.saveViewState();
+      });
+
+      expect(result.current.savedViewState).toBeNull();
+    });
+
+    it('should clear saved view state', () => {
+      const { result } = renderHook(() => useStellariumStore());
+
+      act(() => {
+        useStellariumStore.setState({
+          viewDirection: { ra: 1, dec: 0.5, alt: 0.3, az: 0.2 },
+        });
+      });
+
+      act(() => {
+        result.current.saveViewState(60);
+      });
+
+      expect(result.current.savedViewState).not.toBeNull();
+
+      act(() => {
+        result.current.clearSavedViewState();
+      });
+
+      expect(result.current.savedViewState).toBeNull();
+    });
+
+    it('should fallback to 60 deg FOV when no engine is available', () => {
+      const { result } = renderHook(() => useStellariumStore());
+
+      act(() => {
+        result.current.setStel(null);
+        result.current.setAladin(null);
+        useStellariumStore.setState({
+          viewDirection: { ra: 0, dec: 0, alt: 0, az: 0 },
+        });
+      });
+
+      act(() => {
+        result.current.saveViewState();
+      });
+
+      expect(result.current.savedViewState).not.toBeNull();
+      expect(result.current.savedViewState!.fov).toBe(60);
     });
   });
 });

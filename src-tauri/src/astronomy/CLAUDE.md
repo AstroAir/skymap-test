@@ -2,7 +2,7 @@
 
 [Root](../../../CLAUDE.md) > [src-tauri/src](../) > **astronomy**
 
-> **Last Updated:** 2025-01-31
+> **Last Updated:** 2026-02-23
 > **Module Type:** Rust
 
 ---
@@ -26,18 +26,28 @@ The `astronomy` module provides high-performance astronomical calculations in Ru
 | File | Purpose |
 |------|---------|
 | `mod.rs` | Module exports and command registration |
-| `calculations.rs` | Core astronomical calculations |
+| `calculations/mod.rs` | Calculations submodule declarations and re-exports |
+| `calculations/types.rs` | All coordinate and result struct definitions |
+| `calculations/common.rs` | Constants, regex patterns, helper functions |
+| `calculations/time.rs` | Julian Date, GMST, LST, hour angle |
+| `calculations/coordinates.rs` | Equatorial/horizontal/galactic/ecliptic conversions, angular separation |
+| `calculations/visibility.rs` | Target visibility with rise/set/transit times |
+| `calculations/twilight.rs` | Sunrise, sunset, and twilight calculations |
+| `calculations/moon.rs` | Moon phase and position |
+| `calculations/sun.rs` | Sun position (VSOP87 simplified) |
+| `calculations/imaging.rs` | FOV and mosaic coverage |
+| `calculations/formatting.rs` | RA/Dec formatting and parsing (HMS/DMS) |
 | `events.rs` | Astronomical events (moon phases, meteor showers) |
 
 ---
 
 ## Tauri Commands
 
-### calculations.rs
+### calculations/ (coordinates, visibility, twilight, moon, sun, imaging, formatting)
 
 | Command | Parameters | Returns | Description |
 |---------|------------|---------|-------------|
-| `equatorial_to_horizontal` | ra, dec, latitude, longitude, timestamp | `HorizontalCoords` | Convert RA/Dec to Alt/Az |
+| `equatorial_to_horizontal` | ra, dec, latitude, longitude, timestamp, apply_refraction | `HorizontalCoords` | Convert RA/Dec to Alt/Az (with optional atmospheric refraction) |
 | `horizontal_to_equatorial` | alt, az, latitude, longitude, timestamp | `EquatorialCoords` | Convert Alt/Az to RA/Dec |
 | `equatorial_to_galactic` | ra, dec | `GalacticCoords` | Convert to galactic coordinates |
 | `galactic_to_equatorial` | l, b | `EquatorialCoords` | Convert from galactic |
@@ -189,7 +199,8 @@ const KNOWN_NEW_MOON: f64 = 2451550.1;  // Jan 6, 2000 18:14 UTC
 
 ```bash
 cd src-tauri
-cargo test astronomy::calculations::tests
+cargo test astronomy::calculations       # All calculation submodule tests
+cargo test astronomy::calculations::time  # Specific submodule tests
 cargo test astronomy::events::tests
 ```
 
@@ -198,7 +209,7 @@ cargo test astronomy::events::tests
 ## Related Files
 
 - [`mod.rs`](./mod.rs) - Module exports
-- [`calculations.rs`](./calculations.rs) - Core calculations
+- [`calculations/`](./calculations/) - Core calculations (10 submodules)
 - [`events.rs`](./events.rs) - Event calculations
 - [../CLAUDE.md](../CLAUDE.md) - Backend documentation
 - [../../../lib/astronomy/CLAUDE.md](../../../lib/astronomy/CLAUDE.md) - TypeScript equivalents

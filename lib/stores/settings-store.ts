@@ -396,7 +396,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'starmap-settings',
       storage: getZustandStorage(),
-      version: 14, // v14: mobile tool priority normalization
+      version: 15, // v15: AR mode fields (arMode, arOpacity, arShowCompass)
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState>;
         
@@ -558,6 +558,17 @@ export const useSettingsStore = create<SettingsState>()(
               state.mobileFeaturePreferences,
               { appendDefaultOrder: true },
             ),
+          };
+        }
+
+        // Migration from v14 to v15: add AR mode fields
+        if (version < 15) {
+          return {
+            ...state,
+            stellarium: {
+              ...DEFAULT_STELLARIUM,
+              ...state.stellarium,
+            },
           };
         }
         

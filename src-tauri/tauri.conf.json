@@ -5,8 +5,8 @@
   "identifier": "com.skymap.desktop",
   "build": {
     "frontendDist": "../out",
-    "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev:tauri",
     "beforeBuildCommand": "pnpm build"
   },
   "app": {
@@ -44,6 +44,5 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": ""
     }
-  },
-  "plugins": {}
+  }
 }

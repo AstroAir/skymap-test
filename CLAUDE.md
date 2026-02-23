@@ -109,7 +109,7 @@ graph TD
 
 ```bash
 # Frontend
-pnpm dev                    # Start Next.js dev server (localhost:3000)
+pnpm dev                    # Start Next.js dev server (localhost:1420)
 pnpm build                  # Build for production (outputs to out/)
 pnpm lint                   # ESLint
 

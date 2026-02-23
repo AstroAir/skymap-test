@@ -15,7 +15,7 @@ A desktop star map and astronomy planning application built with Next.js 16 + Ta
 
 ### Frontend (Web)
 
-- `pnpm dev`: Starts the Next.js development server on `http://localhost:3000`
+- `pnpm dev`: Starts the Next.js development server on `http://localhost:1420`
 - `pnpm build`: Creates a production build (outputs to `out/`)
 - `pnpm start`: Starts the production Next.js server
 - `pnpm lint`: Lints the code using ESLint

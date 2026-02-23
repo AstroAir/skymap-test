@@ -64,6 +64,9 @@ const DEFAULT_STELLARIUM = {
   tonemapperP: 0.5,
   mountFrame: 5 as const,
   viewYOffset: 0,
+  arMode: false,
+  arOpacity: 0.5,
+  arShowCompass: true,
 };
 
 const DEFAULT_PREFERENCES = {
@@ -336,6 +339,9 @@ describe('Settings Store', () => {
         tonemapperP: 0.8,
         mountFrame: 6 as const,
         viewYOffset: 0.2,
+        arMode: true,
+        arOpacity: 0.7,
+        arShowCompass: false,
       };
 
       useSettingsStore.getState().setStellariumSettings(newSettings);

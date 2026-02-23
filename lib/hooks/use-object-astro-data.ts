@@ -148,8 +148,8 @@ export function useTargetAstroData(
       azimuth: transformed.azimuthDeg,
     };
     const moonDistance = angularSeparation(ra, dec, moonRa, moonDec);
-    const visibility = calculateTargetVisibility(ra, dec, latitude, longitude, 30);
-    const feasibility = calculateImagingFeasibility(ra, dec, latitude, longitude);
+    const visibility = calculateTargetVisibility(ra, dec, latitude, longitude, 30, currentTime);
+    const feasibility = calculateImagingFeasibility(ra, dec, latitude, longitude, 30, currentTime);
 
     const riskHints: string[] = [];
     if (visibility.neverRises) riskHints.push('never-rises');
