@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 // Mock stores with selector pattern
 const mockUseMountStore = jest.fn((selector) => {
@@ -201,6 +201,42 @@ describe('SkyAtlasPanel', () => {
   it('renders without crashing', () => {
     render(<SkyAtlasPanel />);
     expect(document.body).toBeInTheDocument();
+  });
+
+  it('renders drawer component', () => {
+    render(<SkyAtlasPanel />);
+    expect(screen.getByTestId('drawer')).toBeInTheDocument();
+  });
+
+  it('renders drawer trigger', () => {
+    render(<SkyAtlasPanel />);
+    expect(screen.getByTestId('drawer-trigger')).toBeInTheDocument();
+  });
+
+  it('renders drawer content', () => {
+    render(<SkyAtlasPanel />);
+    expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
+  });
+
+  it('renders sky atlas title', () => {
+    render(<SkyAtlasPanel />);
+    expect(screen.getByText('skyAtlas.title')).toBeInTheDocument();
+  });
+
+  it('renders observer location', () => {
+    render(<SkyAtlasPanel />);
+    expect(screen.getByText('40.71°, -74.01°')).toBeInTheDocument();
+  });
+
+  it('renders search area', () => {
+    render(<SkyAtlasPanel />);
+    const inputs = screen.getAllByRole('textbox');
+    expect(inputs.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('renders filter section', () => {
+    render(<SkyAtlasPanel />);
+    expect(screen.getByText('skyAtlas.filters')).toBeInTheDocument();
   });
 });
 

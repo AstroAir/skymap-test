@@ -4,8 +4,13 @@
 import {
   getGST,
   getGSTForDate,
+  getGMST,
+  getGMSTForDate,
+  getEquationOfEquinoxes,
+  getGAST,
   getLST,
   getLSTForDate,
+  getApparentLSTForDate,
   lstToHours,
   lstToDegrees,
   SIDEREAL_DAY_SECONDS,
@@ -257,6 +262,118 @@ describe('Sidereal Time Calculations', () => {
       const solarEquivalent = siderealToSolar(siderealDay);
       // Should be approximately 1 sidereal day in solar seconds
       expect(solarEquivalent).toBeCloseTo(86164.0905 / SIDEREAL_RATIO, 0);
+    });
+  });
+
+  // ============================================================================
+  // getGMST
+  // ============================================================================
+  describe('getGMST', () => {
+    it('returns same value as getGST when no argument given', () => {
+      // Both should use current time internally
+      const gmst = getGMST();
+      expect(gmst).toBeGreaterThanOrEqual(0);
+      expect(gmst).toBeLessThan(360);
+    });
+
+    it('delegates to getGST with explicit JD', () => {
+      const jd = 2451545.0;
+      const gmst = getGMST(jd);
+      const gst = getGST(jd);
+      expect(gmst).toBeCloseTo(gst, 5);
+    });
+  });
+
+  // ============================================================================
+  // getGMSTForDate
+  // ============================================================================
+  describe('getGMSTForDate', () => {
+    it('returns value between 0 and 360', () => {
+      const date = new Date('2025-06-15T12:00:00Z');
+      const gmst = getGMSTForDate(date);
+      expect(gmst).toBeGreaterThanOrEqual(0);
+      expect(gmst).toBeLessThan(360);
+    });
+
+    it('differs from getGSTForDate only slightly (UT1-UTC correction)', () => {
+      const date = new Date('2025-01-01T00:00:00Z');
+      const gst = getGSTForDate(date);
+      const gmst = getGMSTForDate(date);
+      // Both use GMST06 via buildTimeScaleContext, should be identical
+      expect(gmst).toBeCloseTo(gst, 5);
+    });
+  });
+
+  // ============================================================================
+  // getEquationOfEquinoxes
+  // ============================================================================
+  describe('getEquationOfEquinoxes', () => {
+    it('returns a small value near J2000.0', () => {
+      const jdTt = 2451545.0;
+      const eqEq = getEquationOfEquinoxes(jdTt);
+      // Equation of equinoxes is typically a few arcseconds -> ~0.001 degrees
+      expect(Math.abs(eqEq)).toBeLessThan(0.02);
+    });
+
+    it('returns a number for current epoch', () => {
+      // J2025.5 approx
+      const jdTt = 2460858.0;
+      const eqEq = getEquationOfEquinoxes(jdTt);
+      expect(typeof eqEq).toBe('number');
+      expect(Number.isFinite(eqEq)).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // getGAST
+  // ============================================================================
+  describe('getGAST', () => {
+    it('returns value between 0 and 360', () => {
+      const jdUt1 = 2451545.0;
+      const jdTt = 2451545.0 + 64.184 / 86400; // TT ≈ UT1 + 64.184s at J2000
+      const gast = getGAST(jdUt1, jdTt);
+      expect(gast).toBeGreaterThanOrEqual(0);
+      expect(gast).toBeLessThan(360);
+    });
+
+    it('differs from GMST by equation of equinoxes', () => {
+      const jdUt1 = 2451545.0;
+      const jdTt = 2451545.0 + 64.184 / 86400;
+      const gast = getGAST(jdUt1, jdTt);
+      const gmst = getGMST(jdUt1);
+      const eqEq = getEquationOfEquinoxes(jdTt);
+      // GAST = GMST + equation of equinoxes (mod 360)
+      const expected = ((gmst + eqEq) % 360 + 360) % 360;
+      expect(gast).toBeCloseTo(expected, 3);
+    });
+  });
+
+  // ============================================================================
+  // getApparentLSTForDate
+  // ============================================================================
+  describe('getApparentLSTForDate', () => {
+    it('returns value between 0 and 360', () => {
+      const date = new Date('2025-06-15T12:00:00Z');
+      const alst = getApparentLSTForDate(116.4, date);
+      expect(alst).toBeGreaterThanOrEqual(0);
+      expect(alst).toBeLessThan(360);
+    });
+
+    it('differs from getLSTForDate by nutation correction', () => {
+      const date = new Date('2025-01-01T00:00:00Z');
+      const lst = getLSTForDate(0, date);
+      const alst = getApparentLSTForDate(0, date);
+      // Should be very close but differ slightly
+      const diff = Math.abs(alst - lst);
+      expect(diff).toBeLessThan(0.02); // nutation < 0.02 degrees
+    });
+
+    it('shifts by longitude', () => {
+      const date = new Date('2025-06-15T12:00:00Z');
+      const alst0 = getApparentLSTForDate(0, date);
+      const alst90 = getApparentLSTForDate(90, date);
+      const diff = ((alst90 - alst0) % 360 + 360) % 360;
+      expect(diff).toBeCloseTo(90, 1);
     });
   });
 });

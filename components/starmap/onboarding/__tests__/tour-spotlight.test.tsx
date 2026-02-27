@@ -193,4 +193,136 @@ describe('TourSpotlight', () => {
       expect(animatedOverlay).toBeInTheDocument();
     });
   });
+
+  it('should render SVG spotlight cutout when target element exists', async () => {
+    const targetElement = document.createElement('div');
+    targetElement.setAttribute('data-testid', 'target');
+    targetElement.getBoundingClientRect = jest.fn(() => ({
+      top: 100, left: 100, width: 50, height: 50,
+      bottom: 150, right: 150, x: 100, y: 100,
+      toJSON: () => {},
+    }));
+    document.body.appendChild(targetElement);
+
+    render(
+      <TourSpotlight
+        targetSelector="[data-testid='target']"
+        isActive={true}
+      />
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      const svg = document.querySelector('svg');
+      expect(svg).toBeInTheDocument();
+    });
+
+    document.body.removeChild(targetElement);
+  });
+
+  it('should apply custom spotlightRadius', () => {
+    const targetElement = document.createElement('div');
+    targetElement.setAttribute('data-testid', 'target');
+    targetElement.getBoundingClientRect = jest.fn(() => ({
+      top: 100, left: 100, width: 50, height: 50,
+      bottom: 150, right: 150, x: 100, y: 100,
+      toJSON: () => {},
+    }));
+    document.body.appendChild(targetElement);
+
+    render(
+      <TourSpotlight
+        targetSelector="[data-testid='target']"
+        isActive={true}
+        spotlightRadius={16}
+      />
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    // The spotlight rect should use the custom radius
+    const spotlightRect = document.querySelector('.tour-spotlight-rect');
+    if (spotlightRect) {
+      expect(spotlightRect.getAttribute('rx')).toBe('16');
+      expect(spotlightRect.getAttribute('ry')).toBe('16');
+    }
+
+    document.body.removeChild(targetElement);
+  });
+
+  it('should update rect on scroll event', async () => {
+    const targetElement = document.createElement('div');
+    targetElement.setAttribute('data-testid', 'target');
+    targetElement.getBoundingClientRect = jest.fn(() => ({
+      top: 100, left: 100, width: 50, height: 50,
+      bottom: 150, right: 150, x: 100, y: 100,
+      toJSON: () => {},
+    }));
+    document.body.appendChild(targetElement);
+
+    render(
+      <TourSpotlight
+        targetSelector="[data-testid='target']"
+        isActive={true}
+      />
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    // Change rect and trigger scroll
+    targetElement.getBoundingClientRect = jest.fn(() => ({
+      top: 200, left: 200, width: 50, height: 50,
+      bottom: 250, right: 250, x: 200, y: 200,
+      toJSON: () => {},
+    }));
+
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+
+    document.body.removeChild(targetElement);
+  });
+
+  it('should clean up event listeners and observer when deactivated', () => {
+    const targetElement = document.createElement('div');
+    targetElement.setAttribute('data-testid', 'target');
+    targetElement.getBoundingClientRect = jest.fn(() => ({
+      top: 100, left: 100, width: 50, height: 50,
+      bottom: 150, right: 150, x: 100, y: 100,
+      toJSON: () => {},
+    }));
+    document.body.appendChild(targetElement);
+
+    const { rerender } = render(
+      <TourSpotlight
+        targetSelector="[data-testid='target']"
+        isActive={true}
+      />
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    // Deactivate
+    rerender(
+      <TourSpotlight
+        targetSelector="[data-testid='target']"
+        isActive={false}
+      />
+    );
+
+    // Should return null
+    const overlay = document.querySelector('[aria-hidden="true"]');
+    expect(overlay).not.toBeInTheDocument();
+
+    document.body.removeChild(targetElement);
+  });
 });

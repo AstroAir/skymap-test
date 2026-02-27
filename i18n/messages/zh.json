@@ -2860,6 +2860,15 @@
     "strategyDuration": "最大化时长",
     "minAltitude": "最低高度",
     "minImagingTime": "最短拍摄时间",
+    "minMoonDistance": "最小月距",
+    "useExposurePlanDuration": "使用曝光计划时长",
+    "sessionWindow": "会话时间窗",
+    "fillDuskDawn": "填充黄昏/黎明",
+    "sessionWindowStart": "开始",
+    "sessionWindowEnd": "结束",
+    "safetyLimits": "安全约束",
+    "enforceMountSafety": "强制赤道仪安全限制",
+    "avoidMeridianFlipWindow": "避开子午线翻转区间",
     "showGaps": "显示空档",
     "targets": "目标",
     "imagingTime": "拍摄时间",
@@ -3325,6 +3334,9 @@
     "starmapInitTimedOut": "星图初始化超时",
     "overallTimeout": "加载超时，请重试",
     "loadingSlowHint": "加载时间较长",
+    "switchToAladin": "切换到 Aladin",
+    "autoSwitchedToAladin": "Stellarium 加载失败，已切换到 Aladin。",
+    "tryStellariumAgain": "重试 Stellarium",
     "elapsedTime": "{seconds}秒"
   },
   "logViewer": {
@@ -3568,6 +3580,14 @@
     "shareFailed": "分享失败。",
     "loadFailed": "加载每日知识失败。",
     "videoEntry": "该条目为视频内容，可点击“打开来源”查看原视频。",
+    "eventOfToday": "今日天文事件",
+    "factSources": "事实来源",
+    "noFactSources": "暂无外部事实来源链接。",
+    "fallbackNotice": "该条目因数据可用性以回退语言显示。",
+    "languageStatus": {
+      "native": "本地语言",
+      "fallback": "回退语言"
+    },
     "sourceBadge": {
       "curated": "本地策展",
       "nasa-apod": "NASA APOD",

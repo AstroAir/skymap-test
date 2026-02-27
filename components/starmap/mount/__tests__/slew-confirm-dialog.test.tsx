@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, fireEvent, act, waitFor } from '@testing-library/react';
 
 // ---- Mount store mock ----
 let mountState = {
@@ -194,5 +194,214 @@ describe('SlewConfirmDialog', () => {
     const footer = getByTestId('dialog-footer');
     const slewBtn = footer.querySelectorAll('button')[1];
     expect(slewBtn.getAttribute('data-disabled')).toBe('false');
+  });
+
+  it('handleSlew calls slewTo, onSlewStarted, and closes dialog on success', async () => {
+    const mockSlewStarted = jest.fn();
+    const mockOnOpenChange = jest.fn();
+    const { mountApi } = jest.requireMock('@/lib/tauri/mount-api');
+
+    const { getByTestId } = render(
+      <SlewConfirmDialog
+        {...defaultProps}
+        onOpenChange={mockOnOpenChange}
+        onSlewStarted={mockSlewStarted}
+      />
+    );
+    const footer = getByTestId('dialog-footer');
+    const slewBtn = footer.querySelectorAll('button')[1];
+
+    await act(async () => {
+      fireEvent.click(slewBtn);
+    });
+
+    await waitFor(() => {
+      expect(mountApi.slewTo).toHaveBeenCalledWith(180, 45);
+      expect(mockSlewStarted).toHaveBeenCalled();
+      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it('handleSlew shows error on failure', async () => {
+    const { mountApi } = jest.requireMock('@/lib/tauri/mount-api');
+    mountApi.slewTo.mockRejectedValueOnce(new Error('Slew failed'));
+
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const slewBtn = footer.querySelectorAll('button')[1];
+
+    await act(async () => {
+      fireEvent.click(slewBtn);
+    });
+
+    await waitFor(() => {
+      expect(mountApi.slewTo).toHaveBeenCalled();
+    });
+    // Error message should appear in the dialog
+    expect(getByTestId('dialog').textContent).toContain('Slew failed');
+  });
+
+  it('handleSlew does nothing when isTauri returns false', async () => {
+    const { isTauri } = jest.requireMock('@/lib/tauri/app-control-api');
+    isTauri.mockReturnValue(false);
+    const { mountApi } = jest.requireMock('@/lib/tauri/mount-api');
+
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const slewBtn = footer.querySelectorAll('button')[1];
+
+    await act(async () => {
+      fireEvent.click(slewBtn);
+    });
+
+    expect(mountApi.slewTo).not.toHaveBeenCalled();
+  });
+
+  it('handleSlew does nothing when not connected', async () => {
+    mountState.mountInfo.Connected = false;
+    const { mountApi } = jest.requireMock('@/lib/tauri/mount-api');
+
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const slewBtn = footer.querySelectorAll('button')[1];
+
+    await act(async () => {
+      fireEvent.click(slewBtn);
+    });
+
+    expect(mountApi.slewTo).not.toHaveBeenCalled();
+  });
+
+  it('shows safety clear message when no issues', () => {
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    expect(getByTestId('dialog').textContent).toContain('safetyClear');
+  });
+
+  it('shows danger issues when safety check returns danger', () => {
+    const { checkTargetSafety } = jest.requireMock('@/lib/astronomy/mount-safety');
+    checkTargetSafety.mockReturnValue({
+      isSafe: false,
+      issues: [{ severity: 'danger', type: 'hour_angle_limit' }],
+      targetId: 'test',
+      targetName: 'Test',
+      ra: 180,
+      dec: 45,
+      startTime: new Date(),
+      endTime: new Date(),
+      pierSideAtStart: 'west',
+      pierSideAtEnd: 'west',
+      hourAngleAtStart: 0,
+      hourAngleAtEnd: 0,
+      minAltitude: 30,
+      maxAltitude: 60,
+      needsMeridianFlip: false,
+      meridianFlipTime: null,
+    });
+
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    expect(getByTestId('dialog').textContent).toContain('safetyIssues.hour_angle_limit');
+  });
+
+  it('shows warning issues when safety check returns warning', () => {
+    const { checkTargetSafety } = jest.requireMock('@/lib/astronomy/mount-safety');
+    checkTargetSafety.mockReturnValue({
+      isSafe: true,
+      issues: [{ severity: 'warning', type: 'counterweight_up' }],
+      targetId: 'test',
+      targetName: 'Test',
+      ra: 180,
+      dec: 45,
+      startTime: new Date(),
+      endTime: new Date(),
+      pierSideAtStart: 'west',
+      pierSideAtEnd: 'west',
+      hourAngleAtStart: 0,
+      hourAngleAtEnd: 0,
+      minAltitude: 30,
+      maxAltitude: 60,
+      needsMeridianFlip: false,
+      meridianFlipTime: null,
+    });
+
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    expect(getByTestId('dialog').textContent).toContain('safetyIssues.counterweight_up');
+  });
+
+  it('slew button text changes to slewAnyway when danger present', () => {
+    const { checkTargetSafety } = jest.requireMock('@/lib/astronomy/mount-safety');
+    checkTargetSafety.mockReturnValue({
+      isSafe: false,
+      issues: [{ severity: 'danger', type: 'below_horizon' }],
+      targetId: 'test',
+      targetName: 'Test',
+      ra: 180,
+      dec: 45,
+      startTime: new Date(),
+      endTime: new Date(),
+      pierSideAtStart: 'west',
+      pierSideAtEnd: 'west',
+      hourAngleAtStart: 0,
+      hourAngleAtEnd: 0,
+      minAltitude: -5,
+      maxAltitude: 60,
+      needsMeridianFlip: false,
+      meridianFlipTime: null,
+    });
+
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const slewBtn = footer.querySelectorAll('button')[1];
+    expect(slewBtn.textContent).toContain('slewAnyway');
+  });
+
+  it('shows parked warning when mount is parked', () => {
+    mountState.mountInfo.Parked = true;
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    expect(getByTestId('dialog').textContent).toContain('mountParkedWarning');
+  });
+
+  it('shows not connected warning when mount is disconnected', () => {
+    mountState.mountInfo.Connected = false;
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    expect(getByTestId('dialog').textContent).toContain('notConnectedWarning');
+  });
+
+  it('displays RA/Dec coordinates in the dialog', () => {
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} />
+    );
+    const dialog = getByTestId('dialog');
+    expect(dialog.textContent).toContain('12h 00m 00s');
+    expect(dialog.textContent).toContain('+45° 00\' 00"');
+  });
+
+  it('cancel button calls onOpenChange(false)', () => {
+    const mockOnOpenChange = jest.fn();
+    const { getByTestId } = render(
+      <SlewConfirmDialog {...defaultProps} onOpenChange={mockOnOpenChange} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const cancelBtn = footer.querySelectorAll('button')[0];
+
+    fireEvent.click(cancelBtn);
+    expect(mockOnOpenChange).toHaveBeenCalledWith(false);
   });
 });

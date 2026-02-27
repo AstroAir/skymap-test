@@ -99,4 +99,63 @@ describe('EditSourceDialog', () => {
     render(<EditSourceDialog {...defaultProps} />);
     expect(screen.queryByLabelText('sourceConfig.sourceDescription')).not.toBeInTheDocument();
   });
+
+  it('shows description field for custom (non-built-in) sources', () => {
+    const customSource = { ...mockSource, builtIn: false };
+    render(<EditSourceDialog {...defaultProps} source={customSource} />);
+    expect(screen.getByPlaceholderText('sourceConfig.descriptionPlaceholder')).toBeInTheDocument();
+  });
+
+  it('updates priority via slider', () => {
+    render(<EditSourceDialog {...defaultProps} />);
+    const slider = screen.getByTestId('slider');
+    fireEvent.change(slider, { target: { value: '10' } });
+    
+    // Click save to verify updated priority
+    fireEvent.click(screen.getByText('common.save'));
+    expect(defaultProps.onSave).toHaveBeenCalledWith({ priority: 10, description: 'SIMBAD database' });
+  });
+
+  it('renders read-only source info for image type with urlTemplate', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imageSource: any = {
+      id: 'img-1',
+      name: 'SkyView',
+      type: 'survey',
+      description: 'NASA SkyView',
+      enabled: true,
+      priority: 1,
+      builtIn: true,
+      baseUrl: 'https://skyview.example.com',
+      urlTemplate: '/cgi-bin/images?',
+      credit: 'NASA',
+      status: 'online',
+    };
+    render(<EditSourceDialog source={imageSource} type="image" open={true} onOpenChange={jest.fn()} onSave={jest.fn()} />);
+    // Source info section should show base URL
+    expect(screen.getByText('https://skyview.example.com')).toBeInTheDocument();
+    // urlTemplate is rendered when type === 'image' && 'urlTemplate' in source
+    expect(screen.getByText('/cgi-bin/images?')).toBeInTheDocument();
+  });
+
+  it('shows built-in description for built-in sources', () => {
+    render(<EditSourceDialog {...defaultProps} />);
+    expect(screen.getByText('sourceConfig.editBuiltInDescription')).toBeInTheDocument();
+  });
+
+  it('shows custom description for custom sources', () => {
+    const customSource = { ...mockSource, builtIn: false };
+    render(<EditSourceDialog {...defaultProps} source={customSource} />);
+    expect(screen.getByText('sourceConfig.editCustomDescription')).toBeInTheDocument();
+  });
+
+  it('displays source type in read-only section', () => {
+    render(<EditSourceDialog {...defaultProps} />);
+    expect(screen.getByText('simbad')).toBeInTheDocument();
+  });
+
+  it('displays base URL in read-only section', () => {
+    render(<EditSourceDialog {...defaultProps} />);
+    expect(screen.getByText('https://simbad.example.com')).toBeInTheDocument();
+  });
 });

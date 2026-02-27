@@ -148,6 +148,41 @@ describe('SatelliteTracker', () => {
     render(<SatelliteTracker />);
     expect(screen.getByTestId('tabs')).toBeInTheDocument();
   });
+
+  it('renders satellite display toggle switch', () => {
+    render(<SatelliteTracker />);
+    const switches = screen.getAllByTestId('switch');
+    expect(switches.length).toBeGreaterThan(0);
+  });
+
+  it('renders location coordinates in footer', () => {
+    render(<SatelliteTracker />);
+    expect(screen.getByText(/40\.71/)).toBeInTheDocument();
+    expect(screen.getByText(/-74\.01/)).toBeInTheDocument();
+  });
+
+  it('renders refresh button', () => {
+    render(<SatelliteTracker />);
+    const buttons = screen.getAllByTestId('button');
+    expect(buttons.length).toBeGreaterThan(1);
+  });
+
+  it('renders search input', () => {
+    render(<SatelliteTracker />);
+    // SearchInput component mock
+    expect(screen.getByTestId('dialog-content')).toBeInTheDocument();
+  });
+
+  it('renders upcoming passes count', () => {
+    render(<SatelliteTracker />);
+    expect(document.body.textContent).toContain('satellites.next24Hours');
+  });
+
+  it('renders tabs list with passes and catalog tabs', () => {
+    render(<SatelliteTracker />);
+    const tabsTriggers = screen.getAllByTestId('tabs-trigger');
+    expect(tabsTriggers.length).toBe(2);
+  });
 });
 
 

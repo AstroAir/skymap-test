@@ -12,6 +12,7 @@ import {
   NextGlobalSolarEclipse,
   NextLunarEclipse,
   NextMoonQuarter,
+  Seasons,
   SearchGlobalSolarEclipse,
   SearchLunarEclipse,
   SearchMaxElongation,
@@ -192,7 +193,7 @@ export const SATELLITE_SOURCES: DataSourceConfig[] = [
 ];
 
 const DEFAULT_ASTRO_SOURCES = ['local', 'usno', 'imo', 'nasa', 'mpc'] as const;
-const GSFC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const GSFC_PAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const MONTH_ABBR_TO_INDEX: Record<string, number> = {
   Jan: 0,
@@ -209,7 +210,21 @@ const MONTH_ABBR_TO_INDEX: Record<string, number> = {
   Dec: 11,
 };
 
-const gsfcYearCache = new Map<number, { expiresAt: number; events: AstroEvent[] }>();
+const gsfcPageCache = new Map<string, { expiresAt: number; events: AstroEvent[] }>();
+
+function getGsfcDecadeStart(year: number): number {
+  return Math.floor((year - 1) / 10) * 10 + 1;
+}
+
+function buildGsfcSolarDecadeUrl(year: number): string {
+  const decadeStart = getGsfcDecadeStart(year);
+  return `https://eclipse.gsfc.nasa.gov/SEdecade/SEdecade${decadeStart}.html`;
+}
+
+function buildGsfcLunarDecadeUrl(year: number): string {
+  const decadeStart = getGsfcDecadeStart(year);
+  return `https://eclipse.gsfc.nasa.gov/LEdecade/LEdecade${decadeStart}.html`;
+}
 
 function sourcePriorityMap(sources: EventSourceConfig[] = []): Record<string, number> {
   const map: Record<string, number> = {};
@@ -338,7 +353,7 @@ function normalizeEclipseVisibility(label: string): AstroEvent['visibility'] {
   return 'fair';
 }
 
-function parseGsfcSolarHtml(html: string): AstroEvent[] {
+function parseGsfcSolarHtml(html: string, sourceUrl: string): AstroEvent[] {
   const rows = html.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
   const events: AstroEvent[] = [];
   const rowRegex = /<td[^>]*>\s*(?:<a[^>]*>)?\s*([0-9]{4}\s+[A-Za-z]{3}\s+[0-9]{1,2})\s*(?:<\/a>)?\s*<\/td>[\s\S]*?<td[^>]*>\s*(?:<a[^>]*>)?\s*([0-9]{2}:[0-9]{2}:[0-9]{2})\s*(?:<\/a>)?\s*<\/td>[\s\S]*?<td[^>]*>\s*(?:<a[^>]*>)?\s*(Total|Annular|Hybrid|Partial)\s*(?:<\/a>)?\s*<\/td>/i;
@@ -357,14 +372,14 @@ function parseGsfcSolarHtml(html: string): AstroEvent[] {
       description: `${eclipseType} solar eclipse from NASA GSFC catalog.`,
       visibility: normalizeEclipseVisibility(eclipseType),
       source: 'NASA GSFC',
-      url: 'https://eclipse.gsfc.nasa.gov/SEdecade/SEdecade2021.html',
+      url: sourceUrl,
     });
   });
 
   return events;
 }
 
-function parseGsfcLunarHtml(html: string): AstroEvent[] {
+function parseGsfcLunarHtml(html: string, sourceUrl: string): AstroEvent[] {
   const rows = html.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
   const events: AstroEvent[] = [];
   const rowRegex = /<td[^>]*>\s*(?:<a[^>]*>)?\s*([0-9]{4}\s+[A-Za-z]{3}\s+[0-9]{1,2})\s*(?:<\/a>)?\s*<\/td>[\s\S]*?<td[^>]*>\s*([0-9]{2}:[0-9]{2}:[0-9]{2})\s*<\/td>[\s\S]*?<td[^>]*>\s*(Total|Partial|Penumbral)\s*<\/td>/i;
@@ -383,39 +398,47 @@ function parseGsfcLunarHtml(html: string): AstroEvent[] {
       description: `${eclipseType} lunar eclipse from NASA GSFC catalog.`,
       visibility: normalizeEclipseVisibility(eclipseType),
       source: 'NASA GSFC',
-      url: 'https://eclipse.gsfc.nasa.gov/LEdecade/LEdecade2021.html',
+      url: sourceUrl,
     });
   });
 
   return events;
 }
 
-async function fetchGsfcEclipsesForYear(year: number): Promise<AstroEvent[]> {
+async function fetchGsfcDecadeCatalog(
+  url: string,
+  parser: (html: string, sourceUrl: string) => AstroEvent[]
+): Promise<AstroEvent[]> {
   const now = Date.now();
-  const cached = gsfcYearCache.get(year);
+  const cached = gsfcPageCache.get(url);
   if (cached && cached.expiresAt > now) {
     return cached.events;
   }
 
-  const [solarResponse, lunarResponse] = await Promise.all([
-    smartFetch('https://eclipse.gsfc.nasa.gov/SEdecade/SEdecade2021.html', { timeout: 30000 }),
-    smartFetch('https://eclipse.gsfc.nasa.gov/LEdecade/LEdecade2021.html', { timeout: 30000 }),
-  ]);
-  if (!solarResponse.ok || !lunarResponse.ok) {
-    throw new Error('NASA GSFC catalog fetch failed');
+  const response = await smartFetch(url, { timeout: 30000 });
+  if (!response.ok) {
+    throw new Error(`NASA GSFC catalog fetch failed: ${url}`);
   }
 
-  const [solarHtml, lunarHtml] = await Promise.all([solarResponse.text(), lunarResponse.text()]);
-  const parsedEvents = [...parseGsfcSolarHtml(solarHtml), ...parseGsfcLunarHtml(lunarHtml)]
-    .filter((event) => event.date.getUTCFullYear() === year)
-    .sort((left, right) => left.date.getTime() - right.date.getTime());
-
-  gsfcYearCache.set(year, {
-    expiresAt: now + GSFC_CACHE_TTL_MS,
+  const html = await response.text();
+  const parsedEvents = parser(html, url);
+  gsfcPageCache.set(url, {
+    expiresAt: now + GSFC_PAGE_CACHE_TTL_MS,
     events: parsedEvents,
   });
-
   return parsedEvents;
+}
+
+async function fetchGsfcEclipsesForYear(year: number): Promise<AstroEvent[]> {
+  const solarUrl = buildGsfcSolarDecadeUrl(year);
+  const lunarUrl = buildGsfcLunarDecadeUrl(year);
+  const [solarEvents, lunarEvents] = await Promise.all([
+    fetchGsfcDecadeCatalog(solarUrl, parseGsfcSolarHtml),
+    fetchGsfcDecadeCatalog(lunarUrl, parseGsfcLunarHtml),
+  ]);
+  return [...solarEvents, ...lunarEvents]
+    .filter((event) => event.date.getUTCFullYear() === year)
+    .sort((left, right) => left.date.getTime() - right.date.getTime());
 }
 
 // ============================================================================
@@ -572,7 +595,27 @@ function getKnownEclipses(year: number, month: number): AstroEvent[] {
 /**
  * Fetch comet data from Minor Planet Center
  */
-export async function fetchComets(): Promise<AstroEvent[]> {
+function parseMpcPerihelionDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const match = value.trim().match(/^(\d{2})\/(\d{1,2}(?:\.\d+)?)\/(\d{4})$/);
+  if (!match) return null;
+
+  const month = Number.parseInt(match[1], 10);
+  const dayWithFraction = Number.parseFloat(match[2]);
+  const year = Number.parseInt(match[3], 10);
+  if (!Number.isFinite(dayWithFraction) || month < 1 || month > 12) return null;
+
+  const day = Math.floor(dayWithFraction);
+  const fraction = dayWithFraction - day;
+  const totalSeconds = Math.round(fraction * 86400);
+  const hour = Math.floor(totalSeconds / 3600);
+  const minute = Math.floor((totalSeconds % 3600) / 60);
+  const second = totalSeconds % 60;
+  const parsed = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export async function fetchComets(year?: number, month?: number): Promise<AstroEvent[]> {
   try {
     // MPC Observable Comets
     const response = await smartFetch(
@@ -584,6 +627,7 @@ export async function fetchComets(): Promise<AstroEvent[]> {
     
     const text = await response.text();
     const events: AstroEvent[] = [];
+    const filterByMonth = Number.isInteger(year) && Number.isInteger(month);
     
     // Parse MPC comet data format (comma-separated Soft03Cmt format)
     const lines = text.split('\n').filter((line) => line.trim() && !line.startsWith('#'));
@@ -591,6 +635,14 @@ export async function fetchComets(): Promise<AstroEvent[]> {
       const columns = line.split(',').map((part) => part.trim());
       const name = columns[0];
       if (!name) return;
+      const perihelionDate = parseMpcPerihelionDate(columns[9]);
+      if (!perihelionDate) return;
+      if (
+        filterByMonth
+        && (perihelionDate.getUTCFullYear() !== year || perihelionDate.getUTCMonth() !== month)
+      ) {
+        return;
+      }
 
       // Absolute magnitude is usually the second to last numeric field in Soft03Cmt.
       const numericColumns = columns
@@ -600,11 +652,11 @@ export async function fetchComets(): Promise<AstroEvent[]> {
 
       if (!Number.isFinite(mag) || mag > 12) return;
       events.push({
-        id: `comet-${name.replace(/\s+/g, '-').toLowerCase()}`,
+        id: `comet-${name.replace(/\s+/g, '-').toLowerCase()}-${perihelionDate.toISOString().slice(0, 10)}`,
         type: 'comet',
         name: `Comet ${name}`,
-        date: new Date(),
-        description: `Current absolute magnitude estimate: ${mag.toFixed(1)}`,
+        date: perihelionDate,
+        description: `Perihelion: ${perihelionDate.toISOString().slice(0, 10)} (UTC). Absolute magnitude estimate: ${mag.toFixed(1)}.`,
         visibility: mag < 6 ? 'excellent' : mag < 8 ? 'good' : 'fair',
         magnitude: mag,
         source: 'MPC',
@@ -825,9 +877,53 @@ function categorizesSatellite(name: string, category: string): SatelliteData['ty
 // Planetary Events Fetcher (Astronomy API)
 // ============================================================================
 
+function toBase64(input: string): string {
+  if (typeof globalThis.btoa === 'function') {
+    return globalThis.btoa(input);
+  }
+  return Buffer.from(input, 'utf-8').toString('base64');
+}
+
+function normalizeAstronomyApiAuthToken(rawValue?: string): string | null {
+  if (!rawValue) return null;
+  const trimmed = rawValue.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.toLowerCase().startsWith('basic ')) {
+    const token = trimmed.slice('basic '.length).trim();
+    return token.length > 0 ? token : null;
+  }
+
+  if (trimmed.includes(':')) {
+    return toBase64(trimmed);
+  }
+
+  return trimmed;
+}
+
+function parseDateValue(value: unknown): Date | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed;
+}
+
+function formatAstronomyApiLabel(label: string): string {
+  return label
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function normalizeAstronomyApiVisibility(eventType: string): AstroEvent['visibility'] {
+  if (eventType.includes('total')) return 'excellent';
+  if (eventType.includes('annular')) return 'good';
+  if (eventType.includes('partial')) return 'fair';
+  return 'fair';
+}
+
 /**
- * Fetch planetary events (conjunctions, oppositions, elongations)
- * Requires an API key from astronomyapi.com
+ * Fetch AstronomyAPI body events (currently eclipse-focused, Sun/Moon only)
  */
 export async function fetchPlanetaryEvents(
   year: number,
@@ -835,10 +931,10 @@ export async function fetchPlanetaryEvents(
   config?: { apiUrl?: string; apiKey?: string },
   observer?: AstroObserver
 ): Promise<AstroEvent[]> {
-  const apiKey = config?.apiKey;
-  if (!apiKey) {
-    logger.debug('Astronomy API key not configured, using static planetary data');
-    return getStaticPlanetaryEvents(year, month);
+  const authToken = normalizeAstronomyApiAuthToken(config?.apiKey);
+  if (!authToken) {
+    logger.debug('Astronomy API credentials not configured, skipping source');
+    return [];
   }
 
   const apiUrl = config?.apiUrl || 'https://api.astronomyapi.com/api/v2';
@@ -862,6 +958,7 @@ export async function fetchPlanetaryEvents(
         from_date: fromDate,
         to_date: toDate,
         time: '00:00:00',
+        output: 'rows',
       });
 
       const response = await smartFetch(
@@ -869,7 +966,7 @@ export async function fetchPlanetaryEvents(
         {
           timeout: 30000,
           headers: {
-            Authorization: `Basic ${apiKey}`,
+            Authorization: `Basic ${authToken}`,
           },
         }
       );
@@ -877,51 +974,50 @@ export async function fetchPlanetaryEvents(
 
       const data = await response.json<{
         data?: {
-          table?: {
-            rows?: Array<{
-              event?: string;
-              eventName?: string;
-              name?: string;
-              date?: string;
-              time?: string;
-              startsAt?: string;
-              details?: string;
-            }>;
-          };
           rows?: Array<{
-            event?: string;
-            eventName?: string;
-            name?: string;
-            date?: string;
-            time?: string;
-            startsAt?: string;
-            details?: string;
+            body?: {
+              id?: string;
+              name?: string;
+            };
+            events?: Array<{
+              type?: string;
+              eventHighlights?: Record<string, { date?: string } | null>;
+              rise?: string;
+              set?: string;
+              extraInfo?: unknown;
+            }>;
           }>;
         };
       }>();
 
-      const rows = data.data?.table?.rows ?? data.data?.rows ?? [];
-      rows.forEach((row, index) => {
-        const eventName = row.eventName || row.event || row.name || `${body} event`;
-        const normalized = eventName.toLowerCase();
-        let eventType: EventType = 'planet_conjunction';
-        if (normalized.includes('opposition')) eventType = 'planet_opposition';
-        else if (normalized.includes('elongation')) eventType = 'planet_elongation';
-        else if (normalized.includes('conjunction')) eventType = 'planet_conjunction';
-        else if (normalized.includes('equinox') || normalized.includes('solstice')) eventType = 'equinox_solstice';
+      const rows = data.data?.rows ?? [];
+      rows.forEach((row, rowIndex) => {
+        row.events?.forEach((eventItem, eventIndex) => {
+          const rawType = eventItem.type ?? `${body}_event`;
+          const eventType = rawType.toLowerCase();
+          const highlightDates = Object.values(eventItem.eventHighlights ?? {})
+            .map((highlight) => parseDateValue(highlight?.date))
+            .filter((date): date is Date => Boolean(date))
+            .sort((left, right) => left.getTime() - right.getTime());
+          const peakDate = parseDateValue(eventItem.eventHighlights?.peak?.date);
+          const startsAt = highlightDates[0] ?? peakDate ?? parseDateValue(eventItem.rise) ?? parseDateValue(eventItem.set);
+          if (!startsAt) return;
+          const endsAt = highlightDates.length > 0 ? highlightDates[highlightDates.length - 1] : undefined;
+          const normalizedType = formatAstronomyApiLabel(eventType);
+          const bodyLabel = row.body?.name ?? body.toUpperCase();
 
-        const eventDate = new Date(row.startsAt || row.time || row.date || fromDate);
-        if (Number.isNaN(eventDate.getTime())) return;
-
-        events.push({
-          id: `astronomyapi-${body}-${index}-${eventDate.toISOString()}`,
-          type: eventType,
-          name: eventName,
-          date: eventDate,
-          description: row.details || `${body.toUpperCase()} event reported by AstronomyAPI.`,
-          visibility: 'good',
-          source: 'Astronomy API',
-          url: 'https://docs.astronomyapi.com/reference/get_bodies-events-body',
+          events.push({
+            id: `astronomyapi-${body}-${rowIndex}-${eventIndex}-${startsAt.toISOString()}`,
+            type: 'eclipse',
+            name: normalizedType.includes('Eclipse') ? normalizedType : `${normalizedType} (${bodyLabel})`,
+            date: startsAt,
+            endDate: endsAt && endsAt.getTime() > startsAt.getTime() ? endsAt : undefined,
+            peakTime: peakDate,
+            description: `${normalizedType} event for ${bodyLabel} from AstronomyAPI.`,
+            visibility: normalizeAstronomyApiVisibility(eventType),
+            source: 'Astronomy API',
+            url: 'https://docs.astronomyapi.com/endpoints/bodies/events',
+          });
         });
       });
     }
@@ -930,8 +1026,8 @@ export async function fetchPlanetaryEvents(
       event.date.getUTCFullYear() === year && event.date.getUTCMonth() === month
     ));
   } catch (error) {
-    logger.warn('Failed to fetch from Astronomy API, using static data', error);
-    return getStaticPlanetaryEvents(year, month);
+    logger.warn('Failed to fetch from Astronomy API', error);
+    return [];
   }
 }
 
@@ -970,6 +1066,31 @@ function buildLocalCalculatedEvents(year: number, month: number): AstroEvent[] {
       });
     }
     moonQuarter = NextMoonQuarter(moonQuarter);
+  }
+
+  try {
+    const seasons = Seasons(year);
+    const seasonEvents: Array<{ key: string; date: Date }> = [
+      { key: 'March Equinox', date: new Date(seasons.mar_equinox.date) },
+      { key: 'June Solstice', date: new Date(seasons.jun_solstice.date) },
+      { key: 'September Equinox', date: new Date(seasons.sep_equinox.date) },
+      { key: 'December Solstice', date: new Date(seasons.dec_solstice.date) },
+    ];
+    seasonEvents.forEach((seasonEvent) => {
+      if (seasonEvent.date >= monthStart && seasonEvent.date <= monthEnd) {
+        events.push({
+          id: `local-season-${seasonEvent.key.toLowerCase().replace(/\s+/g, '-')}-${seasonEvent.date.toISOString()}`,
+          type: 'equinox_solstice',
+          name: seasonEvent.key,
+          date: seasonEvent.date,
+          description: `${seasonEvent.key} computed with Astronomy Engine.`,
+          visibility: 'good',
+          source: 'Local Calculation',
+        });
+      }
+    });
+  } catch (error) {
+    logger.debug('Local seasons calculation failed', error);
   }
 
   try {
@@ -1076,42 +1197,6 @@ export async function fetchLocalCalculatedEvents(year: number, month: number): P
   return buildLocalCalculatedEvents(year, month);
 }
 
-/**
- * Static planetary event data as fallback
- */
-function getStaticPlanetaryEvents(year: number, month: number): AstroEvent[] {
-  const events: Array<{ date: string; name: string; type: EventType; desc: string }> = [
-    // 2025 notable events
-    { date: '2025-01-16', name: 'Mars at Opposition', type: 'planet_opposition', desc: 'Mars is at its closest and brightest, visible all night.' },
-    { date: '2025-01-18', name: 'Venus Greatest Eastern Elongation', type: 'planet_elongation', desc: 'Venus reaches 47.2° east of the Sun, brilliant in evening sky.' },
-    { date: '2025-03-14', name: 'Jupiter Conjunction with Moon', type: 'planet_conjunction', desc: 'Jupiter appears near the Moon in the evening sky.' },
-    { date: '2025-05-25', name: 'Saturn at Opposition', type: 'planet_opposition', desc: 'Saturn at its closest approach, rings well-presented.' },
-    { date: '2025-06-01', name: 'Mercury Greatest Western Elongation', type: 'planet_elongation', desc: 'Mercury reaches 24.2° west of Sun, visible in morning sky.' },
-    { date: '2025-07-04', name: 'Venus-Jupiter Conjunction', type: 'planet_conjunction', desc: 'Venus and Jupiter appear very close in the dawn sky.' },
-    { date: '2025-09-14', name: 'Neptune at Opposition', type: 'planet_opposition', desc: 'Neptune at its closest approach, visible with telescope.' },
-    { date: '2025-11-21', name: 'Uranus at Opposition', type: 'planet_opposition', desc: 'Uranus at its closest approach, faintly visible to naked eye.' },
-    // 2026
-    { date: '2026-02-12', name: 'Venus Greatest Eastern Elongation', type: 'planet_elongation', desc: 'Venus reaches maximum eastern elongation.' },
-    { date: '2026-05-04', name: 'Mars at Opposition', type: 'planet_opposition', desc: 'Mars closest approach to Earth.' },
-    { date: '2026-08-10', name: 'Saturn at Opposition', type: 'planet_opposition', desc: 'Saturn at its brightest for the year.' },
-  ];
-
-  return events
-    .filter(e => {
-      const d = new Date(e.date);
-      return d.getFullYear() === year && d.getMonth() === month;
-    })
-    .map(e => ({
-      id: `planet-${e.date}`,
-      type: e.type,
-      name: e.name,
-      date: new Date(e.date),
-      description: e.desc,
-      visibility: 'good' as const,
-      source: 'Calculated',
-    }));
-}
-
 // ============================================================================
 // Aggregated Data Fetchers
 // ============================================================================
@@ -1130,7 +1215,7 @@ const SOURCE_FETCHERS: Record<string, SourceFetcher> = {
   usno: (year, month) => fetchLunarPhases(year, month),
   imo: (year, month) => fetchMeteorShowers(year, month),
   nasa: (year, month) => fetchEclipses(year, month),
-  mpc: () => fetchComets(),
+  mpc: (year, month) => fetchComets(year, month),
   local: (year, month) => fetchLocalCalculatedEvents(year, month),
   astronomyapi: (year, month, config, observer) =>
     fetchPlanetaryEvents(year, month, {
@@ -1166,15 +1251,62 @@ function monthStartsBetween(startDate: Date, endDate: Date): Date[] {
   return starts;
 }
 
-function dedupeEvents(events: AstroEvent[]): AstroEvent[] {
+function eventSemanticKey(event: AstroEvent): string {
+  const minuteKey = event.date.toISOString().slice(0, 16);
+  const endMinuteKey = (event.endDate ?? event.date).toISOString().slice(0, 16);
+  const normalizedName = event.name.trim().toLowerCase();
+  return `${event.type}|${normalizedName}|${minuteKey}|${endMinuteKey}`;
+}
+
+function eventCompletenessScore(event: AstroEvent): number {
+  let score = 0;
+  if (event.endDate) score += 2;
+  if (event.peakTime) score += 2;
+  if (event.ra !== undefined) score += 1;
+  if (event.dec !== undefined) score += 1;
+  if (event.magnitude !== undefined) score += 1;
+  if (event.url) score += 1;
+  return score;
+}
+
+function eventSourcePriority(event: AstroEvent, priorityMap: Record<string, number>): number {
+  return priorityMap[sourceIdFromEvent(event.source)] ?? 99;
+}
+
+function mergeEventData(primary: AstroEvent, secondary: AstroEvent): AstroEvent {
+  return {
+    ...primary,
+    endDate: primary.endDate ?? secondary.endDate,
+    peakTime: primary.peakTime ?? secondary.peakTime,
+    ra: primary.ra ?? secondary.ra,
+    dec: primary.dec ?? secondary.dec,
+    magnitude: primary.magnitude ?? secondary.magnitude,
+    url: primary.url ?? secondary.url,
+    description: primary.description?.trim().length > 0 ? primary.description : secondary.description,
+  };
+}
+
+function dedupeEvents(events: AstroEvent[], priorityMap: Record<string, number>): AstroEvent[] {
   const deduped = new Map<string, AstroEvent>();
   for (const event of events) {
-    const startsAt = event.date;
-    const minuteKey = startsAt.toISOString().slice(0, 16);
-    const normalizedName = event.name.trim().toLowerCase();
-    const key = `${event.type}|${normalizedName}|${minuteKey}|${event.source.toLowerCase()}`;
-    if (!deduped.has(key)) {
+    const key = eventSemanticKey(event);
+    const existing = deduped.get(key);
+    if (!existing) {
       deduped.set(key, event);
+      continue;
+    }
+
+    const existingPriority = eventSourcePriority(existing, priorityMap);
+    const incomingPriority = eventSourcePriority(event, priorityMap);
+    const existingScore = eventCompletenessScore(existing);
+    const incomingScore = eventCompletenessScore(event);
+    const incomingPreferred = incomingPriority < existingPriority
+      || (incomingPriority === existingPriority && incomingScore > existingScore);
+
+    if (incomingPreferred) {
+      deduped.set(key, mergeEventData(event, existing));
+    } else {
+      deduped.set(key, mergeEventData(existing, event));
     }
   }
   return Array.from(deduped.values());
@@ -1197,6 +1329,10 @@ export async function fetchAstroEventsInRange(
     sourcesOrIds,
   } = params;
   const normalizedSources = normalizeSources(sourcesOrIds);
+  const priorityMap = normalizedSources.reduce<Record<string, number>>((acc, source, index) => {
+    acc[source.id] = source.priority ?? index + 1;
+    return acc;
+  }, {});
   const months = monthStartsBetween(startDate, endDate);
   const fetchTasks: Array<Promise<AstroEvent[]>> = [];
 
@@ -1223,7 +1359,7 @@ export async function fetchAstroEventsInRange(
     }
   });
 
-  const filtered = dedupeEvents(mergedEvents).filter((event) => {
+  const filtered = dedupeEvents(mergedEvents, priorityMap).filter((event) => {
     const { startsAt, endsAt } = eventWindowForRange(event);
     if (includeOngoing) {
       return startsAt <= endDate && endsAt >= startDate;

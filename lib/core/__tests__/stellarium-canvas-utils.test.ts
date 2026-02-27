@@ -108,4 +108,48 @@ describe('withTimeout', () => {
       withTimeout(slowPromise, 10, 'custom timeout message')
     ).rejects.toThrow('custom timeout message');
   });
+
+  it('should propagate rejection from original promise', async () => {
+    const failPromise = Promise.reject(new Error('original error'));
+    await expect(
+      withTimeout(failPromise, 5000, 'timed out')
+    ).rejects.toThrow('original error');
+  });
+});
+
+jest.mock('@/lib/offline', () => ({
+  unifiedCache: {
+    fetch: jest.fn(),
+  },
+}));
+
+describe('prefetchWasm', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { unifiedCache } = require('@/lib/offline');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return true when fetch succeeds', async () => {
+    (unifiedCache.fetch as jest.Mock).mockResolvedValue({ ok: true });
+    const { prefetchWasm } = await import('../stellarium-canvas-utils');
+    const result = await prefetchWasm();
+    expect(result).toBe(true);
+    expect(unifiedCache.fetch).toHaveBeenCalled();
+  });
+
+  it('should return false when fetch fails', async () => {
+    (unifiedCache.fetch as jest.Mock).mockRejectedValue(new Error('network error'));
+    const { prefetchWasm } = await import('../stellarium-canvas-utils');
+    const result = await prefetchWasm();
+    expect(result).toBe(false);
+  });
+
+  it('should return false when response is not ok', async () => {
+    (unifiedCache.fetch as jest.Mock).mockResolvedValue({ ok: false });
+    const { prefetchWasm } = await import('../stellarium-canvas-utils');
+    const result = await prefetchWasm();
+    expect(result).toBe(false);
+  });
 });

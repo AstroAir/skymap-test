@@ -107,4 +107,34 @@ describe('ZoomControls', () => {
     
     expect(defaultProps.onFovChange).toHaveBeenCalled();
   });
+
+  it('has a group role with aria-label for zoom controls', () => {
+    render(<ZoomControls {...defaultProps} />);
+
+    const group = screen.getByRole('group');
+    expect(group).toBeInTheDocument();
+    expect(group).toHaveAttribute('aria-label', 'zoom.zoomControls');
+  });
+
+  it('has aria-live="polite" on the FOV display', () => {
+    render(<ZoomControls {...defaultProps} fov={45} />);
+
+    const fovDisplay = screen.getByText('45.0°');
+    expect(fovDisplay).toHaveAttribute('aria-live', 'polite');
+    expect(fovDisplay).toHaveAttribute('aria-atomic', 'true');
+  });
+
+  it('does not disable either button when FOV is in mid-range', () => {
+    render(<ZoomControls {...defaultProps} fov={30} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[0]).not.toBeDisabled(); // zoom in
+    expect(buttons[1]).not.toBeDisabled(); // zoom out
+  });
+
+  it('displays integer FOV without extra decimals', () => {
+    render(<ZoomControls {...defaultProps} fov={60} />);
+
+    expect(screen.getByText('60.0°')).toBeInTheDocument();
+  });
 });

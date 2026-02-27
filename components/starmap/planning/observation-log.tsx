@@ -249,14 +249,26 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       };
     });
 
+    const constraints = latestPlan.constraints ?? {
+      minAltitude: latestPlan.minAltitude,
+      minImagingTime: latestPlan.minImagingTime,
+      minMoonDistance: 20,
+      useExposurePlanDuration: true,
+      weatherLimits: {
+        maxCloudCover: 70,
+        maxHumidity: 90,
+        maxWindSpeed: 25,
+      },
+      safetyLimits: {
+        enforceMountSafety: false,
+        avoidMeridianFlipWindow: false,
+      },
+    };
+
     const draft: SessionDraftV2 = {
       planDate: latestPlan.planDate,
       strategy: latestPlan.strategy,
-      constraints: {
-        minAltitude: latestPlan.minAltitude,
-        minImagingTime: latestPlan.minImagingTime,
-        minMoonDistance: 20,
-      },
+      constraints,
       excludedTargetIds: latestPlan.excludedTargetIds,
       manualEdits,
       notes: latestPlan.notes,

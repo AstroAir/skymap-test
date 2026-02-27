@@ -5,6 +5,7 @@ type DailyKnowledgeSeedOptions = {
   enabled: boolean;
   autoShow: boolean;
   onlineEnhancement?: boolean;
+  locale?: 'en' | 'zh';
   lastShownDate?: string | null;
   snoozedDate?: string | null;
 };
@@ -28,6 +29,7 @@ async function seedStarmapState(page: Page, options: DailyKnowledgeSeedOptions) 
     localStorage.setItem('starmap-settings', JSON.stringify({
       state: {
         preferences: {
+          locale: seed.locale ?? 'en',
           showSplash: false,
           dailyKnowledgeEnabled: seed.enabled,
           dailyKnowledgeAutoShow: seed.autoShow,
@@ -137,5 +139,23 @@ test.describe('Daily Knowledge', () => {
       .filter({ hasText: /unable to locate|sky engine is not ready|无法定位|未就绪/i });
     await expect(errorToast).toHaveCount(0);
     await expect(dialog).toBeVisible();
+  });
+
+  test('shows native-language metadata in Chinese locale', async ({ page }) => {
+    await seedStarmapState(page, {
+      enabled: true,
+      autoShow: false,
+      onlineEnhancement: false,
+      locale: 'zh',
+    });
+    await openReadyStarmap(page);
+
+    const trigger = page.locator('[data-tour-id="daily-knowledge"] button').first();
+    await trigger.click();
+
+    const dialog = page.locator('[role="dialog"]').filter({ hasText: /daily knowledge|每日知识/i });
+    await expect(dialog).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+    await expect(dialog.getByText(/本地语言/)).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+    await expect(dialog.getByText(/事实来源/)).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
   });
 });

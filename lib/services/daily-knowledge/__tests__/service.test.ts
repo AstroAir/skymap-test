@@ -47,6 +47,10 @@ function makeItem(partial: Partial<DailyKnowledgeItem> & Pick<DailyKnowledgeItem
     externalUrl: partial.externalUrl,
     relatedObjects: partial.relatedObjects ?? [],
     attribution: partial.attribution ?? { sourceName: 'test' },
+    isDateEvent: partial.isDateEvent ?? false,
+    eventMonthDay: partial.eventMonthDay,
+    factSources: partial.factSources ?? [{ title: 'source', url: 'https://example.com', publisher: 'test' }],
+    languageStatus: partial.languageStatus ?? 'native',
     fetchedAt: partial.fetchedAt ?? Date.now(),
   };
 }
@@ -146,6 +150,58 @@ describe('daily-knowledge/service', () => {
     expect(second.selected.id).toBe('apod-cache');
     expect(mockFetchApodItem).toHaveBeenCalledTimes(1);
     expect(mockFetchWikimediaItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('prefers native content for zh locale and marks English fallback', async () => {
+    const curatedZh = makeItem({
+      id: 'curated-zh',
+      source: 'curated',
+      contentLanguage: 'zh',
+      title: '中文条目',
+    });
+    const apodEn = makeItem({
+      id: 'apod-en',
+      source: 'nasa-apod',
+      contentLanguage: 'en',
+    });
+    const wikiEn = makeItem({
+      id: 'wiki-en',
+      source: 'wikimedia',
+      contentLanguage: 'en',
+    });
+
+    mockGetCuratedDailyItem.mockReturnValue(curatedZh);
+    mockGetCuratedItems.mockReturnValue([curatedZh]);
+    mockFetchApodItem.mockResolvedValue(apodEn);
+    mockFetchWikimediaItem.mockResolvedValue(wikiEn);
+
+    const result = await getDailyKnowledge('2026-02-20', 'zh', { onlineEnhancement: true });
+
+    expect(result.selected.id).toBe('curated-zh');
+    expect(result.selected.languageStatus).toBe('native');
+    expect(result.items.find((item) => item.id === 'apod-en')?.languageStatus).toBe('fallback');
+    expect(mockFetchWikimediaItem).toHaveBeenCalledWith(
+      '2026-02-20',
+      expect.any(String),
+      expect.objectContaining({ locale: 'zh' })
+    );
+  });
+
+  it('passes AbortSignal to online sources', async () => {
+    const signal = new AbortController().signal;
+
+    await getDailyKnowledge('2026-02-20', 'en', { onlineEnhancement: true, signal });
+
+    expect(mockFetchApodItem).toHaveBeenCalledWith(
+      '2026-02-20',
+      expect.any(String),
+      expect.objectContaining({ signal })
+    );
+    expect(mockFetchWikimediaItem).toHaveBeenCalledWith(
+      '2026-02-20',
+      expect.any(String),
+      expect.objectContaining({ signal, locale: 'en' })
+    );
   });
 
   it('retries with exponential backoff sequence', async () => {

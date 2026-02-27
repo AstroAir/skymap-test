@@ -130,6 +130,97 @@ describe('KeyboardShortcutsManager', () => {
     const call = mockUseKeyboardShortcuts.mock.calls[0][0];
     expect(call.enabled).toBe(false);
   });
+
+  it('includes search shortcut and / alias when onToggleSearch provided', () => {
+    const onToggleSearch = jest.fn();
+    render(<KeyboardShortcutsManager onToggleSearch={onToggleSearch} />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const keys = call.shortcuts.map((s: { key: string }) => s.key);
+
+    // TOGGLE_SEARCH default binding key (ctrl+f) and `/` alias
+    expect(keys).toContain('f');
+    expect(keys).toContain('/');
+  });
+
+  it('includes session panel shortcut when onToggleSessionPanel provided', () => {
+    const onToggleSessionPanel = jest.fn();
+    render(<KeyboardShortcutsManager onToggleSessionPanel={onToggleSessionPanel} />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const keys = call.shortcuts.map((s: { key: string }) => s.key);
+
+    expect(keys).toContain('p'); // TOGGLE_SESSION_PANEL default
+  });
+
+  it('includes reset view shortcut when onResetView provided', () => {
+    const onResetView = jest.fn();
+    render(<KeyboardShortcutsManager onResetView={onResetView} />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const keys = call.shortcuts.map((s: { key: string }) => s.key);
+
+    expect(keys).toContain('r'); // RESET_VIEW default
+  });
+
+  it('includes close panel shortcut with ignoreInputs=false when onClosePanel provided', () => {
+    const onClosePanel = jest.fn();
+    render(<KeyboardShortcutsManager onClosePanel={onClosePanel} />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const escShortcut = call.shortcuts.find(
+      (s: { key: string }) => s.key === 'Escape'
+    );
+
+    expect(escShortcut).toBeDefined();
+    expect(escShortcut.ignoreInputs).toBe(false);
+  });
+
+  it('includes = alias for zoom in when default binding key is +', () => {
+    const onZoomIn = jest.fn();
+    render(<KeyboardShortcutsManager onZoomIn={onZoomIn} />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const eqShortcut = call.shortcuts.find(
+      (s: { key: string }) => s.key === '='
+    );
+
+    expect(eqShortcut).toBeDefined();
+    expect(eqShortcut.action).toBeDefined();
+  });
+
+  it('includes FOV toggle shortcut', () => {
+    render(<KeyboardShortcutsManager />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const keys = call.shortcuts.map((s: { key: string }) => s.key);
+
+    // TOGGLE_FOV default is 'o'
+    expect(keys).toContain('o');
+  });
+
+  it('executes FOV toggle action when shortcut is triggered', () => {
+    const mockSetFOVEnabled = jest.fn();
+    const { useEquipmentStore } = jest.requireMock('@/lib/stores');
+    (useEquipmentStore as jest.Mock).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({
+          fovDisplay: { enabled: false },
+          setFOVEnabled: mockSetFOVEnabled,
+        })
+    );
+
+    render(<KeyboardShortcutsManager />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const fovShortcut = call.shortcuts.find(
+      (s: { key: string }) => s.key === 'o'
+    );
+
+    expect(fovShortcut).toBeDefined();
+    fovShortcut.action();
+    expect(mockSetFOVEnabled).toHaveBeenCalledWith(true);
+  });
 });
 
 // ============================================================================

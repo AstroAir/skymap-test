@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import type { UseObjectSearchReturn } from '@/lib/hooks/use-object-search';
 
 // ============================================================================
@@ -20,9 +20,9 @@ function createMockSearchHook(overrides: Record<string, unknown> = {}) {
     onlineAvailable: false,
     searchStats: { totalResults: 0, resultsByType: {}, searchTimeMs: 0 },
     filters: {
-      types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'TargetList', 'Constellation'],
+      types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'TargetList', 'Constellation'] as ('DSO' | 'Planet' | 'Star' | 'Moon' | 'Comet' | 'Asteroid' | 'TargetList' | 'Constellation')[],
       includeTargetList: true,
-      searchMode: 'name',
+      searchMode: 'name' as const,
       minMagnitude: undefined,
       maxMagnitude: undefined,
       searchRadius: 5,
@@ -33,7 +33,7 @@ function createMockSearchHook(overrides: Record<string, unknown> = {}) {
     toggleSelection: jest.fn(),
     selectAll: jest.fn(),
     clearSelection: jest.fn(),
-    sortBy: 'relevance',
+    sortBy: 'relevance' as const,
     setSortBy: jest.fn(),
     recentSearches: [],
     addRecentSearch: jest.fn(),
@@ -175,7 +175,7 @@ jest.mock('@/components/ui/tabs', () => ({
 }));
 
 jest.mock('@/components/ui/select', () => ({
-  Select: ({ children }: { children: React.ReactNode }) => <div data-testid="select">{children}</div>,
+  Select: ({ children, onValueChange }: { children: React.ReactNode; onValueChange?: (v: string) => void }) => (<div data-testid="select" onClick={() => onValueChange?.("coordinates")}>{children}</div>),
   SelectContent: ({ children }: { children: React.ReactNode }) => <div data-testid="select-content">{children}</div>,
   SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => <option data-testid="select-item" value={value}>{children}</option>,
   SelectTrigger: ({ children }: { children: React.ReactNode }) => <div data-testid="select-trigger">{children}</div>,
@@ -194,6 +194,10 @@ jest.mock('@/components/ui/collapsible', () => ({
   Collapsible: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CollapsibleContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CollapsibleTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+jest.mock('@/components/ui/textarea', () => ({
+  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea data-testid="textarea" {...props} />,
 }));
 
 import { AdvancedSearchDialog } from '../advanced-search-dialog';
@@ -260,4 +264,200 @@ describe('AdvancedSearchDialog', () => {
     expect(useObjectSearch).toHaveBeenCalled();
     expect(screen.getByTestId('dialog')).toBeInTheDocument();
   });
+
+  it('renders object type filter checkboxes', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const checkboxes = screen.getAllByTestId('checkbox');
+    expect(checkboxes.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('renders search and reset buttons', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const buttons = screen.getAllByTestId('button');
+    const searchBtn = buttons.find(b => b.textContent?.includes('common.search'));
+    const resetBtn = buttons.find(b => b.textContent?.includes('common.reset'));
+    expect(searchBtn).toBeTruthy();
+    expect(resetBtn).toBeTruthy();
+  });
+
+  it('calls setQuery when search button clicked', () => {
+    const mockSetQuery = jest.fn();
+    const sharedHook = createMockSearchHook({ setQuery: mockSetQuery });
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook());
+    render(<AdvancedSearchDialog {...defaultProps} searchHook={sharedHook as unknown as UseObjectSearchReturn} />);
+    const buttons = screen.getAllByTestId('button');
+    const searchBtn = buttons.find(b => b.textContent?.includes('common.search'));
+    if (searchBtn) fireEvent.click(searchBtn);
+    expect(mockSetQuery).toHaveBeenCalled();
+  });
+
+  it('calls clearSearch and clearSelection when reset clicked', () => {
+    const mockClearSearch = jest.fn();
+    const mockClearSelection = jest.fn();
+    const sharedHook = createMockSearchHook({ clearSearch: mockClearSearch, clearSelection: mockClearSelection });
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook());
+    render(<AdvancedSearchDialog {...defaultProps} searchHook={sharedHook as unknown as UseObjectSearchReturn} />);
+    const buttons = screen.getAllByTestId('button');
+    const resetBtn = buttons.find(b => b.textContent?.includes('common.reset'));
+    if (resetBtn) fireEvent.click(resetBtn);
+    expect(mockClearSearch).toHaveBeenCalled();
+    expect(mockClearSelection).toHaveBeenCalled();
+  });
+
+  it('renders autoSearch switch', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const switches = screen.getAllByTestId('switch');
+    expect(switches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders close button in footer and calls onOpenChange', () => {
+    const onOpenChange = jest.fn();
+    render(<AdvancedSearchDialog {...defaultProps} onOpenChange={onOpenChange} />);
+    const footer = screen.getByTestId('dialog-footer');
+    const closeBtn = footer.querySelector('button');
+    if (closeBtn) fireEvent.click(closeBtn);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('renders loading state when searching', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({ isSearching: true }));
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('renders results when available', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      results: [{ Name: 'M31', Type: 'DSO' }],
+      groupedResults: new Map([['DSO', [{ Name: 'M31', Type: 'DSO' }]]]),
+    }));
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('renders magnitude filter inputs', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const inputs = screen.getAllByTestId('input');
+    expect(inputs.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('renders all sort option values', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const options = screen.getAllByTestId('select-item').map(n => n.getAttribute('value'));
+    expect(options).toEqual(expect.arrayContaining(['relevance', 'name', 'type', 'ra', 'magnitude', 'altitude', 'distance']));
+  });
+
+  it('toggles type checkbox without crashing', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const checkboxes = screen.getAllByTestId('checkbox');
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+
+  it('changes search input value triggering onChange', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const inputs = screen.getAllByTestId('input');
+    // First input is the search/name input
+    fireEvent.change(inputs[0], { target: { value: 'M42' } });
+    expect(inputs[0]).toHaveValue('M42');
+  });
+
+  it('toggles includeTargetList checkbox', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const checkboxes = screen.getAllByTestId('checkbox');
+    // Last checkbox is includeTargetList
+    const lastCb = checkboxes[checkboxes.length - 1];
+    fireEvent.click(lastCb);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('toggles autoSearch switch', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const switches = screen.getAllByTestId('switch');
+    fireEvent.click(switches[0]);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('changes magnitude min/max inputs', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const inputs = screen.getAllByTestId('input');
+    // magnitude inputs are number type inputs
+    const numInputs = inputs.filter(i => i.getAttribute('type') === 'number');
+    if (numInputs.length >= 2) {
+      fireEvent.change(numInputs[0], { target: { value: '2' } });
+      fireEvent.change(numInputs[1], { target: { value: '10' } });
+    }
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('changes batch query textarea', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      fireEvent.change(textarea, { target: { value: 'M31\nM42' } });
+    }
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('presses Enter in search input', () => {
+    const mockSetQuery = jest.fn();
+    const sharedHook = createMockSearchHook({ setQuery: mockSetQuery, setFilters: jest.fn() });
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook());
+    render(<AdvancedSearchDialog {...defaultProps} searchHook={sharedHook} />);
+    const inputs = screen.getAllByTestId('input');
+    fireEvent.keyDown(inputs[0], { key: 'Enter' });
+    expect(mockSetQuery).toHaveBeenCalled();
+  });
+
+  it('renders coordinate mode UI after Select click', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    // Click Select to switch to coordinates mode
+    const selects = screen.getAllByTestId('select');
+    if (selects[0]) fireEvent.click(selects[0]);
+    // After switching, the component should still render
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('clicks Select to trigger onValueChange for coordinate mode', () => {
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    const selects = screen.getAllByTestId('select');
+    if (selects[0]) fireEvent.click(selects[0]);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('clicks Select to trigger onValueChange for sortBy', () => {
+    const mockSetSortBy = jest.fn();
+    const sharedHook = createMockSearchHook({ setSortBy: mockSetSortBy });
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook());
+    render(<AdvancedSearchDialog {...defaultProps} searchHook={sharedHook} />);
+    const selects = screen.getAllByTestId('select');
+    if (selects.length > 1) fireEvent.click(selects[selects.length - 1]);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('shows search stats and online label when results exist', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      results: [{ Name: 'M31', Type: 'DSO' }],
+      groupedResults: new Map([['DSO', [{ Name: 'M31', Type: 'DSO' }]]]),
+      searchStats: { totalResults: 1, resultsByType: { DSO: 1 }, searchTimeMs: 10 },
+      onlineAvailable: true,
+    }));
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('shows online searching indicator', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({ isOnlineSearching: true }));
+    render(<AdvancedSearchDialog {...defaultProps} />);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
 });

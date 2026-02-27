@@ -142,5 +142,47 @@ describe('SolveResultCard', () => {
       const buttons = screen.getAllByRole('button');
       expect(buttons.length).toBe(2);
     });
+
+    it('should not crash when clipboard writeText fails', async () => {
+      mockWriteText.mockRejectedValueOnce(new Error('Clipboard not available'));
+      render(<SolveResultCard result={successResult} />);
+
+      const buttons = screen.getAllByRole('button');
+      const copyButton = buttons.find(btn => btn.textContent?.includes('common.copy'));
+      fireEvent.click(copyButton!);
+
+      // Should not throw, component stays rendered
+      await waitFor(() => {
+        expect(mockWriteText).toHaveBeenCalled();
+      });
+      expect(screen.getByText('plateSolving.solveSuccess')).toBeInTheDocument();
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should render failed result without errorMessage', () => {
+      const resultNoError = {
+        ...failedResult,
+        errorMessage: undefined,
+      };
+      render(<SolveResultCard result={resultNoError} />);
+      expect(screen.getByText('plateSolving.solveFailed')).toBeInTheDocument();
+      // Should not render error alert
+      expect(screen.queryByText('No solution found')).not.toBeInTheDocument();
+    });
+
+    it('should not call onImageCapture when copy clicked on failed result', () => {
+      render(<SolveResultCard result={failedResult} />);
+      // No copy button for failed results (no coordinates)
+      const buttons = screen.queryAllByRole('button');
+      const copyButton = buttons.find(btn => btn.textContent?.includes('common.copy'));
+      expect(copyButton).toBeUndefined();
+    });
+
+    it('should display solve time for failed results', () => {
+      render(<SolveResultCard result={failedResult} />);
+      expect(screen.getByText(/3\.0s/)).toBeInTheDocument();
+      expect(screen.getByText(/ASTAP/)).toBeInTheDocument();
+    });
   });
 });

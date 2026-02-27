@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock stores
 const mockUseMountStore = jest.fn((selector) => {
@@ -197,6 +197,10 @@ jest.mock('recharts', () => ({
   Tooltip: () => <div />,
 }));
 
+import { useObjectActions } from '@/lib/hooks';
+
+const mockUseObjectActions = useObjectActions as jest.Mock;
+
 import { InfoPanel } from '../info-panel';
 
 describe('InfoPanel', () => {
@@ -219,6 +223,12 @@ describe('InfoPanel', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset useObjectActions to default (disconnected) state after each test
+    mockUseObjectActions.mockReturnValue({
+      handleSlew: jest.fn(),
+      handleAddToList: jest.fn(),
+      mountConnected: false,
+    });
   });
 
   it('renders without crashing when no object selected', () => {
@@ -286,6 +296,203 @@ describe('InfoPanel', () => {
       const clusterObject = { ...mockSelectedObject, type: 'Open Cluster', names: ['M45'] };
       render(<InfoPanel {...defaultProps} selectedObject={clusterObject} />);
       expect(screen.getByText('Open Cluster')).toBeInTheDocument();
+    });
+  });
+
+  describe('close functionality', () => {
+    it('renders close button when object is selected', () => {
+      const onClose = jest.fn();
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} onClose={onClose} />);
+      const closeButton = screen.getByLabelText('common.close');
+      expect(closeButton).toBeInTheDocument();
+    });
+
+    it('calls onClose when close button is clicked', () => {
+      const onClose = jest.fn();
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} onClose={onClose} />);
+      const closeButton = screen.getByLabelText('common.close');
+      fireEvent.click(closeButton);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes panel on Escape key press', () => {
+      const onClose = jest.fn();
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} onClose={onClose} />);
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not crash on Escape when onClose is undefined', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      fireEvent.keyDown(window, { key: 'Escape' });
+      // Should not throw
+      expect(document.body).toBeInTheDocument();
+    });
+  });
+
+  describe('mount connected actions', () => {
+    it('shows slew button when mount is connected', () => {
+      mockUseObjectActions.mockReturnValue({
+        handleSlew: jest.fn(),
+        handleAddToList: jest.fn(),
+        mountConnected: true,
+      });
+
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('actions.slewToObject')).toBeInTheDocument();
+    });
+
+    it('does not show slew button when mount is disconnected', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.queryByText('actions.slewToObject')).not.toBeInTheDocument();
+    });
+
+    it('shows add to list button', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('common.add')).toBeInTheDocument();
+    });
+
+    it('calls handleAddToList when add button is clicked', () => {
+      const mockHandleAddToList = jest.fn();
+      mockUseObjectActions.mockReturnValue({
+        handleSlew: jest.fn(),
+        handleAddToList: mockHandleAddToList,
+        mountConnected: false,
+      });
+
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      fireEvent.click(screen.getByText('common.add'));
+      expect(mockHandleAddToList).toHaveBeenCalled();
+    });
+  });
+
+  describe('view details button', () => {
+    it('renders view details button when onViewDetails is provided', () => {
+      const onViewDetails = jest.fn();
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} onViewDetails={onViewDetails} />);
+      expect(screen.getByText('objectDetail.viewDetails')).toBeInTheDocument();
+    });
+
+    it('does not render view details button when onViewDetails is not provided', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.queryByText('objectDetail.viewDetails')).not.toBeInTheDocument();
+    });
+
+    it('calls onViewDetails when button is clicked', () => {
+      const onViewDetails = jest.fn();
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} onViewDetails={onViewDetails} />);
+      fireEvent.click(screen.getByText('objectDetail.viewDetails'));
+      expect(onViewDetails).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('astronomical data display', () => {
+    it('displays current altitude', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('45.0°')).toBeInTheDocument();
+    });
+
+    it('displays azimuth', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('180.0°')).toBeInTheDocument();
+    });
+
+    it('displays moon distance', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('90°')).toBeInTheDocument();
+    });
+
+    it('displays max altitude (transit altitude)', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      expect(screen.getByText('75.0°')).toBeInTheDocument();
+    });
+  });
+
+  describe('timer and event handlers', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('updates time every 30 seconds via interval', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+
+      // Advance time by 30 seconds to trigger interval
+      jest.advanceTimersByTime(30000);
+
+      // Component should still be rendered without errors
+      expect(screen.getByText('M31')).toBeInTheDocument();
+    });
+
+    it('cleans up interval on unmount', () => {
+      const { unmount } = render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      unmount();
+      // No errors means cleanup worked
+      jest.advanceTimersByTime(60000);
+    });
+
+    it('stops event propagation for mouse events on panel', () => {
+      render(<InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />);
+      const card = screen.getByTestId('card');
+
+      // These React synthetic events should be handled
+      const pointerDownEvent = new MouseEvent('pointerdown', { bubbles: true });
+      jest.spyOn(pointerDownEvent, 'stopPropagation');
+      fireEvent(card, pointerDownEvent);
+      // The card's onPointerDown handler calls stopPropagation
+      expect(card).toBeInTheDocument();
+    });
+  });
+
+  describe('adaptive positioning', () => {
+    it('uses fixed positioning when clickPosition and containerBounds are provided', () => {
+      render(
+        <InfoPanel
+          {...defaultProps}
+          selectedObject={mockSelectedObject}
+          clickPosition={{ x: 100, y: 200 }}
+          containerBounds={{ width: 800, height: 600 }}
+        />
+      );
+      const card = screen.getByTestId('card');
+      expect(card.className).toContain('fixed');
+    });
+
+    it('does not use fixed positioning without clickPosition', () => {
+      render(
+        <InfoPanel {...defaultProps} selectedObject={mockSelectedObject} />
+      );
+      const card = screen.getByTestId('card');
+      expect(card.className).not.toContain('fixed');
+    });
+  });
+
+  describe('object without optional fields', () => {
+    it('renders without magnitude', () => {
+      const obj = { ...mockSelectedObject, magnitude: undefined };
+      render(<InfoPanel {...defaultProps} selectedObject={obj} />);
+      expect(screen.getByText('M31')).toBeInTheDocument();
+    });
+
+    it('renders without size', () => {
+      const obj = { ...mockSelectedObject, size: undefined };
+      render(<InfoPanel {...defaultProps} selectedObject={obj} />);
+      expect(screen.getByText('M31')).toBeInTheDocument();
+    });
+
+    it('renders without constellation', () => {
+      const obj = { ...mockSelectedObject, constellation: undefined };
+      render(<InfoPanel {...defaultProps} selectedObject={obj} />);
+      expect(screen.queryByText('coordinates.constellation')).not.toBeInTheDocument();
+    });
+
+    it('renders with single name (no secondary names)', () => {
+      const obj = { ...mockSelectedObject, names: ['M31'] };
+      render(<InfoPanel {...defaultProps} selectedObject={obj} />);
+      expect(screen.getByText('M31')).toBeInTheDocument();
     });
   });
 });

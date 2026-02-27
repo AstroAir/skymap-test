@@ -1,5 +1,14 @@
 export type DailyKnowledgeSource = 'curated' | 'nasa-apod' | 'wikimedia';
 
+export interface DailyKnowledgeFactSource {
+  title: string;
+  url: string;
+  publisher: string;
+  accessedAt?: string;
+}
+
+export type DailyKnowledgeLanguageStatus = 'native' | 'fallback';
+
 export type DailyKnowledgeCategory =
   | 'object'
   | 'event'
@@ -42,6 +51,10 @@ export interface DailyKnowledgeItem {
   externalUrl?: string;
   relatedObjects: DailyKnowledgeRelatedObject[];
   attribution: DailyKnowledgeAttribution;
+  isDateEvent: boolean;
+  eventMonthDay?: string;
+  factSources: DailyKnowledgeFactSource[];
+  languageStatus: DailyKnowledgeLanguageStatus;
   fetchedAt: number;
 }
 

@@ -690,4 +690,46 @@ describe('EquipmentStep', () => {
       expect(screen.queryByPlaceholderText(/focalLengthPlaceholder/i)).not.toBeInTheDocument();
     });
   });
+
+  describe('search filtering', () => {
+    it('should filter telescopes by search term', () => {
+      render(<EquipmentStep />);
+
+      const firstTelescope = BUILTIN_TELESCOPE_PRESETS[0];
+      expect(screen.getByText(firstTelescope.name)).toBeInTheDocument();
+
+      // Type a search term that won't match any telescope
+      const searchInputs = screen.getAllByPlaceholderText(/searchPlaceholder/i);
+      fireEvent.change(searchInputs[0], { target: { value: 'zzz_no_match_zzz' } });
+
+      // First telescope should be filtered out
+      expect(screen.queryByText(firstTelescope.name)).not.toBeInTheDocument();
+    });
+
+    it('should filter cameras by search term', () => {
+      render(<EquipmentStep />);
+
+      const firstCamera = BUILTIN_CAMERA_PRESETS[0];
+      expect(screen.getByText(firstCamera.name)).toBeInTheDocument();
+
+      // Type a search term that won't match any camera
+      const searchInputs = screen.getAllByPlaceholderText(/searchPlaceholder/i);
+      fireEvent.change(searchInputs[1], { target: { value: 'zzz_no_match_zzz' } });
+
+      // First camera should be filtered out
+      expect(screen.queryByText(firstCamera.name)).not.toBeInTheDocument();
+    });
+
+    it('should show matching telescopes when search term matches', () => {
+      render(<EquipmentStep />);
+
+      const firstTelescope = BUILTIN_TELESCOPE_PRESETS[0];
+
+      // Search by part of the first telescope name
+      const searchInputs = screen.getAllByPlaceholderText(/searchPlaceholder/i);
+      fireEvent.change(searchInputs[0], { target: { value: firstTelescope.name.substring(0, 3) } });
+
+      expect(screen.getByText(firstTelescope.name)).toBeInTheDocument();
+    });
+  });
 });

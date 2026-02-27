@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock UI components
 jest.mock('@/components/ui/dialog', () => ({
@@ -135,5 +135,32 @@ describe('AboutDialog', () => {
     render(<AboutDialog />);
     expect(screen.getByText('about.reportIssue')).toBeInTheDocument();
     expect(screen.getByTestId('feedback-dialog')).toBeInTheDocument();
+  });
+
+  it('opens feedback dialog when report issue button is clicked', () => {
+    render(<AboutDialog />);
+    const reportBtn = screen.getByTestId('report-issue-button');
+    expect(reportBtn).toBeInTheDocument();
+    fireEvent.click(reportBtn);
+    // FeedbackDialog is rendered as mock, so we verify the button is clickable
+    expect(screen.getByTestId('feedback-dialog')).toBeInTheDocument();
+  });
+
+  it('renders data credit rows with links', () => {
+    render(<AboutDialog />);
+    // Data credits from about-data.ts
+    expect(screen.getByText('about.credit.hipsSurveys')).toBeInTheDocument();
+    expect(screen.getByText('CDS, Strasbourg')).toBeInTheDocument();
+  });
+
+  it('renders copyright with current year', () => {
+    render(<AboutDialog />);
+    const year = new Date().getFullYear().toString();
+    expect(screen.getByText(new RegExp(`© ${year}`))).toBeInTheDocument();
+  });
+
+  it('renders total dependencies count', () => {
+    render(<AboutDialog />);
+    expect(screen.getByText(/about.totalDeps/)).toBeInTheDocument();
   });
 });

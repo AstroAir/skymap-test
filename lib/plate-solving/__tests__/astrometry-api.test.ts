@@ -151,6 +151,218 @@ describe('AstrometryApiClient', () => {
     });
   });
 
+  describe('uploadFile', () => {
+    it('should upload file successfully', async () => {
+      // Login
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', session: 'sess' }),
+      });
+      // Upload
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', subid: 42, hash: 'abc123' }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const file = new File(['data'], 'test.jpg', { type: 'image/jpeg' });
+      const onProgress = jest.fn();
+      const result = await client.uploadFile(file, {}, onProgress);
+
+      expect(result.status).toBe('success');
+      expect(result.subid).toBe(42);
+      expect(result.hash).toBe('abc123');
+      expect(onProgress).toHaveBeenCalledWith({ stage: 'uploading', progress: 0 });
+      expect(onProgress).toHaveBeenCalledWith({ stage: 'uploading', progress: 100 });
+    });
+
+    it('should throw on upload error response', async () => {
+      // Login
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', session: 'sess' }),
+      });
+      // Upload fails
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'error', errormessage: 'Bad image' }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const blob = new Blob(['data'], { type: 'image/jpeg' });
+      await expect(client.uploadFile(blob)).rejects.toThrow('Bad image');
+    });
+
+    it('should upload Blob with default name', async () => {
+      // Login
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', session: 'sess' }),
+      });
+      // Upload
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', subid: 1 }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const blob = new Blob(['data'], { type: 'image/jpeg' });
+      const result = await client.uploadFile(blob);
+      expect(result.status).toBe('success');
+    });
+  });
+
+  describe('uploadUrl', () => {
+    it('should upload URL successfully', async () => {
+      // Login
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', session: 'sess' }),
+      });
+      // URL upload
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', subid: 99, hash: 'xyz' }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const result = await client.uploadUrl('https://example.com/image.jpg');
+      expect(result.status).toBe('success');
+      expect(result.subid).toBe(99);
+    });
+
+    it('should throw on URL upload error', async () => {
+      // Login
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', session: 'sess' }),
+      });
+      // URL upload fails
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'error', errormessage: 'Invalid URL' }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      await expect(client.uploadUrl('https://bad.url')).rejects.toThrow('Invalid URL');
+    });
+  });
+
+  describe('getCalibration success', () => {
+    it('should return calibration data', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          ra: 180, dec: 45, orientation: 30, pixscale: 1.5, radius: 0.5, parity: 1,
+        }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const cal = await client.getCalibration(100);
+      expect(cal.ra).toBe(180);
+      expect(cal.pixscale).toBe(1.5);
+    });
+  });
+
+  describe('getObjectsInField success', () => {
+    it('should return objects list', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ objects_in_field: ['M31', 'NGC 224'] }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const objects = await client.getObjectsInField(100);
+      expect(objects).toEqual(['M31', 'NGC 224']);
+    });
+
+    it('should return empty array when no objects', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const objects = await client.getObjectsInField(100);
+      expect(objects).toEqual([]);
+    });
+  });
+
+  describe('getAnnotations success', () => {
+    it('should return annotations list', async () => {
+      const mockAnnotations = [
+        { radius: 0.1, type: 'NGC', names: ['NGC 1234'], pixelx: 100, pixely: 200 },
+      ];
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ annotations: mockAnnotations }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const annotations = await client.getAnnotations(100);
+      expect(annotations).toHaveLength(1);
+      expect(annotations[0].names).toContain('NGC 1234');
+    });
+
+    it('should return empty array when no annotations', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const annotations = await client.getAnnotations(100);
+      expect(annotations).toEqual([]);
+    });
+  });
+
+  describe('ensureSession', () => {
+    it('should re-login when session is expired', async () => {
+      // First login
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', session: 'sess1' }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      const session1 = await client.login();
+      expect(session1.sessionKey).toBe('sess1');
+
+      // Expire the session by setting expiresAt to the past
+      if (session1.expiresAt) {
+        session1.expiresAt = new Date(Date.now() - 1000);
+      }
+
+      // Second login (triggered by ensureSession via uploadUrl)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', session: 'sess2' }),
+      });
+      // URL upload
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'success', subid: 1 }),
+      });
+
+      const result = await client.uploadUrl('https://example.com/img.jpg');
+      expect(result.status).toBe('success');
+      // Should have called fetch 3 times total (initial login + re-login + upload)
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('login edge cases', () => {
+    it('should throw generic error when no message in response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'error' }),
+      });
+
+      const client = new AstrometryApiClient({ apiKey: 'test-key' });
+      await expect(client.login()).rejects.toThrow('Login failed');
+    });
+  });
+
   describe('solve flow', () => {
     it('should return error result on upload failure', async () => {
       // Login succeeds

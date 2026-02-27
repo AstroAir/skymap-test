@@ -37,6 +37,10 @@ export interface SavedSessionPlan {
   strategy: OptimizationStrategy;
   minAltitude: number;
   minImagingTime: number;
+  /** Full constraint snapshot (preferred for restoring UI). */
+  constraints?: SessionDraftV2['constraints'];
+  /** UI planning mode at time of saving. */
+  planningMode?: 'auto' | 'manual';
   // Results snapshot
   targets: SavedScheduledTarget[];
   excludedTargetIds: string[];
@@ -188,6 +192,8 @@ export const useSessionPlanStore = create<SessionPlanState>()(
           strategy: draft.strategy,
           minAltitude: draft.constraints.minAltitude,
           minImagingTime: draft.constraints.minImagingTime,
+          constraints: draft.constraints,
+          planningMode: draft.manualEdits.length > 0 ? 'manual' : 'auto',
           targets: [],
           excludedTargetIds: draft.excludedTargetIds,
           totalImagingTime: 0,

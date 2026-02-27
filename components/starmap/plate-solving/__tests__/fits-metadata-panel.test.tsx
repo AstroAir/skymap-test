@@ -150,4 +150,133 @@ describe('FitsMetadataPanel', () => {
     render(<FitsMetadataPanel metadata={metadata} />);
     expect(screen.queryByText('0 × 0')).not.toBeInTheDocument();
   });
+
+  it('should render fitsData without wcs section', () => {
+    const metadata: ImageMetadata = {
+      ...fitsMetadata,
+      fitsData: {
+        header: {},
+        rawCards: [],
+        observation: fitsMetadata.fitsData!.observation,
+        image: fitsMetadata.fitsData!.image,
+      } as ImageMetadata['fitsData'],
+    };
+    render(<FitsMetadataPanel metadata={metadata} />);
+
+    const trigger = screen.getByText('plateSolving.fitsMetadata');
+    fireEvent.click(trigger);
+
+    expect(screen.queryByText('plateSolving.wcsInfo')).not.toBeInTheDocument();
+    expect(screen.getByText('plateSolving.observationInfo')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.imageInfo')).toBeInTheDocument();
+  });
+
+  it('should render fitsData without observation section', () => {
+    const metadata: ImageMetadata = {
+      ...fitsMetadata,
+      fitsData: {
+        header: {},
+        rawCards: [],
+        wcs: fitsMetadata.fitsData!.wcs,
+        image: fitsMetadata.fitsData!.image,
+      } as ImageMetadata['fitsData'],
+    };
+    render(<FitsMetadataPanel metadata={metadata} />);
+
+    const trigger = screen.getByText('plateSolving.fitsMetadata');
+    fireEvent.click(trigger);
+
+    expect(screen.getByText('plateSolving.wcsInfo')).toBeInTheDocument();
+    expect(screen.queryByText('plateSolving.observationInfo')).not.toBeInTheDocument();
+  });
+
+  it('should render fitsData without image section', () => {
+    const metadata: ImageMetadata = {
+      ...fitsMetadata,
+      fitsData: {
+        header: {},
+        rawCards: [],
+        wcs: fitsMetadata.fitsData!.wcs,
+        observation: fitsMetadata.fitsData!.observation,
+      } as ImageMetadata['fitsData'],
+    };
+    render(<FitsMetadataPanel metadata={metadata} />);
+
+    const trigger = screen.getByText('plateSolving.fitsMetadata');
+    fireEvent.click(trigger);
+
+    expect(screen.queryByText('plateSolving.imageInfo')).not.toBeInTheDocument();
+  });
+
+  it('should render observation with only partial fields', () => {
+    const metadata: ImageMetadata = {
+      ...fitsMetadata,
+      fitsData: {
+        header: {},
+        rawCards: [],
+        observation: {
+          object: 'NGC7000',
+        },
+      } as ImageMetadata['fitsData'],
+    };
+    render(<FitsMetadataPanel metadata={metadata} />);
+
+    const trigger = screen.getByText('plateSolving.fitsMetadata');
+    fireEvent.click(trigger);
+
+    expect(screen.getByText('NGC7000')).toBeInTheDocument();
+    expect(screen.queryByText('plateSolving.dateObs')).not.toBeInTheDocument();
+    expect(screen.queryByText('plateSolving.exposure')).not.toBeInTheDocument();
+    expect(screen.queryByText('plateSolving.filter')).not.toBeInTheDocument();
+    expect(screen.queryByText('plateSolving.telescope')).not.toBeInTheDocument();
+    expect(screen.queryByText('plateSolving.instrument')).not.toBeInTheDocument();
+  });
+
+  it('should render WCS without projectionType', () => {
+    const metadata: ImageMetadata = {
+      ...fitsMetadata,
+      fitsData: {
+        header: {},
+        rawCards: [],
+        wcs: {
+          referenceCoordinates: { ra: 83.82, dec: -5.39 },
+          pixelScale: 1.05,
+          rotation: 12.5,
+          referencePixel: { x: 2048, y: 2048 },
+          cdMatrix: { cd1_1: 0, cd1_2: 0, cd2_1: 0, cd2_2: 0 },
+        },
+      } as ImageMetadata['fitsData'],
+    };
+    render(<FitsMetadataPanel metadata={metadata} />);
+
+    const trigger = screen.getByText('plateSolving.fitsMetadata');
+    fireEvent.click(trigger);
+
+    expect(screen.getByText('plateSolving.wcsInfo')).toBeInTheDocument();
+    expect(screen.queryByText('plateSolving.projection')).not.toBeInTheDocument();
+  });
+
+  it('should render observation with dateObs and exptime but no object', () => {
+    const metadata: ImageMetadata = {
+      ...fitsMetadata,
+      fitsData: {
+        header: {},
+        rawCards: [],
+        observation: {
+          dateObs: '2024-06-15T01:00:00',
+          exptime: 300,
+          filter: 'Ha',
+        },
+      } as ImageMetadata['fitsData'],
+    };
+    render(<FitsMetadataPanel metadata={metadata} />);
+
+    const trigger = screen.getByText('plateSolving.fitsMetadata');
+    fireEvent.click(trigger);
+
+    expect(screen.queryByText('plateSolving.object')).not.toBeInTheDocument();
+    expect(screen.getByText('2024-06-15T01:00:00')).toBeInTheDocument();
+    expect(screen.getByText('300s')).toBeInTheDocument();
+    expect(screen.getByText('Ha')).toBeInTheDocument();
+  });
 });

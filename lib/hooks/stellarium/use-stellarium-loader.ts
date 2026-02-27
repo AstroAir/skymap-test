@@ -90,6 +90,10 @@ export function useStellariumLoader({
   const setBaseUrl = useStellariumStore((state) => state.setBaseUrl);
   const setHelpers = useStellariumStore((state) => state.setHelpers);
   const updateStellariumCore = useStellariumStore((state) => state.updateStellariumCore);
+  const getRenderQuality = useCallback(() => {
+    // Defensive fallback for partially-migrated persisted settings.
+    return useSettingsStore.getState().performance?.renderQuality ?? 'high';
+  }, []);
 
   // Callback refs to keep initStellarium stable (avoids re-init on callback changes)
   const onSelectionChangeRef = useRef(onSelectionChange);
@@ -357,9 +361,14 @@ export function useStellariumLoader({
           translateFn,
           onReady: (stel: StellariumEngine) => {
             if (resolved) return;
-            resolved = true;
-            initStellarium(stel);
-            resolve();
+            try {
+              initStellarium(stel);
+              resolved = true;
+              resolve();
+            } catch (err) {
+              resolved = true;
+              reject(err);
+            }
           },
         }) as unknown;
 
@@ -406,8 +415,8 @@ export function useStellariumLoader({
     const loadAbortController = new AbortController();
     abortControllerRef.current = loadAbortController;
 
-    // Set overall deadline on first attempt (not retries)
-    if (retryCountRef.current === 0) {
+    // Set loading session window once. Keep the same deadline across retries.
+    if (overallDeadlineRef.current === 0) {
       overallDeadlineRef.current = Date.now() + OVERALL_LOADING_TIMEOUT;
       setLoadingStartTime(Date.now());
     }
@@ -425,59 +434,58 @@ export function useStellariumLoader({
       if (!canvasRef.current || !containerRef.current) {
         setLoadingStatus(t('canvasContainerNotReady'));
         shouldRetry = true;
-        return;
-      }
+      } else {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+          setLoadingStatus(t('canvasContainerNotReady'));
+          shouldRetry = true;
+        } else {
+          const dpr = getEffectiveDpr(getRenderQuality());
+          canvas.width = Math.round(rect.width * dpr);
+          canvas.height = Math.round(rect.height * dpr);
 
-      const canvas = canvasRef.current;
-      const container = containerRef.current;
-      const rect = container.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) {
-        setLoadingStatus(t('canvasContainerNotReady'));
-        shouldRetry = true;
-        return;
-      }
-      const dpr = getEffectiveDpr(useSettingsStore.getState().performance.renderQuality);
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
+          // Step 2: Prefetch WASM into cache (non-blocking)
+          setLoadingStatus(t('preparingResources'));
+          prefetchWasm().catch(() => {
+            // Ignore prefetch errors - will try direct load
+          });
 
-      // Step 2: Prefetch WASM into cache (non-blocking)
-      setLoadingStatus(t('preparingResources'));
-      prefetchWasm().catch(() => {
-        // Ignore prefetch errors - will try direct load
-      });
+          // Step 3: Load script
+          setLoadingStatus(t('loadingScript'));
+          try {
+            await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, t('engineScriptTimedOut'));
+          } catch (error) {
+            throw createStageError('script', error);
+          }
 
-      // Step 3: Load script
-      setLoadingStatus(t('loadingScript'));
-      try {
-        await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, t('engineScriptTimedOut'));
-      } catch (error) {
-        throw createStageError('script', error);
-      }
+          // Check if aborted
+          if (loadAbortController.signal.aborted || !mountedRef.current) {
+            return;
+          }
 
-      // Check if aborted
-      if (loadAbortController.signal.aborted || !mountedRef.current) {
-        return;
-      }
+          // Step 4: Initialize WASM engine
+          setLoadingStatus(t('initializingStarmap'));
+          try {
+            await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, t('starmapInitTimedOut'));
+          } catch (error) {
+            throw createStageError('engine', error);
+          }
 
-      // Step 4: Initialize WASM engine
-      setLoadingStatus(t('initializingStarmap'));
-      try {
-        await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, t('starmapInitTimedOut'));
-      } catch (error) {
-        throw createStageError('engine', error);
-      }
+          // Check if aborted
+          if (loadAbortController.signal.aborted || !mountedRef.current) {
+            return;
+          }
 
-      // Check if aborted
-      if (loadAbortController.signal.aborted || !mountedRef.current) {
-        return;
+          // Success
+          if (mountedRef.current) {
+            setIsLoading(false);
+            setErrorMessage(null);
+          }
+          retryCountRef.current = 0;
+        }
       }
-
-      // Success
-      if (mountedRef.current) {
-        setIsLoading(false);
-        setErrorMessage(null);
-      }
-      retryCountRef.current = 0;
 
     } catch (err) {
       const stage = err instanceof Error && 'stage' in err
@@ -514,14 +522,22 @@ export function useStellariumLoader({
     }
 
     if (shouldRetry && mountedRef.current && !loadAbortController.signal.aborted) {
-      retryTimeoutRef.current = window.setTimeout(() => {
-        retryTimeoutRef.current = null;
-        if (mountedRef.current && !loadAbortController.signal.aborted) {
-          void startLoading();
+      const withinDeadline = Date.now() < overallDeadlineRef.current;
+      if (!withinDeadline) {
+        if (mountedRef.current) {
+          setErrorMessage(t('overallTimeout'));
+          setIsLoading(false);
         }
-      }, RETRY_DELAY_MS);
+      } else {
+        retryTimeoutRef.current = window.setTimeout(() => {
+          retryTimeoutRef.current = null;
+          if (mountedRef.current && !loadAbortController.signal.aborted) {
+            void startLoading();
+          }
+        }, RETRY_DELAY_MS);
+      }
     }
-  }, [containerRef, canvasRef, createStageError, loadScript, initializeEngine, t]);
+  }, [containerRef, canvasRef, createStageError, loadScript, initializeEngine, t, getRenderQuality]);
 
   // Retry loading (user-triggered)
   const handleRetry = useCallback(() => {

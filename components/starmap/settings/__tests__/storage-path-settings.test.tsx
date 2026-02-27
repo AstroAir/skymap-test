@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import * as tauriDialog from '@tauri-apps/plugin-dialog';
 
 // Mock pathConfigApi
 const mockGetPathConfig = jest.fn();
@@ -429,6 +430,344 @@ describe('StoragePathSettings', () => {
   });
 
   // --------------------------------------------------------------------------
+  // Pick Directory & Migration
+  // --------------------------------------------------------------------------
+
+  describe('Pick Directory & Migration', () => {
+    it('triggers data migration when data change-path button is clicked', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('D:\\NewDataDir');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      // First button is for data directory
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(mockOpen).toHaveBeenCalledWith({ directory: true });
+        expect(mockValidateDirectory).toHaveBeenCalledWith('D:\\NewDataDir');
+        expect(mockMigrateDataDir).toHaveBeenCalledWith('D:\\NewDataDir');
+      });
+    });
+
+    it('triggers cache migration when cache change-path button is clicked', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('E:\\NewCacheDir');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.cacheDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      // Second button is for cache directory
+      await act(async () => {
+        fireEvent.click(changeButtons[1]);
+      });
+
+      await waitFor(() => {
+        expect(mockOpen).toHaveBeenCalledWith({ directory: true });
+        expect(mockValidateDirectory).toHaveBeenCalledWith('E:\\NewCacheDir');
+        expect(mockMigrateCacheDir).toHaveBeenCalledWith('E:\\NewCacheDir');
+      });
+    });
+
+    it('does nothing when user cancels directory picker', async () => {
+      const mockOpen = jest.fn().mockResolvedValue(null);
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(mockOpen).toHaveBeenCalled();
+      });
+      expect(mockValidateDirectory).not.toHaveBeenCalled();
+      expect(mockMigrateDataDir).not.toHaveBeenCalled();
+    });
+
+    it('shows error toast when directory validation fails', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('D:\\Invalid');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+      mockValidateDirectory.mockResolvedValue({
+        valid: false,
+        exists: false,
+        writable: false,
+        available_bytes: null,
+        error: 'Directory does not exist',
+      });
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('storagePaths.invalidDirectory', expect.objectContaining({
+          description: 'Directory does not exist',
+        }));
+      });
+      expect(mockMigrateDataDir).not.toHaveBeenCalled();
+    });
+
+    it('shows warning toast for insufficient disk space', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('D:\\LowSpace');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+      mockValidateDirectory.mockResolvedValue({
+        valid: true,
+        exists: true,
+        writable: true,
+        available_bytes: 50 * 1024 * 1024, // 50 MB < 100 MB threshold
+        error: null,
+      });
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(toast.warning).toHaveBeenCalledWith('storagePaths.insufficientSpace', expect.any(Object));
+      });
+    });
+
+    it('shows success toast and restart message on successful data migration', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('D:\\NewData');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('storagePaths.migrateSuccess', expect.any(Object));
+        expect(toast.info).toHaveBeenCalledWith('storagePaths.restartRequired', expect.objectContaining({ duration: 8000 }));
+      });
+    });
+
+    it('shows error toast on data migration failure (result.success false)', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('D:\\FailDir');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+      mockMigrateDataDir.mockResolvedValue({
+        success: false,
+        files_copied: 0,
+        bytes_copied: 0,
+        error: 'Permission denied',
+      });
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('storagePaths.migrateError', expect.objectContaining({
+          description: 'Permission denied',
+        }));
+      });
+    });
+
+    it('shows error toast on data migration exception', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('D:\\ThrowDir');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+      mockMigrateDataDir.mockRejectedValue(new Error('Network error'));
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('storagePaths.migrateError');
+      });
+    });
+
+    it('shows success toast on successful cache migration', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('E:\\NewCache');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.cacheDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[1]);
+      });
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('storagePaths.migrateSuccess', expect.any(Object));
+      });
+    });
+
+    it('shows error toast on cache migration failure', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('E:\\FailCache');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+      mockMigrateCacheDir.mockResolvedValue({
+        success: false,
+        files_copied: 0,
+        bytes_copied: 0,
+        error: 'Disk full',
+      });
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.cacheDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[1]);
+      });
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('storagePaths.migrateError', expect.objectContaining({
+          description: 'Disk full',
+        }));
+      });
+    });
+
+    it('shows error toast on cache migration exception', async () => {
+      const mockOpen = jest.fn().mockResolvedValue('E:\\ThrowCache');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+      mockMigrateCacheDir.mockRejectedValue(new Error('IO error'));
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.cacheDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[1]);
+      });
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('storagePaths.migrateError');
+      });
+    });
+
+    it('shows error toast when handlePickDirectory throws', async () => {
+      jest.mocked(tauriDialog.open).mockRejectedValue(new Error('Dialog error'));
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('storagePaths.changeError');
+      });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Open in Explorer
+  // --------------------------------------------------------------------------
+
+  describe('Open in Explorer', () => {
+    it('calls revealInFileManager for data directory', async () => {
+      const mockReveal = jest.fn().mockResolvedValue(undefined);
+      jest.mock('@/lib/tauri/api', () => ({
+        appSettingsApi: { revealInFileManager: mockReveal },
+      }));
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      // Find the open-in-explorer buttons (they have ExternalLink icon, and title attribute)
+      const openButtons = screen.getAllByTitle('storagePaths.openInExplorer');
+      expect(openButtons.length).toBe(2);
+    });
+  });
+
+  // --------------------------------------------------------------------------
   // Error Handling
   // --------------------------------------------------------------------------
 
@@ -487,6 +826,43 @@ describe('StoragePathSettings', () => {
       await waitFor(() => {
         expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
         expect(screen.getByText('storagePaths.cacheDirectory')).toBeInTheDocument();
+      });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Migrating Indicator
+  // --------------------------------------------------------------------------
+
+  describe('Migrating Indicator', () => {
+    it('shows migrating indicator during data migration', async () => {
+      // Make migration take time
+      let resolveMigration: (value: unknown) => void;
+      mockMigrateDataDir.mockImplementation(() => new Promise(r => { resolveMigration = r; }));
+      const mockOpen = jest.fn().mockResolvedValue('D:\\SlowDir');
+      jest.mocked(tauriDialog.open).mockImplementation(mockOpen);
+
+      await act(async () => {
+        render(<StoragePathSettings />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.dataDirectory')).toBeInTheDocument();
+      });
+
+      const changeButtons = screen.getAllByText('storagePaths.changePath');
+      await act(async () => {
+        fireEvent.click(changeButtons[0]);
+      });
+
+      // While migration is in progress, the migrating indicator should show
+      await waitFor(() => {
+        expect(screen.getByText('storagePaths.migrating')).toBeInTheDocument();
+      });
+
+      // Resolve the migration
+      await act(async () => {
+        resolveMigration!({ success: true, files_copied: 1, bytes_copied: 100, error: null });
       });
     });
   });

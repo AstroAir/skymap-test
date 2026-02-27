@@ -90,4 +90,60 @@ describe('LeafletMap', () => {
     const app = screen.getByRole('application');
     expect(app.style.height).toBe('300px');
   });
+
+  it('applies custom height as string', () => {
+    render(<LeafletMap center={defaultCenter} height="50vh" />);
+    const app = screen.getByRole('application');
+    expect(app.style.height).toBe('50vh');
+  });
+
+  it('renders light pollution overlay when showLightPollution is true', () => {
+    render(<LeafletMap center={defaultCenter} showLightPollution />);
+    const tileLayers = screen.getAllByTestId('tile-layer');
+    expect(tileLayers.length).toBe(2);
+  });
+
+  it('does not render light pollution overlay by default', () => {
+    render(<LeafletMap center={defaultCenter} />);
+    const tileLayers = screen.getAllByTestId('tile-layer');
+    expect(tileLayers.length).toBe(1);
+  });
+
+  it('sets aria-disabled when disabled', () => {
+    render(<LeafletMap center={defaultCenter} disabled />);
+    const app = screen.getByRole('application');
+    expect(app.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('does not set aria-disabled when not disabled', () => {
+    render(<LeafletMap center={defaultCenter} />);
+    const app = screen.getByRole('application');
+    expect(app.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('applies pointer-events-none when disabled', () => {
+    render(<LeafletMap center={defaultCenter} disabled />);
+    const app = screen.getByRole('application');
+    expect(app.className).toContain('pointer-events-none');
+  });
+
+  it('renders with default props', () => {
+    render(<LeafletMap center={defaultCenter} />);
+    const container = screen.getByTestId('map-container');
+    expect(container).toBeInTheDocument();
+    expect(screen.getByTestId('marker')).toBeInTheDocument();
+    expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
+  });
+
+  it('calls useMapEvents hook', () => {
+    const reactLeaflet = jest.requireMock('react-leaflet');
+    render(<LeafletMap center={defaultCenter} onClick={jest.fn()} />);
+    expect(reactLeaflet.useMapEvents).toHaveBeenCalled();
+  });
+
+  it('calls useMap hook for MapController', () => {
+    const reactLeaflet = jest.requireMock('react-leaflet');
+    render(<LeafletMap center={defaultCenter} />);
+    expect(reactLeaflet.useMap).toHaveBeenCalled();
+  });
 });

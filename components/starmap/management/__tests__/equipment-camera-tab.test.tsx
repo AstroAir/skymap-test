@@ -46,7 +46,14 @@ jest.mock('@/lib/core/equipment-normalize', () => ({
 }));
 
 jest.mock('../equipment-list-item', () => ({
-  EquipmentListItem: ({ name }: { name: string }) => <div data-testid="equipment-item">{name}</div>,
+  EquipmentListItem: ({ name, onEdit, onDelete, onSelect }: { name: string; onEdit?: () => void; onDelete?: () => void; onSelect?: () => void }) => (
+    <div data-testid="equipment-item">
+      <span>{name}</span>
+      {onEdit && <button data-testid="edit-btn" onClick={onEdit}>Edit</button>}
+      {onDelete && <button data-testid="delete-btn" onClick={onDelete}>Delete</button>}
+      {onSelect && <button data-testid="select-btn" onClick={onSelect}>Select</button>}
+    </div>
+  ),
 }));
 
 jest.mock('@/components/ui/button', () => ({
@@ -75,6 +82,16 @@ jest.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
 }));
 
+import { toast } from 'sonner';
+import { normalizeCameras } from '@/lib/core/equipment-normalize';
+import { validateCameraFields } from '@/lib/core/management-validators';
+import { useEquipmentStore } from '@/lib/stores/equipment-store';
+
+const mockToast = toast as jest.Mocked<typeof toast>;
+const mockNormalizeCameras = normalizeCameras as jest.Mock;
+const mockValidateFields = validateCameraFields as jest.Mock;
+const mockUseEquipmentStore = useEquipmentStore as unknown as jest.Mock;
+
 describe('CameraTab', () => {
   const defaultProps = {
     isTauriAvailable: false,
@@ -85,6 +102,8 @@ describe('CameraTab', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockNormalizeCameras.mockReturnValue([]);
+    mockValidateFields.mockReturnValue({});
   });
 
   it('renders empty state when no cameras', () => {
@@ -108,5 +127,140 @@ describe('CameraTab', () => {
     render(<CameraTab {...defaultProps} />);
     fireEvent.click(screen.getByText('equipment.addCamera'));
     expect(screen.getByText('common.cancel')).toBeInTheDocument();
+  });
+
+  // 取消表单
+  it('hides form when cancel is clicked', () => {
+    render(<CameraTab {...defaultProps} />);
+    fireEvent.click(screen.getByText('equipment.addCamera'));
+    fireEvent.click(screen.getByText('common.cancel'));
+    expect(screen.getByText('equipment.addCamera')).toBeInTheDocument();
+  });
+
+  // 提交表单保存（web 模式）
+  it('saves camera in web mode', () => {
+    const mockAddCustomCamera = jest.fn();
+    mockUseEquipmentStore.mockReturnValue({
+      addCustomCamera: mockAddCustomCamera,
+      updateCustomCamera: jest.fn(),
+      applyCamera: jest.fn(),
+      customCameras: [],
+      activeCameraId: null,
+    });
+
+    render(<CameraTab {...defaultProps} />);
+    fireEvent.click(screen.getByText('equipment.addCamera'));
+
+    const inputs = screen.getAllByRole('textbox');
+    const numberInputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: 'My Camera' } });
+    fireEvent.change(numberInputs[0], { target: { value: '23.2' } });
+    fireEvent.change(numberInputs[1], { target: { value: '15.5' } });
+
+    fireEvent.click(screen.getByText('common.save'));
+
+    expect(mockAddCustomCamera).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'My Camera', sensorWidth: 23.2, sensorHeight: 15.5 })
+    );
+    expect(mockToast.success).toHaveBeenCalled();
+  });
+
+  // 验证错误
+  it('shows error when validation fails', () => {
+    mockValidateFields.mockReturnValue({ name: 'equipment.validation.nameRequired' });
+    const { validateCameraForm } = jest.requireMock('@/lib/core/management-validators');
+    validateCameraForm.mockReturnValue('equipment.fillRequired');
+
+    render(<CameraTab {...defaultProps} />);
+    fireEvent.click(screen.getByText('equipment.addCamera'));
+    fireEvent.click(screen.getByText('common.save'));
+
+    expect(mockToast.error).toHaveBeenCalled();
+  });
+
+  // 显示相机列表
+  it('renders camera list when cameras exist', () => {
+    mockNormalizeCameras.mockReturnValue([
+      { id: '1', name: 'ASI294MC', sensorWidth: 23.2, sensorHeight: 15.5, isDefault: false },
+    ]);
+    render(<CameraTab {...defaultProps} />);
+    expect(screen.getByText('ASI294MC')).toBeInTheDocument();
+  });
+
+  // 编辑相机 - 点击 edit 按钮进入编辑模式
+  it('enters edit mode when edit button clicked', () => {
+    mockNormalizeCameras.mockReturnValue([
+      { id: 'c1', name: 'ASI294MC', sensorWidth: 23.2, sensorHeight: 15.5, isDefault: false },
+    ]);
+    mockUseEquipmentStore.mockReturnValue({
+      addCustomCamera: jest.fn(),
+      updateCustomCamera: jest.fn(),
+      applyCamera: jest.fn(),
+      customCameras: [{ id: 'c1', name: 'ASI294MC', sensorWidth: 23.2, sensorHeight: 15.5, pixelSize: 4.63 }],
+      activeCameraId: null,
+    });
+
+    render(<CameraTab {...defaultProps} rawCameras={[]} />);
+    fireEvent.click(screen.getByTestId('edit-btn'));
+    // 编辑模式下显示 Update 按钮
+    expect(screen.getByText('common.update')).toBeInTheDocument();
+  });
+
+  // 选择相机（web 模式）
+  it('calls applyCamera when select clicked in web mode', () => {
+    const mockApplyCamera = jest.fn();
+    mockNormalizeCameras.mockReturnValue([
+      { id: 'c1', name: 'ASI294MC', sensorWidth: 23.2, sensorHeight: 15.5, isDefault: false },
+    ]);
+    mockUseEquipmentStore.mockReturnValue({
+      addCustomCamera: jest.fn(),
+      updateCustomCamera: jest.fn(),
+      applyCamera: mockApplyCamera,
+      customCameras: [{ id: 'c1', name: 'ASI294MC', sensorWidth: 23.2, sensorHeight: 15.5, pixelSize: 4.63 }],
+      activeCameraId: null,
+    });
+
+    render(<CameraTab {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('select-btn'));
+    expect(mockApplyCamera).toHaveBeenCalled();
+    expect(mockToast.success).toHaveBeenCalled();
+  });
+
+  // 删除回调
+  it('calls onDeleteRequest when delete clicked', () => {
+    const onDeleteRequest = jest.fn();
+    mockNormalizeCameras.mockReturnValue([
+      { id: 'c1', name: 'ASI294MC', sensorWidth: 23.2, sensorHeight: 15.5, isDefault: false },
+    ]);
+
+    render(<CameraTab {...defaultProps} onDeleteRequest={onDeleteRequest} />);
+    fireEvent.click(screen.getByTestId('delete-btn'));
+    expect(onDeleteRequest).toHaveBeenCalledWith('c1', 'ASI294MC', 'camera');
+  });
+
+  // web 模式更新相机
+  it('updates camera in web mode', () => {
+    const mockUpdateCustomCamera = jest.fn();
+    mockNormalizeCameras.mockReturnValue([
+      { id: 'c1', name: 'Old Camera', sensorWidth: 20, sensorHeight: 15, isDefault: false },
+    ]);
+    mockUseEquipmentStore.mockReturnValue({
+      addCustomCamera: jest.fn(),
+      updateCustomCamera: mockUpdateCustomCamera,
+      applyCamera: jest.fn(),
+      customCameras: [{ id: 'c1', name: 'Old Camera', sensorWidth: 20, sensorHeight: 15, pixelSize: 3.76 }],
+      activeCameraId: null,
+    });
+
+    render(<CameraTab {...defaultProps} rawCameras={[]} />);
+    // Click edit to enter edit mode
+    fireEvent.click(screen.getByTestId('edit-btn'));
+    // Change name
+    const nameInput = screen.getByDisplayValue('Old Camera');
+    fireEvent.change(nameInput, { target: { value: 'Updated Camera' } });
+    // Submit
+    fireEvent.click(screen.getByText('common.update'));
+    expect(mockUpdateCustomCamera).toHaveBeenCalledWith('c1', expect.objectContaining({ name: 'Updated Camera' }));
+    expect(mockToast.success).toHaveBeenCalled();
   });
 });

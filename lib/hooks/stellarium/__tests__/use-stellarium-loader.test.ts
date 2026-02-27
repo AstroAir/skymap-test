@@ -3,7 +3,7 @@
  * Stellarium engine loading and initialization
  */
 
-import { renderHook } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useStellariumLoader } from '../use-stellarium-loader';
 import { useRef } from 'react';
 
@@ -21,8 +21,27 @@ jest.mock('@/lib/stores', () => ({
       updateStellariumCore: jest.fn(),
     })
   ),
-  useSettingsStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
-    selector({ stellarium: {} })
+  useSettingsStore: Object.assign(
+    jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
+      selector({
+        stellarium: {
+          skyCultureLanguage: 'native',
+        },
+        performance: {
+          renderQuality: 'high',
+        },
+      })
+    ),
+    {
+      getState: () => ({
+        stellarium: {
+          skyCultureLanguage: 'native',
+        },
+        performance: {
+          renderQuality: 'high',
+        },
+      }),
+    }
   ),
   useMountStore: jest.fn((selector: (s: Record<string, unknown>) => unknown) =>
     selector({
@@ -40,6 +59,14 @@ jest.mock('@/lib/translations', () => ({
 }));
 
 describe('useStellariumLoader', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('should return loading state and control functions', () => {
     const { result } = renderHook(() => {
       const containerRef = useRef<HTMLDivElement | null>(null);
@@ -73,5 +100,29 @@ describe('useStellariumLoader', () => {
 
     expect(result.current.loadingState).toBeDefined();
     expect(result.current.engineReady).toBe(false);
+  });
+
+  it('should stop retrying and surface overall timeout when canvas/container never become ready', async () => {
+    const { result } = renderHook(() => {
+      const containerRef = useRef<HTMLDivElement | null>(null);
+      const canvasRef = useRef<HTMLCanvasElement | null>(null);
+      const stelRef = useRef(null);
+      return useStellariumLoader({
+        containerRef,
+        canvasRef,
+        stelRef,
+      });
+    });
+
+    await act(async () => {
+      void result.current.startLoading();
+      jest.advanceTimersByTime(60000);
+      jest.runOnlyPendingTimers();
+    });
+
+    await waitFor(() => {
+      expect(result.current.loadingState.errorMessage).toBe('overallTimeout');
+      expect(result.current.loadingState.isLoading).toBe(false);
+    });
   });
 });

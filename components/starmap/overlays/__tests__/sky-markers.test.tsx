@@ -113,4 +113,102 @@ describe('SkyMarkers', () => {
     fireEvent.click(clickable);
     expect(mockSetActiveMarker).toHaveBeenCalledWith('m1');
   });
+
+  it('triggers onDoubleClick handler', () => {
+    const onDoubleClick = jest.fn();
+    render(
+      <SkyMarkers
+        containerWidth={800}
+        containerHeight={600}
+        onMarkerDoubleClick={onDoubleClick}
+      />
+    );
+
+    const clickable = document.querySelector('.cursor-pointer') as HTMLElement;
+    fireEvent.doubleClick(clickable);
+    expect(onDoubleClick).toHaveBeenCalledWith(marker);
+  });
+
+  it('triggers context menu edit action', () => {
+    const onEdit = jest.fn();
+    render(
+      <SkyMarkers
+        containerWidth={800}
+        containerHeight={600}
+        onMarkerEdit={onEdit}
+      />
+    );
+
+    // Context menu items are mocked as buttons
+    fireEvent.click(screen.getByText('common.edit'));
+    expect(onEdit).toHaveBeenCalledWith(marker);
+  });
+
+  it('triggers context menu delete action via callback', () => {
+    const onDelete = jest.fn();
+    render(
+      <SkyMarkers
+        containerWidth={800}
+        containerHeight={600}
+        onMarkerDelete={onDelete}
+      />
+    );
+
+    fireEvent.click(screen.getByText('common.delete'));
+    expect(onDelete).toHaveBeenCalledWith(marker);
+  });
+
+  it('falls back to removeMarker from store when no onMarkerDelete', () => {
+    render(
+      <SkyMarkers
+        containerWidth={800}
+        containerHeight={600}
+      />
+    );
+
+    fireEvent.click(screen.getByText('common.delete'));
+    expect(mockRemoveMarker).toHaveBeenCalledWith('m1');
+  });
+
+  it('triggers context menu navigate action', () => {
+    const onNavigate = jest.fn();
+    render(
+      <SkyMarkers
+        containerWidth={800}
+        containerHeight={600}
+        onMarkerNavigate={onNavigate}
+      />
+    );
+
+    fireEvent.click(screen.getByText('markers.goTo'));
+    expect(onNavigate).toHaveBeenCalledWith(marker);
+  });
+
+  it('triggers context menu toggle visibility action', () => {
+    render(
+      <SkyMarkers
+        containerWidth={800}
+        containerHeight={600}
+      />
+    );
+
+    // marker is visible, so clicking should show "hide"
+    fireEvent.click(screen.getByText('markers.hide'));
+    expect(mockToggleMarkerVisibility).toHaveBeenCalledWith('m1');
+  });
+
+  it('triggers onClick callback', () => {
+    const onClick = jest.fn();
+    render(
+      <SkyMarkers
+        containerWidth={800}
+        containerHeight={600}
+        onMarkerClick={onClick}
+      />
+    );
+
+    const clickable = document.querySelector('.cursor-pointer') as HTMLElement;
+    fireEvent.click(clickable);
+    expect(onClick).toHaveBeenCalledWith(marker);
+  });
 });

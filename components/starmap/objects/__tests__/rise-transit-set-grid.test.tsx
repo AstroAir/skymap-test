@@ -70,4 +70,22 @@ describe('RiseTransitSetGrid', () => {
     const { container } = render(<RiseTransitSetGrid visibility={baseVisibility} className="custom" />);
     expect(container.firstChild).toHaveClass('custom');
   });
+
+  it('renders --:-- for null rise/set times when not circumpolar', () => {
+    const vis = { ...baseVisibility, riseTime: null as unknown as Date, setTime: null as unknown as Date };
+    render(<RiseTransitSetGrid visibility={vis} />);
+    const dashes = screen.getAllByText('--:--');
+    expect(dashes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('defaults to full variant when no variant specified', () => {
+    const { container } = render(<RiseTransitSetGrid visibility={baseVisibility} />);
+    const svgs = container.querySelectorAll('svg');
+    expect(svgs.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders grid with 3 columns', () => {
+    const { container } = render(<RiseTransitSetGrid visibility={baseVisibility} />);
+    expect(container.firstChild).toHaveClass('grid-cols-3');
+  });
 });

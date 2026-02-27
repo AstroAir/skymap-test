@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 
 jest.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 jest.mock('@/lib/stores', () => ({
@@ -86,23 +86,53 @@ jest.mock('@/components/starmap/knowledge/daily-knowledge-button', () => ({ Dail
 
 import { TopToolbar } from '../top-toolbar';
 
+const defaultProps = {
+  stel: false,
+  isSearchOpen: false,
+  showSessionPanel: false,
+  viewCenterRaDec: { ra: 0, dec: 0 },
+  currentFov: 60,
+  onToggleSearch: jest.fn(),
+  onToggleSessionPanel: jest.fn(),
+  onResetView: jest.fn(),
+  onCloseStarmapClick: jest.fn(),
+  onSetFov: jest.fn(),
+  onNavigate: jest.fn(),
+  onGoToCoordinates: jest.fn(),
+};
+
 describe('TopToolbar', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('renders without crashing', () => {
-    render(
-      <TopToolbar
-        stel={false}
-        isSearchOpen={false}
-        showSessionPanel={false}
-        viewCenterRaDec={{ ra: 0, dec: 0 }}
-        currentFov={60}
-        onToggleSearch={jest.fn()}
-        onToggleSessionPanel={jest.fn()}
-        onResetView={jest.fn()}
-        onCloseStarmapClick={jest.fn()}
-        onSetFov={jest.fn()}
-        onNavigate={jest.fn()}
-        onGoToCoordinates={jest.fn()}
-      />
-    );
+    render(<TopToolbar {...defaultProps} />);
+  });
+
+  it('renders search button', () => {
+    const { container } = render(<TopToolbar {...defaultProps} />);
+    const searchBtn = container.querySelector('[data-tour-id="search-button"]');
+    expect(searchBtn).toBeInTheDocument();
+  });
+
+  it('calls onToggleSearch when search button is clicked', () => {
+    const onToggleSearch = jest.fn();
+    const { container } = render(<TopToolbar {...defaultProps} onToggleSearch={onToggleSearch} />);
+    const searchBtn = container.querySelector('[data-tour-id="search-button"]') as HTMLElement;
+    fireEvent.click(searchBtn);
+    expect(onToggleSearch).toHaveBeenCalled();
+  });
+
+  it('renders with stel=true without crashing', () => {
+    render(<TopToolbar {...defaultProps} stel={true} />);
+  });
+
+  it('renders with isSearchOpen=true without crashing', () => {
+    render(<TopToolbar {...defaultProps} isSearchOpen={true} />);
+  });
+
+  it('renders with showSessionPanel=true without crashing', () => {
+    render(<TopToolbar {...defaultProps} showSessionPanel={true} />);
   });
 });

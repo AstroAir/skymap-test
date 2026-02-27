@@ -26,6 +26,29 @@ const mockSetHelpers = jest.fn();
 const mockUpdateStellariumCore = jest.fn();
 const mockSetActiveEngine = jest.fn();
 const engineEventHandlers: Partial<Record<'click' | 'rectSelection', (event: unknown) => void>> = {};
+const mockSettingsState = {
+  stellarium: {
+    constellationsLinesVisible: true,
+    constellationArtVisible: false,
+    azimuthalLinesVisible: false,
+    equatorialLinesVisible: false,
+    meridianLinesVisible: false,
+    eclipticLinesVisible: false,
+    atmosphereVisible: false,
+    landscapesVisible: false,
+    dsosVisible: true,
+    surveyEnabled: true,
+    surveyId: 'dss',
+    skyCultureLanguage: 'native',
+    nightMode: false,
+    sensorControl: false,
+    crosshairVisible: true,
+    crosshairColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  performance: {
+    renderQuality: 'high',
+  },
+};
 
 jest.mock('@/lib/stores', () => ({
   useStellariumStore: Object.assign(
@@ -47,34 +70,10 @@ jest.mock('@/lib/stores', () => ({
   ),
   useSettingsStore: Object.assign(
     jest.fn((selector) => {
-      const state = {
-        stellarium: {
-          constellationsLinesVisible: true,
-          constellationArtVisible: false,
-          azimuthalLinesVisible: false,
-          equatorialLinesVisible: false,
-          meridianLinesVisible: false,
-          eclipticLinesVisible: false,
-          atmosphereVisible: false,
-          landscapesVisible: false,
-          dsosVisible: true,
-          surveyEnabled: true,
-          surveyId: 'dss',
-          skyCultureLanguage: 'native',
-          nightMode: false,
-          sensorControl: false,
-          crosshairVisible: true,
-          crosshairColor: 'rgba(255, 255, 255, 0.3)',
-        },
-      };
-      return selector(state);
+      return selector(mockSettingsState);
     }),
     {
-      getState: () => ({
-        stellarium: {
-          skyCultureLanguage: 'native',
-        },
-      }),
+      getState: () => mockSettingsState,
     }
   ),
   useMountStore: Object.assign(
@@ -393,6 +392,95 @@ describe('StellariumCanvas', () => {
           const loadingText = screen.queryByText(/loading|initializing|preparing|retrying/i);
           expect(loadingText).toBeInTheDocument();
         }, { timeout: 1000 });
+      }
+    });
+  });
+
+  describe('Loader Resilience', () => {
+    it('stops retrying and shows overall timeout when container remains zero-sized', async () => {
+      Element.prototype.getBoundingClientRect = jest.fn(() => ({
+        width: 0,
+        height: 0,
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      }));
+
+      const { StellariumCanvas } = await import('../stellarium-canvas');
+      render(<StellariumCanvas />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(47000);
+      });
+
+      expect(screen.getByText('overallTimeout')).toBeInTheDocument();
+    });
+
+    it('fails fast when onReady callback throws during init', async () => {
+      mockSetStel.mockImplementation((value) => {
+        if (value) {
+          throw new Error('init crash');
+        }
+      });
+
+      const mockStelWebEngine = jest.fn((options) => {
+        try {
+          options.onReady(mockStelEngine);
+        } catch {
+          // Simulate runtime swallowing callback exceptions.
+        }
+      });
+      (window as { StelWebEngine?: typeof mockStelWebEngine }).StelWebEngine = mockStelWebEngine;
+
+      try {
+        const { StellariumCanvas } = await import('../stellarium-canvas');
+        render(<StellariumCanvas />);
+
+        await act(async () => {
+          jest.advanceTimersByTime(300);
+        });
+
+        expect(screen.getByText(/retrying/i)).toBeInTheDocument();
+      } finally {
+        mockSetStel.mockImplementation(() => undefined);
+      }
+    });
+
+    it('uses default render quality when persisted performance settings are missing', async () => {
+      const storesModule = jest.requireMock('@/lib/stores') as {
+        useSettingsStore: { getState: () => Record<string, unknown> };
+      };
+      const originalGetState = storesModule.useSettingsStore.getState;
+      storesModule.useSettingsStore.getState = () => ({
+        stellarium: {
+          skyCultureLanguage: 'native',
+        },
+      });
+
+      const mockStelWebEngine = jest.fn((options) => {
+        options.onReady(mockStelEngine);
+      });
+      (window as { StelWebEngine?: typeof mockStelWebEngine }).StelWebEngine = mockStelWebEngine;
+
+      try {
+        const { StellariumCanvas } = await import('../stellarium-canvas');
+        render(<StellariumCanvas />);
+
+        await act(async () => {
+          jest.advanceTimersByTime(200);
+          jest.runOnlyPendingTimers();
+        });
+
+        await waitFor(() => {
+          expect(mockStelWebEngine).toHaveBeenCalled();
+        });
+        expect(screen.queryByText('overallTimeout')).not.toBeInTheDocument();
+      } finally {
+        storesModule.useSettingsStore.getState = originalGetState;
       }
     });
   });

@@ -2860,6 +2860,15 @@
     "strategyDuration": "Maximize Duration",
     "minAltitude": "Min Altitude",
     "minImagingTime": "Min Imaging Time",
+    "minMoonDistance": "Min Moon Distance",
+    "useExposurePlanDuration": "Use exposure plan duration",
+    "sessionWindow": "Session Window",
+    "fillDuskDawn": "Fill dusk/dawn",
+    "sessionWindowStart": "Start",
+    "sessionWindowEnd": "End",
+    "safetyLimits": "Safety Limits",
+    "enforceMountSafety": "Enforce mount safety",
+    "avoidMeridianFlipWindow": "Avoid meridian flip window",
     "showGaps": "Show Gaps",
     "targets": "Targets",
     "imagingTime": "Imaging Time",
@@ -3325,6 +3334,9 @@
     "starmapInitTimedOut": "Star map initialization timed out",
     "overallTimeout": "Loading timed out. Please retry.",
     "loadingSlowHint": "Loading is taking longer than expected",
+    "switchToAladin": "Switch to Aladin",
+    "autoSwitchedToAladin": "Stellarium failed to load. Switched to Aladin.",
+    "tryStellariumAgain": "Try Stellarium again",
     "elapsedTime": "{seconds}s"
   },
   "logViewer": {
@@ -3568,6 +3580,14 @@
     "shareFailed": "Share failed.",
     "loadFailed": "Failed to load daily knowledge.",
     "videoEntry": "Video entry. Use Open Source to view the original video.",
+    "eventOfToday": "Today in astronomy",
+    "factSources": "Fact sources",
+    "noFactSources": "No external fact source listed.",
+    "fallbackNotice": "This entry is shown in fallback language for accuracy.",
+    "languageStatus": {
+      "native": "Native language",
+      "fallback": "Fallback language"
+    },
     "sourceBadge": {
       "curated": "Curated",
       "nasa-apod": "NASA APOD",

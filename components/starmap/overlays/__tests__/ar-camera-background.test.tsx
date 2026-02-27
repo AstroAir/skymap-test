@@ -118,4 +118,32 @@ describe('ARCameraBackground', () => {
     expect(video).toBeInTheDocument();
     expect(video?.getAttribute('aria-label')).toBe('AR camera background');
   });
+
+  it('renders switch camera button when multiple cameras available', () => {
+    mockStream = new MockMediaStream() as unknown as MediaStream;
+    mockHasMultipleCameras = true;
+    renderComponent(<ARCameraBackground enabled={true} />);
+    expect(screen.getByLabelText(/switchCamera|Switch camera/i)).toBeInTheDocument();
+  });
+
+  it('renders torch button when torch capability is available', () => {
+    mockStream = new MockMediaStream() as unknown as MediaStream;
+    mockCapabilities = { torch: true };
+    renderComponent(<ARCameraBackground enabled={true} />);
+    expect(screen.getByLabelText('Torch')).toBeInTheDocument();
+  });
+
+  it('does not render camera controls when no stream', () => {
+    mockHasMultipleCameras = true;
+    mockCapabilities = { torch: true };
+    renderComponent(<ARCameraBackground enabled={true} />);
+    expect(screen.queryByLabelText('Torch')).not.toBeInTheDocument();
+  });
+
+  it('applies custom className', () => {
+    mockError = 'Failed';
+    mockErrorType = 'unknown';
+    const { container } = renderComponent(<ARCameraBackground enabled={true} className="my-class" />);
+    expect(container.querySelector('.my-class')).toBeInTheDocument();
+  });
 });

@@ -285,4 +285,196 @@ describe('QuickActionsPanel', () => {
 
     expect(mockSetSkyEngine).toHaveBeenCalledWith('stellarium');
   });
+
+  it('shows twilight condition when isTwilight is true', () => {
+    const { useObservingConditions } = jest.requireMock('@/lib/hooks/use-observing-conditions');
+    (useObservingConditions as jest.Mock).mockReturnValue({
+      moonPhaseName: 'Full Moon',
+      moonIllumination: 100,
+      sunAltitude: -8,
+      isDark: false,
+      isTwilight: true,
+      isDay: false,
+      twilight: {},
+    });
+
+    render(<QuickActionsPanel />);
+    expect(screen.getByText('quickActions.twilight')).toBeDefined();
+  });
+
+  it('shows daylight condition when isDay is true', () => {
+    const { useObservingConditions } = jest.requireMock('@/lib/hooks/use-observing-conditions');
+    (useObservingConditions as jest.Mock).mockReturnValue({
+      moonPhaseName: 'New Moon',
+      moonIllumination: 0,
+      sunAltitude: 30,
+      isDark: false,
+      isTwilight: false,
+      isDay: true,
+      twilight: {},
+    });
+
+    render(<QuickActionsPanel />);
+    expect(screen.getByText('quickActions.daylight')).toBeDefined();
+  });
+
+  it('does not show active target section when no active target', () => {
+    const { useTargetListStore } = jest.requireMock('@/lib/stores/target-list-store');
+    (useTargetListStore as jest.Mock).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({ targets: [], activeTargetId: null })
+    );
+
+    render(<QuickActionsPanel />);
+    expect(screen.queryByText('quickActions.activeTarget')).toBeNull();
+  });
+
+  it('toggles expand/collapse on chevron button click', () => {
+    render(<QuickActionsPanel />);
+
+    // Initially expanded — navigation section should be visible
+    expect(screen.getByText('quickActions.navigation')).toBeDefined();
+
+    // Find the collapse button (the small h-6 w-6 button in the header)
+    const allButtons = screen.getAllByRole('button');
+    const collapseBtn = allButtons.find(btn => btn.className?.includes('h-6'));
+    expect(collapseBtn).toBeDefined();
+    fireEvent.click(collapseBtn!);
+
+    // After collapse, navigation section should be hidden
+    expect(screen.queryByText('quickActions.navigation')).toBeNull();
+  });
+
+  it('toggles FOV overlay when FOV button is clicked', () => {
+    render(<QuickActionsPanel />);
+    const fovBtn = screen.getByText('quickActions.fovOverlay').closest('button');
+    expect(fovBtn).toBeDefined();
+    fireEvent.click(fovBtn!);
+    expect(mockSetFovEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('toggles equatorial grid on click', () => {
+    render(<QuickActionsPanel />);
+    const eqBtn = screen.getByText('quickActions.eqGrid').closest('button');
+    fireEvent.click(eqBtn!);
+    expect(mockToggleStellariumSetting).toHaveBeenCalledWith('equatorialLinesVisible');
+  });
+
+  it('toggles azimuthal grid on click', () => {
+    render(<QuickActionsPanel />);
+    const azBtn = screen.getByText('quickActions.azGrid').closest('button');
+    fireEvent.click(azBtn!);
+    expect(mockToggleStellariumSetting).toHaveBeenCalledWith('azimuthalLinesVisible');
+  });
+
+  it('toggles DSOs on click', () => {
+    render(<QuickActionsPanel />);
+    const dsoBtn = screen.getByText('quickActions.dsos').closest('button');
+    fireEvent.click(dsoBtn!);
+    expect(mockToggleStellariumSetting).toHaveBeenCalledWith('dsosVisible');
+  });
+
+  it('applies Aladin overlay opacity decrease (-10%)', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    const decreaseBtn = screen.getByText('settings.aladinOverlayOpacity -10%').closest('button');
+    expect(decreaseBtn).toBeDefined();
+    fireEvent.click(decreaseBtn!);
+
+    expect(mockUpdateImageOverlayLayer).toHaveBeenCalledWith('overlay-1', { opacity: 0.4 });
+  });
+
+  it('toggles Aladin catalog layer on click', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    const simbadBtn = screen.getByText('SIMBAD').closest('button');
+    fireEvent.click(simbadBtn!);
+    expect(mockToggleCatalogLayer).toHaveBeenCalledWith('simbad');
+  });
+
+  it('toggles Aladin MOC layer on click', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    const mocBtn = screen.getByText('MOC 1').closest('button');
+    fireEvent.click(mocBtn!);
+    expect(mockToggleMocLayer).toHaveBeenCalledWith('moc-1');
+  });
+
+  it('toggles Aladin FITS layer on click', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    const fitsBtn = screen.getByText('FITS 1').closest('button');
+    fireEvent.click(fitsBtn!);
+    expect(mockToggleFitsLayer).toHaveBeenCalledWith('fits-1');
+  });
+
+  it('toggles Aladin image overlay layer on click', () => {
+    mockSkyEngine = 'aladin';
+    render(<QuickActionsPanel />);
+
+    const overlayBtn = screen.getByText('Overlay 1').closest('button');
+    fireEvent.click(overlayBtn!);
+    expect(mockToggleImageOverlayLayer).toHaveBeenCalledWith('overlay-1');
+  });
+
+  it('disables opacity buttons when no overlay layers exist', () => {
+    mockSkyEngine = 'aladin';
+    const { useAladinStore } = jest.requireMock('@/lib/stores');
+    (useAladinStore as jest.Mock).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({
+          catalogLayers: [],
+          toggleCatalogLayer: mockToggleCatalogLayer,
+          mocLayers: [],
+          toggleMocLayer: mockToggleMocLayer,
+          imageOverlayLayers: [],
+          toggleImageOverlayLayer: mockToggleImageOverlayLayer,
+          updateImageOverlayLayer: mockUpdateImageOverlayLayer,
+          fitsLayers: [],
+          toggleFitsLayer: mockToggleFitsLayer,
+        })
+    );
+
+    render(<QuickActionsPanel />);
+
+    const increaseBtn = screen.getByText('settings.aladinOverlayOpacity +10%').closest('button');
+    const decreaseBtn = screen.getByText('settings.aladinOverlayOpacity -10%').closest('button');
+    expect(increaseBtn).toBeDisabled();
+    expect(decreaseBtn).toBeDisabled();
+  });
+
+  it('does not show target list section when no targets', () => {
+    const { useTargetListStore } = jest.requireMock('@/lib/stores/target-list-store');
+    (useTargetListStore as jest.Mock).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({ targets: [], activeTargetId: null })
+    );
+
+    render(<QuickActionsPanel />);
+    expect(screen.queryByText('quickActions.totalTargets')).toBeNull();
+  });
+
+  it('navigates to SCP direction on button click', () => {
+    render(<QuickActionsPanel />);
+    const scpBtn = screen.getByText('quickActions.scp').closest('button');
+    fireEvent.click(scpBtn!);
+    expect(mockSetViewDirection).toHaveBeenCalledWith(0, -90);
+  });
+
+  it('does not navigate when setViewDirection is null', () => {
+    const { useStellariumStore } = jest.requireMock('@/lib/stores');
+    (useStellariumStore as jest.Mock).mockImplementation(
+      (selector: (s: Record<string, unknown>) => unknown) =>
+        selector({ setViewDirection: null })
+    );
+
+    render(<QuickActionsPanel />);
+    const ncpBtn = screen.getByText('quickActions.ncp').closest('button');
+    fireEvent.click(ncpBtn!);
+    expect(mockSetViewDirection).not.toHaveBeenCalled();
+  });
 });

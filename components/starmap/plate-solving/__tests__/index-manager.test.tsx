@@ -32,6 +32,8 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
   getAvailableIndexes: jest.fn(),
   getInstalledIndexes: jest.fn(),
   deleteIndex: jest.fn(),
+  downloadIndex: jest.fn().mockResolvedValue(undefined),
+  getDefaultIndexPath: jest.fn().mockResolvedValue('/default/index/path'),
   detectPlateSolvers: jest.fn(),
   loadSolverConfig: jest.fn(),
   saveSolverConfig: jest.fn(),
@@ -66,6 +68,7 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
 const mockGetAvailableIndexes = jest.requireMock('@/lib/tauri/plate-solver-api').getAvailableIndexes;
 const mockGetInstalledIndexes = jest.requireMock('@/lib/tauri/plate-solver-api').getInstalledIndexes;
 const _mockDeleteIndex = jest.requireMock('@/lib/tauri/plate-solver-api').deleteIndex;
+const mockDownloadIndex = jest.requireMock('@/lib/tauri/plate-solver-api').downloadIndex;
 
 // Mock Tauri event listener and path
 jest.mock('@tauri-apps/api/event', () => ({
@@ -80,6 +83,8 @@ jest.mock('@tauri-apps/api/path', () => ({
 jest.mock('@/lib/tauri/app-control-api', () => ({
   isTauri: jest.fn(() => false),
 }));
+
+const mockIsTauri = jest.requireMock('@/lib/tauri/app-control-api').isTauri;
 
 // Mock Dialog — simulate open/close behavior so useEffect(open) fires
 let dialogOnOpenChange: ((open: boolean) => void) | undefined;
@@ -382,6 +387,532 @@ describe('IndexManager', () => {
     await waitFor(() => {
       expect(mockGetInstalledIndexes).toHaveBeenCalledWith('astrometry_net', undefined);
       expect(mockGetAvailableIndexes).toHaveBeenCalledWith('astrometry_net');
+    });
+  });
+
+  it('should show error when loading indexes fails', async () => {
+    mockGetInstalledIndexes.mockRejectedValueOnce(new Error('Network error'));
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('Network error')).toBeInTheDocument();
+    });
+  });
+
+  it('should show delete button on installed indexes', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D50',
+        file_name: 'D50',
+        path: '/path/to/D50',
+        size_bytes: 500 * 1024 * 1024,
+        scale_range: { min_arcmin: 18, max_arcmin: 600 },
+        description: 'Large database',
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('D50')).toBeInTheDocument();
+    });
+
+    // Find delete button (Trash2 icon button)
+    const deleteButtons = screen.getAllByRole('button').filter(
+      btn => btn.className?.includes('destructive')
+    );
+    expect(deleteButtons.length).toBeGreaterThan(0);
+  });
+
+  it('should open delete confirmation dialog when delete clicked', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D50',
+        file_name: 'D50',
+        path: '/path/to/D50',
+        size_bytes: 500 * 1024 * 1024,
+        scale_range: null,
+        description: null,
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('D50')).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButtons = screen.getAllByRole('button').filter(
+      btn => btn.className?.includes('destructive')
+    );
+    fireEvent.click(deleteButtons[0]);
+
+    // Confirm dialog should show
+    expect(screen.getByText('plateSolving.deleteIndex')).toBeInTheDocument();
+    expect(screen.getByText('plateSolving.deleteIndexConfirm')).toBeInTheDocument();
+  });
+
+  it('should reload indexes on refresh button click', async () => {
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(mockGetInstalledIndexes).toHaveBeenCalled();
+    });
+
+    mockGetInstalledIndexes.mockClear();
+    mockGetAvailableIndexes.mockClear();
+
+    // Find and click the refresh button (ghost icon button)
+    const allButtons = screen.getAllByRole('button');
+    // The refresh button is typically the icon-only ghost button
+    const refreshButton = allButtons.find(
+      btn => !btn.textContent?.trim() || btn.querySelector('svg')
+    );
+    if (refreshButton) {
+      fireEvent.click(refreshButton);
+
+      await waitFor(() => {
+        expect(mockGetInstalledIndexes).toHaveBeenCalled();
+      });
+    }
+  });
+
+  it('should show installed badge for already-installed index in available tab', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D50',
+        file_name: 'D50',
+        path: '/path/to/D50',
+        size_bytes: 500 * 1024 * 1024,
+        scale_range: { min_arcmin: 18, max_arcmin: 600 },
+        description: 'Large database',
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
+    });
+
+    // Switch to available tab
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
+
+    await waitFor(() => {
+      // The D50 should show installed badge
+      const installedBadges = screen.getAllByText('plateSolving.installed');
+      expect(installedBadges.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('should show total size and file count footer', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D50',
+        file_name: 'D50',
+        path: '/path/to/D50',
+        size_bytes: 500 * 1024 * 1024,
+        scale_range: { min_arcmin: 18, max_arcmin: 600 },
+        description: null,
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('D50')).toBeInTheDocument();
+    });
+
+    // Footer shows total size and file count (text may be split across elements)
+    await waitFor(() => {
+      expect(screen.getByText(/plateSolving\.files/)).toBeInTheDocument();
+    });
+  });
+
+  it('should show astrometry.net link for astrometry_net solver', async () => {
+    usePlateSolverStore.setState({
+      ...usePlateSolverStore.getState(),
+      config: {
+        ...usePlateSolverStore.getState().config,
+        solver_type: 'astrometry_net',
+      },
+    });
+
+    render(<IndexManager solverType="astrometry_net" />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
+    });
+
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
+
+    await waitFor(() => {
+      const link = screen.getByRole('link');
+      expect(link).toHaveAttribute('href', 'http://data.astrometry.net/');
+    });
+  });
+
+  it('should show download button to empty tab prompt', async () => {
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('plateSolving.noIndexesInstalled')).toBeInTheDocument();
+    });
+
+    // Should have button to switch to available tab
+    expect(screen.getByText('plateSolving.downloadIndexes')).toBeInTheDocument();
+  });
+
+  it('should show scale range for installed index', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D50',
+        file_name: 'D50',
+        path: '/path/to/D50',
+        size_bytes: 500 * 1024 * 1024,
+        scale_range: { min_arcmin: 18, max_arcmin: 600 },
+        description: 'Large database',
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText(/18-600 arcmin/)).toBeInTheDocument();
+    });
+  });
+
+  it('should apply className prop', () => {
+    render(<IndexManager className="custom-class" />);
+    // Component renders without error
+    expect(screen.getByText('plateSolving.manageIndexes')).toBeInTheDocument();
+  });
+
+  it('should open window when download clicked in non-desktop mode', async () => {
+    const mockWindowOpen = jest.fn();
+    window.open = mockWindowOpen;
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
+    });
+
+    // Switch to available tab
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('D50')).toBeInTheDocument();
+    });
+
+    // Click download button
+    const downloadButton = screen.getByText('common.download');
+    fireEvent.click(downloadButton);
+
+    expect(mockWindowOpen).toHaveBeenCalledWith(
+      'https://example.com/d50.zip',
+      '_blank',
+      'noopener,noreferrer'
+    );
+  });
+
+  it('should show delete confirmation with action buttons', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D50',
+        file_name: 'D50',
+        path: '/path/to/D50',
+        size_bytes: 500 * 1024 * 1024,
+        scale_range: null,
+        description: null,
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('D50')).toBeInTheDocument();
+    });
+
+    // Click delete icon button
+    const deleteButtons = screen.getAllByRole('button').filter(
+      btn => btn.className?.includes('destructive')
+    );
+    fireEvent.click(deleteButtons[0]);
+
+    // Confirm dialog should have cancel and delete buttons
+    expect(screen.getByText('common.cancel')).toBeInTheDocument();
+    expect(screen.getByText('common.delete')).toBeInTheDocument();
+  });
+
+  it('should show download button in available tab for not-installed index', async () => {
+    // Ensure no indexes are installed
+    mockGetInstalledIndexes.mockResolvedValue([]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
+    });
+
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('common.download')).toBeInTheDocument();
+    });
+  });
+
+  it('should show checkmark for installed index in available tab instead of download', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D50',
+        file_name: 'D50',
+        path: '/path/to/D50',
+        size_bytes: 500 * 1024 * 1024,
+        scale_range: { min_arcmin: 18, max_arcmin: 600 },
+        description: 'Large database',
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
+    });
+
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
+
+    await waitFor(() => {
+      // Should show installed badge, not download button
+      expect(screen.queryByText('common.download')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should show astrometry hint for astrometry_net solver in available tab', async () => {
+    usePlateSolverStore.setState({
+      ...usePlateSolverStore.getState(),
+      config: {
+        ...usePlateSolverStore.getState().config,
+        solver_type: 'astrometry_net',
+      },
+    });
+
+    render(<IndexManager solverType="astrometry_net" />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(mockGetAvailableIndexes).toHaveBeenCalled();
+    });
+
+    const availableTab = screen.getByTestId('tab-available');
+    fireEvent.click(availableTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('plateSolving.astrometryIndexHint')).toBeInTheDocument();
+    });
+  });
+
+  it('should switch to available tab when "Download Indexes" button clicked', async () => {
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('plateSolving.noIndexesInstalled')).toBeInTheDocument();
+    });
+
+    const downloadBtn = screen.getByText('plateSolving.downloadIndexes');
+    fireEvent.click(downloadBtn);
+
+    // Should now show available tab content
+    await waitFor(() => {
+      expect(screen.getByText('D50')).toBeInTheDocument();
+    });
+  });
+
+  it('should show installed index without scale_range', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'custom-index',
+        file_name: 'custom-index',
+        path: '/path/to/custom',
+        size_bytes: 100 * 1024 * 1024,
+        scale_range: null,
+        description: null,
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('custom-index')).toBeInTheDocument();
+    });
+  });
+
+  it('should show installed index with description', async () => {
+    mockGetInstalledIndexes.mockResolvedValue([
+      {
+        name: 'D80',
+        file_name: 'D80',
+        path: '/path/to/D80',
+        size_bytes: 800 * 1024 * 1024,
+        scale_range: { min_arcmin: 5, max_arcmin: 60 },
+        description: 'Small field deep database',
+      },
+    ]);
+
+    render(<IndexManager />);
+
+    const trigger = screen.getByTestId('dialog-trigger');
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByText('D80')).toBeInTheDocument();
+      expect(screen.getByText('Small field deep database')).toBeInTheDocument();
+    });
+  });
+
+  describe('desktop mode', () => {
+    beforeEach(() => {
+      mockIsTauri.mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      mockIsTauri.mockReturnValue(false);
+    });
+
+    it('should render installed indexes in desktop mode', async () => {
+      mockGetInstalledIndexes.mockResolvedValue([
+        {
+          name: 'D50',
+          file_name: 'D50',
+          path: '/desktop/path/to/D50',
+          size_bytes: 500 * 1024 * 1024,
+          scale_range: null,
+          description: null,
+        },
+      ]);
+
+      render(<IndexManager />);
+
+      const trigger = screen.getByTestId('dialog-trigger');
+      fireEvent.click(trigger);
+
+      await waitFor(() => {
+        expect(screen.getByText('D50')).toBeInTheDocument();
+      });
+    });
+
+    it('should call downloadIndex when download clicked in desktop mode', async () => {
+      mockDownloadIndex.mockResolvedValue(undefined);
+      mockGetInstalledIndexes.mockResolvedValue([]);
+
+      render(<IndexManager />);
+
+      const trigger = screen.getByTestId('dialog-trigger');
+      fireEvent.click(trigger);
+
+      await waitFor(() => {
+        expect(mockGetAvailableIndexes).toHaveBeenCalled();
+      });
+
+      // Switch to available tab
+      const availableTab = screen.getByTestId('tab-available');
+      fireEvent.click(availableTab);
+
+      await waitFor(() => {
+        expect(screen.getByText('D50')).toBeInTheDocument();
+      });
+
+      // Click download button
+      const downloadButton = screen.getByText('common.download');
+      fireEvent.click(downloadButton);
+
+      await waitFor(() => {
+        expect(mockDownloadIndex).toHaveBeenCalled();
+      });
+    });
+
+    it('should show download progress after download starts', async () => {
+      // Make download hang so we can check progress state
+      mockDownloadIndex.mockImplementation(() => new Promise(() => {}));
+      mockGetInstalledIndexes.mockResolvedValue([]);
+
+      render(<IndexManager />);
+
+      const trigger = screen.getByTestId('dialog-trigger');
+      fireEvent.click(trigger);
+
+      await waitFor(() => {
+        expect(mockGetAvailableIndexes).toHaveBeenCalled();
+      });
+
+      const availableTab = screen.getByTestId('tab-available');
+      fireEvent.click(availableTab);
+
+      await waitFor(() => {
+        expect(screen.getByText('D50')).toBeInTheDocument();
+      });
+
+      const downloadButton = screen.getByText('common.download');
+      fireEvent.click(downloadButton);
+
+      // Download button should disappear (replaced by progress)
+      await waitFor(() => {
+        expect(screen.queryByText('common.download')).not.toBeInTheDocument();
+      });
     });
   });
 });

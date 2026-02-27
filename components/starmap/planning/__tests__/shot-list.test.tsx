@@ -316,6 +316,86 @@ describe('ShotList', () => {
   });
 });
 
+describe('ShotList with targets', () => {
+  const defaultProps = {
+    onNavigateToTarget: jest.fn(),
+    currentSelection: null,
+  };
+
+  function makeStoreWithTargets() {
+    mockUseTargetListStore.mockImplementation((sel: (s: unknown) => unknown) => {
+      const s = {
+        targets: [
+          { id: 't1', name: 'M31', ra: 10.68, dec: 41.27, raString: '00h 42m', decString: "+41\u00b016'", priority: 'high', status: 'planned', notes: '', tags: ['galaxy'], addedAt: Date.now(), type: 'Galaxy', isFavorite: true, isArchived: false },
+          { id: 't2', name: 'M42', ra: 83.82, dec: -5.39, raString: '05h 35m', decString: "-05\u00b023'", priority: 'medium', status: 'in_progress', notes: '', tags: ['nebula'], addedAt: Date.now(), type: 'Nebula', isFavorite: false, isArchived: false },
+        ],
+        activeTargetId: null, selectedIds: new Set(), groupBy: 'none', showArchived: false,
+        searchQuery: '', filterStatus: 'all', filterPriority: 'all', sortBy: 'manual', sortOrder: 'asc',
+        availableTags: ['galaxy', 'nebula'],
+        addTarget: jest.fn(), removeTarget: jest.fn(), updateTarget: jest.fn(), setActiveTarget: jest.fn(),
+        reorderTargets: jest.fn(), clearCompleted: jest.fn(), clearAll: jest.fn(),
+        toggleSelection: jest.fn(), selectAll: jest.fn(), clearSelection: jest.fn(),
+        setGroupBy: jest.fn(), setShowArchived: jest.fn(), setSearchQuery: jest.fn(),
+        setFilterStatus: jest.fn(), setFilterPriority: jest.fn(), setSortBy: jest.fn(), setSortOrder: jest.fn(),
+        removeTargetsBatch: jest.fn(), setStatusBatch: jest.fn(), setPriorityBatch: jest.fn(), addTargetsBatch: jest.fn(),
+        getFilteredTargets: jest.fn(() => []), getGroupedTargets: jest.fn(() => new Map()),
+        toggleFavorite: jest.fn(), toggleArchive: jest.fn(), addTagBatch: jest.fn(), removeTagBatch: jest.fn(),
+        checkDuplicate: jest.fn(() => undefined),
+      };
+      return sel ? sel(s) : s;
+    });
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders drawer title', () => {
+    render(<ShotList {...defaultProps} />);
+    expect(screen.getByText('shotList.shotList')).toBeInTheDocument();
+  });
+
+  it('renders search input when targets exist', () => {
+    makeStoreWithTargets();
+    render(<ShotList {...defaultProps} />);
+    const inputs = screen.getAllByTestId('input');
+    expect(inputs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders alert dialog for clear actions', () => {
+    makeStoreWithTargets();
+    render(<ShotList {...defaultProps} />);
+    expect(screen.getByTestId('alert-dialog')).toBeInTheDocument();
+  });
+
+  it('renders dropdown menu', () => {
+    render(<ShotList {...defaultProps} />);
+    const dropdowns = screen.getAllByTestId('dropdown-menu');
+    expect(dropdowns.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders target detail dialog', () => {
+    render(<ShotList {...defaultProps} />);
+    expect(screen.getByTestId('target-detail-dialog')).toBeInTheDocument();
+  });
+
+  it('renders scroll area for target list', () => {
+    render(<ShotList {...defaultProps} />);
+    expect(screen.getByTestId('scroll-area')).toBeInTheDocument();
+  });
+
+  it('renders badges', () => {
+    render(<ShotList {...defaultProps} />);
+    const badges = screen.getAllByTestId('badge');
+    expect(badges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders tooltip provider', () => {
+    render(<ShotList {...defaultProps} />);
+    expect(screen.getByTestId('tooltip-provider')).toBeInTheDocument();
+  });
+});
+
 describe('ShotList Import/Export', () => {
   const { tauriApi } = jest.requireMock('@/lib/tauri');
 

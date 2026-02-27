@@ -6,6 +6,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FeedbackDialog } from '../feedback-dialog';
 import { useFeedbackStore } from '@/lib/stores/feedback-store';
+import { toast } from 'sonner';
 
 const mockOpenExternalUrl = jest.fn();
 const mockCollectDiagnostics = jest.fn();
@@ -32,6 +33,14 @@ jest.mock('sonner', () => ({
     warning: jest.fn(),
   },
 }));
+
+// Helper: fill all required bug fields
+function fillBugFields() {
+  fireEvent.change(screen.getByTestId('feedback-title-input'), { target: { value: 'Test bug title' } });
+  fireEvent.change(screen.getByTestId('feedback-description-input'), { target: { value: 'Bug description' } });
+  fireEvent.change(screen.getByTestId('feedback-steps-input'), { target: { value: '1. Step one' } });
+  fireEvent.change(screen.getByTestId('feedback-expected-input'), { target: { value: 'Expected result' } });
+}
 
 describe('FeedbackDialog', () => {
   beforeEach(() => {
@@ -64,6 +73,10 @@ describe('FeedbackDialog', () => {
     mockExportDiagnosticsBundle.mockResolvedValue('skymap-diagnostics.json');
   });
 
+  // ========================================================================
+  // Basic rendering & controlled mode
+  // ========================================================================
+
   it('requires required fields before submit', async () => {
     render(<FeedbackDialog open onOpenChange={jest.fn()} />);
 
@@ -84,10 +97,7 @@ describe('FeedbackDialog', () => {
   it('collects diagnostics and opens GitHub issue URL on submit', async () => {
     render(<FeedbackDialog open onOpenChange={jest.fn()} />);
 
-    fireEvent.change(screen.getByTestId('feedback-title-input'), { target: { value: 'Test bug title' } });
-    fireEvent.change(screen.getByTestId('feedback-description-input'), { target: { value: 'Bug description' } });
-    fireEvent.change(screen.getByTestId('feedback-steps-input'), { target: { value: '1. Step one' } });
-    fireEvent.change(screen.getByTestId('feedback-expected-input'), { target: { value: 'Expected result' } });
+    fillBugFields();
 
     fireEvent.click(screen.getByTestId('feedback-include-system-switch'));
     fireEvent.click(screen.getByTestId('feedback-include-logs-switch'));
@@ -142,6 +152,263 @@ describe('FeedbackDialog', () => {
         includeLogs: false,
       });
       expect(mockExportDiagnosticsBundle).toHaveBeenCalled();
+    });
+  });
+
+  // ========================================================================
+  // Uncontrolled mode & trigger
+  // ========================================================================
+
+  it('works in uncontrolled mode without open prop', () => {
+    const { container } = render(<FeedbackDialog />);
+    // Should render without crashing (uses internal state)
+    expect(container).toBeInTheDocument();
+  });
+
+  it('renders custom trigger when provided', () => {
+    const trigger = <button data-testid="custom-trigger">Report</button>;
+    render(<FeedbackDialog trigger={trigger} />);
+    expect(screen.getByTestId('custom-trigger')).toBeInTheDocument();
+  });
+
+  // ========================================================================
+  // validateDraft branches
+  // ========================================================================
+
+  it('shows error when title is empty on submit', async () => {
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.change(screen.getByTestId('feedback-description-input'), { target: { value: 'desc' } });
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.errors.titleRequired');
+    });
+  });
+
+  it('shows error when description is empty on submit', async () => {
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.change(screen.getByTestId('feedback-title-input'), { target: { value: 'title' } });
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.errors.descriptionRequired');
+    });
+  });
+
+  it('shows error when reproduction steps are empty for bug type', async () => {
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.change(screen.getByTestId('feedback-title-input'), { target: { value: 'title' } });
+    fireEvent.change(screen.getByTestId('feedback-description-input'), { target: { value: 'desc' } });
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.errors.stepsRequired');
+    });
+  });
+
+  it('shows error when expected behavior is empty for bug type', async () => {
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.change(screen.getByTestId('feedback-title-input'), { target: { value: 'title' } });
+    fireEvent.change(screen.getByTestId('feedback-description-input'), { target: { value: 'desc' } });
+    fireEvent.change(screen.getByTestId('feedback-steps-input'), { target: { value: 'steps' } });
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.errors.expectedRequired');
+    });
+  });
+
+  it('does not require steps/expected for feature type', async () => {
+    useFeedbackStore.setState((state) => ({
+      draft: { ...state.draft, type: 'feature' },
+    }));
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.change(screen.getByTestId('feedback-title-input'), { target: { value: 'Feature idea' } });
+    fireEvent.change(screen.getByTestId('feedback-description-input'), { target: { value: 'Feature desc' } });
+
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(mockOpenExternalUrl).toHaveBeenCalled();
+    });
+  });
+
+  // ========================================================================
+  // handleCopyMarkdown
+  // ========================================================================
+
+  it('copies markdown to clipboard on valid form', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: jest.fn().mockResolvedValue(undefined) },
+    });
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+    fillBugFields();
+
+    fireEvent.click(screen.getByTestId('feedback-copy-button'));
+
+    await waitFor(() => {
+      expect(mockBuildIssueBodyMarkdown).toHaveBeenCalled();
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('## Summary');
+      expect(toast.success).toHaveBeenCalledWith('feedback.toast.markdownCopied');
+    });
+  });
+
+  it('shows validation error on copy when title is empty', async () => {
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.click(screen.getByTestId('feedback-copy-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.errors.titleRequired');
+      expect(mockBuildIssueBodyMarkdown).not.toHaveBeenCalled();
+    });
+  });
+
+  it('handles clipboard write failure gracefully', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: jest.fn().mockRejectedValue(new Error('denied')) },
+    });
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+    fillBugFields();
+
+    fireEvent.click(screen.getByTestId('feedback-copy-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.toast.copyFailed');
+    });
+  });
+
+  // ========================================================================
+  // handleDownloadDiagnostics
+  // ========================================================================
+
+  it('shows info toast when no diagnostics options are enabled', async () => {
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.click(screen.getByTestId('feedback-download-button'));
+
+    await waitFor(() => {
+      expect(toast.info).toHaveBeenCalledWith('feedback.toast.enableDiagnosticsForExport');
+      expect(mockCollectDiagnostics).not.toHaveBeenCalled();
+    });
+  });
+
+  it('shows info toast when diagnostics collection returns null', async () => {
+    useFeedbackStore.setState((state) => ({
+      draft: { ...state.draft, includeSystemInfo: true },
+      preferences: { ...state.preferences, includeSystemInfo: true },
+    }));
+    mockCollectDiagnostics.mockResolvedValue(null);
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+    fireEvent.click(screen.getByTestId('feedback-download-button'));
+
+    await waitFor(() => {
+      expect(toast.info).toHaveBeenCalledWith('feedback.toast.noDiagnosticsCollected');
+    });
+  });
+
+  it('shows info toast when download is cancelled (export returns null)', async () => {
+    useFeedbackStore.setState((state) => ({
+      draft: { ...state.draft, includeSystemInfo: true },
+      preferences: { ...state.preferences, includeSystemInfo: true },
+    }));
+    mockCollectDiagnostics.mockResolvedValue({ generatedAt: 'x', app: { name: 'S', version: '1', buildDate: 'd', environment: 'web' } });
+    mockExportDiagnosticsBundle.mockResolvedValue(null);
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+    fireEvent.click(screen.getByTestId('feedback-download-button'));
+
+    await waitFor(() => {
+      expect(toast.info).toHaveBeenCalledWith('feedback.toast.downloadCancelled');
+    });
+  });
+
+  it('handles export error gracefully', async () => {
+    useFeedbackStore.setState((state) => ({
+      draft: { ...state.draft, includeSystemInfo: true },
+      preferences: { ...state.preferences, includeSystemInfo: true },
+    }));
+    mockCollectDiagnostics.mockResolvedValue({ generatedAt: 'x', app: { name: 'S', version: '1', buildDate: 'd', environment: 'web' } });
+    mockExportDiagnosticsBundle.mockRejectedValue(new Error('fail'));
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+    fireEvent.click(screen.getByTestId('feedback-download-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.toast.exportFailed');
+    });
+  });
+
+  // ========================================================================
+  // handleSubmit edge cases
+  // ========================================================================
+
+  it('shows warning toast when URL is truncated', async () => {
+    mockBuildGitHubIssueUrl.mockReturnValue({
+      url: 'https://github.com/AstroAir/skymap-test/issues/new',
+      markdownBody: '...',
+      truncated: true,
+      diagnosticsIncluded: false,
+      estimatedLength: 9000,
+    });
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+    fillBugFields();
+
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('feedback.toast.urlTruncated');
+      expect(toast.success).toHaveBeenCalledWith('feedback.toast.openedInBrowser');
+    });
+  });
+
+  it('shows error toast when submit fails', async () => {
+    mockOpenExternalUrl.mockRejectedValue(new Error('network'));
+
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+    fillBugFields();
+
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('feedback.toast.submitFailed');
+    });
+  });
+
+  // ========================================================================
+  // Form field interactions
+  // ========================================================================
+
+  it('updates additional context field', () => {
+    render(<FeedbackDialog open onOpenChange={jest.fn()} />);
+
+    fireEvent.change(screen.getByTestId('feedback-additional-input'), { target: { value: 'Extra info' } });
+
+    expect(useFeedbackStore.getState().draft.additionalContext).toBe('Extra info');
+  });
+
+  it('calls onOpenChange when controlled dialog closes on submit', async () => {
+    const onOpenChange = jest.fn();
+    mockOpenExternalUrl.mockResolvedValue(undefined);
+
+    render(<FeedbackDialog open onOpenChange={onOpenChange} />);
+    fillBugFields();
+
+    fireEvent.click(screen.getByTestId('feedback-submit-button'));
+
+    await waitFor(() => {
+      expect(mockOpenExternalUrl).toHaveBeenCalled();
+      expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
 });

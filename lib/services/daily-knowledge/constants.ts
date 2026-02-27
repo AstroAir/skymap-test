@@ -1,6 +1,10 @@
 export const DAILY_KNOWLEDGE_APOD_URL = 'https://api.nasa.gov/planetary/apod';
-export const DAILY_KNOWLEDGE_WIKI_SEARCH_URL = 'https://en.wikipedia.org/w/rest.php/v1/search/page';
-export const DAILY_KNOWLEDGE_WIKI_PAGE_URL = 'https://en.wikipedia.org/w/rest.php/v1/page';
+export const DAILY_KNOWLEDGE_WIKI_BASE_URLS = {
+  en: 'https://en.wikipedia.org',
+  zh: 'https://zh.wikipedia.org',
+} as const;
+export const DAILY_KNOWLEDGE_WIKI_SEARCH_PATH = '/w/rest.php/v1/search/page';
+export const DAILY_KNOWLEDGE_WIKI_PAGE_PATH = '/w/rest.php/v1/page';
 
 export const APOD_TTL_MS = 24 * 60 * 60 * 1000;
 export const WIKIMEDIA_TTL_MS = 7 * 24 * 60 * 60 * 1000;

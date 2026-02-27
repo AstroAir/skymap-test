@@ -38,15 +38,25 @@ jest.mock('@/lib/hooks/use-equipment-fov-props', () => ({
     gridType: 'none',
   })),
 }));
-jest.mock('@/components/starmap/overlays/fov-overlay', () => ({ FOVOverlay: () => null }));
+const mockFOVOverlay = jest.fn((_props?: Record<string, unknown>) => null);
+const mockSkyMarkers = jest.fn((_props?: Record<string, unknown>) => null);
+const mockSatelliteOverlay = jest.fn((_props?: Record<string, unknown>) => null);
+
+jest.mock('@/components/starmap/overlays/fov-overlay', () => ({ FOVOverlay: (props: Record<string, unknown>) => { mockFOVOverlay(props); return null; } }));
 jest.mock('@/components/starmap/overlays/ocular-overlay', () => ({ OcularOverlay: () => null }));
-jest.mock('@/components/starmap/overlays/sky-markers', () => ({ SkyMarkers: () => null }));
-jest.mock('@/components/starmap/overlays/satellite-overlay', () => ({ SatelliteOverlay: () => null }));
+jest.mock('@/components/starmap/overlays/sky-markers', () => ({ SkyMarkers: (props: Record<string, unknown>) => { mockSkyMarkers(props); return null; } }));
+jest.mock('@/components/starmap/overlays/satellite-overlay', () => ({ SatelliteOverlay: (props: Record<string, unknown>) => { mockSatelliteOverlay(props); return null; } }));
 
 import { OverlaysContainer } from '../overlays-container';
 
+beforeEach(() => {
+  mockFOVOverlay.mockClear();
+  mockSkyMarkers.mockClear();
+  mockSatelliteOverlay.mockClear();
+});
+
 describe('OverlaysContainer', () => {
-  it('renders without crashing', () => {
+  it('renders without crashing with containerBounds', () => {
     render(
       <OverlaysContainer
         currentFov={60}
@@ -56,6 +66,56 @@ describe('OverlaysContainer', () => {
         onMarkerEdit={jest.fn()}
         onMarkerNavigate={jest.fn()}
       />
+    );
+  });
+
+  it('does not render SkyMarkers or SatelliteOverlay when containerBounds is undefined', () => {
+    render(
+      <OverlaysContainer
+        currentFov={60}
+        containerBounds={undefined}
+        onRotationChange={jest.fn()}
+        onMarkerDoubleClick={jest.fn()}
+        onMarkerEdit={jest.fn()}
+        onMarkerNavigate={jest.fn()}
+      />
+    );
+    expect(mockSkyMarkers).not.toHaveBeenCalled();
+    expect(mockSatelliteOverlay).not.toHaveBeenCalled();
+  });
+
+  it('renders SkyMarkers and SatelliteOverlay when containerBounds is provided', () => {
+    render(
+      <OverlaysContainer
+        currentFov={60}
+        containerBounds={{ width: 1024, height: 768 }}
+        onRotationChange={jest.fn()}
+        onMarkerDoubleClick={jest.fn()}
+        onMarkerEdit={jest.fn()}
+        onMarkerNavigate={jest.fn()}
+      />
+    );
+    expect(mockSkyMarkers).toHaveBeenCalledWith(
+      expect.objectContaining({ containerWidth: 1024, containerHeight: 768 })
+    );
+    expect(mockSatelliteOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({ containerWidth: 1024, containerHeight: 768 })
+    );
+  });
+
+  it('passes currentFov to FOVOverlay', () => {
+    render(
+      <OverlaysContainer
+        currentFov={30}
+        containerBounds={{ width: 800, height: 600 }}
+        onRotationChange={jest.fn()}
+        onMarkerDoubleClick={jest.fn()}
+        onMarkerEdit={jest.fn()}
+        onMarkerNavigate={jest.fn()}
+      />
+    );
+    expect(mockFOVOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({ currentFov: 30 })
     );
   });
 });

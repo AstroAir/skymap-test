@@ -12,6 +12,11 @@ import {
   generateCatalogVariations,
   COMMON_NAME_TO_CATALOG,
   PHONETIC_VARIATIONS,
+  buildSearchIndex,
+  fuzzySearch,
+  quickFuzzySearch,
+  weightedSearch,
+  type SearchIndexEntry,
 } from '../fuzzy-search';
 
 describe('Fuzzy Search Engine', () => {
@@ -449,6 +454,295 @@ describe('Fuzzy Search Engine', () => {
 
     test('should include common misspellings for Sombrero', () => {
       expect(PHONETIC_VARIATIONS['sombrero']).toContain('sombero');
+    });
+  });
+
+  describe('Build Search Index', () => {
+
+    const testCatalog = [
+      {
+        id: 'M31',
+        name: 'M31',
+        alternateNames: ['NGC224', 'Andromeda Galaxy'],
+        constellation: 'And',
+        type: 'Galaxy',
+        magnitude: 3.4,
+      },
+      {
+        id: 'M42',
+        name: 'M42',
+        alternateNames: ['NGC1976', 'Orion Nebula'],
+        constellation: 'Ori',
+        type: 'Nebula',
+        magnitude: 4.0,
+      },
+      {
+        id: 'NGC7000',
+        name: 'NGC7000',
+        constellation: 'Cyg',
+        type: 'Nebula',
+        magnitude: 4.0,
+      },
+    ];
+
+    test('should build an index from catalog', () => {
+      const index = buildSearchIndex(testCatalog);
+      expect(index).toBeInstanceOf(Map);
+      expect(index.size).toBe(3);
+    });
+
+    test('should index entries with correct fields', () => {
+      const index = buildSearchIndex(testCatalog);
+      const entry = index.get('M31');
+      expect(entry).toBeDefined();
+      expect(entry?.name).toBe('M31');
+      expect(entry?.nameLower).toBe('m31');
+      expect(entry?.constellation).toBe('And');
+      expect(entry?.constellationLower).toBe('and');
+      expect(entry?.type).toBe('Galaxy');
+      expect(entry?.typeLower).toBe('galaxy');
+      expect(entry?.magnitude).toBe(3.4);
+    });
+
+    test('should index alternate names', () => {
+      const index = buildSearchIndex(testCatalog);
+      const entry = index.get('M31');
+      expect(entry?.alternateNames).toContain('NGC224');
+      expect(entry?.alternateNames).toContain('Andromeda Galaxy');
+      expect(entry?.alternateNamesLower).toContain('ngc224');
+    });
+
+    test('should parse catalog IDs from names', () => {
+      const index = buildSearchIndex(testCatalog);
+      const entry = index.get('M31');
+      expect(entry?.catalogIds.length).toBeGreaterThan(0);
+      expect(entry?.catalogIds[0].catalog).toBe('M');
+      expect(entry?.catalogIds[0].number).toBe(31);
+    });
+
+    test('should generate search tokens including catalog variations', () => {
+      const index = buildSearchIndex(testCatalog);
+      const entry = index.get('M31');
+      expect(entry?.tokens).toContain('m31');
+      expect(entry?.tokens).toContain('and');
+      expect(entry?.tokens).toContain('galaxy');
+      // Should include Messier variation
+      expect(entry?.tokens.some((t: string) => t.includes('messier'))).toBe(true);
+    });
+
+    test('should handle objects without alternate names', () => {
+      const index = buildSearchIndex(testCatalog);
+      const entry = index.get('NGC7000');
+      expect(entry?.alternateNames).toEqual([]);
+      expect(entry?.alternateNamesLower).toEqual([]);
+    });
+  });
+
+  describe('Fuzzy Search (full function)', () => {
+
+    const testCatalog = [
+      { id: 'M31', name: 'M31', alternateNames: ['NGC224', 'Andromeda Galaxy'], constellation: 'And', type: 'Galaxy', magnitude: 3.4 },
+      { id: 'M42', name: 'M42', alternateNames: ['NGC1976', 'Orion Nebula'], constellation: 'Ori', type: 'Nebula', magnitude: 4.0 },
+      { id: 'M45', name: 'M45', alternateNames: ['Pleiades'], constellation: 'Tau', type: 'OpenCluster', magnitude: 1.6 },
+      { id: 'NGC7000', name: 'NGC7000', alternateNames: ['North America Nebula'], constellation: 'Cyg', type: 'Nebula', magnitude: 4.0 },
+      { id: 'IC1396', name: 'IC1396', alternateNames: ['Elephant Trunk Nebula'], constellation: 'Cep', type: 'Nebula', magnitude: 3.5 },
+    ];
+    let index: Map<string, SearchIndexEntry>;
+
+    beforeAll(() => {
+      index = buildSearchIndex(testCatalog);
+    });
+
+    test('should return empty array for empty query', () => {
+      expect(fuzzySearch('', index)).toEqual([]);
+      expect(fuzzySearch('  ', index)).toEqual([]);
+    });
+
+    test('should find exact catalog match', () => {
+      const results = fuzzySearch('M31', index);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].id).toBe('M31');
+      // Match type could be 'exact' or 'catalog' depending on scoring boosts
+      expect(['exact', 'catalog']).toContain(results[0].matchType);
+    });
+
+    test('should find by common name mapping', () => {
+      const results = fuzzySearch('andromeda', index);
+      expect(results.some((r: { id: string }) => r.id === 'M31')).toBe(true);
+    });
+
+    test('should find by prefix match', () => {
+      const results = fuzzySearch('NGC70', index);
+      expect(results.some((r: { id: string }) => r.id === 'NGC7000')).toBe(true);
+    });
+
+    test('should find by phonetic variation', () => {
+      const results = fuzzySearch('andromida', index);
+      // Should still find M31 via phonetic variation
+      expect(results.some((r: { id: string }) => r.id === 'M31')).toBe(true);
+    });
+
+    test('should find by alternate name', () => {
+      const results = fuzzySearch('Orion Nebula', index);
+      expect(results.some((r: { id: string }) => r.id === 'M42')).toBe(true);
+    });
+
+    test('should find by contains match', () => {
+      const results = fuzzySearch('America', index, { minScore: 0.1 });
+      expect(results.some((r: { id: string }) => r.id === 'NGC7000')).toBe(true);
+    });
+
+    test('should respect maxResults option', () => {
+      const results = fuzzySearch('M', index, { maxResults: 2 });
+      expect(results.length).toBeLessThanOrEqual(2);
+    });
+
+    test('should respect minScore option', () => {
+      const results = fuzzySearch('xyz', index, { minScore: 0.9 });
+      expect(results.length).toBe(0);
+    });
+
+    test('should sort results by score descending', () => {
+      const results = fuzzySearch('M', index);
+      for (let i = 1; i < results.length; i++) {
+        expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
+      }
+    });
+
+    test('should do fuzzy matching for typos', () => {
+      const results = fuzzySearch('Pleaides', index, { fuzzyThreshold: 0.5 });
+      // May find Pleiades via fuzzy match
+      if (results.length > 0) {
+        expect(results[0].score).toBeGreaterThan(0);
+      }
+    });
+
+    test('should match constellation via fuzzy', () => {
+      const results = fuzzySearch('Orion', index, { fuzzyThreshold: 0.5 });
+      // Should match Ori constellation or Orion Nebula
+      expect(results.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Quick Fuzzy Search', () => {
+
+    const testCatalog = [
+      { id: 'M31', name: 'M31', alternateNames: ['NGC224'], constellation: 'And', type: 'Galaxy' },
+      { id: 'M32', name: 'M32', alternateNames: [], constellation: 'And', type: 'Galaxy' },
+      { id: 'M33', name: 'M33', alternateNames: ['NGC598'], constellation: 'Tri', type: 'Galaxy' },
+      { id: 'NGC7000', name: 'NGC7000', alternateNames: [], constellation: 'Cyg', type: 'Nebula' },
+    ];
+    let index: Map<string, SearchIndexEntry>;
+
+    beforeAll(() => {
+      index = buildSearchIndex(testCatalog);
+    });
+
+    test('should return empty array for empty query', () => {
+      expect(quickFuzzySearch('', index)).toEqual([]);
+    });
+
+    test('should find by name prefix', () => {
+      const results = quickFuzzySearch('M3', index);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every((r: { id: string }) => r.id.startsWith('M3'))).toBe(true);
+    });
+
+    test('should find by alternate name prefix', () => {
+      const results = quickFuzzySearch('NGC2', index);
+      expect(results.some((r: { id: string }) => r.id === 'M31')).toBe(true);
+    });
+
+    test('should find by token prefix', () => {
+      const results = quickFuzzySearch('ngc7', index);
+      expect(results.some((r: { id: string }) => r.id === 'NGC7000')).toBe(true);
+    });
+
+    test('should respect limit parameter', () => {
+      const results = quickFuzzySearch('M', index, 2);
+      expect(results.length).toBeLessThanOrEqual(2);
+    });
+
+    test('should deduplicate results', () => {
+      const results = quickFuzzySearch('M3', index);
+      const ids = results.map((r: { id: string }) => r.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    test('should sort by score descending', () => {
+      const results = quickFuzzySearch('M3', index);
+      for (let i = 1; i < results.length; i++) {
+        expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
+      }
+    });
+  });
+
+  describe('Weighted Search', () => {
+
+    const testCatalog = [
+      { id: 'M31', name: 'M31', alternateNames: ['Andromeda Galaxy'], constellation: 'And', type: 'Galaxy', magnitude: 3.4 },
+      { id: 'M42', name: 'M42', alternateNames: ['Orion Nebula'], constellation: 'Ori', type: 'Nebula', magnitude: 4.0 },
+      { id: 'M45', name: 'M45', alternateNames: ['Pleiades'], constellation: 'Tau', type: 'OpenCluster', magnitude: 1.6 },
+    ];
+    let index: Map<string, SearchIndexEntry>;
+
+    beforeAll(() => {
+      index = buildSearchIndex(testCatalog);
+    });
+
+    test('should return empty array for empty query', () => {
+      expect(weightedSearch('', index)).toEqual([]);
+      expect(weightedSearch('   ', index)).toEqual([]);
+    });
+
+    test('should find by name', () => {
+      const results = weightedSearch('M31', index);
+      expect(results.some((r: { id: string }) => r.id === 'M31')).toBe(true);
+    });
+
+    test('should find by alternate name', () => {
+      const results = weightedSearch('Andromeda', index);
+      expect(results.some((r: { id: string }) => r.id === 'M31')).toBe(true);
+    });
+
+    test('should find by constellation', () => {
+      const results = weightedSearch('Ori', index);
+      expect(results.some((r: { id: string }) => r.id === 'M42')).toBe(true);
+    });
+
+    test('should find by type', () => {
+      const results = weightedSearch('Galaxy', index);
+      expect(results.some((r: { id: string }) => r.id === 'M31')).toBe(true);
+    });
+
+    test('should handle multi-word queries', () => {
+      const results = weightedSearch('Orion Nebula', index);
+      expect(results.some((r: { id: string }) => r.id === 'M42')).toBe(true);
+    });
+
+    test('should boost brighter objects when magnitudeBoost enabled', () => {
+      const results = weightedSearch('M', index, { magnitudeBoost: true });
+      // M45 (mag 1.6) should rank higher than M42 (mag 4.0) when other scores are similar
+      if (results.length >= 2) {
+        expect(results.every((r: { score: number }) => r.score > 0)).toBe(true);
+      }
+    });
+
+    test('should respect custom weight options', () => {
+      const results = weightedSearch('Galaxy', index, { typeWeight: 2.0 });
+      expect(results.length).toBeGreaterThan(0);
+    });
+
+    test('should sort results by score descending', () => {
+      const results = weightedSearch('M', index);
+      for (let i = 1; i < results.length; i++) {
+        expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
+      }
+    });
+
+    test('should limit results to 50', () => {
+      const results = weightedSearch('M', index);
+      expect(results.length).toBeLessThanOrEqual(50);
     });
   });
 

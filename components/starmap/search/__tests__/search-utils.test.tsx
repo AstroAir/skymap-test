@@ -30,11 +30,29 @@ describe('getTypeIcon', () => {
     const { container } = render(<>{icon}</>);
     expect(container.querySelector('svg')).toBeInTheDocument();
   });
+
+  it.each(['Comet', 'Asteroid', 'DSO', 'Moon', 'Constellation', 'local'])('returns icon for %s type', (type) => {
+    const icon = getTypeIcon(type);
+    const { container } = render(<>{icon}</>);
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
+
+  it.each(['sesame', 'simbad', 'vizier', 'ned', 'mpc'])('returns globe icon for online source %s', (source) => {
+    const icon = getTypeIcon(source);
+    const { container } = render(<>{icon}</>);
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
 });
 
 describe('getCategoryIcon', () => {
   it('returns icon for galaxies', () => {
     const icon = getCategoryIcon('galaxies');
+    const { container } = render(<>{icon}</>);
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
+
+  it.each(['nebulae', 'planets', 'clusters'])('returns icon for %s', (cat) => {
+    const icon = getCategoryIcon(cat);
     const { container } = render(<>{icon}</>);
     expect(container.querySelector('svg')).toBeInTheDocument();
   });

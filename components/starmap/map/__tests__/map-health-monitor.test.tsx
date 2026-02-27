@@ -144,12 +144,16 @@ describe('MapHealthMonitor', () => {
       render(<MapHealthMonitor />);
       expect(screen.getByTestId('table')).toBeInTheDocument();
     });
+
+    it('passes className to card', () => {
+      render(<MapHealthMonitor className="custom-class" />);
+      expect(screen.getByTestId('card')).toHaveAttribute('class', 'custom-class');
+    });
   });
 
   describe('Compact Mode', () => {
     it('renders compact view when compact prop is true', () => {
       render(<MapHealthMonitor compact />);
-      // Compact mode should not render the full card
       expect(screen.queryByTestId('card-title')).not.toBeInTheDocument();
     });
 
@@ -161,6 +165,20 @@ describe('MapHealthMonitor', () => {
 
       render(<MapHealthMonitor compact />);
       expect(screen.getByText('2/2')).toBeInTheDocument();
+    });
+
+    it('shows tooltip content in compact mode', () => {
+      mockConnectivityChecker.getAllProviderHealth.mockReturnValue([
+        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
+      ]);
+      mockConnectivityChecker.getNetworkQuality.mockReturnValue({
+        isOnline: true,
+        successRate: 1,
+        averageResponseTime: 100,
+      });
+
+      render(<MapHealthMonitor compact />);
+      expect(screen.getByTestId('tooltip-content')).toBeInTheDocument();
     });
   });
 
@@ -448,7 +466,7 @@ describe('MapHealthMonitor', () => {
       expect(unsubscribe).toHaveBeenCalled();
     });
 
-    it('updates provider health when listener callback fires', () => {
+    it('updates provider health when listener callback fires for new provider', () => {
       let healthCallback: ((status: import('@/lib/services/connectivity-checker').ProviderHealthStatus) => void) | undefined;
       mockConnectivityChecker.addHealthListener.mockImplementation((callback) => {
         healthCallback = callback;
@@ -457,7 +475,6 @@ describe('MapHealthMonitor', () => {
 
       render(<MapHealthMonitor />);
 
-      // Simulate health update
       act(() => {
         healthCallback?.({
           provider: 'openstreetmap',
@@ -471,6 +488,47 @@ describe('MapHealthMonitor', () => {
       });
 
       expect(screen.getByText('openstreetmap')).toBeInTheDocument();
+    });
+
+    it('updates existing provider health when listener callback fires', () => {
+      mockConnectivityChecker.getAllProviderHealth.mockReturnValue([
+        { provider: 'openstreetmap', isHealthy: true, successRate: 1, responseTime: 100, errorCount: 0, lastChecked: Date.now(), status: { isConnected: true, lastChecked: Date.now() } },
+      ]);
+
+      let healthCallback: ((status: import('@/lib/services/connectivity-checker').ProviderHealthStatus) => void) | undefined;
+      mockConnectivityChecker.addHealthListener.mockImplementation((callback) => {
+        healthCallback = callback;
+        return () => {};
+      });
+
+      render(<MapHealthMonitor />);
+
+      // Update existing provider to unhealthy
+      act(() => {
+        healthCallback?.({
+          provider: 'openstreetmap',
+          isHealthy: false,
+          successRate: 0.3,
+          responseTime: 5000,
+          errorCount: 7,
+          lastChecked: Date.now(),
+          status: { isConnected: false, lastChecked: Date.now() },
+        });
+      });
+
+      expect(screen.getByText(/map\.unhealthy|Unhealthy/)).toBeInTheDocument();
+    });
+  });
+
+  describe('RefreshToken', () => {
+    it('reloads data when refreshToken changes', () => {
+      const { rerender } = render(<MapHealthMonitor refreshToken={0} />);
+
+      const callCount = mockConnectivityChecker.getAllProviderHealth.mock.calls.length;
+
+      rerender(<MapHealthMonitor refreshToken={1} />);
+
+      expect(mockConnectivityChecker.getAllProviderHealth.mock.calls.length).toBeGreaterThan(callCount);
     });
   });
 });

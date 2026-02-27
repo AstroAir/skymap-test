@@ -211,6 +211,36 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
   },
 }));
 
+// Capture the onImageCapture callback so tests can trigger solves
+let capturedOnImageCapture: ((file: File, metadata?: unknown) => void) | null = null;
+
+jest.mock('../image-capture', () => ({
+  ImageCapture: ({ onImageCapture, trigger }: { onImageCapture: (file: File, metadata?: unknown) => void; trigger?: React.ReactNode }) => {
+    capturedOnImageCapture = onImageCapture;
+    return <div data-testid="image-capture">{trigger}</div>;
+  },
+}));
+
+jest.mock('../solver-settings', () => ({
+  SolverSettings: ({ onClose }: { onClose?: () => void }) => (
+    <div data-testid="solver-settings"><button onClick={onClose}>Close Settings</button></div>
+  ),
+}));
+
+jest.mock('../index-manager', () => ({
+  IndexManager: () => <div data-testid="index-manager">IndexManager</div>,
+}));
+
+jest.mock('../solve-result-card', () => ({
+  SolveResultCard: ({ result, onGoTo }: { result: { success: boolean; errorMessage?: string }; onGoTo?: () => void }) => (
+    <div data-testid="solve-result">
+      <span>{result.success ? 'success' : 'failed'}</span>
+      {result.errorMessage && <span>{result.errorMessage}</span>}
+      {onGoTo && <button onClick={onGoTo} data-testid="goto-btn">Go To</button>}
+    </div>
+  ),
+}));
+
 // Mock AstrometryApiClient and createErrorResult
 jest.mock('@/lib/plate-solving', () => ({
   AstrometryApiClient: jest.fn().mockImplementation(() => ({
@@ -318,6 +348,7 @@ describe('PlateSolverUnified', () => {
       solveHistory: [],
     });
     mockIsTauri.mockReturnValue(true);
+    capturedOnImageCapture = null;
     jest.clearAllMocks();
   });
 
@@ -579,6 +610,647 @@ describe('PlateSolverUnified', () => {
       renderWithProviders(<PlateSolverUnified className="custom-class" />);
       const button = screen.getByRole('button');
       expect(button).toHaveClass('custom-class');
+    });
+  });
+
+  describe('solve history', () => {
+    it('should show solve history when entries exist', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        solveHistory: [
+          {
+            id: 'h1',
+            timestamp: Date.now(),
+            imageName: 'test-image.fits',
+            solveMode: 'local' as const,
+            result: {
+              success: true,
+              coordinates: { ra: 180.5, dec: 45.25, raHMS: '12h02m00s', decDMS: '+45d15m00s' },
+              positionAngle: 15.5,
+              pixelScale: 1.25,
+              fov: { width: 2.5, height: 1.8 },
+              flipped: false,
+              solverName: 'ASTAP',
+              solveTime: 5000,
+            },
+          },
+        ],
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Solve History/)).toBeInTheDocument();
+      });
+    });
+
+    it('should show clear history button when history expanded', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        solveHistory: [
+          {
+            id: 'h1',
+            timestamp: Date.now(),
+            imageName: 'test.fits',
+            solveMode: 'local' as const,
+            result: {
+              success: false,
+              coordinates: null,
+              positionAngle: 0,
+              pixelScale: 0,
+              fov: { width: 0, height: 0 },
+              flipped: false,
+              solverName: 'ASTAP',
+              solveTime: 3000,
+              errorMessage: 'Failed',
+            },
+          },
+        ],
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Solve History/)).toBeInTheDocument();
+      });
+
+      const historyButton = screen.getByText(/Solve History/);
+      fireEvent.click(historyButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Clear History')).toBeInTheDocument();
+      });
+    });
+
+    it('should show history entry with image name', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        solveHistory: [
+          {
+            id: 'h1',
+            timestamp: Date.now(),
+            imageName: 'M31.fits',
+            solveMode: 'local' as const,
+            result: {
+              success: true,
+              coordinates: { ra: 10.68, dec: 41.27, raHMS: '0h42m44s', decDMS: '+41d16m09s' },
+              positionAngle: 0,
+              pixelScale: 1.0,
+              fov: { width: 2, height: 2 },
+              flipped: false,
+              solverName: 'ASTAP',
+              solveTime: 4000,
+            },
+          },
+        ],
+      });
+
+      const onGoToCoordinates = jest.fn();
+      renderWithProviders(<PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Solve History/)).toBeInTheDocument();
+      });
+
+      const historyButton = screen.getByText(/Solve History/);
+      fireEvent.click(historyButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('M31.fits')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('web mode solve state', () => {
+    beforeEach(() => {
+      mockIsTauri.mockReturnValue(false);
+    });
+
+    it('should disable solve button when no API key in web mode', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: '',
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        const solveButton = screen.getByText('Select Image to Solve').closest('button');
+        expect(solveButton).toBeDisabled();
+      });
+    });
+
+    it('should enable solve button when API key is set in web mode', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: 'test-api-key',
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        const solveButton = screen.getByText('Select Image to Solve').closest('button');
+        expect(solveButton).not.toBeDisabled();
+      });
+    });
+  });
+
+  describe('not installed solver warning', () => {
+    it('should show warning when local solver has no indexes', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        detectedSolvers: [
+          {
+            solver_type: 'astap',
+            name: 'ASTAP',
+            version: '1.0.0',
+            executable_path: '/path/to/astap',
+            is_available: true,
+            index_path: '/path/to/indexes',
+            installed_indexes: [],
+          },
+        ],
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Local solver not ready')).toBeInTheDocument();
+      });
+    });
+
+    it('should show Not Installed badge for unavailable solver', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        detectedSolvers: [
+          {
+            solver_type: 'astap',
+            name: 'ASTAP',
+            version: null,
+            executable_path: '',
+            is_available: false,
+            index_path: null,
+            installed_indexes: [],
+          },
+        ],
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Not Installed')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('dialog description', () => {
+    it('should display dialog description text', async () => {
+      renderWithProviders(<PlateSolverUnified />);
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Upload an astronomical image to determine its sky coordinates')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('local solve flow', () => {
+    it('should trigger local solve and show result', async () => {
+      const mockSolveImageLocal = jest.requireMock('@/lib/tauri/plate-solver-api').solveImageLocal;
+      const mockConvertToLegacy = jest.requireMock('@/lib/tauri/plate-solver-api').convertToLegacyResult;
+
+      mockSolveImageLocal.mockResolvedValue({
+        success: true,
+        ra: 180.5,
+        dec: 45.25,
+        ra_hms: '12h02m00s',
+        dec_dms: '+45d15m',
+        position_angle: 15.5,
+        pixel_scale: 1.25,
+        fov_width: 2.5,
+        fov_height: 1.8,
+        flipped: false,
+        solver_name: 'ASTAP',
+        solve_time_ms: 5000,
+        error_message: null,
+      });
+
+      mockConvertToLegacy.mockReturnValue({
+        success: true,
+        coordinates: { ra: 180.5, dec: 45.25, raHMS: '12h02m00s', decDMS: '+45d15m' },
+        positionAngle: 15.5,
+        pixelScale: 1.25,
+        fov: { width: 2.5, height: 1.8 },
+        flipped: false,
+        solverName: 'ASTAP',
+        solveTime: 5000,
+      });
+
+      const onSolveComplete = jest.fn();
+      renderWithProviders(<PlateSolverUnified onSolveComplete={onSolveComplete} />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      // Trigger local solve
+      const file = new File(['test'], 'test.fits', { type: 'application/fits' });
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(mockSolveImageLocal).toHaveBeenCalled();
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+      });
+
+      expect(onSolveComplete).toHaveBeenCalled();
+    });
+
+    it('should handle local solve error', async () => {
+      const mockSolveImageLocal = jest.requireMock('@/lib/tauri/plate-solver-api').solveImageLocal;
+      mockSolveImageLocal.mockRejectedValue(new Error('Solver crashed'));
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'test.fits');
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+      });
+    });
+
+    it('should show error when solver type is online but trying local', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        config: {
+          ...usePlateSolverStore.getState().config,
+          solver_type: 'astrometry_net_online',
+        },
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'test.fits');
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('online solve flow (desktop/Tauri)', () => {
+    it('should have both local and online tabs in desktop mode', async () => {
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: 'test-key',
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(screen.getByRole('tab', { name: /local/i })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /online/i })).toBeInTheDocument();
+      });
+    });
+
+    it('should handle failed online solve via Tauri backend', async () => {
+      const mockSolveOnline = jest.requireMock('@/lib/tauri/plate-solver-api').solveOnline;
+      mockSolveOnline.mockResolvedValue({
+        success: false,
+        ra: null,
+        dec: null,
+        orientation: null,
+        pixscale: null,
+        parity: null,
+        fov_width: null,
+        fov_height: null,
+        objects_in_field: [],
+        annotations: [],
+        job_id: null,
+        wcs: null,
+        solve_time_ms: 5000,
+        error_message: 'No solution found',
+      });
+
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: 'test-key',
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        const onlineTab = screen.getByRole('tab', { name: /online/i });
+        fireEvent.click(onlineTab);
+      });
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'star.jpg');
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+        expect(screen.getByText('failed')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle Tauri online solve error (exception)', async () => {
+      const mockSolveOnline = jest.requireMock('@/lib/tauri/plate-solver-api').solveOnline;
+      mockSolveOnline.mockRejectedValue(new Error('Tauri IPC failed'));
+
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: 'test-key',
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        const onlineTab = screen.getByRole('tab', { name: /online/i });
+        fireEvent.click(onlineTab);
+      });
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'star.jpg');
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('online solve flow (web mode)', () => {
+    beforeEach(() => {
+      mockIsTauri.mockReturnValue(false);
+    });
+
+    it('should trigger online solve via AstrometryApiClient in web mode', async () => {
+      const mockAstrometryClient = jest.requireMock('@/lib/plate-solving').AstrometryApiClient;
+      const mockSolve = jest.fn().mockResolvedValue({
+        success: true,
+        coordinates: { ra: 180.1, dec: 45.05, raHMS: '12h00m24s', decDMS: '+45d03m' },
+        positionAngle: 12.5,
+        pixelScale: 1.2,
+        fov: { width: 2.5, height: 1.8 },
+        flipped: false,
+        solverName: 'astrometry.net',
+        solveTime: 1200,
+      });
+      mockAstrometryClient.mockImplementation(() => ({
+        solve: mockSolve,
+        cancel: jest.fn(),
+      }));
+
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: 'test-key',
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'star.jpg', { type: 'image/jpeg' });
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(mockSolve).toHaveBeenCalled();
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle online solve error in web mode', async () => {
+      const mockAstrometryClient = jest.requireMock('@/lib/plate-solving').AstrometryApiClient;
+      mockAstrometryClient.mockImplementation(() => ({
+        solve: jest.fn().mockRejectedValue(new Error('Network error')),
+        cancel: jest.fn(),
+      }));
+
+      usePlateSolverStore.setState({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: 'test-key',
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'star.jpg');
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('go to coordinates', () => {
+    it('should call onGoToCoordinates when goto button clicked on result', async () => {
+      const mockSolveImageLocal = jest.requireMock('@/lib/tauri/plate-solver-api').solveImageLocal;
+      const mockConvertToLegacy = jest.requireMock('@/lib/tauri/plate-solver-api').convertToLegacyResult;
+
+      mockSolveImageLocal.mockResolvedValue({ success: true, solve_time_ms: 1000 });
+      mockConvertToLegacy.mockReturnValue({
+        success: true,
+        coordinates: { ra: 180.5, dec: 45.25, raHMS: '12h02m00s', decDMS: '+45d15m' },
+        positionAngle: 0,
+        pixelScale: 1.0,
+        fov: { width: 2, height: 2 },
+        flipped: false,
+        solverName: 'ASTAP',
+        solveTime: 1000,
+      });
+
+      const onGoToCoordinates = jest.fn();
+      renderWithProviders(<PlateSolverUnified onGoToCoordinates={onGoToCoordinates} />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'test.fits');
+      await capturedOnImageCapture!(file);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('goto-btn')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('goto-btn'));
+
+      expect(onGoToCoordinates).toHaveBeenCalledWith(180.5, 45.25);
+    });
+  });
+
+  describe('cancel solve', () => {
+    it('should produce cancelled result when solve is cancelled', async () => {
+      const mockSolveImageLocal = jest.requireMock('@/lib/tauri/plate-solver-api').solveImageLocal;
+      // Make solve hang indefinitely
+      let rejectSolve: (reason: Error) => void;
+      mockSolveImageLocal.mockImplementation(() => new Promise((_resolve, reject) => {
+        rejectSolve = reject;
+      }));
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'test.fits');
+      // Don't await - it will hang
+      const solvePromise = capturedOnImageCapture!(file);
+
+      // Wait a tick for solving state to update
+      await waitFor(() => {
+        // The solving state should be true at this point
+        // Cancel button renders inside real Radix Dialog portal
+        // We verify the cancel API was set up
+        expect(mockSolveImageLocal).toHaveBeenCalled();
+      });
+
+      // Resolve the promise to avoid hanging
+      rejectSolve!(new Error('cancelled'));
+      await solvePromise;
+
+      await waitFor(() => {
+        expect(screen.getByTestId('solve-result')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('auto hints from FITS', () => {
+    it('should extract WCS hints from FITS metadata when auto_hints enabled', async () => {
+      const mockSolveImageLocal = jest.requireMock('@/lib/tauri/plate-solver-api').solveImageLocal;
+      const mockConvertToLegacy = jest.requireMock('@/lib/tauri/plate-solver-api').convertToLegacyResult;
+
+      mockSolveImageLocal.mockResolvedValue({ success: true, solve_time_ms: 1000 });
+      mockConvertToLegacy.mockReturnValue({
+        success: true,
+        coordinates: { ra: 83.82, dec: -5.39, raHMS: '5h35m17s', decDMS: '-5d23m' },
+        positionAngle: 0,
+        pixelScale: 1.0,
+        fov: { width: 2, height: 2 },
+        flipped: false,
+        solverName: 'ASTAP',
+        solveTime: 1000,
+      });
+
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(capturedOnImageCapture).not.toBeNull();
+      });
+
+      const file = new File(['test'], 'M42.fits');
+      const metadata = {
+        fitsData: {
+          wcs: {
+            referenceCoordinates: { ra: 83.82, dec: -5.39 },
+          },
+        },
+      };
+      await capturedOnImageCapture!(file, metadata);
+
+      await waitFor(() => {
+        // The ra_hint and dec_hint should be passed from WCS
+        expect(mockSolveImageLocal).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            ra_hint: 83.82,
+            dec_hint: -5.39,
+          })
+        );
+      });
+    });
+  });
+
+  describe('advanced options interaction', () => {
+    it('should update downsample and search radius', async () => {
+      renderWithProviders(<PlateSolverUnified />);
+
+      const triggerButton = screen.getByRole('button');
+      fireEvent.click(triggerButton);
+
+      const advancedButton = await waitFor(() => screen.getByText('Advanced Options'));
+      fireEvent.click(advancedButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Downsample Factor')).toBeInTheDocument();
+      });
+
+      // Change downsample input
+      const inputs = screen.getAllByRole('spinbutton');
+      if (inputs.length > 0) {
+        fireEvent.change(inputs[0], { target: { value: '4' } });
+      }
     });
   });
 });

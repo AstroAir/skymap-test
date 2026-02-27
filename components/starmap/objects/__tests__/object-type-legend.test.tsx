@@ -119,4 +119,24 @@ describe('ObjectTypeLegendContent', () => {
       expect(screen.getByText('Supernova Remnant')).toBeInTheDocument();
     });
   });
+
+  describe('default (no compact prop)', () => {
+    it('renders in full mode by default', () => {
+      renderComponent(<ObjectTypeLegendContent />);
+      expect(screen.getByText('Galaxies')).toBeInTheDocument();
+    });
+  });
+});
+
+describe('ObjectTypeLegend - default variant', () => {
+  it('defaults to popover variant when no variant specified', () => {
+    renderComponent(<ObjectTypeLegend />);
+    expect(screen.getByRole('button')).toBeInTheDocument();
+  });
+
+  it('applies triggerClassName to button', () => {
+    renderComponent(<ObjectTypeLegend triggerClassName="custom-trigger" />);
+    const button = screen.getByRole('button');
+    expect(button.className).toContain('custom-trigger');
+  });
 });

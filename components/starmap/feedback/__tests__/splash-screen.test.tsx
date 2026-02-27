@@ -114,4 +114,141 @@ describe('SplashScreen', () => {
     
     expect(onComplete).toHaveBeenCalled();
   });
+
+  it('can be skipped by pressing Enter', () => {
+    const onComplete = jest.fn();
+    render(<SplashScreen onComplete={onComplete} minDuration={5000} />);
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(onComplete).toHaveBeenCalled();
+  });
+
+  it('can be skipped by pressing Space', () => {
+    const onComplete = jest.fn();
+    render(<SplashScreen onComplete={onComplete} minDuration={5000} />);
+
+    fireEvent.keyDown(window, { key: ' ' });
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(onComplete).toHaveBeenCalled();
+  });
+
+  it('triggers early completion when isReady becomes true', () => {
+    const onComplete = jest.fn();
+
+    // Mock requestAnimationFrame to invoke callback synchronously
+    const rafSpy = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+
+    const { rerender } = render(
+      <SplashScreen onComplete={onComplete} minDuration={5000} isReady={false} />
+    );
+
+    // Advance past init phase so phase !== 'fadeout'
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    expect(onComplete).not.toHaveBeenCalled();
+
+    // Set isReady to true — should trigger handleSkip
+    rerender(
+      <SplashScreen onComplete={onComplete} minDuration={5000} isReady={true} />
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(onComplete).toHaveBeenCalled();
+
+    rafSpy.mockRestore();
+  });
+
+  it('does not re-trigger handleSkip if already in fadeout phase', () => {
+    const onComplete = jest.fn();
+
+    const rafSpy = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+
+    const { rerender } = render(
+      <SplashScreen onComplete={onComplete} minDuration={5000} isReady={false} />
+    );
+
+    // Advance past all phase-setting timers (init→stars→logo→loading)
+    act(() => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    // Click to trigger fadeout — phase will stay 'fadeout' since no more phase timers pending
+    const splash = screen.getByTestId('splash-screen');
+    fireEvent.click(splash);
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    const callCount = onComplete.mock.calls.length;
+    expect(callCount).toBeGreaterThanOrEqual(1);
+
+    // Now set isReady — should NOT call onComplete again since phase is 'fadeout'
+    rerender(
+      <SplashScreen onComplete={onComplete} minDuration={5000} isReady={true} />
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    // onComplete should not have been called additional times by the isReady effect
+    expect(onComplete.mock.calls.length).toBe(callCount);
+
+    rafSpy.mockRestore();
+  });
+
+  it('cycles through loading messages during loading phase', () => {
+    render(<SplashScreen minDuration={5000} />);
+
+    // Advance to loading phase
+    act(() => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    // The loading message should be one of the translation keys
+    const srText = screen.getByText(
+      (content) =>
+        content === 'splash.loading' ||
+        content === 'splash.loadingStars' ||
+        content === 'splash.loadingEngine',
+      { selector: '.sr-only' }
+    );
+    expect(srText).toBeInTheDocument();
+
+    // Advance to cycle messages
+    act(() => {
+      jest.advanceTimersByTime(1200);
+    });
+
+    // Still renders a valid message
+    const srText2 = screen.getByText(
+      (content) =>
+        content === 'splash.loading' ||
+        content === 'splash.loadingStars' ||
+        content === 'splash.loadingEngine',
+      { selector: '.sr-only' }
+    );
+    expect(srText2).toBeInTheDocument();
+  });
 });

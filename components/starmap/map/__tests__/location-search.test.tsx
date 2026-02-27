@@ -513,5 +513,310 @@ describe('LocationSearch', () => {
         expect(localStorageMock.setItem).toHaveBeenCalled();
       });
     });
+
+    it('displays recent search history items in dropdown', () => {
+      const mockHistory = [
+        {
+          query: 'Paris',
+          result: {
+            displayName: 'Paris, France',
+            coordinates: { latitude: 48.8566, longitude: 2.3522 },
+            address: 'Paris',
+          },
+          timestamp: Date.now(),
+        },
+      ];
+
+      const localStorageMock = {
+        getItem: jest.fn(() => JSON.stringify(mockHistory)),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+        clear: jest.fn(),
+      };
+      Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true });
+
+      render(
+        <LocationSearch
+          onLocationSelect={mockOnLocationSelect}
+          showRecentSearches
+        />
+      );
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.focus(input);
+
+      expect(screen.getByText('Paris, France')).toBeInTheDocument();
+    });
+
+    it('filters out expired history items', () => {
+      const expiredHistory = [
+        {
+          query: 'Old',
+          result: {
+            displayName: 'Old Place',
+            coordinates: { latitude: 0, longitude: 0 },
+            address: 'Old',
+          },
+          timestamp: Date.now() - 31 * 24 * 60 * 60 * 1000,
+        },
+      ];
+
+      const localStorageMock = {
+        getItem: jest.fn(() => JSON.stringify(expiredHistory)),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+        clear: jest.fn(),
+      };
+      Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true });
+
+      render(
+        <LocationSearch
+          onLocationSelect={mockOnLocationSelect}
+          showRecentSearches
+        />
+      );
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.focus(input);
+
+      expect(screen.queryByText('Old Place')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Search Modes', () => {
+    it('shows submit-to-search message in submit-search mode', async () => {
+      mockGetSearchCapabilities.mockReturnValue({
+        autocompleteAvailable: false,
+        mode: 'submit-search',
+        providers: [],
+      });
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'test' } });
+      fireEvent.focus(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/map\.submitToSearch|Press Enter to search/)).toBeInTheDocument();
+      });
+    });
+
+    it('triggers search on Enter in submit-search mode', async () => {
+      mockGetSearchCapabilities.mockReturnValue({
+        autocompleteAvailable: false,
+        mode: 'submit-search',
+        providers: ['openstreetmap'],
+      });
+
+      mockGeocode.mockResolvedValue([]);
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'Berlin' } });
+      fireEvent.focus(input);
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() => {
+        expect(mockGeocode).toHaveBeenCalledWith('Berlin', expect.any(Object));
+      });
+    });
+
+    it('shows offline message in offline-cache mode', async () => {
+      mockGetSearchCapabilities.mockReturnValue({
+        autocompleteAvailable: false,
+        mode: 'offline-cache',
+        providers: [],
+      });
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'test' } });
+      fireEvent.focus(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/map\.offlineSearchRestricted|Offline mode/)).toBeInTheDocument();
+      });
+    });
+
+    it('shows disabled message in disabled search mode', async () => {
+      mockGetSearchCapabilities.mockReturnValue({
+        autocompleteAvailable: false,
+        mode: 'disabled',
+        providers: [],
+      });
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'test' } });
+      fireEvent.focus(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/map\.searchDisabled|Search is disabled/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Click Outside', () => {
+    it('closes dropdown when clicking outside', async () => {
+      mockGeocode.mockResolvedValue([
+        {
+          displayName: 'Tokyo, Japan',
+          coordinates: { latitude: 35.6762, longitude: 139.6503 },
+          address: 'Tokyo',
+        },
+      ]);
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'Tokyo' } });
+      fireEvent.focus(input);
+
+      act(() => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Tokyo, Japan')).toBeInTheDocument();
+      });
+
+      fireEvent.pointerDown(document.body);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Tokyo, Japan')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('AutoFocus', () => {
+    it('focuses input when autoFocus is true', () => {
+      render(
+        <LocationSearch
+          onLocationSelect={mockOnLocationSelect}
+          autoFocus
+        />
+      );
+
+      const input = screen.getByTestId('search-input');
+      expect(document.activeElement).toBe(input);
+    });
+  });
+
+  describe('Geolocation Edge Cases', () => {
+    it('handles geolocation error callback', async () => {
+      const mockGeolocation = {
+        getCurrentPosition: jest.fn().mockImplementation(
+          (_success: unknown, error: (arg: { code: number; message: string }) => void) =>
+            error({ code: 1, message: 'Permission denied' })
+        ),
+      };
+      Object.defineProperty(navigator, 'geolocation', {
+        value: mockGeolocation,
+        writable: true,
+      });
+
+      render(
+        <LocationSearch
+          onLocationSelect={mockOnLocationSelect}
+          showCurrentLocation
+        />
+      );
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.focus(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/map\.currentLocation|Current Location/)).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText(/map\.currentLocation|Current Location/));
+
+      await waitFor(() => {
+        expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
+      });
+    });
+
+    it('falls back to coordinates string when reverse geocode fails', async () => {
+      const mockGeolocation = {
+        getCurrentPosition: jest.fn().mockImplementation(
+          (success: (arg: { coords: { latitude: number; longitude: number } }) => void) =>
+            success({ coords: { latitude: 35.6762, longitude: 139.6503 } })
+        ),
+      };
+      Object.defineProperty(navigator, 'geolocation', {
+        value: mockGeolocation,
+        writable: true,
+      });
+
+      mockReverseGeocode.mockRejectedValue(new Error('Reverse geocode failed'));
+
+      render(
+        <LocationSearch
+          onLocationSelect={mockOnLocationSelect}
+          showCurrentLocation
+        />
+      );
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.focus(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/map\.currentLocation|Current Location/)).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText(/map\.currentLocation|Current Location/));
+
+      await waitFor(() => {
+        expect(mockOnLocationSelect).toHaveBeenCalledWith(
+          expect.objectContaining({
+            coordinates: { latitude: 35.6762, longitude: 139.6503 },
+          })
+        );
+      });
+    });
+  });
+
+  describe('Result Type Badge', () => {
+    it('shows badge when result has type', async () => {
+      mockGeocode.mockResolvedValue([
+        {
+          displayName: 'Tokyo Tower',
+          coordinates: { latitude: 35.6586, longitude: 139.7454 },
+          address: 'Tokyo',
+          type: 'landmark',
+        },
+      ]);
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'Tokyo Tower' } });
+      fireEvent.focus(input);
+
+      act(() => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('landmark')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Unmount Cleanup', () => {
+    it('cleans up timeout and abort controller on unmount', () => {
+      const { unmount } = render(
+        <LocationSearch onLocationSelect={mockOnLocationSelect} />
+      );
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'test' } });
+
+      unmount();
+    });
   });
 });

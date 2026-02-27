@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 
 // Mock stores
 let mountState: {
@@ -75,35 +75,43 @@ const mockUseMountStore = jest.fn((selector) => {
   return selector ? selector(mountState) : mountState;
 });
 
-type MockStel = {
-  observer: Record<string, unknown>;
-  D2R: number;
-  getObj: jest.Mock;
-  createObj: jest.Mock;
-  createLayer: jest.Mock;
-  s2c: jest.Mock;
-  convertFrame: jest.Mock;
-  pointAndLock: jest.Mock;
-};
-
-let stellariumState: { stel: MockStel | null; isReady: boolean } = {
-  stel: null,
-  isReady: true,
-};
-
 const mockUseStellariumStore = jest.fn((selector) => {
+  const stellariumState = { stel: null, isReady: true };
   return selector ? selector(stellariumState) : stellariumState;
 });
 
-jest.mock('@/lib/stores', () => ({
-  useMountStore: (selector: (state: unknown) => unknown) => mockUseMountStore(selector),
-  useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
-}));
+jest.mock('@/lib/stores', () => {
+  const store = (selector: (state: unknown) => unknown) => mockUseMountStore(selector);
+  store.getState = () => mountState;
+  return {
+    useMountStore: store,
+    useStellariumStore: (selector: (state: unknown) => unknown) => mockUseStellariumStore(selector),
+  };
+});
 
-// Mock utils
-// Mock new dependencies added during optimization
+// Mock hooks
 jest.mock('@/lib/hooks/use-mount-polling', () => ({
   useMountPolling: jest.fn(),
+}));
+
+const mockToggleAutoSync = jest.fn();
+const mockSyncViewToMount = jest.fn();
+const mountOverlayReturn = {
+  connected: false,
+  raDegree: 0,
+  decDegree: 0,
+  effectiveAutoSync: false,
+  toggleAutoSync: mockToggleAutoSync,
+  syncViewToMount: mockSyncViewToMount,
+  altAz: null as { alt: number; az: number } | null,
+  tracking: false,
+  slewing: false,
+  parked: false,
+  pierSide: undefined as 'east' | 'west' | 'unknown' | undefined,
+};
+
+jest.mock('@/lib/hooks/use-mount-overlay', () => ({
+  useMountOverlay: () => mountOverlayReturn,
 }));
 
 jest.mock('sonner', () => ({
@@ -153,7 +161,7 @@ jest.mock('@/components/ui/scroll-area', () => ({
 jest.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <div onClick={onClick}>{children}</div>,
+  DropdownMenuItem: ({ children, onClick, className }: { children: React.ReactNode; onClick?: () => void; className?: string }) => <div role="menuitem" onClick={onClick} className={className}>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
@@ -182,22 +190,29 @@ jest.mock('@/components/ui/label', () => ({
   Label: ({ children }: { children: React.ReactNode }) => <label>{children}</label>,
 }));
 
+const mockSetTracking = jest.fn().mockResolvedValue(undefined);
+const mockPark = jest.fn().mockResolvedValue(undefined);
+const mockUnpark = jest.fn().mockResolvedValue(undefined);
+const mockAbortSlew = jest.fn().mockResolvedValue(undefined);
+const mockSetTrackingRate = jest.fn().mockResolvedValue(undefined);
+
 jest.mock('@/lib/tauri/mount-api', () => ({
   mountApi: {
     connect: jest.fn(),
     disconnect: jest.fn(),
     getState: jest.fn(),
     getCapabilities: jest.fn(),
-    setTracking: jest.fn(),
-    park: jest.fn(),
-    unpark: jest.fn(),
-    abortSlew: jest.fn(),
+    setTracking: (...args: unknown[]) => mockSetTracking(...args),
+    park: (...args: unknown[]) => mockPark(...args),
+    unpark: (...args: unknown[]) => mockUnpark(...args),
+    abortSlew: (...args: unknown[]) => mockAbortSlew(...args),
     moveAxis: jest.fn(),
     stopAxis: jest.fn(),
     setSlewRate: jest.fn(),
     discover: jest.fn(),
     slewTo: jest.fn(),
     syncTo: jest.fn(),
+    setTrackingRate: (...args: unknown[]) => mockSetTrackingRate(...args),
   },
   SLEW_RATE_PRESETS: [
     { label: '1x', value: 1 },
@@ -205,8 +220,9 @@ jest.mock('@/lib/tauri/mount-api', () => ({
   ],
 }));
 
+const mockIsTauri = jest.fn(() => false);
 jest.mock('@/lib/tauri/app-control-api', () => ({
-  isTauri: jest.fn(() => false),
+  isTauri: () => mockIsTauri(),
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -219,35 +235,6 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 import { StellariumMount } from '../stellarium-mount';
-
-const createMockStel = () => {
-  const circle = {
-    designations: jest.fn(() => []),
-    getInfo: jest.fn(() => null),
-    pos: [0, 0, 0],
-    color: [0, 0, 0, 0],
-    border_color: [0, 0, 0, 0],
-    size: [0, 0],
-    update: jest.fn(),
-  };
-
-  const layer = {
-    add: jest.fn(),
-  };
-
-  const stel = {
-    observer: {},
-    D2R: Math.PI / 180,
-    getObj: jest.fn(() => null),
-    createObj: jest.fn(() => circle),
-    createLayer: jest.fn(() => layer),
-    s2c: jest.fn(() => [1, 2, 3]),
-    convertFrame: jest.fn(() => [4, 5, 6]),
-    pointAndLock: jest.fn(),
-  };
-
-  return { stel, layer, circle };
-};
 
 describe('StellariumMount', () => {
   beforeEach(() => {
@@ -288,19 +275,18 @@ describe('StellariumMount', () => {
       },
     };
 
-    stellariumState = {
-      stel: null,
-      isReady: true,
-    };
-  });
+    // Reset mountOverlayReturn
+    mountOverlayReturn.connected = false;
+    mountOverlayReturn.raDegree = 0;
+    mountOverlayReturn.decDegree = 0;
+    mountOverlayReturn.effectiveAutoSync = false;
+    mountOverlayReturn.altAz = null;
+    mountOverlayReturn.tracking = false;
+    mountOverlayReturn.slewing = false;
+    mountOverlayReturn.parked = false;
+    mountOverlayReturn.pierSide = undefined;
 
-  it('does not create marker objects when mount is not connected', () => {
-    const { stel } = createMockStel();
-    stellariumState.stel = stel;
-
-    render(<StellariumMount />);
-    expect(stel.createLayer).not.toHaveBeenCalled();
-    expect(stel.createObj).not.toHaveBeenCalled();
+    mockIsTauri.mockReturnValue(false);
   });
 
   it('renders disconnected state when mount is not connected', () => {
@@ -314,54 +300,469 @@ describe('StellariumMount', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('hides circle objects on unmount', () => {
-    const { stel, circle } = createMockStel();
-    stellariumState.stel = stel;
-    mountState.mountInfo.Connected = true;
-
-    const { unmount } = render(<StellariumMount />);
-    unmount();
-
-    expect(circle.size).toEqual([0, 0]);
-    expect(circle.update).toHaveBeenCalled();
-  });
-
-  it('creates marker once when connected and updates circle on coord change', async () => {
-    const { stel, layer, circle } = createMockStel();
-    stellariumState.stel = stel;
-    mountState.mountInfo.Connected = true;
-    mountState.mountInfo.Coordinates.RADegrees = 10;
-    mountState.mountInfo.Coordinates.Dec = 20;
-
-    const { rerender } = render(<StellariumMount />);
-
-    await waitFor(() => {
-      expect(stel.createLayer).toHaveBeenCalledTimes(1);
-      expect(stel.createObj).toHaveBeenCalledTimes(1);
-      expect(layer.add).toHaveBeenCalledTimes(1);
-    });
-
-    mountState.mountInfo.Coordinates.RADegrees = 15;
-    rerender(<StellariumMount />);
-    await waitFor(() => {
-      expect(circle.update).toHaveBeenCalled();
-    });
-    expect(stel.createLayer).toHaveBeenCalledTimes(1);
-    expect(stel.createObj).toHaveBeenCalledTimes(1);
-    expect(stel.pointAndLock).toHaveBeenCalledTimes(0);
-  });
-
   it('renders in compact mode with popover when connected', () => {
-    const { stel } = createMockStel();
-    stellariumState.stel = stel;
     mountState.mountInfo.Connected = true;
     mountState.mountInfo.Coordinates.RADegrees = 45;
     mountState.mountInfo.Coordinates.Dec = 30;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.raDegree = 45;
+    mountOverlayReturn.decDegree = 30;
 
     const { container, getAllByRole } = render(<StellariumMount compact />);
     const buttons = getAllByRole('button');
     expect(buttons.length).toBeGreaterThanOrEqual(1);
     // useTranslations('mount') returns key without 'mount.' prefix
     expect(container.textContent).toContain('mount');
+  });
+
+  it('displays coordinates when connected', () => {
+    mountState.mountInfo.Connected = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.raDegree = 90;
+    mountOverlayReturn.decDegree = 45;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('00h 00m 00s');
+    expect(container.textContent).toContain('+00° 00\' 00"');
+  });
+
+  it('shows tracking badge when tracking is active', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Tracking = true;
+    mountState.mountInfo.TrackMode = 'sidereal';
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.tracking = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('rate.sidereal');
+  });
+
+  it('shows slewing badge when slewing', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Slewing = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.slewing = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('slewing');
+  });
+
+  it('shows parked badge when parked', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Parked = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.parked = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('parked');
+  });
+
+  it('shows pier side badge when pier side is known', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.PierSide = 'east';
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.pierSide = 'east';
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('pier.east');
+  });
+
+  it('does not show pier side badge for unknown', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.PierSide = 'unknown';
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.pierSide = 'unknown';
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).not.toContain('pier.unknown');
+  });
+
+  it('shows tracking toggle button when canSetTracking is true', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.capabilities.canSetTracking = true;
+    mountOverlayReturn.connected = true;
+
+    const { container } = render(<StellariumMount />);
+    // Should have startTracking or stopTracking tooltip text
+    expect(container.textContent).toContain('startTracking');
+  });
+
+  it('hides tracking toggle button when canSetTracking is false', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.capabilities.canSetTracking = false;
+    mountOverlayReturn.connected = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).not.toContain('startTracking');
+    expect(container.textContent).not.toContain('stopTracking');
+  });
+
+  it('shows park button when canPark is true', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.capabilities.canPark = true;
+    mountOverlayReturn.connected = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('park');
+  });
+
+  it('hides park button when canPark is false', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.capabilities.canPark = false;
+    mountOverlayReturn.connected = true;
+
+    const { container } = render(<StellariumMount />);
+    // Should not have park/unpark text (except in other areas like parked badge)
+    const text = container.textContent || '';
+    expect(text).not.toContain('unpark');
+  });
+
+  it('shows abort button when slewing', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Slewing = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.slewing = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('abortSlew');
+  });
+
+  it('hides abort button when not slewing', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Slewing = false;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.slewing = false;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).not.toContain('abortSlew');
+  });
+
+  it('handleToggleTracking calls mountApi.setTracking when isTauri', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Tracking = false;
+    mountState.capabilities.canSetTracking = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.tracking = false;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    // Find button whose next sibling span says 'startTracking'
+    const trackingBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'startTracking';
+    });
+
+    expect(trackingBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(trackingBtn!);
+    });
+    expect(mockSetTracking).toHaveBeenCalledWith(true);
+  });
+
+  it('handlePark calls mountApi.park when not parked and isTauri', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Parked = false;
+    mountState.capabilities.canPark = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.parked = false;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const parkBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'park';
+    });
+
+    expect(parkBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(parkBtn!);
+    });
+    expect(mockPark).toHaveBeenCalled();
+  });
+
+  it('handlePark calls mountApi.unpark when parked and isTauri', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Parked = true;
+    mountState.capabilities.canPark = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.parked = true;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const unparkBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'unpark';
+    });
+
+    expect(unparkBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(unparkBtn!);
+    });
+    expect(mockUnpark).toHaveBeenCalled();
+  });
+
+  it('handleAbort calls mountApi.abortSlew when slewing and isTauri', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Slewing = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.slewing = true;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const abortBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'abortSlew';
+    });
+
+    expect(abortBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(abortBtn!);
+    });
+    expect(mockAbortSlew).toHaveBeenCalled();
+  });
+
+  it('handleToggleTracking error shows toast', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mockSetTracking.mockRejectedValueOnce(new Error('Tracking error'));
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Tracking = false;
+    mountState.capabilities.canSetTracking = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.tracking = false;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const trackingBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'startTracking';
+    });
+
+    expect(trackingBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(trackingBtn!);
+    });
+
+    const { toast } = jest.requireMock('sonner');
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('handlePark error shows toast', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mockPark.mockRejectedValueOnce(new Error('Park error'));
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Parked = false;
+    mountState.capabilities.canPark = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.parked = false;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const parkBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'park';
+    });
+
+    expect(parkBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(parkBtn!);
+    });
+
+    const { toast } = jest.requireMock('sonner');
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('handleAbort error shows toast', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mockAbortSlew.mockRejectedValueOnce(new Error('Abort error'));
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Slewing = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.slewing = true;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const abortBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'abortSlew';
+    });
+
+    expect(abortBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(abortBtn!);
+    });
+
+    const { toast } = jest.requireMock('sonner');
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('handleTrackingRate calls mountApi.setTrackingRate', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Tracking = true;
+    mountState.mountInfo.TrackMode = 'sidereal';
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.tracking = true;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    // Find the 'lunar' rate menu item via role=menuitem
+    const menuItems = getAllByRole('menuitem');
+    const lunarItem = menuItems.find((el) => el.textContent?.includes('rate.lunar'));
+
+    expect(lunarItem).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(lunarItem!);
+    });
+    expect(mockSetTrackingRate).toHaveBeenCalledWith('lunar');
+  });
+
+  it('handleTrackingRate error shows toast', async () => {
+    mockIsTauri.mockReturnValue(true);
+    mockSetTrackingRate.mockRejectedValueOnce(new Error('Rate error'));
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Tracking = true;
+    mountState.mountInfo.TrackMode = 'sidereal';
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.tracking = true;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const menuItems = getAllByRole('menuitem');
+    const lunarItem = menuItems.find((el) => el.textContent?.includes('rate.lunar'));
+
+    expect(lunarItem).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(lunarItem!);
+    });
+
+    const { toast } = jest.requireMock('sonner');
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('handleToggleTracking does nothing when isTauri is false', async () => {
+    mockIsTauri.mockReturnValue(false);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Tracking = false;
+    mountState.capabilities.canSetTracking = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.tracking = false;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const trackingBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'startTracking';
+    });
+
+    if (trackingBtn) {
+      await act(async () => {
+        fireEvent.click(trackingBtn);
+      });
+    }
+    expect(mockSetTracking).not.toHaveBeenCalled();
+  });
+
+  it('handlePark does nothing when isTauri is false', async () => {
+    mockIsTauri.mockReturnValue(false);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Parked = false;
+    mountState.capabilities.canPark = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.parked = false;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const parkBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'park';
+    });
+
+    if (parkBtn) {
+      await act(async () => {
+        fireEvent.click(parkBtn);
+      });
+    }
+    expect(mockPark).not.toHaveBeenCalled();
+  });
+
+  it('handleAbort does nothing when isTauri is false', async () => {
+    mockIsTauri.mockReturnValue(false);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Slewing = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.slewing = true;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const buttons = getAllByRole('button');
+    const abortBtn = buttons.find((btn) => {
+      const nextSpan = btn.nextElementSibling;
+      return nextSpan?.textContent === 'abortSlew';
+    });
+
+    if (abortBtn) {
+      await act(async () => {
+        fireEvent.click(abortBtn);
+      });
+    }
+    expect(mockAbortSlew).not.toHaveBeenCalled();
+  });
+
+  it('handleTrackingRate does nothing when isTauri is false', async () => {
+    mockIsTauri.mockReturnValue(false);
+    mountState.mountInfo.Connected = true;
+    mountState.mountInfo.Tracking = true;
+    mountState.mountInfo.TrackMode = 'sidereal';
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.tracking = true;
+
+    const { getAllByRole } = render(<StellariumMount />);
+    const menuItems = getAllByRole('menuitem');
+    const lunarItem = menuItems.find((el) => el.textContent?.includes('rate.lunar'));
+
+    if (lunarItem) {
+      await act(async () => {
+        fireEvent.click(lunarItem);
+      });
+    }
+    expect(mockSetTrackingRate).not.toHaveBeenCalled();
+  });
+
+  it('shows altAz when available', () => {
+    mountState.mountInfo.Connected = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.altAz = { alt: 45.5, az: 180.2 };
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('altitude');
+    expect(container.textContent).toContain('azimuth');
+  });
+
+  it('does not show altAz when null', () => {
+    mountState.mountInfo.Connected = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.altAz = null;
+
+    const { container } = render(<StellariumMount />);
+    // No altitude/azimuth labels when altAz is null
+    expect(container.textContent).not.toContain('altitude');
+  });
+
+  it('auto-sync button shows correct state', () => {
+    mountState.mountInfo.Connected = true;
+    mountOverlayReturn.connected = true;
+    mountOverlayReturn.effectiveAutoSync = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('disableAutoSync');
+  });
+
+  it('sync view to mount button is present when connected', () => {
+    mountState.mountInfo.Connected = true;
+    mountOverlayReturn.connected = true;
+
+    const { container } = render(<StellariumMount />);
+    expect(container.textContent).toContain('goToMountPosition');
   });
 });

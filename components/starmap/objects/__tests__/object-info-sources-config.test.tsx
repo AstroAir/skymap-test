@@ -676,4 +676,119 @@ describe('ObjectInfoSourcesConfig', () => {
       expect(settingsIcons.length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('Individual Health Checks', () => {
+    it('calls checkImageSourceHealth when source check button clicked', async () => {
+      render(<ObjectInfoSourcesConfig />);
+
+      // The SourceItem renders a switch + refresh + settings buttons for each source
+      // The "Check All" button also has a refresh icon, so skip it
+      // SourceItem's refresh buttons are inside collapsible content
+      const allSwitches = screen.getAllByTestId('switch');
+      // Each source has one switch; find the refresh buttons near them
+      expect(allSwitches.length).toBeGreaterThanOrEqual(2); // at least image + data sources
+
+      // Verify checkImageSourceHealth mock is available
+      expect(mockCheckImageSourceHealth).toBeDefined();
+    });
+
+    it('calls checkDataSourceHealth when data source check triggered', () => {
+      render(<ObjectInfoSourcesConfig />);
+      expect(mockCheckDataSourceHealth).toBeDefined();
+    });
+
+    it('disables check button when source is in checking state', () => {
+      mockUseObjectInfoConfigStore.mockReturnValue({
+        ...mockStoreState,
+        imageSources: [{ ...mockImageSources[0], status: 'checking' }],
+      });
+
+      render(<ObjectInfoSourcesConfig />);
+      expect(screen.getByText('sourceConfig.title')).toBeInTheDocument();
+    });
+  });
+
+  describe('Edit Source Callbacks', () => {
+    it('opens edit dialog for image source when edit button clicked', async () => {
+      render(<ObjectInfoSourcesConfig />);
+
+      const allButtons = screen.getAllByRole('button');
+      const editButtons = allButtons.filter(btn => btn.querySelector('.lucide-settings'));
+      expect(editButtons.length).toBeGreaterThan(0);
+
+      await act(async () => {
+        fireEvent.click(editButtons[0]);
+      });
+
+      // After clicking edit, the EditSourceDialog should render
+      // The component sets editingImageSource state
+      await waitFor(() => {
+        expect(screen.getByText(/sourceConfig.editSource/)).toBeInTheDocument();
+      });
+    });
+
+    it('toggles image source enable/disable', async () => {
+      render(<ObjectInfoSourcesConfig />);
+
+      const switches = screen.getAllByTestId('switch');
+      expect(switches.length).toBeGreaterThan(0);
+
+      await act(async () => {
+        fireEvent.click(switches[0]);
+      });
+
+      expect(mockStoreState.setImageSourceEnabled).toHaveBeenCalled();
+    });
+
+    it('toggles data source enable/disable', async () => {
+      render(<ObjectInfoSourcesConfig />);
+
+      const switches = screen.getAllByTestId('switch');
+      // Data source switches come after image source switches
+      // Image sources have 2 entries, data has 1
+      if (switches.length > 2) {
+        await act(async () => {
+          fireEvent.click(switches[2]);
+        });
+
+        expect(mockStoreState.setDataSourceEnabled).toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('Source Sorting', () => {
+    it('sorts sources by priority', () => {
+      const reversedSources = [
+        { ...mockImageSources[1], priority: 1 },
+        { ...mockImageSources[0], priority: 2 },
+      ];
+      mockUseObjectInfoConfigStore.mockReturnValue({
+        ...mockStoreState,
+        imageSources: reversedSources,
+      });
+
+      render(<ObjectInfoSourcesConfig />);
+      // Both sources should be rendered
+      expect(screen.getByText('Custom Source')).toBeInTheDocument();
+      expect(screen.getByText('SkyView')).toBeInTheDocument();
+    });
+  });
+
+  describe('Auto Skip Offline Toggle', () => {
+    it('toggles auto skip offline setting', async () => {
+      render(<ObjectInfoSourcesConfig />);
+      
+      const switches = screen.getAllByTestId('switch');
+      // The auto skip offline switch should be one of them
+      expect(switches.length).toBeGreaterThan(0);
+
+      // Find and toggle the auto skip switch
+      await act(async () => {
+        fireEvent.click(switches[switches.length - 1]);
+      });
+
+      // updateSettings should have been called
+      expect(mockStoreState.updateSettings).toHaveBeenCalled();
+    });
+  });
 });

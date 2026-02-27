@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { useSkyAtlasStore } from '../sky-atlas-store';
+import { useSkyAtlasStore, initializeSkyAtlas } from '../sky-atlas-store';
 
 // Mock search-engine
 const mockSearchDeepSkyObjects = jest.fn().mockResolvedValue({
@@ -302,6 +302,185 @@ describe('useSkyAtlasStore', () => {
 
       expect(mockSearchDeepSkyObjects).toHaveBeenCalled();
       expect(mockSearchWithFuzzyName).not.toHaveBeenCalled();
+    });
+
+    it('should handle search error', async () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      mockSearchDeepSkyObjects.mockRejectedValueOnce(new Error('Search failed'));
+
+      await act(async () => {
+        await result.current.search();
+      });
+
+      expect(result.current.searchError).toBe('Search failed');
+      expect(result.current.isSearching).toBe(false);
+    });
+  });
+
+  describe('cancelSearch', () => {
+    it('should set isSearching to false', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.cancelSearch();
+      });
+
+      expect(result.current.isSearching).toBe(false);
+    });
+  });
+
+  describe('toggleObjectType', () => {
+    it('should toggle selected state of object type', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.setFilters({
+          objectTypes: [
+            { type: 'Galaxy', selected: false, label: 'Galaxy' },
+            { type: 'Nebula', selected: false, label: 'Nebula' },
+          ],
+        });
+      });
+
+      act(() => {
+        result.current.toggleObjectType('Galaxy');
+      });
+
+      const galaxy = result.current.filters.objectTypes.find(t => t.type === 'Galaxy');
+      expect(galaxy?.selected).toBe(true);
+    });
+
+    it('should handle non-existent type gracefully', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.setFilters({
+          objectTypes: [{ type: 'Galaxy', selected: false, label: 'Galaxy' }],
+        });
+      });
+
+      act(() => {
+        result.current.toggleObjectType('NonExistent');
+      });
+
+      expect(result.current.filters.objectTypes[0].selected).toBe(false);
+    });
+  });
+
+  describe('applyPreset', () => {
+    it('should apply preset filters', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.applyPreset({
+          id: 'test-preset',
+          name: 'Test Preset',
+          description: 'A test preset',
+          filters: { minimumAltitude: 30, minimumMoonDistance: 45 },
+        });
+      });
+
+      expect(result.current.filters.minimumAltitude).toBe(30);
+      expect(result.current.filters.minimumMoonDistance).toBe(45);
+      expect(result.current.currentPage).toBe(1);
+    });
+  });
+
+  describe('setFilterDate', () => {
+    it('should update filter date and reset search result', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+      const newDate = new Date('2025-06-15');
+
+      act(() => {
+        result.current.setFilterDate(newDate);
+      });
+
+      expect(result.current.filters.filterDate).toBeDefined();
+      expect(result.current.currentPage).toBe(1);
+      expect(result.current.searchResult).toBeNull();
+    });
+  });
+
+  describe('toggleFiltersPanel', () => {
+    it('should toggle filters panel visibility', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+      const initial = result.current.showFiltersPanel;
+
+      act(() => {
+        result.current.toggleFiltersPanel();
+      });
+
+      expect(result.current.showFiltersPanel).toBe(!initial);
+    });
+  });
+
+  describe('toggleResultsPanel', () => {
+    it('should toggle results panel visibility', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+      const initial = result.current.showResultsPanel;
+
+      act(() => {
+        result.current.toggleResultsPanel();
+      });
+
+      expect(result.current.showResultsPanel).toBe(!initial);
+    });
+  });
+
+  describe('loadCatalog', () => {
+    it('should load catalog data', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.loadCatalog();
+      });
+
+      expect(result.current.catalog).toBeDefined();
+      expect(result.current.catalogStats).toBeDefined();
+    });
+  });
+
+  describe('loadTonightsBest', () => {
+    it('should not load when no location set', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.setLocation(0, 0);
+      });
+
+      act(() => {
+        result.current.loadTonightsBest();
+      });
+
+      // Should not crash, just return
+      expect(result.current.tonightsBest).toBeDefined();
+    });
+  });
+
+  describe('updateNighttimeData', () => {
+    it('should not update when location is 0,0', () => {
+      const { result } = renderHook(() => useSkyAtlasStore());
+
+      act(() => {
+        result.current.setLocation(0, 0);
+      });
+
+      // Should return early without error
+      expect(result.current.nighttimeData).toBeDefined();
+    });
+  });
+
+  describe('initializeSkyAtlas', () => {
+    it('should initialize store with location and load catalog', () => {
+      act(() => {
+        initializeSkyAtlas(45, -75, 100);
+      });
+
+      const state = useSkyAtlasStore.getState();
+      expect(state.latitude).toBe(45);
+      expect(state.longitude).toBe(-75);
+      expect(state.elevation).toBe(100);
     });
   });
 });

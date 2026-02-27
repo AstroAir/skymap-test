@@ -239,7 +239,8 @@ export const StellariumCanvas = forwardRef<StellariumCanvasRef, StellariumCanvas
         if (rafId !== null) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
           const rect = container.getBoundingClientRect();
-          const dpr = getEffectiveDpr(useSettingsStore.getState().performance.renderQuality);
+          const renderQuality = useSettingsStore.getState().performance?.renderQuality ?? 'high';
+          const dpr = getEffectiveDpr(renderQuality);
           const newWidth = Math.round(rect.width * dpr);
           const newHeight = Math.round(rect.height * dpr);
           if (canvas.width !== newWidth || canvas.height !== newHeight) {

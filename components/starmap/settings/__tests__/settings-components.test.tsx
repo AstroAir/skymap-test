@@ -147,6 +147,7 @@ import { KeyboardSettings } from '../keyboard-settings';
 import { SettingsExportImport } from '../settings-export-import';
 import { AboutSettings } from '../about-settings';
 import { useSettingsStore } from '@/lib/stores';
+import * as settingsIndex from '../index';
 
 describe('Settings Components', () => {
   beforeEach(() => {
@@ -357,6 +358,37 @@ describe('Settings Components', () => {
       fireEvent.click(screen.getByRole('button', { name: /settingsNew\.about\.links/i }));
       expect(screen.getByTestId('about-settings-report-issue-button')).toBeInTheDocument();
       expect(screen.getByTestId('feedback-dialog')).toBeInTheDocument();
+    });
+  });
+
+  describe('Index barrel exports', () => {
+    it('exports all settings components from index', () => {
+      expect(settingsIndex.GeneralSettings).toBeDefined();
+      expect(settingsIndex.PerformanceSettings).toBeDefined();
+      expect(settingsIndex.AccessibilitySettings).toBeDefined();
+      expect(settingsIndex.NotificationSettings).toBeDefined();
+      expect(settingsIndex.SearchBehaviorSettings).toBeDefined();
+      expect(settingsIndex.KeyboardSettings).toBeDefined();
+      expect(settingsIndex.SettingsExportImport).toBeDefined();
+      expect(settingsIndex.AboutSettings).toBeDefined();
+      expect(settingsIndex.UnifiedSettings).toBeDefined();
+      expect(settingsIndex.DisplaySettings).toBeDefined();
+      expect(settingsIndex.EquipmentSettings).toBeDefined();
+      expect(settingsIndex.CameraSelector).toBeDefined();
+      expect(settingsIndex.TelescopeSelector).toBeDefined();
+      expect(settingsIndex.PreferencesTabContent).toBeDefined();
+      expect(settingsIndex.FOVSettings).toBeDefined();
+      expect(settingsIndex.ExposureSettings).toBeDefined();
+      expect(settingsIndex.LocationSettings).toBeDefined();
+      expect(settingsIndex.ConnectionSettings).toBeDefined();
+      expect(settingsIndex.AppearanceSettings).toBeDefined();
+      expect(settingsIndex.MobileSettings).toBeDefined();
+      expect(settingsIndex.EventSourcesSettings).toBeDefined();
+      expect(settingsIndex.StoragePathSettings).toBeDefined();
+      expect(settingsIndex.SettingsSection).toBeDefined();
+      expect(settingsIndex.ToggleItem).toBeDefined();
+      expect(settingsIndex.StellariumSettings).toBeDefined();
+      expect(settingsIndex.StellariumSurveySelector).toBeDefined();
     });
   });
 });

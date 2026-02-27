@@ -39,6 +39,7 @@ const config: Config = {
     "/.next/",
     "/out/",
     "/coverage/",
+    "lib/astronomy/engine/types\\.ts$",
   ],
 
   // Indicates which provider should be used to instrument code for coverage

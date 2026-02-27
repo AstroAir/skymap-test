@@ -6,6 +6,8 @@ import {
   getBortleEntry,
   getBortleFromSQM,
   getBortleExposureMultiplier,
+  getBortleQualityMultiplier,
+  getBortleMinimumMultiplier,
 } from '../bortle-scale';
 
 describe('Bortle Scale', () => {
@@ -165,6 +167,86 @@ describe('Bortle Scale', () => {
 
     it('Bortle 9 gives lowest multiplier (~1)', () => {
       expect(getBortleExposureMultiplier(9)).toBeCloseTo(1, 0);
+    });
+  });
+
+  // ============================================================================
+  // getBortleQualityMultiplier
+  // ============================================================================
+  describe('getBortleQualityMultiplier', () => {
+    it('returns higher multiplier for darker skies', () => {
+      expect(getBortleQualityMultiplier(1)).toBeGreaterThan(getBortleQualityMultiplier(9));
+    });
+
+    it('returns valid multipliers for all Bortle values', () => {
+      for (let i = 1; i <= 9; i++) {
+        const mult = getBortleQualityMultiplier(i);
+        expect(mult).toBeGreaterThan(0);
+        expect(mult).toBeLessThanOrEqual(10);
+      }
+    });
+
+    it('multiplier decreases with Bortle class', () => {
+      for (let i = 2; i <= 9; i++) {
+        expect(getBortleQualityMultiplier(i)).toBeLessThanOrEqual(getBortleQualityMultiplier(i - 1));
+      }
+    });
+
+    it('returns default for invalid values', () => {
+      expect(getBortleQualityMultiplier(0)).toBe(2);
+      expect(getBortleQualityMultiplier(10)).toBe(2);
+      expect(getBortleQualityMultiplier(-1)).toBe(2);
+    });
+
+    it('Bortle 1 gives highest multiplier (8)', () => {
+      expect(getBortleQualityMultiplier(1)).toBe(8);
+    });
+
+    it('Bortle 9 gives lowest multiplier (1)', () => {
+      expect(getBortleQualityMultiplier(9)).toBe(1);
+    });
+
+    it('getBortleExposureMultiplier delegates to getBortleQualityMultiplier', () => {
+      for (let i = 1; i <= 9; i++) {
+        expect(getBortleExposureMultiplier(i)).toBe(getBortleQualityMultiplier(i));
+      }
+    });
+  });
+
+  // ============================================================================
+  // getBortleMinimumMultiplier
+  // ============================================================================
+  describe('getBortleMinimumMultiplier', () => {
+    it('returns lower multiplier for darker skies (less minimum needed)', () => {
+      expect(getBortleMinimumMultiplier(1)).toBeLessThan(getBortleMinimumMultiplier(9));
+    });
+
+    it('returns valid multipliers for all Bortle values', () => {
+      for (let i = 1; i <= 9; i++) {
+        const mult = getBortleMinimumMultiplier(i);
+        expect(mult).toBeGreaterThan(0);
+        expect(mult).toBeLessThanOrEqual(5);
+      }
+    });
+
+    it('multiplier increases with Bortle class', () => {
+      for (let i = 2; i <= 9; i++) {
+        expect(getBortleMinimumMultiplier(i)).toBeGreaterThanOrEqual(getBortleMinimumMultiplier(i - 1));
+      }
+    });
+
+    it('returns default for invalid values', () => {
+      expect(getBortleMinimumMultiplier(0)).toBe(1);
+      expect(getBortleMinimumMultiplier(10)).toBe(1);
+      expect(getBortleMinimumMultiplier(-1)).toBe(1);
+    });
+
+    it('Bortle 1 gives lowest multiplier (0.5)', () => {
+      expect(getBortleMinimumMultiplier(1)).toBe(0.5);
+    });
+
+    it('Bortle 9 gives highest multiplier (3.0)', () => {
+      expect(getBortleMinimumMultiplier(9)).toBe(3.0);
     });
   });
 });

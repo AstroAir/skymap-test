@@ -88,7 +88,11 @@ export const useDailyKnowledgeStore = create<DailyKnowledgeState>()(
         if (!useSettingsStore.getState().preferences.dailyKnowledgeEnabled) return;
         set({ open: true });
         const state = get();
-        if (state.items.length === 0) {
+        const today = getLocalDateKey();
+        const shouldRefreshForToday =
+          state.items.length === 0 || state.items[0]?.dateKey !== today;
+
+        if (shouldRefreshForToday) {
           await get().loadDaily(entry);
         } else if (state.currentItem) {
           const current = state.currentItem;

@@ -144,4 +144,81 @@ describe('OnboardingTour', () => {
       expect(useOnboardingStore.getState().currentStepIndex).toBe(1);
     });
   });
+
+  it('should respond to Enter key to go to next step', async () => {
+    act(() => {
+      useOnboardingStore.getState().startTour();
+    });
+
+    render(<OnboardingTour />);
+
+    expect(useOnboardingStore.getState().currentStepIndex).toBe(0);
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(useOnboardingStore.getState().currentStepIndex).toBe(1);
+    });
+  });
+
+  it('should not go back on ArrowLeft when on first step', async () => {
+    act(() => {
+      useOnboardingStore.getState().startTour();
+    });
+
+    render(<OnboardingTour />);
+
+    expect(useOnboardingStore.getState().currentStepIndex).toBe(0);
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+
+    // Should still be at step 0
+    expect(useOnboardingStore.getState().currentStepIndex).toBe(0);
+  });
+
+  it('should call onTourCompleted when finishing the last step', async () => {
+    const onTourCompleted = jest.fn();
+
+    act(() => {
+      useOnboardingStore.getState().startTour();
+    });
+
+    // Go to the last step
+    const totalSteps = useOnboardingStore.getState().activeTourSteps.length;
+    act(() => {
+      useOnboardingStore.getState().goToStep(totalSteps - 1);
+    });
+
+    render(<OnboardingTour onTourCompleted={onTourCompleted} />);
+
+    // Press Enter/ArrowRight to finish
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+
+    await waitFor(() => {
+      expect(onTourCompleted).toHaveBeenCalledWith('first-run-core');
+    });
+  });
+
+  it('should restore focus to previous element when tour ends', () => {
+    // Create a button to be the previously focused element
+    const button = document.createElement('button');
+    button.textContent = 'Focus Me';
+    document.body.appendChild(button);
+    button.focus();
+
+    const { rerender } = render(<OnboardingTour />);
+
+    act(() => {
+      useOnboardingStore.getState().startTour();
+    });
+    rerender(<OnboardingTour />);
+
+    act(() => {
+      useOnboardingStore.getState().endTour();
+    });
+    rerender(<OnboardingTour />);
+
+    // Clean up
+    document.body.removeChild(button);
+  });
 });

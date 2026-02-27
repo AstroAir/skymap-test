@@ -1,7 +1,9 @@
 import type {
   DailyKnowledgeAttribution,
   DailyKnowledgeCategory,
+  DailyKnowledgeFactSource,
   DailyKnowledgeItem,
+  DailyKnowledgeLanguageStatus,
   DailyKnowledgeRelatedObject,
 } from './types';
 
@@ -23,6 +25,10 @@ export function buildItem(params: {
   externalUrl?: string;
   relatedObjects?: DailyKnowledgeRelatedObject[];
   attribution: DailyKnowledgeAttribution;
+  isDateEvent?: boolean;
+  eventMonthDay?: string;
+  factSources?: DailyKnowledgeFactSource[];
+  languageStatus?: DailyKnowledgeLanguageStatus;
   fetchedAt?: number;
 }): DailyKnowledgeItem {
   return {
@@ -39,6 +45,10 @@ export function buildItem(params: {
     externalUrl: params.externalUrl,
     relatedObjects: params.relatedObjects ?? [],
     attribution: params.attribution,
+    isDateEvent: params.isDateEvent ?? false,
+    eventMonthDay: params.eventMonthDay,
+    factSources: params.factSources ?? [],
+    languageStatus: params.languageStatus ?? 'native',
     fetchedAt: params.fetchedAt ?? Date.now(),
   };
 }

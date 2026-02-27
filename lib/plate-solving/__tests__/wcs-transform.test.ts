@@ -3,12 +3,14 @@
  */
 
 import {
+  createWCSTransform,
   createWCSTransformFromParams,
   angularSeparation,
   getImageCorners,
   getImageCenter,
 } from '../wcs-transform';
 import type { WCSParams } from '../wcs-transform';
+import type { WCSInfo } from '../fits-parser';
 
 // ============================================================================
 // Test Data
@@ -215,6 +217,98 @@ describe('WCS Transform', () => {
 
       expect(center.ra).toBeCloseTo(83.633, 2);
       expect(center.dec).toBeCloseTo(-5.392, 2);
+    });
+  });
+
+  describe('createWCSTransform (from WCSInfo)', () => {
+    it('returns null when cdMatrix is missing', () => {
+      const wcsInfo: WCSInfo = {
+        referencePixel: { x: 1024, y: 1024 },
+        referenceCoordinates: { ra: 180, dec: 45 },
+        pixelScale: 1.0,
+        rotation: 0,
+      };
+      const transform = createWCSTransform(wcsInfo);
+      expect(transform).toBeNull();
+    });
+
+    it('creates transform from valid WCSInfo with cdMatrix', () => {
+      const wcsInfo: WCSInfo = {
+        referencePixel: { x: 2048.5, y: 2048.5 },
+        referenceCoordinates: { ra: 83.633, dec: -5.392 },
+        pixelScale: 1.0,
+        rotation: 180,
+        cdMatrix: {
+          cd1_1: -0.0002777777778,
+          cd1_2: 0,
+          cd2_1: 0,
+          cd2_2: 0.0002777777778,
+        },
+      };
+      const transform = createWCSTransform(wcsInfo);
+      expect(transform).not.toBeNull();
+      const world = transform!.pixelToWorld({ x: 2048.5, y: 2048.5 });
+      expect(world.ra).toBeCloseTo(83.633, 3);
+      expect(world.dec).toBeCloseTo(-5.392, 3);
+    });
+
+    it('passes SIP coefficients through to transform', () => {
+      const wcsInfo: WCSInfo = {
+        referencePixel: { x: 2048.5, y: 2048.5 },
+        referenceCoordinates: { ra: 83.633, dec: -5.392 },
+        pixelScale: 1.0,
+        rotation: 180,
+        cdMatrix: {
+          cd1_1: -0.0002777777778,
+          cd1_2: 0,
+          cd2_1: 0,
+          cd2_2: 0.0002777777778,
+        },
+      };
+      const sip = {
+        aOrder: 2,
+        bOrder: 2,
+        a: { 'A_2_0': 1e-7 },
+        b: { 'B_2_0': -1e-7 },
+        ap: {},
+        bp: {},
+      };
+      const transform = createWCSTransform(wcsInfo, sip);
+      expect(transform).not.toBeNull();
+    });
+  });
+
+  describe('worldToPixel edge cases', () => {
+    it('returns NaN for point on the back of projection sphere', () => {
+      // At dec0=0, denom = cos(0)*cos(0)*cos(deltaRa) = cos(deltaRa)
+      // When deltaRa = 90°, denom = 0 exactly → NaN
+      const equatorParams: WCSParams = {
+        crpix1: 512, crpix2: 512,
+        crval1: 0, crval2: 0,  // RA=0, Dec=0
+        cd1_1: -0.0002777777778, cd1_2: 0,
+        cd2_1: 0, cd2_2: 0.0002777777778,
+      };
+      const transform = createWCSTransformFromParams(equatorParams);
+      const pixel = transform.worldToPixel({ ra: 90, dec: 0 }); // 90° away
+      expect(pixel.x).toBeNaN();
+      expect(pixel.y).toBeNaN();
+    });
+  });
+
+  describe('isFlipped with positive determinant', () => {
+    it('detects flipped parity when det > 0', () => {
+      const flippedParams: WCSParams = {
+        crpix1: 1024,
+        crpix2: 1024,
+        crval1: 180,
+        crval2: 45,
+        cd1_1: 0.0002777777778,  // positive CD1_1 → det > 0
+        cd1_2: 0,
+        cd2_1: 0,
+        cd2_2: 0.0002777777778,
+      };
+      const transform = createWCSTransformFromParams(flippedParams);
+      expect(transform.isFlipped()).toBe(true);
     });
   });
 

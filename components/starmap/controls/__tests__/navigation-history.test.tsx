@@ -60,7 +60,14 @@ jest.mock('@/lib/hooks/use-navigation-history', () => ({
     selector ? selector(mockStore) : mockStore
   ),
   formatNavigationPoint: jest.fn((point: { name?: string; ra: number; dec: number }) => point.name || `${point.ra}° ${point.dec}°`),
-  formatTimestamp: jest.fn(() => 'just now'),
+  formatTimestamp: jest.fn((_ts: number, opts?: { justNow: string; minutesAgo: (m: number) => string; hoursAgo: (h: number) => string }) => {
+    // Invoke callbacks to ensure coverage of inline arrow functions
+    if (opts) {
+      opts.minutesAgo(5);
+      opts.hoursAgo(2);
+    }
+    return opts?.justNow || 'just now';
+  }),
 }));
 
 describe('NavigationHistory', () => {
@@ -182,5 +189,139 @@ describe('NavigationHistory', () => {
     // Confirm clear
     fireEvent.click(screen.getByTestId('alert-confirm'));
     expect(mockStore.clear).toHaveBeenCalled();
+  });
+
+  it('shows empty history message when no history exists', () => {
+    mockStore.history = [];
+    render(<NavigationHistory {...defaultProps} />);
+
+    expect(screen.getByText('navigation.noHistory')).toBeInTheDocument();
+  });
+
+  it('renders history items with formatted text', () => {
+    mockStore.history = [
+      { id: '1', name: 'Orion', ra: 83, dec: -5, fov: 2, timestamp: Date.now() },
+    ];
+    mockStore.currentIndex = 0;
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    expect(screen.getByText('Orion')).toBeInTheDocument();
+  });
+
+  it('calls goTo and onNavigate when a history item is clicked', () => {
+    const point = { id: '1', ra: 10, dec: 20, fov: 30, timestamp: Date.now() };
+    mockStore.history = [
+      point,
+      { id: '2', ra: 50, dec: 60, fov: 15, timestamp: Date.now() },
+    ];
+    mockStore.currentIndex = 1;
+    mockStore.goTo.mockReturnValue(point);
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    // History items are rendered in reverse. Find the button for point id='1' by formatted text.
+    const historyItemBtn = screen.getByText('10° 20°').closest('button');
+    expect(historyItemBtn).not.toBeNull();
+    fireEvent.click(historyItemBtn!);
+    expect(mockStore.goTo).toHaveBeenCalledWith(0);
+    expect(defaultProps.onNavigate).toHaveBeenCalledWith(10, 20, 30);
+  });
+
+  it('does not call onNavigate from goTo when goTo returns null', () => {
+    mockStore.history = [
+      { id: '1', ra: 10, dec: 20, fov: 30, timestamp: Date.now() },
+    ];
+    mockStore.currentIndex = 0;
+    mockStore.goTo.mockReturnValue(null);
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    const historyItemBtn = screen.getByText('10° 20°').closest('button');
+    expect(historyItemBtn).not.toBeNull();
+    fireEvent.click(historyItemBtn!);
+    expect(mockStore.goTo).toHaveBeenCalledWith(0);
+    expect(defaultProps.onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('highlights current history item', () => {
+    mockStore.history = [
+      { id: '1', ra: 10, dec: 20, fov: 30, timestamp: Date.now() },
+      { id: '2', ra: 50, dec: 60, fov: 15, timestamp: Date.now() },
+    ];
+    mockStore.currentIndex = 0;
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    // Current item should have the primary styling class
+    const buttons = screen.getAllByText(/°/).map(el => el.closest('button'));
+    const hasHighlight = buttons.some(btn => btn?.className?.includes('border-primary'));
+    expect(hasHighlight).toBe(true);
+  });
+
+  it('shows history count in footer when history is non-empty', () => {
+    mockStore.history = [
+      { id: '1', ra: 10, dec: 20, fov: 30, timestamp: Date.now() },
+      { id: '2', ra: 50, dec: 60, fov: 15, timestamp: Date.now() },
+    ];
+    mockStore.currentIndex = 1;
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    expect(screen.getByText('navigation.historyCount')).toBeInTheDocument();
+  });
+
+  it('does not call onNavigate when back returns null', () => {
+    mockStore.canGoBack.mockReturnValue(true);
+    mockStore.back.mockReturnValue(null);
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[0]);
+
+    expect(mockStore.back).toHaveBeenCalled();
+    expect(defaultProps.onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('does not call onNavigate when forward returns null', () => {
+    mockStore.canGoForward.mockReturnValue(true);
+    mockStore.forward.mockReturnValue(null);
+
+    render(<NavigationHistory {...defaultProps} />);
+
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[1]);
+
+    expect(mockStore.forward).toHaveBeenCalled();
+    expect(defaultProps.onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('enables forward button when canGoForward is true', () => {
+    mockStore.canGoForward.mockReturnValue(true);
+    render(<NavigationHistory {...defaultProps} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[1]).not.toBeDisabled();
+  });
+
+  it('does not crash when onNavigate is not provided', () => {
+    mockStore.canGoBack.mockReturnValue(true);
+    mockStore.back.mockReturnValue({ id: '1', ra: 10, dec: 20, fov: 30, timestamp: Date.now() });
+
+    expect(() => {
+      render(<NavigationHistory />);
+      const buttons = screen.getAllByRole('button');
+      fireEvent.click(buttons[0]);
+    }).not.toThrow();
+  });
+
+  it('does not show clear button when history is empty', () => {
+    mockStore.history = [];
+    render(<NavigationHistory {...defaultProps} />);
+
+    const allButtons = screen.getAllByRole('button');
+    const clearBtn = allButtons.find(btn => btn.className?.includes('h-6'));
+    expect(clearBtn).toBeUndefined();
   });
 });

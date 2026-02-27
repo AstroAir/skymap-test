@@ -6,6 +6,7 @@ import { render, screen } from '@testing-library/react';
 
 // Mock settings store
 let mockSkyEngine = 'stellarium';
+const mockSaveViewState = jest.fn();
 jest.mock('@/lib/stores', () => ({
   useSettingsStore: (selector: (state: { skyEngine: string }) => unknown) =>
     selector({ skyEngine: mockSkyEngine }),
@@ -18,7 +19,12 @@ jest.mock('@/lib/stores', () => ({
       };
       return selector ? selector(state) : state;
     }),
-    { getState: () => ({ setHelpers: jest.fn() }) }
+    {
+      getState: () => ({
+        setHelpers: jest.fn(),
+        saveViewState: mockSaveViewState,
+      }),
+    }
   ),
 }));
 
@@ -46,6 +52,7 @@ import { SkyMapCanvas } from '../sky-map-canvas';
 describe('SkyMapCanvas', () => {
   beforeEach(() => {
     mockSkyEngine = 'stellarium';
+    jest.clearAllMocks();
   });
 
   it('should render StellariumCanvas when skyEngine is stellarium', () => {
@@ -66,5 +73,23 @@ describe('SkyMapCanvas', () => {
     mockSkyEngine = 'unknown';
     render(<SkyMapCanvas />);
     expect(screen.getByTestId('stellarium-canvas')).toBeInTheDocument();
+  });
+
+  it('should call saveViewState when engine switches', () => {
+    mockSkyEngine = 'stellarium';
+    const { rerender } = render(<SkyMapCanvas />);
+    expect(screen.getByTestId('stellarium-canvas')).toBeInTheDocument();
+
+    // Switch engine
+    mockSkyEngine = 'aladin';
+    rerender(<SkyMapCanvas />);
+    expect(screen.getByTestId('aladin-canvas')).toBeInTheDocument();
+    expect(mockSaveViewState).toHaveBeenCalled();
+  });
+
+  it('should not call saveViewState on initial render', () => {
+    mockSkyEngine = 'stellarium';
+    render(<SkyMapCanvas />);
+    expect(mockSaveViewState).not.toHaveBeenCalled();
   });
 });

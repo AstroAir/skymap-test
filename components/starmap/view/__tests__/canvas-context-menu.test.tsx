@@ -177,4 +177,242 @@ describe('CanvasContextMenu (Aladin mode)', () => {
     fireEvent.click(switchButtons[0]);
     expect(mockSetSkyEngine).toHaveBeenCalledWith('stellarium');
   });
+
+  it('disables Add to Target List when no coords and no selectedObject', () => {
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={null}
+        selectedObject={null}
+        mountConnected={false}
+        stellariumSettings={{ constellationsLinesVisible: false, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: false, surveyEnabled: false, atmosphereVisible: false }}
+        onOpenChange={jest.fn()}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={jest.fn()}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={jest.fn()}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={jest.fn()}
+        onZoomOut={jest.fn()}
+        onSetFov={jest.fn()}
+        onToggleStellariumSetting={jest.fn()}
+        onToggleSearch={jest.fn()}
+        onResetView={jest.fn()}
+      />
+    );
+    const addBtn = screen.getByText('actions.addToTargetList').closest('button');
+    expect(addBtn).toBeDisabled();
+  });
+
+  it('calls onToggleSearch and onResetView', () => {
+    const onToggleSearch = jest.fn();
+    const onResetView = jest.fn();
+    const onOpenChange = jest.fn();
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={null}
+        selectedObject={null}
+        mountConnected={false}
+        stellariumSettings={{ constellationsLinesVisible: false, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: false, surveyEnabled: false, atmosphereVisible: false }}
+        onOpenChange={onOpenChange}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={jest.fn()}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={jest.fn()}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={jest.fn()}
+        onZoomOut={jest.fn()}
+        onSetFov={jest.fn()}
+        onToggleStellariumSetting={jest.fn()}
+        onToggleSearch={onToggleSearch}
+        onResetView={onResetView}
+      />
+    );
+    fireEvent.click(screen.getByText('starmap.searchObjects'));
+    expect(onToggleSearch).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('starmap.resetView'));
+    expect(onResetView).toHaveBeenCalled();
+  });
+
+  it('calls onZoomIn and onZoomOut', () => {
+    const onZoomIn = jest.fn();
+    const onZoomOut = jest.fn();
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={null}
+        selectedObject={null}
+        mountConnected={false}
+        stellariumSettings={{ constellationsLinesVisible: false, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: false, surveyEnabled: false, atmosphereVisible: false }}
+        onOpenChange={jest.fn()}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={jest.fn()}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={jest.fn()}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+        onSetFov={jest.fn()}
+        onToggleStellariumSetting={jest.fn()}
+        onToggleSearch={jest.fn()}
+        onResetView={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByText('zoom.zoomIn'));
+    expect(onZoomIn).toHaveBeenCalled();
+    fireEvent.click(screen.getByText('zoom.zoomOut'));
+    expect(onZoomOut).toHaveBeenCalled();
+  });
+
+  it('calls onSetFov with preset values', () => {
+    const onSetFov = jest.fn();
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={null}
+        selectedObject={null}
+        mountConnected={false}
+        stellariumSettings={{ constellationsLinesVisible: false, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: false, surveyEnabled: false, atmosphereVisible: false }}
+        onOpenChange={jest.fn()}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={jest.fn()}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={jest.fn()}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={jest.fn()}
+        onZoomOut={jest.fn()}
+        onSetFov={onSetFov}
+        onToggleStellariumSetting={jest.fn()}
+        onToggleSearch={jest.fn()}
+        onResetView={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByText('30°'));
+    expect(onSetFov).toHaveBeenCalledWith(30);
+  });
+});
+
+describe('CanvasContextMenu (Stellarium mode)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSkyEngine = 'stellarium';
+  });
+
+  it('renders Stellarium display settings toggles', () => {
+    const onToggleStellariumSetting = jest.fn();
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={null}
+        selectedObject={null}
+        mountConnected={false}
+        stellariumSettings={{ constellationsLinesVisible: true, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: true, surveyEnabled: false, atmosphereVisible: true }}
+        onOpenChange={jest.fn()}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={jest.fn()}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={jest.fn()}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={jest.fn()}
+        onZoomOut={jest.fn()}
+        onSetFov={jest.fn()}
+        onToggleStellariumSetting={onToggleStellariumSetting}
+        onToggleSearch={jest.fn()}
+        onResetView={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByText('settings.constellationLines'));
+    expect(onToggleStellariumSetting).toHaveBeenCalledWith('constellationsLinesVisible');
+  });
+
+  it('renders selected object actions when selectedObject is provided', () => {
+    const onOpenChange = jest.fn();
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={null}
+        selectedObject={{ names: ['M31'], ra: '00h42m', dec: '+41d16m', raDeg: 10.68, decDeg: 41.27 } as never}
+        mountConnected={false}
+        stellariumSettings={{ constellationsLinesVisible: false, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: false, surveyEnabled: false, atmosphereVisible: false }}
+        onOpenChange={onOpenChange}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={jest.fn()}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={jest.fn()}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={jest.fn()}
+        onZoomOut={jest.fn()}
+        onSetFov={jest.fn()}
+        onToggleStellariumSetting={jest.fn()}
+        onToggleSearch={jest.fn()}
+        onResetView={jest.fn()}
+      />
+    );
+    expect(screen.getByText('M31')).toBeInTheDocument();
+    expect(screen.getByText('coordinates.copyObjectCoordinates')).toBeInTheDocument();
+  });
+
+  it('renders marker and center view actions when coords provided', () => {
+    const onSetPendingMarkerCoords = jest.fn();
+    const onNavigateToCoords = jest.fn();
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={{ ra: 10, dec: 20, raStr: '00h40m', decStr: '+20d00m' }}
+        selectedObject={null}
+        mountConnected={false}
+        stellariumSettings={{ constellationsLinesVisible: false, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: false, surveyEnabled: false, atmosphereVisible: false }}
+        onOpenChange={jest.fn()}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={onNavigateToCoords}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={onSetPendingMarkerCoords}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={jest.fn()}
+        onZoomOut={jest.fn()}
+        onSetFov={jest.fn()}
+        onToggleStellariumSetting={jest.fn()}
+        onToggleSearch={jest.fn()}
+        onResetView={jest.fn()}
+      />
+    );
+    expect(screen.getByText('markers.addMarkerHere')).toBeInTheDocument();
+    expect(screen.getByText('actions.centerViewHere')).toBeInTheDocument();
+    expect(screen.getByText('coordinates.clickPosition')).toBeInTheDocument();
+  });
+
+  it('shows slew button when mount is connected and object is selected', () => {
+    render(
+      <CanvasContextMenu
+        open={true}
+        position={{ x: 10, y: 10 }}
+        coords={null}
+        selectedObject={{ names: ['M42'], ra: '05h35m', dec: '-05d23m', raDeg: 83.82, decDeg: -5.39 } as never}
+        mountConnected={true}
+        stellariumSettings={{ constellationsLinesVisible: false, equatorialLinesVisible: false, azimuthalLinesVisible: false, dsosVisible: false, surveyEnabled: false, atmosphereVisible: false }}
+        onOpenChange={jest.fn()}
+        onAddToTargetList={jest.fn()}
+        onNavigateToCoords={jest.fn()}
+        onOpenGoToDialog={jest.fn()}
+        onSetPendingMarkerCoords={jest.fn()}
+        onSetFramingCoordinates={jest.fn()}
+        onZoomIn={jest.fn()}
+        onZoomOut={jest.fn()}
+        onSetFov={jest.fn()}
+        onToggleStellariumSetting={jest.fn()}
+        onToggleSearch={jest.fn()}
+        onResetView={jest.fn()}
+      />
+    );
+    expect(screen.getByText('actions.slewToObject')).toBeInTheDocument();
+  });
 });

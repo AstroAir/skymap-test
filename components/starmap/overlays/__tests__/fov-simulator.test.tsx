@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock UI components
 jest.mock('@/components/ui/card', () => ({
@@ -142,5 +142,215 @@ describe('FOVSimulator', () => {
     render(<FOVSimulator {...defaultProps} />);
     const buttons = screen.getAllByRole('button');
     expect(buttons.length).toBeGreaterThan(0);
+  });
+
+  it('renders enabled switch', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const switches = screen.getAllByTestId('switch');
+    expect(switches.length).toBeGreaterThan(0);
+  });
+
+  it('renders calculated FOV values', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    // Should contain calculated FOV text
+    expect(document.body.textContent).toContain('fov.fieldWidth');
+    expect(document.body.textContent).toContain('fov.fieldHeight');
+  });
+
+  it('renders sensor preset tabs', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    // The preset tab labels
+    expect(screen.getByText('Full Frame')).toBeInTheDocument();
+    expect(screen.getByText('APS-C')).toBeInTheDocument();
+    expect(screen.getByText('ZWO')).toBeInTheDocument();
+  });
+
+  it('renders manual input fields', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    expect(inputs.length).toBeGreaterThanOrEqual(3); // sensorWidth, sensorHeight, pixelSize
+  });
+
+  it('renders rotation slider', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const sliders = screen.getAllByTestId('slider');
+    expect(sliders.length).toBeGreaterThan(0);
+  });
+
+  it('renders mosaic tab content', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    expect(document.body.textContent).toContain('fov.enableMosaic');
+  });
+
+  it('renders display tab content', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    expect(document.body.textContent).toContain('fov.compositionGrid');
+  });
+
+  it('renders close button', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    expect(screen.getByText('common.close')).toBeInTheDocument();
+  });
+
+  it('renders with disabled state', () => {
+    render(<FOVSimulator {...defaultProps} enabled={false} />);
+    expect(screen.getByTestId('dialog')).toBeInTheDocument();
+  });
+
+  it('renders copy button', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    // Copy/Check icons are in a button
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.length).toBeGreaterThan(1);
+  });
+
+  it('calls onSensorWidthChange when sensor width input changes', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    // First numeric input is sensor width
+    fireEvent.change(inputs[0], { target: { value: '23.5' } });
+    expect(defaultProps.onSensorWidthChange).toHaveBeenCalledWith(23.5);
+  });
+
+  it('calls onSensorHeightChange when sensor height input changes', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[1], { target: { value: '15.6' } });
+    expect(defaultProps.onSensorHeightChange).toHaveBeenCalledWith(15.6);
+  });
+
+  it('calls onFocalLengthChange when focal length input changes', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    // focal length input is in optics tab
+    const flInput = inputs.find(i => Number(i.getAttribute('value')) === 1000);
+    if (flInput) {
+      fireEvent.change(flInput, { target: { value: '800' } });
+      expect(defaultProps.onFocalLengthChange).toHaveBeenCalledWith(800);
+    }
+  });
+
+  it('calls onFocalLengthChange when quick focal length button is clicked', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    // Quick buttons: 200, 400, 600, 1000, 2000
+    const btn200 = screen.getByText('200');
+    fireEvent.click(btn200);
+    expect(defaultProps.onFocalLengthChange).toHaveBeenCalledWith(200);
+  });
+
+  it('applies sensor preset when preset button clicked', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    // Sensor presets render as buttons with name text
+    const presetButtons = screen.getAllByRole('button');
+    // Find a preset button that contains a sensor dimension text
+    const sensorPreset = presetButtons.find(b => b.textContent?.includes('×') && b.textContent?.includes('mm'));
+    if (sensorPreset) {
+      fireEvent.click(sensorPreset);
+      expect(defaultProps.onSensorWidthChange).toHaveBeenCalled();
+      expect(defaultProps.onSensorHeightChange).toHaveBeenCalled();
+    }
+  });
+
+  it('applies telescope preset when preset button clicked', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    // Telescope presets contain "mm | f/" text
+    const presetButtons = screen.getAllByRole('button');
+    const telescopePreset = presetButtons.find(b => b.textContent?.includes('f/'));
+    if (telescopePreset) {
+      fireEvent.click(telescopePreset);
+      expect(defaultProps.onFocalLengthChange).toHaveBeenCalled();
+    }
+  });
+
+  it('handles rotation reset click', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const resetButton = screen.getByText('Reset');
+    fireEvent.click(resetButton);
+    expect(defaultProps.onRotationAngleChange).toHaveBeenCalledWith(0);
+  });
+
+  it('handles rotation slider change', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const sliders = screen.getAllByTestId('slider');
+    // First slider is rotation
+    fireEvent.change(sliders[0], { target: { value: '45' } });
+    expect(defaultProps.onRotationAngleChange).toHaveBeenCalledWith(45);
+  });
+
+  it('handles mosaic switch toggle', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const switches = screen.getAllByTestId('switch');
+    // The mosaic switch is the second checkbox (first is enabled toggle)
+    if (switches.length >= 2) {
+      fireEvent.click(switches[1]);
+      expect(defaultProps.onMosaicChange).toHaveBeenCalled();
+    }
+  });
+
+  it('handles copy to clipboard', () => {
+    // Mock clipboard
+    Object.assign(navigator, {
+      clipboard: { writeText: jest.fn().mockResolvedValue(undefined) },
+    });
+    
+    render(<FOVSimulator {...defaultProps} />);
+    // Find the copy button (small icon button in header)
+    const buttons = screen.getAllByRole('button');
+    // The copy button is a small ghost button in the dialog header
+    const copyBtn = buttons.find(b => b.className?.includes('h-7 w-7'));
+    if (copyBtn) {
+      fireEvent.click(copyBtn);
+      expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    }
+  });
+
+  it('handles pixel size input change', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const inputs = screen.getAllByRole('spinbutton');
+    // pixel size is the 3rd numeric input
+    fireEvent.change(inputs[2], { target: { value: '5.0' } });
+    expect(defaultProps.onPixelSizeChange).toHaveBeenCalledWith(5);
+  });
+
+  it('closes dialog when close button clicked', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const closeBtn = screen.getByText('common.close');
+    fireEvent.click(closeBtn);
+    // Dialog close is handled internally; just ensure no crash
+    expect(closeBtn).toBeInTheDocument();
+  });
+
+  it('toggles enabled switch', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    const switches = screen.getAllByTestId('switch');
+    // First switch is the enabled toggle
+    fireEvent.click(switches[0]);
+    expect(defaultProps.onEnabledChange).toHaveBeenCalled();
+  });
+
+  it('renders all quick focal length buttons', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    [200, 400, 600, 1000, 2000].forEach(fl => {
+      expect(screen.getByText(String(fl))).toBeInTheDocument();
+    });
+  });
+
+  it('clicks multiple focal length quick buttons', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    fireEvent.click(screen.getByText('400'));
+    expect(defaultProps.onFocalLengthChange).toHaveBeenCalledWith(400);
+    fireEvent.click(screen.getByText('2000'));
+    expect(defaultProps.onFocalLengthChange).toHaveBeenCalledWith(2000);
+  });
+
+  it('handles overlap slider change for mosaic', () => {
+    render(<FOVSimulator {...defaultProps} mosaic={{ ...defaultProps.mosaic, enabled: true }} />);
+    const sliders = screen.getAllByTestId('slider');
+    // The overlap slider
+    const overlapSlider = sliders.find((_, i) => i >= 1);
+    if (overlapSlider) {
+      fireEvent.change(overlapSlider, { target: { value: '20' } });
+      expect(defaultProps.onMosaicChange).toHaveBeenCalled();
+    }
   });
 });

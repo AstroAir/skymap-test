@@ -55,6 +55,17 @@ describe('parseWCSFromFITS', () => {
     expect(parseWCSFromFITS({ CRPIX1: 1 })).toBeNull();
   });
 
+  it('should return null when CRVAL1 is missing', () => {
+    expect(parseWCSFromFITS({ CRPIX1: 1, CRPIX2: 1 })).toBeNull();
+  });
+
+  it('should return null when no CD matrix and no CDELT', () => {
+    expect(parseWCSFromFITS({
+      CRPIX1: 512, CRPIX2: 512,
+      CRVAL1: 180, CRVAL2: 45,
+    })).toBeNull();
+  });
+
   it('should parse WCS from CD matrix', () => {
     const wcs = parseWCSFromFITS({
       CRPIX1: 512, CRPIX2: 512,
@@ -67,6 +78,16 @@ describe('parseWCSFromFITS', () => {
     expect(wcs!.pixelScale).toBeGreaterThan(0);
   });
 
+  it('should handle CD matrix with some values as undefined (defaults to 0)', () => {
+    const wcs = parseWCSFromFITS({
+      CRPIX1: 512, CRPIX2: 512,
+      CRVAL1: 180, CRVAL2: 45,
+      CD1_1: -0.001,
+    });
+    expect(wcs).not.toBeNull();
+    expect(wcs!.cdMatrix[1]).toBe(0); // CD1_2 defaulted
+  });
+
   it('should parse WCS from CDELT + CROTA', () => {
     const wcs = parseWCSFromFITS({
       CRPIX1: 256, CRPIX2: 256,
@@ -75,5 +96,37 @@ describe('parseWCSFromFITS', () => {
     });
     expect(wcs).not.toBeNull();
     expect(Math.abs(wcs!.rotation)).toBeCloseTo(180, 0); // atan2(0, -0.001) = ±180
+  });
+
+  it('should use CROTA1 when CROTA2 is missing', () => {
+    const wcs = parseWCSFromFITS({
+      CRPIX1: 256, CRPIX2: 256,
+      CRVAL1: 90, CRVAL2: 30,
+      CDELT1: 0.001, CDELT2: 0.001, CROTA1: 45,
+    });
+    expect(wcs).not.toBeNull();
+    expect(wcs!.rotation).toBeCloseTo(45, 0);
+  });
+
+  it('should default CROTA to 0 when both CROTA1 and CROTA2 are missing', () => {
+    const wcs = parseWCSFromFITS({
+      CRPIX1: 256, CRPIX2: 256,
+      CRVAL1: 90, CRVAL2: 30,
+      CDELT1: 0.001, CDELT2: 0.001,
+    });
+    expect(wcs).not.toBeNull();
+    expect(wcs!.rotation).toBeCloseTo(0, 5);
+  });
+});
+
+describe('calculateDSOPositionAngle edge cases', () => {
+  it('should handle negative solvePositionAngle', () => {
+    const result = calculateDSOPositionAngle(-10, 20);
+    expect(result).toBeCloseTo(10);
+  });
+
+  it('should handle large angles beyond 360', () => {
+    const result = calculateDSOPositionAngle(400, 50);
+    expect(result).toBeCloseTo(90);
   });
 });

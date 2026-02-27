@@ -11,6 +11,7 @@ jest.mock('@/lib/services/map-config', () => ({
     addApiKey: jest.fn(),
     removeApiKey: jest.fn(),
     setDefaultApiKey: jest.fn(),
+    addConfigurationListener: jest.fn(() => () => {}),
   },
 }));
 
@@ -232,6 +233,7 @@ describe('MapApiKeyManager', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockMapConfig.getApiKeys.mockReturnValue([]);
+    mockMapConfig.addConfigurationListener.mockReturnValue(() => {});
   });
 
   afterAll(() => {
@@ -251,22 +253,25 @@ describe('MapApiKeyManager', () => {
 
     it('renders dialog content', () => {
       render(<MapApiKeyManager />);
-      expect(document.body).toBeInTheDocument();
+      const contents = screen.getAllByTestId('dialog-content');
+      expect(contents.length).toBeGreaterThan(0);
     });
 
     it('renders dialog title', () => {
       render(<MapApiKeyManager />);
-      expect(document.body).toBeInTheDocument();
+      const titles = screen.getAllByTestId('dialog-title');
+      expect(titles.length).toBeGreaterThan(0);
     });
 
     it('renders security notice', () => {
       render(<MapApiKeyManager />);
-      expect(document.body).toBeInTheDocument();
+      const notices = screen.getAllByText(/map\.securityNotice|Security Notice/);
+      expect(notices.length).toBeGreaterThan(0);
     });
 
     it('renders API keys table', () => {
       render(<MapApiKeyManager />);
-      expect(document.body).toBeInTheDocument();
+      expect(screen.getByTestId('table')).toBeInTheDocument();
     });
 
     it('shows empty state when no keys configured', () => {
@@ -295,8 +300,7 @@ describe('MapApiKeyManager', () => {
       ]);
 
       render(<MapApiKeyManager />);
-      // Check that the API key card is rendered
-      expect(screen.getByTestId('card')).toBeInTheDocument();
+      expect(screen.getByText('google')).toBeInTheDocument();
     });
 
     it('masks API key by default', () => {
@@ -306,12 +310,11 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789abcdef',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
 
       render(<MapApiKeyManager />);
-      // Key should be masked (showing ••••••••)
       expect(screen.getByText(/••••••••/)).toBeInTheDocument();
     });
 
@@ -341,12 +344,63 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
 
       render(<MapApiKeyManager />);
       expect(screen.getByText(/map\.unlimited|Unlimited/)).toBeInTheDocument();
+    });
+
+    it('shows Default badge for default key', () => {
+      mockMapConfig.getApiKeys.mockReturnValue([
+        {
+          id: 'key-1',
+          provider: 'google',
+          apiKey: 'AIza123456789',
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+
+      render(<MapApiKeyManager />);
+      expect(screen.getByText(/map\.default|Default/)).toBeInTheDocument();
+    });
+
+    it('shows label when key has label', () => {
+      mockMapConfig.getApiKeys.mockReturnValue([
+        {
+          id: 'key-1',
+          provider: 'google',
+          apiKey: 'AIza123456789',
+          isDefault: false,
+          createdAt: new Date().toISOString(),
+          label: 'Production',
+        },
+      ]);
+
+      render(<MapApiKeyManager />);
+      expect(screen.getByText('(Production)')).toBeInTheDocument();
+    });
+
+    it('displays monthly quota progress', () => {
+      mockMapConfig.getApiKeys.mockReturnValue([
+        {
+          id: 'key-1',
+          provider: 'google',
+          apiKey: 'AIza123456789',
+          isDefault: false,
+          createdAt: new Date().toISOString(),
+          quota: {
+            monthly: 10000,
+            used: 3000,
+          },
+        },
+      ]);
+
+      render(<MapApiKeyManager />);
+      expect(screen.getByTestId('progress')).toBeInTheDocument();
+      expect(screen.getByText(/3000/)).toBeInTheDocument();
     });
   });
 
@@ -358,19 +412,26 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789abcdef',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
 
       render(<MapApiKeyManager />);
 
-      // Find the visibility toggle button (ghost variant with size icon)
       const buttons = screen.getAllByRole('button');
       const visibilityButton = buttons.find(
         (btn) => btn.getAttribute('data-size') === 'icon'
       );
 
       expect(visibilityButton).toBeDefined();
+
+      if (visibilityButton) {
+        await act(async () => {
+          fireEvent.click(visibilityButton);
+        });
+        // After clicking, the key should be visible (full text shown)
+        expect(screen.getByText('AIza123456789abcdef')).toBeInTheDocument();
+      }
     });
   });
 
@@ -387,21 +448,24 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
 
       render(<MapApiKeyManager />);
 
-      // Find and click copy button
       const buttons = screen.getAllByRole('button');
-      const copyButton = buttons.find(
+      const copyButton = buttons.filter(
         (btn) => btn.getAttribute('data-size') === 'icon'
-      );
+      )[1]; // Second icon button is copy
 
       if (copyButton) {
         await act(async () => {
           fireEvent.click(copyButton);
+        });
+
+        await waitFor(() => {
+          expect(mockClipboard.writeText).toHaveBeenCalledWith('AIza123456789');
         });
       }
     });
@@ -418,7 +482,7 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
 
@@ -441,12 +505,13 @@ describe('MapApiKeyManager', () => {
     it('shows add key form when add button clicked', async () => {
       render(<MapApiKeyManager />);
 
-      const addButtons = screen.getAllByRole('button'); const addButton = addButtons.find(btn => btn.textContent?.includes('Add API Key') || btn.textContent?.includes('addApiKey')); if (!addButton) return;
+      const addButtons = screen.getAllByRole('button');
+      const addButton = addButtons.find(btn => btn.textContent?.includes('Add API Key') || btn.textContent?.includes('addApiKey'));
+      if (!addButton) return;
       await act(async () => {
         fireEvent.click(addButton);
       });
 
-      // Form should appear
       expect(screen.getByTestId('select')).toBeInTheDocument();
     });
 
@@ -461,7 +526,6 @@ describe('MapApiKeyManager', () => {
         });
       }
 
-      // Find and click save/add button
       const buttons1 = screen.getAllByRole('button');
       const addKeyBtn1 = buttons1.find(btn => btn.textContent?.includes('Add Key') || btn.textContent?.includes('addKey'));
       if (addKeyBtn1) {
@@ -486,7 +550,6 @@ describe('MapApiKeyManager', () => {
         });
       }
 
-      // Fill in API key
       const inputs = screen.getAllByTestId('input');
       const apiKeyInput = inputs.find((input) => input.getAttribute('type') === 'password');
 
@@ -544,6 +607,58 @@ describe('MapApiKeyManager', () => {
 
       expect(mockToast.error).toHaveBeenCalled();
     });
+
+    it('fills label and quota fields in add form', async () => {
+      mockMapConfig.addApiKey.mockReturnValue('key-new');
+
+      render(<MapApiKeyManager />);
+
+      const addButtons = screen.getAllByRole('button');
+      const addButton = addButtons.find(btn => btn.textContent?.includes('Add API Key') || btn.textContent?.includes('addApiKey'));
+      if (addButton) {
+        await act(async () => { fireEvent.click(addButton); });
+      }
+
+      const inputs = screen.getAllByTestId('input');
+      const apiKeyInput = inputs.find((input) => input.getAttribute('type') === 'password');
+      const labelInput = inputs.find((input) => input.getAttribute('placeholder')?.includes('Production') || input.getAttribute('placeholder')?.includes('labelPlaceholder'));
+      const dailyInput = inputs.find((input) => input.getAttribute('placeholder') === '1000');
+      const monthlyInput = inputs.find((input) => input.getAttribute('placeholder') === '30000');
+
+      if (apiKeyInput) fireEvent.change(apiKeyInput, { target: { value: 'test-key-456' } });
+      if (labelInput) fireEvent.change(labelInput, { target: { value: 'My Label' } });
+      if (dailyInput) fireEvent.change(dailyInput, { target: { value: '500' } });
+      if (monthlyInput) fireEvent.change(monthlyInput, { target: { value: '15000' } });
+
+      const allButtons = screen.getAllByRole('button');
+      const addKeyButton = allButtons.find(btn => btn.textContent?.includes('Add Key') || btn.textContent?.includes('addKey'));
+      if (addKeyButton) {
+        await act(async () => { fireEvent.click(addKeyButton); });
+      }
+
+      await waitFor(() => {
+        expect(mockMapConfig.addApiKey).toHaveBeenCalledWith(expect.objectContaining({
+          apiKey: 'test-key-456',
+          label: 'My Label',
+          quota: expect.objectContaining({ daily: 500, monthly: 15000 }),
+        }));
+      });
+    });
+
+    it('closes add form when cancel is clicked', async () => {
+      render(<MapApiKeyManager />);
+
+      const addButtons = screen.getAllByRole('button');
+      const addButton = addButtons.find(btn => btn.textContent?.includes('Add API Key') || btn.textContent?.includes('addApiKey'));
+      if (addButton) {
+        await act(async () => { fireEvent.click(addButton); });
+      }
+
+      const cancelButton = screen.getAllByRole('button').find(btn =>
+        btn.textContent?.includes('Cancel') || btn.textContent?.includes('cancel')
+      );
+      expect(cancelButton).toBeDefined();
+    });
   });
 
   describe('Delete API Key', () => {
@@ -554,14 +669,13 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
       mockMapConfig.removeApiKey.mockReturnValue(undefined);
 
       render(<MapApiKeyManager />);
 
-      // Find and click delete action button
       const deleteAction = screen.getByTestId('alert-dialog-action');
       await act(async () => {
         fireEvent.click(deleteAction);
@@ -580,7 +694,7 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
       mockMapConfig.removeApiKey.mockImplementation(() => {
@@ -606,7 +720,7 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
       mockMapConfig.setDefaultApiKey.mockReturnValue(undefined);
@@ -631,19 +745,59 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: true,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
 
       render(<MapApiKeyManager />);
 
-      // Set Default button should not be present for default key
       const buttons = screen.getAllByRole('button');
       const setDefaultButton = buttons.find(
         (btn) => btn.textContent?.includes('Set Default')
       );
 
       expect(setDefaultButton).toBeUndefined();
+    });
+
+    it('shows error toast when setDefault fails', async () => {
+      mockMapConfig.getApiKeys.mockReturnValue([
+        {
+          id: 'key-1',
+          provider: 'google',
+          apiKey: 'AIza123456789',
+          isDefault: false,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      mockMapConfig.setDefaultApiKey.mockImplementation(() => {
+        throw new Error('Set default failed');
+      });
+
+      render(<MapApiKeyManager />);
+
+      const setDefaultButton = screen.getByText(/map\.setDefault|Set Default/);
+      await act(async () => {
+        fireEvent.click(setDefaultButton);
+      });
+
+      expect(mockToast.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('Configuration Listener', () => {
+    it('subscribes to configuration changes on mount', () => {
+      render(<MapApiKeyManager />);
+      expect(mockMapConfig.addConfigurationListener).toHaveBeenCalled();
+    });
+
+    it('unsubscribes from configuration changes on unmount', () => {
+      const unsubscribe = jest.fn();
+      mockMapConfig.addConfigurationListener.mockReturnValue(unsubscribe);
+
+      const { unmount } = render(<MapApiKeyManager />);
+      unmount();
+
+      expect(unsubscribe).toHaveBeenCalled();
     });
   });
 
@@ -692,7 +846,7 @@ describe('MapApiKeyManager', () => {
           provider: 'google',
           apiKey: 'AIza123456789',
           isDefault: false,
-        createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         },
       ]);
       mockMapConfig.removeApiKey.mockReturnValue(undefined);

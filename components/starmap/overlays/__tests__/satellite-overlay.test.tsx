@@ -47,7 +47,13 @@ jest.mock('@/components/ui/badge', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => <span data-testid="badge">{children}</span>,
 }));
 
-import { SatelliteOverlay } from '../satellite-overlay';
+import { SatelliteOverlay, SatelliteTrail } from '../satellite-overlay';
+
+// Mock useBatchProjection
+let mockPositions: Array<{ item: { id: string; name: string; noradId: number; type: string; altitude: number; velocity: number; ra: number; dec: number; isVisible: boolean }; x: number; y: number; visible: boolean }> = [];
+jest.mock('@/lib/hooks', () => ({
+  useBatchProjection: () => mockPositions,
+}));
 
 describe('SatelliteOverlay', () => {
   const defaultProps = {
@@ -58,11 +64,53 @@ describe('SatelliteOverlay', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPositions = [];
+    mockUseSatelliteStore.mockImplementation((selector) => {
+      const state = {
+        satellites: [],
+        trackedSatellites: [],
+        showSatellites: true,
+        showLabels: true,
+        showOrbits: false,
+      };
+      return selector ? selector(state) : state;
+    });
   });
 
   it('renders without crashing', () => {
     const { container } = render(<SatelliteOverlay {...defaultProps} />);
     expect(container).toBeInTheDocument();
+  });
+
+  it('returns null when showSatellites is false', () => {
+    mockUseSatelliteStore.mockImplementation((selector) => {
+      const state = {
+        satellites: [],
+        trackedSatellites: [],
+        showSatellites: false,
+        showLabels: true,
+        showOrbits: false,
+      };
+      return selector ? selector(state) : state;
+    });
+    const { container } = render(<SatelliteOverlay {...defaultProps} />);
+    expect(container.querySelector('svg')).not.toBeInTheDocument();
+  });
+
+  it('returns null when no positions', () => {
+    mockPositions = [];
+    const { container } = render(<SatelliteOverlay {...defaultProps} />);
+    expect(container.querySelector('svg')).not.toBeInTheDocument();
+  });
+
+  it('renders SVG with markers when positions exist', () => {
+    mockPositions = [{
+      item: { id: 'sat1', name: 'ISS', noradId: 25544, type: 'iss', altitude: 400, velocity: 7.66, ra: 10, dec: 20, isVisible: true },
+      x: 100, y: 200, visible: true,
+    }];
+    const { container } = render(<SatelliteOverlay {...defaultProps} />);
+    expect(container.querySelector('svg')).toBeInTheDocument();
+    expect(container.querySelector('.satellite-marker')).toBeInTheDocument();
   });
 
   it('renders with different container sizes', () => {
@@ -77,6 +125,40 @@ describe('SatelliteOverlay', () => {
       <SatelliteOverlay containerWidth={800} containerHeight={600} />
     );
     expect(container).toBeInTheDocument();
+  });
+});
+
+describe('SatelliteTrail', () => {
+  it('returns null when fewer than 2 points', () => {
+    const { container } = render(
+      <SatelliteTrail points={[{ x: 10, y: 10 }]} color="#ff0000" containerWidth={800} containerHeight={600} />
+    );
+    expect(container.querySelector('svg')).not.toBeInTheDocument();
+  });
+
+  it('returns null when 0 points', () => {
+    const { container } = render(
+      <SatelliteTrail points={[]} color="#ff0000" containerWidth={800} containerHeight={600} />
+    );
+    expect(container.querySelector('svg')).not.toBeInTheDocument();
+  });
+
+  it('renders path when 2+ points', () => {
+    const { container } = render(
+      <SatelliteTrail
+        points={[{ x: 10, y: 10 }, { x: 50, y: 50 }, { x: 100, y: 30 }]}
+        color="#ff0000"
+        containerWidth={800}
+        containerHeight={600}
+      />
+    );
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    const path = svg?.querySelector('path');
+    expect(path).toBeInTheDocument();
+    expect(path?.getAttribute('d')).toContain('M 10 10');
+    expect(path?.getAttribute('d')).toContain('L 50 50');
+    expect(path?.getAttribute('d')).toContain('L 100 30');
   });
 });
 

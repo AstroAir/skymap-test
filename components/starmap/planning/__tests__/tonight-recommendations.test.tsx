@@ -167,6 +167,34 @@ describe('TonightRecommendations', () => {
     render(<TonightRecommendations />);
     expect(screen.getByTestId('dialog-header')).toBeInTheDocument();
   });
+
+  it('renders dialog title', () => {
+    render(<TonightRecommendations />);
+    expect(screen.getByTestId('dialog-title')).toBeInTheDocument();
+  });
+
+  it('renders dialog title', () => {
+    render(<TonightRecommendations />);
+    expect(screen.getByTestId('dialog-title')).toBeInTheDocument();
+  });
+
+  it('renders multiple buttons', () => {
+    render(<TonightRecommendations />);
+    const buttons = screen.getAllByTestId('button');
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders multiple buttons', () => {
+    render(<TonightRecommendations />);
+    const buttons = screen.getAllByTestId('button');
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders tooltip components', () => {
+    render(<TonightRecommendations />);
+    const tooltips = screen.getAllByTestId('tooltip');
+    expect(tooltips.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 

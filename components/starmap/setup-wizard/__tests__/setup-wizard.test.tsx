@@ -626,6 +626,184 @@ describe('SetupWizard - additional edge cases', () => {
     });
   });
 
+  describe('keyboard navigation', () => {
+    it('should navigate forward with ArrowRight', async () => {
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        useSetupWizardStore.getState().openWizard();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('location');
+      });
+    });
+
+    it('should navigate backward with ArrowLeft', async () => {
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        useSetupWizardStore.getState().openWizard();
+        useSetupWizardStore.getState().goToStep('location');
+      });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('location');
+      });
+
+      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+      });
+    });
+
+    it('should not navigate with ArrowRight on last step', async () => {
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        useSetupWizardStore.getState().openWizard();
+        useSetupWizardStore.getState().goToStep('complete');
+      });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('complete');
+      });
+
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+
+      expect(useSetupWizardStore.getState().currentStep).toBe('complete');
+    });
+
+    it('should not navigate with ArrowLeft on first step', async () => {
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        useSetupWizardStore.getState().openWizard();
+      });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+      });
+
+      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+
+      expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+    });
+
+    it('should not navigate when focus is on an input element', async () => {
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        useSetupWizardStore.getState().openWizard();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      const inputEl = document.createElement('input');
+      document.body.appendChild(inputEl);
+      inputEl.focus();
+
+      // Dispatch native KeyboardEvent from the input so the handler sees target.tagName === 'INPUT'
+      act(() => {
+        inputEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+
+      expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+
+      document.body.removeChild(inputEl);
+    });
+  });
+
+  describe('step indicator click navigation', () => {
+    it('should navigate to a completed step when clicking its indicator', async () => {
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        useSetupWizardStore.getState().openWizard();
+        useSetupWizardStore.getState().markStepCompleted('welcome');
+        useSetupWizardStore.getState().goToStep('location');
+      });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('location');
+      });
+
+      const tabs = screen.getAllByRole('tab');
+      fireEvent.click(tabs[0]);
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+      });
+    });
+
+    it('should not navigate to a future uncompleted step', async () => {
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        useSetupWizardStore.getState().openWizard();
+      });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+      });
+
+      const tabs = screen.getAllByRole('tab');
+      const lastTab = tabs[tabs.length - 1];
+      fireEvent.click(lastTab);
+
+      expect(useSetupWizardStore.getState().currentStep).toBe('welcome');
+    });
+  });
+
+  describe('auto-open behavior', () => {
+    it('should auto-open for first-time users after delay', async () => {
+      jest.useFakeTimers();
+
+      renderWithIntl(<SetupWizard />);
+
+      expect(useSetupWizardStore.getState().isOpen).toBe(false);
+
+      act(() => {
+        jest.advanceTimersByTime(900);
+      });
+
+      await waitFor(() => {
+        expect(useSetupWizardStore.getState().isOpen).toBe(true);
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('should not auto-open if setup is already completed', async () => {
+      jest.useFakeTimers();
+
+      act(() => {
+        useSetupWizardStore.getState().completeSetup();
+      });
+
+      renderWithIntl(<SetupWizard />);
+
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+
+      expect(useSetupWizardStore.getState().isOpen).toBe(false);
+
+      jest.useRealTimers();
+    });
+  });
+
   describe('dialog open change', () => {
     it('should close wizard when dialog is closed externally', async () => {
       renderWithIntl(<SetupWizard />);

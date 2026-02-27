@@ -291,6 +291,12 @@ export function DailyKnowledgeDialog() {
               <div className="flex flex-wrap items-start gap-2">
                 <h3 className="text-xl font-semibold">{effectiveItem.title}</h3>
                 <Badge variant="secondary">{t(`dailyKnowledge.sourceBadge.${effectiveItem.source}`)}</Badge>
+                {effectiveItem.isDateEvent && (
+                  <Badge>{t('dailyKnowledge.eventOfToday')}</Badge>
+                )}
+                <Badge variant={effectiveItem.languageStatus === 'native' ? 'outline' : 'default'}>
+                  {t(`dailyKnowledge.languageStatus.${effectiveItem.languageStatus}`)}
+                </Badge>
                 {effectiveItem.categories.map((category) => (
                   <Badge key={category} variant="outline">
                     {t(`dailyKnowledge.categoryBadge.${category}`)}
@@ -298,6 +304,9 @@ export function DailyKnowledgeDialog() {
                 ))}
               </div>
               <p className="text-sm text-muted-foreground">{effectiveItem.summary}</p>
+              {effectiveItem.languageStatus === 'fallback' && (
+                <p className="text-xs text-muted-foreground">{t('dailyKnowledge.fallbackNotice')}</p>
+              )}
               <ScrollArea className="h-64 rounded-md border p-3">
                 <p className="text-sm leading-6 whitespace-pre-wrap">{effectiveItem.body}</p>
               </ScrollArea>
@@ -344,6 +353,29 @@ export function DailyKnowledgeDialog() {
                 )}
                 {effectiveItem.attribution.licenseName && (
                   <p className="text-muted-foreground">{effectiveItem.attribution.licenseName}</p>
+                )}
+              </div>
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">{t('dailyKnowledge.factSources')}</p>
+                {effectiveItem.factSources.length === 0 && (
+                  <p className="text-xs text-muted-foreground">{t('dailyKnowledge.noFactSources')}</p>
+                )}
+                {effectiveItem.factSources.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {effectiveItem.factSources.map((source, index) => (
+                      <li key={`${effectiveItem.id}-source-${index}`} className="leading-5">
+                        <span>{source.publisher}: </span>
+                        <a
+                          href={source.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline underline-offset-2"
+                        >
+                          {source.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">

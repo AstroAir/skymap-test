@@ -285,4 +285,53 @@ describe('TourTooltip', () => {
       expect(tooltip).toBeInTheDocument();
     });
   });
+
+  it('should hide Skip button when showSkip is false even if not last step', async () => {
+    const noSkipStep = { ...mockStep, showSkip: false };
+    render(<TourTooltip {...defaultProps} step={noSkipStep} isLast={false} />);
+
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    await waitFor(() => {
+      // Skip button with SkipForward icon should not be present
+      const skipButtons = screen.queryAllByText('Skip');
+      // The close X button also has aria-label "Skip", so filter to the text-only skip button
+      const footerSkip = skipButtons.filter(
+        (el) => el.closest('button')?.querySelector('svg.lucide-skip-forward'),
+      );
+      expect(footerSkip.length).toBe(0);
+    });
+  });
+
+  it('should display correct step number badge', async () => {
+    render(<TourTooltip {...defaultProps} currentIndex={4} totalSteps={10} />);
+
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    await waitFor(() => {
+      // Badge shows currentIndex + 1
+      expect(screen.getByText('5')).toBeInTheDocument();
+      expect(screen.getByText('5 of 10')).toBeInTheDocument();
+    });
+  });
+
+  it('should call onNext when Finish button is clicked on last step', async () => {
+    const onNext = jest.fn();
+    render(<TourTooltip {...defaultProps} onNext={onNext} isLast={true} />);
+
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Finish')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Finish'));
+    expect(onNext).toHaveBeenCalled();
+  });
 });

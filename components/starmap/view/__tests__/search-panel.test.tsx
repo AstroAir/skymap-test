@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 jest.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 jest.mock('@/components/ui/button', () => ({ Button: ({ children, ...props }: React.PropsWithChildren) => <button {...props}>{children}</button> }));
@@ -28,7 +28,74 @@ jest.mock('@/components/starmap/search/online-search-settings', () => ({ OnlineS
 import { SearchPanel } from '../search-panel';
 
 describe('SearchPanel', () => {
-  it('renders without crashing', () => {
+  it('renders without crashing when open', () => {
     render(<SearchPanel isOpen={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+  });
+
+  it('renders StellariumSearch by default', () => {
+    render(<SearchPanel isOpen={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+    expect(screen.getByTestId('stellarium-search')).toBeInTheDocument();
+  });
+
+  it('calls onClose when close button is clicked', () => {
+    const onClose = jest.fn();
+    render(<SearchPanel isOpen={true} onClose={onClose} onSelect={jest.fn()} />);
+    // Close button is the last button (X icon)
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[buttons.length - 1]);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows favorites panel when favorites button is clicked', () => {
+    render(<SearchPanel isOpen={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+    // First button is favorites (Star icon)
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[0]);
+    // StellariumSearch should no longer be visible
+    expect(screen.queryByTestId('stellarium-search')).not.toBeInTheDocument();
+  });
+
+  it('shows settings panel when settings button is clicked', () => {
+    render(<SearchPanel isOpen={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+    // Second button is settings (Settings2 icon)
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[1]);
+    expect(screen.queryByTestId('stellarium-search')).not.toBeInTheDocument();
+  });
+
+  it('toggles favorites off when clicked again', () => {
+    render(<SearchPanel isOpen={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+    const buttons = screen.getAllByRole('button');
+    // Click favorites on
+    fireEvent.click(buttons[0]);
+    expect(screen.queryByTestId('stellarium-search')).not.toBeInTheDocument();
+    // Click favorites off
+    fireEvent.click(buttons[0]);
+    expect(screen.getByTestId('stellarium-search')).toBeInTheDocument();
+  });
+
+  it('favorites and settings are mutually exclusive', () => {
+    render(<SearchPanel isOpen={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+    const buttons = screen.getAllByRole('button');
+    // Open favorites
+    fireEvent.click(buttons[0]);
+    // Open settings (should close favorites)
+    fireEvent.click(buttons[1]);
+    // Close settings
+    fireEvent.click(buttons[1]);
+    // Should be back to search
+    expect(screen.getByTestId('stellarium-search')).toBeInTheDocument();
+  });
+
+  it('displays search title', () => {
+    render(<SearchPanel isOpen={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+    expect(screen.getByText('starmap.searchObjects')).toBeInTheDocument();
+  });
+
+  it('applies closed styles when isOpen is false', () => {
+    const { container } = render(<SearchPanel isOpen={false} onClose={jest.fn()} onSelect={jest.fn()} />);
+    // When closed, should have pointer-events-none class
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toContain('pointer-events-none');
   });
 });

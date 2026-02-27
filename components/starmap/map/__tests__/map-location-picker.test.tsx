@@ -38,8 +38,8 @@ jest.mock('sonner', () => ({
 
 // Mock UI components
 jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, variant, size, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => (
-    <button onClick={onClick} disabled={disabled} data-variant={variant} data-size={size} {...props}>{children}</button>
+  Button: ({ children, onClick, disabled, variant, size, title, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => (
+    <button onClick={onClick} disabled={disabled} data-variant={variant} data-size={size} title={title} {...props}>{children}</button>
   ),
 }));
 
@@ -70,6 +70,21 @@ jest.mock('@/components/ui/card', () => ({
   CardTitle: ({ children, className }: { children: React.ReactNode; className?: string }) => (
     <h3 data-testid="card-title" className={className}>{children}</h3>
   ),
+}));
+
+jest.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div data-testid="dropdown-menu">{children}</div>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div data-testid="dropdown-menu-content">{children}</div>,
+  DropdownMenuItem: ({ children, onClick, className }: { children: React.ReactNode; onClick?: () => void; className?: string }) => (
+    <button data-testid="dropdown-menu-item" onClick={onClick} className={className}>{children}</button>
+  ),
+  DropdownMenuTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
+    asChild ? <>{children}</> : <div data-testid="dropdown-menu-trigger">{children}</div>
+  ),
+}));
+
+jest.mock('@/components/ui/skeleton', () => ({
+  Skeleton: ({ className }: { className?: string }) => <div data-testid="skeleton" className={className} />,
 }));
 
 import { MapLocationPicker } from '@/components/starmap/map/map-location-picker';
@@ -124,7 +139,6 @@ describe('MapLocationPicker', () => {
 
     it('renders map container', () => {
       render(<MapLocationPicker onLocationChange={mockOnLocationChange} />);
-      // Component uses Leaflet map instead of iframe
       expect(screen.getByTestId('card')).toBeInTheDocument();
     });
 
@@ -149,6 +163,57 @@ describe('MapLocationPicker', () => {
     });
   });
 
+  describe('Compact Mode', () => {
+    it('does not render Card wrapper in compact mode', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} compact />);
+      expect(screen.queryByTestId('card-title')).not.toBeInTheDocument();
+    });
+
+    it('does not render coordinate inputs in compact mode', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} compact />);
+      expect(screen.queryByText(/map\.latitude|Latitude/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/map\.longitude|Longitude/)).not.toBeInTheDocument();
+    });
+
+    it('renders controls in compact mode when showControls is true', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} compact showControls />);
+      expect(screen.getByTestId('dropdown-menu')).toBeInTheDocument();
+    });
+  });
+
+  describe('Controls', () => {
+    it('renders light pollution toggle button when showControls is true', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} showControls />);
+      const lightPollutionBtn = screen.getByTitle(/map\.lightPollution|Light Pollution/);
+      expect(lightPollutionBtn).toBeInTheDocument();
+    });
+
+    it('toggles light pollution on click', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} showControls />);
+      const lightPollutionBtn = screen.getByTitle(/map\.lightPollution|Light Pollution/);
+
+      fireEvent.click(lightPollutionBtn);
+      // After click, variant should change to 'secondary'
+      expect(lightPollutionBtn.getAttribute('data-variant')).toBe('secondary');
+
+      fireEvent.click(lightPollutionBtn);
+      expect(lightPollutionBtn.getAttribute('data-variant')).toBe('ghost');
+    });
+
+    it('renders tile layer dropdown', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} showControls />);
+      expect(screen.getByTestId('dropdown-menu')).toBeInTheDocument();
+    });
+
+    it('changes tile layer when dropdown item is clicked', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} showControls />);
+      const menuItems = screen.getAllByTestId('dropdown-menu-item');
+      expect(menuItems.length).toBeGreaterThan(0);
+
+      fireEvent.click(menuItems[1]); // Click second tile layer option
+    });
+  });
+
   describe('Search Functionality', () => {
     it('performs search when search button clicked', async () => {
       mockGeocode.mockResolvedValue([
@@ -160,10 +225,7 @@ describe('MapLocationPicker', () => {
       const inputs = screen.getAllByTestId('input');
       const searchInput = inputs[0];
 
-      // Enter search query
       fireEvent.change(searchInput, { target: { value: 'Tokyo' } });
-      
-      // Trigger search via Enter key (more reliable than button click)
       fireEvent.keyDown(searchInput, { key: 'Enter' });
 
       await waitFor(() => {
@@ -323,6 +385,22 @@ describe('MapLocationPicker', () => {
         expect(mockOnLocationChange).not.toHaveBeenCalled();
       }
     });
+
+    it('commits coordinate on Enter key', async () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} />);
+
+      const inputs = screen.getAllByTestId('input');
+      const latInput = inputs.find(input => input.getAttribute('min') === '-90');
+
+      if (latInput) {
+        await act(async () => {
+          fireEvent.change(latInput, { target: { value: '45.0' } });
+          fireEvent.keyDown(latInput, { key: 'Enter' });
+        });
+
+        expect(mockOnLocationChange).toHaveBeenCalledWith(expect.objectContaining({ latitude: 45 }));
+      }
+    });
   });
 
   describe('Map Display', () => {
@@ -334,15 +412,40 @@ describe('MapLocationPicker', () => {
         />
       );
 
-      // Component uses Leaflet map, verify card is rendered
       expect(screen.getByTestId('card')).toBeInTheDocument();
     });
 
     it('applies custom height', () => {
       render(<MapLocationPicker onLocationChange={mockOnLocationChange} height={500} />);
 
-      // Verify component renders
       expect(screen.getByTestId('card')).toBeInTheDocument();
+    });
+  });
+
+  describe('External initialLocation sync', () => {
+    it('syncs when initialLocation prop changes', async () => {
+      const { rerender } = render(
+        <MapLocationPicker
+          onLocationChange={mockOnLocationChange}
+          initialLocation={{ latitude: 35.0, longitude: 139.0 }}
+        />
+      );
+
+      rerender(
+        <MapLocationPicker
+          onLocationChange={mockOnLocationChange}
+          initialLocation={{ latitude: 40.0, longitude: -74.0 }}
+        />
+      );
+
+      // The component should eventually sync via setTimeout
+      await waitFor(() => {
+        const inputs = screen.getAllByTestId('input');
+        const latInput = inputs.find(input => input.getAttribute('min') === '-90');
+        if (latInput) {
+          expect(latInput).toHaveValue(40);
+        }
+      });
     });
   });
 

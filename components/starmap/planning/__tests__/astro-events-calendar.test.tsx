@@ -177,6 +177,77 @@ describe('AstroEventsCalendar', () => {
     render(<AstroEventsCalendar />);
     expect(screen.queryByTestId('event-detail-dialog')).not.toBeInTheDocument();
   });
+
+  it('renders today button', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.today')).toBeInTheDocument();
+  });
+
+  it('renders event type filter select', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.allEvents')).toBeInTheDocument();
+  });
+
+  it('renders online status badge', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.online')).toBeInTheDocument();
+  });
+
+  it('renders timezone badge', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText((t) => t.includes('events.timezone') && t.includes('Etc/UTC'))).toBeInTheDocument();
+  });
+
+  it('renders observer coordinates in footer', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('40.71°, -74.01°')).toBeInTheDocument();
+  });
+
+  it('renders no events message when empty', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.noEventsToday')).toBeInTheDocument();
+  });
+
+  it('renders event count in footer', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('0 events.eventsFound')).toBeInTheDocument();
+  });
+
+  it('renders month overview button', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.monthOverview')).toBeInTheDocument();
+  });
+
+  it('renders data sources settings section', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.dataSources')).toBeInTheDocument();
+    expect(screen.getByText('USNO')).toBeInTheDocument();
+    expect(screen.getByText('IMO')).toBeInTheDocument();
+  });
+
+  it('renders astronomical events title in dialog header', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.astronomicalEvents')).toBeInTheDocument();
+  });
+
+  it('renders filter options in select', () => {
+    render(<AstroEventsCalendar />);
+    expect(screen.getByText('events.lunarPhases')).toBeInTheDocument();
+    expect(screen.getByText('events.meteorShowers')).toBeInTheDocument();
+    expect(screen.getByText('events.conjunctions')).toBeInTheDocument();
+    expect(screen.getByText('events.eclipses')).toBeInTheDocument();
+  });
+
+  it('renders navigation buttons for prev/next day', () => {
+    render(<AstroEventsCalendar />);
+    const buttons = screen.getAllByTestId('button');
+    expect(buttons.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('renders current date in header', () => {
+    render(<AstroEventsCalendar />);
+    const today = new Date();
+    const dayStr = today.toLocaleDateString(undefined, { month: 'short', day: 'numeric', weekday: 'short' });
+    expect(screen.getByText(dayStr)).toBeInTheDocument();
+  });
 });
-
-

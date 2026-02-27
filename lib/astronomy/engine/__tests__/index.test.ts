@@ -6,6 +6,7 @@ import {
   computeCoordinates,
   computeEphemeris,
   computeRiseTransitSet,
+  getAstronomyEngine,
   searchPhenomena,
   serializeCacheKey,
 } from '../index';
@@ -96,6 +97,38 @@ describe('astronomy engine integration', () => {
     expect(result.moon.illumination).toBeGreaterThanOrEqual(0);
     expect(result.moon.illumination).toBeLessThanOrEqual(100);
     expect(result.twilight.darknessDuration).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('getAstronomyEngine', () => {
+  it('returns fallback engine in non-Tauri environment', () => {
+    // In test environment (jsdom/node), isTauri() returns false
+    const engine = getAstronomyEngine();
+    expect(engine).toBeDefined();
+    expect(typeof engine.computeCoordinates).toBe('function');
+    expect(typeof engine.computeEphemeris).toBe('function');
+    expect(typeof engine.computeRiseTransitSet).toBe('function');
+    expect(typeof engine.searchPhenomena).toBe('function');
+    expect(typeof engine.computeAlmanac).toBe('function');
+  });
+});
+
+describe('cache hit path', () => {
+  it('returns cached result on second call with same params', async () => {
+    const input = {
+      coordinate: { ra: 10.68470833, dec: 41.26875 },
+      observer: { latitude: 39.9042, longitude: 116.4074, elevation: 50 },
+      date: new Date('2025-03-15T12:00:00Z'),
+      refraction: 'none' as const,
+    };
+
+    const result1 = await computeCoordinates(input);
+    const result2 = await computeCoordinates(input);
+
+    // Both results should be identical (from cache)
+    expect(result1.equatorial.ra).toBe(result2.equatorial.ra);
+    expect(result1.equatorial.dec).toBe(result2.equatorial.dec);
+    expect(result1.horizontal.altitude).toBe(result2.horizontal.altitude);
   });
 });
 

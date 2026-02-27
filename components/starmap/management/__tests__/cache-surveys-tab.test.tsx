@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CacheSurveysTab } from '../cache-surveys-tab';
 
 jest.mock('next-intl', () => ({
@@ -63,7 +63,14 @@ jest.mock('@/components/ui/alert-dialog', () => ({
   AlertDialogCancel: ({ children }: React.PropsWithChildren) => <button>{children}</button>,
 }));
 
+import { offlineCacheManager } from '@/lib/offline';
+const mockCacheManager = offlineCacheManager as jest.Mocked<typeof offlineCacheManager>;
+
 describe('CacheSurveysTab', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('renders survey list', () => {
     render(<CacheSurveysTab isActive={true} />);
     expect(screen.getByText('DSS2')).toBeInTheDocument();
@@ -78,5 +85,82 @@ describe('CacheSurveysTab', () => {
   it('renders without crashing when inactive', () => {
     render(<CacheSurveysTab isActive={false} />);
     expect(screen.getByText('DSS2')).toBeInTheDocument();
+  });
+
+  // 刷新按钮调用 refreshSurveyStatuses
+  it('calls getHiPSCacheStatus when active', async () => {
+    render(<CacheSurveysTab isActive={true} />);
+    await waitFor(() => {
+      expect(mockCacheManager.getHiPSCacheStatus).toHaveBeenCalled();
+    });
+  });
+
+  // 显示缓存状态后的清除按钮
+  it('renders download button for uncached survey', async () => {
+    render(<CacheSurveysTab isActive={true} />);
+    await waitFor(() => {
+      expect(mockCacheManager.getHiPSCacheStatus).toHaveBeenCalled();
+    });
+    // 下载按钮应该存在（survey 未缓存时）
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.length).toBeGreaterThan(0);
+  });
+
+  // 下载 survey - 验证下载按钮存在且可点击
+  it('renders clickable download button for uncached survey', async () => {
+    render(<CacheSurveysTab isActive={true} />);
+    await waitFor(() => {
+      expect(mockCacheManager.getHiPSCacheStatus).toHaveBeenCalled();
+    });
+
+    // 找到下载按钮
+    const buttons = screen.getAllByRole('button');
+    const downloadBtn = buttons.find(b => !b.hasAttribute('disabled') && !b.textContent?.trim());
+    expect(downloadBtn).toBeDefined();
+  });
+
+  // 清除单个 survey 缓存
+  it('renders clear all button when surveys are cached', async () => {
+    mockCacheManager.getHiPSCacheStatus.mockResolvedValue({
+      surveyId: 'test', surveyName: 'Test', surveyUrl: 'http://test', cached: true, cachedTiles: 50, totalTiles: 100, cachedBytes: 5000, estimatedTotalBytes: 10000, cachedOrders: [3], maxCachedOrder: 3,
+    });
+
+    render(<CacheSurveysTab isActive={true} />);
+    await waitFor(() => {
+      expect(mockCacheManager.getHiPSCacheStatus).toHaveBeenCalled();
+    });
+
+    // 缓存后应该有清除按钮和 clear all 触发器
+    await waitFor(() => {
+      expect(screen.getByText('cache.clearAll')).toBeInTheDocument();
+    });
+  });
+
+  // 清除全部 survey 缓存
+  it('calls clearAllHiPSCaches when clear all confirmed', async () => {
+    mockCacheManager.getHiPSCacheStatus.mockResolvedValue({
+      surveyId: 'test', surveyName: 'Test', surveyUrl: 'http://test', cached: true, cachedTiles: 50, totalTiles: 100, cachedBytes: 5000, estimatedTotalBytes: 10000, cachedOrders: [3], maxCachedOrder: 3,
+    });
+
+    render(<CacheSurveysTab isActive={true} />);
+    await waitFor(() => {
+      expect(screen.getByText('cache.clearAll')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('cache.clearAll'));
+    await waitFor(() => {
+      expect(mockCacheManager.clearAllHiPSCaches).toHaveBeenCalled();
+    });
+  });
+
+  // 加载失败显示 toast
+  it('shows error toast when loading fails', async () => {
+    mockCacheManager.getHiPSCacheStatus.mockRejectedValue(new Error('Load failed'));
+    const { toast } = jest.requireMock('sonner') as { toast: { error: jest.Mock } };
+
+    render(<CacheSurveysTab isActive={true} />);
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('cache.loadFailed');
+    });
   });
 });

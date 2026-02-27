@@ -863,6 +863,141 @@ describe('ObjectDetailDrawer', () => {
     });
   });
 
+  describe('Copy Coordinates', () => {
+    it('renders copy button', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('common.copy')).toBeInTheDocument();
+      });
+    });
+
+    it('copies coordinates to clipboard', async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('common.copy')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('common.copy'));
+      });
+
+      expect(writeText).toHaveBeenCalledWith(
+        `RA: ${mockSelectedObject.ra}\nDec: ${mockSelectedObject.dec}`
+      );
+    });
+  });
+
+  describe('Physical Properties', () => {
+    it('displays morphological type', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('SA(s)b')).toBeInTheDocument();
+      });
+    });
+
+    it('displays distance', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('2.537 million light-years')).toBeInTheDocument();
+      });
+    });
+
+    it('hides properties section when no properties available', async () => {
+      const infoWithoutProps = {
+        ...mockObjectInfo,
+        distance: undefined,
+        morphologicalType: undefined,
+        spectralType: undefined,
+      };
+      mockGetCachedObjectInfo.mockResolvedValue(infoWithoutProps);
+      mockEnhanceObjectInfo.mockResolvedValue(infoWithoutProps);
+
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      // Wait for enhanceObjectInfo to complete
+      await waitFor(() => {
+        expect(mockEnhanceObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.queryByText('objectDetail.properties')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Observation Tab Data', () => {
+    it('displays moon distance', async () => {
+      render(
+        <ObjectDetailDrawer
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          selectedObject={mockSelectedObject}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockGetCachedObjectInfo).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText('60°')).toBeInTheDocument();
+    });
+  });
+
   describe('Null Object Handling', () => {
     it('handles null selectedObject gracefully', async () => {
       render(

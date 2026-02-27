@@ -112,4 +112,50 @@ describe('SourceItem', () => {
     render(<SourceItem {...defaultProps} source={customSource} onRemove={jest.fn()} />);
     expect(screen.getByText('common.delete')).toBeInTheDocument();
   });
+
+  it('calls onCheck when check button is clicked', () => {
+    render(<SourceItem {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    // Find the refresh button (first button that isn't the switch)
+    const checkButton = buttons.find(btn => btn.querySelector('.lucide-refresh-cw'));
+    expect(checkButton).toBeDefined();
+    fireEvent.click(checkButton!);
+    expect(defaultProps.onCheck).toHaveBeenCalled();
+  });
+
+  it('calls onEdit when edit button is clicked', () => {
+    render(<SourceItem {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    const editButton = buttons.find(btn => btn.querySelector('.lucide-settings'));
+    expect(editButton).toBeDefined();
+    fireEvent.click(editButton!);
+    expect(defaultProps.onEdit).toHaveBeenCalled();
+  });
+
+  it('disables check button when status is checking', () => {
+    const checkingSource = { ...mockSource, status: 'checking' as const };
+    render(<SourceItem {...defaultProps} source={checkingSource} />);
+    const buttons = screen.getAllByRole('button');
+    const checkButton = buttons.find(btn => btn.querySelector('.lucide-refresh-cw'));
+    expect(checkButton).toBeDisabled();
+  });
+
+  it('renders priority number', () => {
+    render(<SourceItem {...defaultProps} />);
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
+  it('applies opacity when source is disabled', () => {
+    const disabledSource = { ...mockSource, enabled: false };
+    const { container } = render(<SourceItem {...defaultProps} source={disabledSource} />);
+    expect(container.firstChild).toHaveClass('opacity-60');
+  });
+
+  it('calls onRemove when delete action is confirmed for custom source', () => {
+    const mockOnRemove = jest.fn();
+    const customSource = { ...mockSource, builtIn: false };
+    render(<SourceItem {...defaultProps} source={customSource} onRemove={mockOnRemove} />);
+    fireEvent.click(screen.getByText('common.delete'));
+    expect(mockOnRemove).toHaveBeenCalled();
+  });
 });

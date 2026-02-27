@@ -62,8 +62,9 @@ jest.mock('@/lib/tauri/mount-api', () => ({
   },
 }));
 
+const mockIsTauri = jest.fn(() => true);
 jest.mock('@/lib/tauri/app-control-api', () => ({
-  isTauri: jest.fn(() => true),
+  isTauri: () => mockIsTauri(),
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -118,6 +119,7 @@ describe('MountConnectionDialog', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsTauri.mockReturnValue(true);
     mountState = {
       mountInfo: { Connected: false },
       connectionConfig: {
@@ -212,5 +214,276 @@ describe('MountConnectionDialog', () => {
     await waitFor(() => {
       expect(mockConnect).toHaveBeenCalled();
     });
+  });
+
+  it('shows connected state with disconnect button', () => {
+    mountState.mountInfo.Connected = true;
+
+    const { getByTestId, queryByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    // Should NOT show footer (no connect/cancel) in connected state
+    expect(queryByTestId('dialog-footer')).toBeNull();
+    // Should have disconnect button text
+    expect(dialog.textContent).toContain('disconnect');
+  });
+
+  it('calls mountApi.disconnect and resetMountInfo on disconnect click', async () => {
+    mountState.mountInfo.Connected = true;
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    const disconnectBtn = dialog.querySelector('button');
+
+    await act(async () => {
+      fireEvent.click(disconnectBtn!);
+    });
+
+    await waitFor(() => {
+      expect(mockDisconnect).toHaveBeenCalled();
+      expect(mockResetMountInfo).toHaveBeenCalled();
+    });
+  });
+
+  it('handles disconnect error gracefully', async () => {
+    mountState.mountInfo.Connected = true;
+    mockDisconnect.mockRejectedValueOnce(new Error('Disconnect error'));
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    const disconnectBtn = dialog.querySelector('button');
+
+    await act(async () => {
+      fireEvent.click(disconnectBtn!);
+    });
+
+    // Should not throw
+    await waitFor(() => {
+      expect(mockDisconnect).toHaveBeenCalled();
+    });
+  });
+
+  it('cancel button calls onOpenChange(false)', () => {
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const cancelBtn = footer.querySelectorAll('button')[0];
+
+    fireEvent.click(cancelBtn);
+    expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('shows error when isTauri returns false on connect', async () => {
+    mockIsTauri.mockReturnValue(false);
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const connectBtn = footer.querySelectorAll('button')[1];
+
+    await act(async () => {
+      fireEvent.click(connectBtn);
+    });
+
+    // Should show notDesktop error and NOT call mountApi.connect
+    await waitFor(() => {
+      expect(mockConnect).not.toHaveBeenCalled();
+    });
+  });
+
+  it('successful connect calls setCapabilities, applyMountState, and closes dialog', async () => {
+    const capsResult = { canSlew: true };
+    const stateResult = { connected: true, ra: 10, dec: 20 };
+    mockConnect.mockResolvedValueOnce(capsResult);
+    mockGetState.mockResolvedValueOnce(stateResult);
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const connectBtn = footer.querySelectorAll('button')[1];
+
+    await act(async () => {
+      fireEvent.click(connectBtn);
+    });
+
+    await waitFor(() => {
+      expect(mockSetConnectionConfig).toHaveBeenCalled();
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockSetCapabilities).toHaveBeenCalledWith(capsResult);
+      expect(mockGetState).toHaveBeenCalled();
+      expect(mockApplyMountState).toHaveBeenCalledWith(stateResult);
+      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it('handles non-Error exception on connect', async () => {
+    mockConnect.mockRejectedValueOnce('string error');
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const connectBtn = footer.querySelectorAll('button')[1];
+
+    await act(async () => {
+      fireEvent.click(connectBtn);
+    });
+
+    await waitFor(() => {
+      expect(mockConnect).toHaveBeenCalled();
+    });
+  });
+
+  it('simulator protocol is always valid (no host required)', () => {
+    mountState.connectionConfig.protocol = 'simulator';
+    mountState.connectionConfig.host = '';
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const footer = getByTestId('dialog-footer');
+    const connectBtn = footer.querySelectorAll('button')[1];
+    // Simulator protocol should be valid even with empty host
+    expect(connectBtn.disabled).toBeFalsy();
+  });
+
+  it('shows connected protocol label for simulator', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.connectionConfig.protocol = 'simulator';
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    expect(dialog.textContent).toContain('simulator');
+  });
+
+  it('discover button calls mountApi.discover and populates devices', async () => {
+    mountState.connectionConfig.protocol = 'alpaca' as 'simulator';
+    mountState.connectionConfig.host = 'localhost';
+    const mockDevices = [
+      { host: '192.168.1.10', port: 11111, deviceId: 0, deviceName: 'Sim Telescope', deviceType: 'telescope' },
+    ];
+    mockDiscover.mockResolvedValueOnce(mockDevices);
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    // Find the discover button by text content
+    const buttons = dialog.querySelectorAll('button');
+    const discoverBtn = Array.from(buttons).find((b) => b.textContent?.includes('discoverDevices'));
+
+    expect(discoverBtn).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(discoverBtn!);
+    });
+
+    await waitFor(() => {
+      expect(mockDiscover).toHaveBeenCalled();
+    });
+  });
+
+  it('discover with no results does not crash', async () => {
+    mountState.connectionConfig.protocol = 'alpaca' as 'simulator';
+    mountState.connectionConfig.host = 'localhost';
+    mockDiscover.mockResolvedValueOnce([]);
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    const buttons = dialog.querySelectorAll('button');
+    const discoverBtn = Array.from(buttons).find((b) => b.textContent?.includes('discoverDevices'));
+
+    await act(async () => {
+      fireEvent.click(discoverBtn!);
+    });
+
+    await waitFor(() => {
+      expect(mockDiscover).toHaveBeenCalled();
+    });
+  });
+
+  it('discover failure is handled gracefully', async () => {
+    mountState.connectionConfig.protocol = 'alpaca' as 'simulator';
+    mountState.connectionConfig.host = 'localhost';
+    mockDiscover.mockRejectedValueOnce(new Error('Network error'));
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    const buttons = dialog.querySelectorAll('button');
+    const discoverBtn = Array.from(buttons).find((b) => b.textContent?.includes('discoverDevices'));
+
+    await act(async () => {
+      fireEvent.click(discoverBtn!);
+    });
+
+    await waitFor(() => {
+      expect(mockDiscover).toHaveBeenCalled();
+    });
+  });
+
+  it('clicking a discovered device selects it', async () => {
+    mountState.connectionConfig.protocol = 'alpaca' as 'simulator';
+    mountState.connectionConfig.host = 'localhost';
+    const mockDevices = [
+      { host: '10.0.0.5', port: 22222, deviceId: 1, deviceName: 'Remote Mount', deviceType: 'telescope' },
+    ];
+    mockDiscover.mockResolvedValueOnce(mockDevices);
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    const buttons = dialog.querySelectorAll('button');
+    const discoverBtn = Array.from(buttons).find((b) => b.textContent?.includes('discoverDevices'));
+
+    await act(async () => {
+      fireEvent.click(discoverBtn!);
+    });
+
+    await waitFor(() => {
+      expect(mockDiscover).toHaveBeenCalled();
+    });
+
+    // After discovery, a device button should appear with the device name
+    await waitFor(() => {
+      const deviceBtns = dialog.querySelectorAll('button');
+      const deviceBtn = Array.from(deviceBtns).find((b) => b.textContent?.includes('Remote Mount'));
+      expect(deviceBtn).toBeTruthy();
+    });
+
+    // Click the device button
+    const deviceBtns = dialog.querySelectorAll('button');
+    const deviceBtn = Array.from(deviceBtns).find((b) => b.textContent?.includes('Remote Mount'));
+    if (deviceBtn) {
+      await act(async () => {
+        fireEvent.click(deviceBtn);
+      });
+    }
+  });
+
+  it('shows connected host:port label for alpaca', () => {
+    mountState.mountInfo.Connected = true;
+    mountState.connectionConfig.protocol = 'alpaca' as 'simulator';
+    mountState.connectionConfig.host = '192.168.1.100';
+    mountState.connectionConfig.port = 11111;
+
+    const { getByTestId } = render(
+      <MountConnectionDialog open={true} onOpenChange={mockOnOpenChange} />
+    );
+    const dialog = getByTestId('dialog');
+    expect(dialog.textContent).toContain('192.168.1.100:11111');
   });
 });

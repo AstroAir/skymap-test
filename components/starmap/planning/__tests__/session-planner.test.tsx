@@ -224,9 +224,36 @@ describe('SessionPlanner', () => {
     expect(screen.getAllByTestId('session-gap').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'sessionPlanner.optimizationSettings' }));
-    const gapSwitch = screen.getAllByRole('switch')[0];
+    const gapSwitch = screen.getByRole('switch', { name: 'sessionPlanner.showGaps' });
     fireEvent.click(gapSwitch);
 
     expect(screen.queryByTestId('session-gap')).not.toBeInTheDocument();
+  });
+
+  it('renders new constraint controls and allows basic interaction', () => {
+    render(<SessionPlanner />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'sessionPlanner.optimizationSettings' }));
+
+    expect(screen.getByText(/sessionPlanner\.minMoonDistance/)).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-slot=\"slider\"]').length).toBeGreaterThanOrEqual(3);
+
+    const exposureSwitch = screen.getByRole('switch', { name: 'sessionPlanner.useExposurePlanDuration' });
+    fireEvent.click(exposureSwitch);
+    expect(exposureSwitch).toHaveAttribute('aria-checked', 'false');
+
+    const startInput = screen.getByLabelText('sessionPlanner.sessionWindowStart') as HTMLInputElement;
+    const endInput = screen.getByLabelText('sessionPlanner.sessionWindowEnd') as HTMLInputElement;
+    fireEvent.change(startInput, { target: { value: '21:00' } });
+    fireEvent.change(endInput, { target: { value: '03:00' } });
+    expect(startInput.value).toBe('21:00');
+    expect(endInput.value).toBe('03:00');
+
+    const enforceSwitch = screen.getByRole('switch', { name: 'sessionPlanner.enforceMountSafety' });
+    const avoidSwitch = screen.getByRole('switch', { name: 'sessionPlanner.avoidMeridianFlipWindow' });
+    expect(avoidSwitch).toBeDisabled();
+
+    fireEvent.click(enforceSwitch);
+    expect(avoidSwitch).not.toBeDisabled();
   });
 });

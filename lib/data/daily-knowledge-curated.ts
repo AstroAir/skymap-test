@@ -1,4 +1,7 @@
-import type { DailyKnowledgeCategory } from '@/lib/services/daily-knowledge/types';
+import type {
+  DailyKnowledgeCategory,
+  DailyKnowledgeFactSource,
+} from '@/lib/services/daily-knowledge/types';
 
 export interface CuratedLocalizedContent {
   title: string;
@@ -15,6 +18,8 @@ export interface CuratedKnowledgeEntry {
   thumbnailUrl?: string;
   imageType?: 'image' | 'video';
   relatedObjects: Array<{ name: string; ra?: number; dec?: number }>;
+  eventMonthDay?: string;
+  factSources: DailyKnowledgeFactSource[];
   attribution: {
     sourceName: string;
     sourceUrl?: string;
@@ -27,7 +32,168 @@ export interface CuratedKnowledgeEntry {
   };
 }
 
+function fact(title: string, url: string, publisher: string): DailyKnowledgeFactSource {
+  return { title, url, publisher };
+}
+
+function localized(
+  enTitle: string,
+  enSummary: string,
+  enBody: string,
+  zhTitle: string,
+  zhSummary: string,
+  zhBody: string
+): CuratedKnowledgeEntry['localeContent'] {
+  return {
+    en: { title: enTitle, summary: enSummary, body: enBody },
+    zh: { title: zhTitle, summary: zhSummary, body: zhBody },
+  };
+}
+
 export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
+  {
+    id: 'curated-ceres-discovery',
+    categories: ['history', 'event'],
+    tags: ['Ceres', 'asteroid belt'],
+    eventMonthDay: '01-01',
+    externalUrl: 'https://science.nasa.gov/dwarf-planets/ceres/',
+    relatedObjects: [{ name: 'Ceres' }],
+    factSources: [fact('NASA Ceres', 'https://science.nasa.gov/dwarf-planets/ceres/', 'NASA')],
+    attribution: { sourceName: 'NASA Solar System Exploration', sourceUrl: 'https://science.nasa.gov/dwarf-planets/ceres/' },
+    localeContent: localized('January 1, 1801: Ceres Discovery', 'Ceres was first found in the asteroid belt.', 'Ceres moved from planet to dwarf-planet classification and remains key for water-rich early solar-system studies.', '1801年1月1日：谷神星被发现', '谷神星是小行星带首个被发现天体。', '谷神星从“行星”到“矮行星”的分类变化，体现了观测证据如何推动认知更新。'),
+  },
+  {
+    id: 'curated-galileo-jupiter-moons',
+    categories: ['history', 'event', 'object'],
+    tags: ['Jupiter', 'Galilean moons'],
+    eventMonthDay: '01-07',
+    externalUrl: 'https://science.nasa.gov/jupiter/moons/',
+    relatedObjects: [{ name: 'Jupiter' }],
+    factSources: [fact('NASA Jupiter Moons', 'https://science.nasa.gov/jupiter/moons/', 'NASA')],
+    attribution: { sourceName: 'NASA Jupiter Program', sourceUrl: 'https://science.nasa.gov/jupiter/moons/' },
+    localeContent: localized('January 7, 1610: Galileo and Jupiter Moons', 'Galileo observed moons orbiting Jupiter.', 'These observations showed not all celestial bodies orbit Earth and became a turning point in modern astronomy.', '1610年1月7日：伽利略观测木卫', '伽利略记录到卫星绕木星运行。', '木卫观测为“并非万物绕地球转”提供直接证据，是现代天文学的重要转折。'),
+  },
+  {
+    id: 'curated-pale-blue-dot',
+    categories: ['history', 'mission', 'event', 'culture'],
+    tags: ['Voyager 1', 'Pale Blue Dot'],
+    eventMonthDay: '02-14',
+    externalUrl: 'https://science.nasa.gov/mission/voyager/voyager-1/',
+    relatedObjects: [{ name: 'Earth' }],
+    factSources: [fact('NASA Voyager 1', 'https://science.nasa.gov/mission/voyager/voyager-1/', 'NASA')],
+    attribution: { sourceName: 'NASA Voyager', sourceUrl: 'https://science.nasa.gov/mission/voyager/voyager-1/' },
+    localeContent: localized('February 14, 1990: Pale Blue Dot', 'Voyager 1 captured Earth as a tiny pixel.', 'The image is both a scientific record and a cultural reminder of Earth’s small place in cosmic scale.', '1990年2月14日：暗淡蓝点', '旅行者1号把地球拍成微小像素。', '这张照片既是科学观测记录，也让我们直观感受地球在宇宙尺度中的渺小。'),
+  },
+  {
+    id: 'curated-uranus-discovery',
+    categories: ['history', 'event', 'object'],
+    tags: ['Uranus', 'planet discovery'],
+    eventMonthDay: '03-13',
+    externalUrl: 'https://science.nasa.gov/uranus/',
+    relatedObjects: [{ name: 'Uranus' }],
+    factSources: [fact('NASA Uranus', 'https://science.nasa.gov/uranus/', 'NASA')],
+    attribution: { sourceName: 'NASA Planetary Science', sourceUrl: 'https://science.nasa.gov/uranus/' },
+    localeContent: localized('March 13, 1781: Uranus Identified', 'Uranus expanded the known solar system.', 'Uranus was first mistaken for a comet, then confirmed as a planet through orbital analysis.', '1781年3月13日：天王星被确认', '天王星确认扩展了太阳系认知边界。', '它最初被误判为彗星，后通过轨道分析确认为行星，体现了科学分类会随数据更新。'),
+  },
+  {
+    id: 'curated-march-equinox',
+    categories: ['event', 'technique'],
+    tags: ['equinox', 'season'],
+    eventMonthDay: '03-20',
+    externalUrl: 'https://science.nasa.gov/sun/',
+    relatedObjects: [{ name: 'Sun' }],
+    factSources: [fact('NASA Sun Portal', 'https://science.nasa.gov/sun/', 'NASA')],
+    attribution: { sourceName: 'NASA Heliophysics', sourceUrl: 'https://science.nasa.gov/sun/' },
+    localeContent: localized('March Equinox Planning', 'Day and night are nearly equal around this date.', 'Twilight windows change quickly after equinox, so update nightly schedules and target order.', '春分观测规划', '春分前后昼夜时长接近。', '春分后暮光时段变化较快，建议及时调整夜间任务编排与目标优先级。'),
+  },
+  {
+    id: 'curated-yuri-gagarin-flight',
+    categories: ['history', 'mission', 'event'],
+    tags: ['Vostok 1', 'human spaceflight'],
+    eventMonthDay: '04-12',
+    externalUrl: 'https://www.esa.int/About_Us/ESA_history/50_years_of_human_spaceflight',
+    relatedObjects: [{ name: 'Earth' }],
+    factSources: [fact('ESA Human Spaceflight History', 'https://www.esa.int/About_Us/ESA_history/50_years_of_human_spaceflight', 'ESA')],
+    attribution: { sourceName: 'ESA', sourceUrl: 'https://www.esa.int/' },
+    localeContent: localized('April 12, 1961: First Human Orbital Flight', 'Yuri Gagarin completed one Earth orbit.', 'Vostok 1 validated crewed orbital flight and accelerated future mission engineering.', '1961年4月12日：首次载人轨道飞行', '加加林完成绕地一周飞行。', '东方一号验证了载人轨道飞行可行性，为后续航天工程发展打下基础。'),
+  },
+  {
+    id: 'curated-hubble-launch',
+    categories: ['history', 'mission', 'event', 'technique'],
+    tags: ['Hubble', 'space telescope'],
+    eventMonthDay: '04-24',
+    externalUrl: 'https://science.nasa.gov/mission/hubble/',
+    relatedObjects: [{ name: 'Hubble Space Telescope' }],
+    factSources: [fact('NASA Hubble Mission', 'https://science.nasa.gov/mission/hubble/', 'NASA')],
+    attribution: { sourceName: 'NASA Hubble', sourceUrl: 'https://science.nasa.gov/mission/hubble/' },
+    localeContent: localized('April 24, 1990: Hubble Launch', 'Hubble changed high-resolution astronomy.', 'Hubble’s long mission highlighted the value of calibration, servicing, and stable processing pipelines.', '1990年4月24日：哈勃发射', '哈勃改变了高分辨率天文观测。', '哈勃长期任务证明了校准、维护与流程稳定性对科学产出的重要性。'),
+  },
+  {
+    id: 'curated-apollo11-landing',
+    categories: ['history', 'mission', 'event', 'culture'],
+    tags: ['Apollo 11', 'Moon'],
+    eventMonthDay: '07-20',
+    externalUrl: 'https://www.nasa.gov/mission/apollo-11/',
+    relatedObjects: [{ name: 'Moon' }],
+    factSources: [fact('NASA Apollo 11', 'https://www.nasa.gov/mission/apollo-11/', 'NASA')],
+    attribution: { sourceName: 'NASA Apollo', sourceUrl: 'https://www.nasa.gov/mission/apollo-11/' },
+    localeContent: localized('July 20, 1969: Apollo 11 Landing', 'Apollo 11 achieved first crewed lunar landing.', 'Apollo 11 remains a benchmark for navigation, mission operations, and systems engineering at scale.', '1969年7月20日：阿波罗11号登月', '人类首次载人着陆月球。', '阿波罗11号仍是任务导航、系统工程与地面协同的经典标杆。'),
+  },
+  {
+    id: 'curated-voyager2-neptune',
+    categories: ['history', 'mission', 'event', 'object'],
+    tags: ['Voyager 2', 'Neptune'],
+    eventMonthDay: '08-25',
+    externalUrl: 'https://science.nasa.gov/mission/voyager/voyager-2/',
+    relatedObjects: [{ name: 'Neptune' }],
+    factSources: [fact('NASA Voyager 2', 'https://science.nasa.gov/mission/voyager/voyager-2/', 'NASA')],
+    attribution: { sourceName: 'NASA Voyager', sourceUrl: 'https://science.nasa.gov/mission/voyager/voyager-2/' },
+    localeContent: localized('August 25, 1989: Voyager 2 at Neptune', 'Voyager 2 is the only close flyby of Neptune.', 'The flyby revealed atmospheric dynamics and Triton activity still used in outer-planet mission studies.', '1989年8月25日：旅行者2号飞掠海王星', '这是唯一一次海王星近距离飞掠。', '该任务揭示了海王星大气与海卫一活动，对外行星任务论证影响深远。'),
+  },
+  {
+    id: 'curated-september-equinox',
+    categories: ['event', 'technique'],
+    tags: ['equinox', 'night planning'],
+    eventMonthDay: '09-23',
+    externalUrl: 'https://www.timeanddate.com/astronomy/seasons-explained.html',
+    relatedObjects: [{ name: 'Sun' }],
+    factSources: [fact('Seasons Explained', 'https://www.timeanddate.com/astronomy/seasons-explained.html', 'timeanddate.com')],
+    attribution: { sourceName: 'timeanddate.com', sourceUrl: 'https://www.timeanddate.com/' },
+    localeContent: localized('September Equinox Night Shift', 'Nights lengthen in many northern locations.', 'Earlier darkness improves long-session flexibility. Recheck meridian-flip and dew-control timing.', '秋分后夜间窗口增加', '北半球多数地区入夜更早。', '夜长增加有利于长时段拍摄，建议复核翻转与防露计划。'),
+  },
+  {
+    id: 'curated-sputnik-launch',
+    categories: ['history', 'mission', 'event'],
+    tags: ['Sputnik 1', 'satellite'],
+    eventMonthDay: '10-04',
+    externalUrl: 'https://www.nasa.gov/history/55-years-ago-sputnik-launched/',
+    relatedObjects: [{ name: 'Earth' }],
+    factSources: [fact('NASA Sputnik History', 'https://www.nasa.gov/history/55-years-ago-sputnik-launched/', 'NASA')],
+    attribution: { sourceName: 'NASA History Office', sourceUrl: 'https://www.nasa.gov/history/' },
+    localeContent: localized('October 4, 1957: Sputnik 1', 'Sputnik 1 marked the start of the space age.', 'Sputnik proved practical orbital launch capability and accelerated global satellite tracking.', '1957年10月4日：斯普特尼克1号', '通常被视为航天时代开端。', '该任务证明了轨道发射能力，并推动了全球卫星跟踪体系建设。'),
+  },
+  {
+    id: 'curated-leonids-peak',
+    categories: ['event', 'technique'],
+    tags: ['Leonids', 'meteor shower'],
+    eventMonthDay: '11-17',
+    externalUrl: 'https://www.imo.net/members/imo_live_shower?shower=LEO',
+    relatedObjects: [{ name: 'Leo' }],
+    factSources: [fact('IMO Leonids', 'https://www.imo.net/members/imo_live_shower?shower=LEO', 'IMO')],
+    attribution: { sourceName: 'International Meteor Organization', sourceUrl: 'https://www.imo.net/' },
+    localeContent: localized('Leonids Active Window', 'Leonids can produce fast meteors and bursts.', 'Use wide lenses, dark skies, and continuous capture for better meteor yield.', '狮子座流星雨活跃窗口', '狮子座流星速度快且偶有增强。', '建议广角连拍并选择暗空地，提高整夜有效流星轨迹捕获概率。'),
+  },
+  {
+    id: 'curated-geminids-peak',
+    categories: ['event', 'technique'],
+    tags: ['Geminids', 'meteor shower'],
+    eventMonthDay: '12-14',
+    externalUrl: 'https://www.imo.net/members/imo_live_shower?shower=GEM',
+    relatedObjects: [{ name: 'Gemini' }],
+    factSources: [fact('IMO Geminids', 'https://www.imo.net/members/imo_live_shower?shower=GEM', 'IMO')],
+    attribution: { sourceName: 'International Meteor Organization', sourceUrl: 'https://www.imo.net/' },
+    localeContent: localized('Geminids Reliable Peak', 'Geminids are often one of the strongest annual showers.', 'Stable tripods and wide-field continuous capture improve result consistency.', '双子座流星雨高可靠峰值', '双子座常是全年高流量流星雨。', '使用稳定脚架和广角连拍可提高流星素材的获取稳定性。'),
+  },
   {
     id: 'curated-andromeda-distance',
     categories: ['object', 'history'],
@@ -37,24 +203,14 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     thumbnailUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/M31bobo.jpg/640px-M31bobo.jpg',
     imageType: 'image',
     relatedObjects: [{ name: 'M31', ra: 10.6847, dec: 41.2687 }],
+    factSources: [fact('SEDS M31', 'https://messier.seds.org/m/m031.html', 'SEDS')],
     attribution: {
       sourceName: 'SEDS / Wikimedia Commons',
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:M31bobo.jpg',
       licenseName: 'CC BY-SA 3.0',
       licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
     },
-    localeContent: {
-      en: {
-        title: 'Andromeda Is A Time Machine',
-        summary: 'When you observe M31, you are seeing light that left about 2.5 million years ago.',
-        body: 'Andromeda (M31) is the nearest large spiral galaxy to the Milky Way. Its distance means every photon you see began its trip long before modern humans. Deep exposure reveals dust lanes and star-forming regions that are ideal for small telescope astrophotography.',
-      },
-      zh: {
-        title: '仙女座星系是一台时间机器',
-        summary: '观测 M31 时，你看到的是大约 250 万年前发出的光。',
-        body: '仙女座星系（M31）是离银河系最近的大型旋涡星系。由于距离极远，我们观测到的是非常古老的光。长时间曝光可清晰呈现其尘埃带与恒星形成区，是小口径设备常见的深空摄影目标。',
-      },
-    },
+    localeContent: localized('Andromeda Is A Time Machine', 'M31 light left about 2.5 million years ago.', 'Andromeda is a cornerstone deep-sky target for long integrations that reveal dust lanes and star-forming regions.', '仙女座星系是一台时间机器', 'M31 的光约在 250 万年前发出。', 'M31 是深空摄影经典目标，长曝光可呈现尘埃带和恒星形成区细节。'),
   },
   {
     id: 'curated-orion-nebula-hii',
@@ -65,23 +221,13 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     thumbnailUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg/640px-Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg',
     imageType: 'image',
     relatedObjects: [{ name: 'M42', ra: 83.8221, dec: -5.3911 }],
+    factSources: [fact('SEDS M42', 'https://messier.seds.org/m/m042.html', 'SEDS')],
     attribution: {
       sourceName: 'NASA/ESA Hubble',
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg',
       licenseName: 'Public domain',
     },
-    localeContent: {
-      en: {
-        title: 'Why Orion Nebula Is Bright In Narrowband',
-        summary: 'M42 is a classic H II emission region with strong hydrogen and oxygen lines.',
-        body: 'Orion Nebula is energized by young hot stars in the Trapezium cluster. Hydrogen-alpha and doubly ionized oxygen emissions make it a perfect target for narrowband filters. Capture short and long exposures to preserve both the bright core and faint outer wings.',
-      },
-      zh: {
-        title: '为什么 M42 在窄带下如此出色',
-        summary: 'M42 是典型 H II 发射星云，氢与氧发射线都非常明显。',
-        body: '猎户座大星云由梯形星团中的高温年轻恒星电离。其 Hα 与 OIII 发射使其非常适合窄带拍摄。建议同时拍摄短曝与长曝，再进行 HDR 合成，兼顾核心和外围细节。',
-      },
-    },
+    localeContent: localized('Why Orion Nebula Is Bright In Narrowband', 'M42 has strong hydrogen and oxygen emission lines.', 'Use mixed short and long exposures to retain bright core detail and faint outer wings.', '为什么 M42 在窄带下表现突出', 'M42 的氢氧发射线都很明显。', '建议短曝与长曝结合，以兼顾核心细节和外围暗弱结构。'),
   },
   {
     id: 'curated-jupiter-great-red-spot',
@@ -92,23 +238,13 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     thumbnailUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Jupiter.jpg/640px-Jupiter.jpg',
     imageType: 'image',
     relatedObjects: [{ name: 'Jupiter' }],
+    factSources: [fact('NASA Jupiter', 'https://science.nasa.gov/jupiter/', 'NASA')],
     attribution: {
       sourceName: 'NASA/JPL',
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:Jupiter.jpg',
       licenseName: 'Public domain',
     },
-    localeContent: {
-      en: {
-        title: 'Jupiter’s Great Red Spot Is A Long-Lived Storm',
-        summary: 'The Great Red Spot has been observed for centuries, though it is shrinking.',
-        body: 'Jupiter rotates rapidly, so planetary imaging relies on short video captures and stacking. The Great Red Spot changes in size and color over time. Even modest telescopes can reveal cloud belts, moon transits, and shadow events under stable seeing.',
-      },
-      zh: {
-        title: '木星大红斑是一场“长寿风暴”',
-        summary: '大红斑已被观测数百年，但尺寸正逐渐缩小。',
-        body: '木星自转很快，行星摄影通常采用短视频叠加。大红斑的大小与颜色会随时间变化。在视宁度良好时，中小口径也能看到木星云带、卫星凌日与影子凌日等现象。',
-      },
-    },
+    localeContent: localized('Jupiter Great Red Spot Is Long-Lived', 'The Great Red Spot has been tracked for centuries.', 'Short video capture plus stacking is the common path for stable planetary detail extraction.', '木星大红斑是长期风暴系统', '大红斑已被持续观测数百年。', '行星摄影通常采用短视频叠加，在稳定视宁度下更容易提取细节。'),
   },
   {
     id: 'curated-pleiades-blue-dust',
@@ -119,65 +255,135 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     thumbnailUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Pleiades_large.jpg/640px-Pleiades_large.jpg',
     imageType: 'image',
     relatedObjects: [{ name: 'M45', ra: 56.75, dec: 24.1167 }],
+    factSources: [fact('SEDS M45', 'https://messier.seds.org/m/m045.html', 'SEDS')],
     attribution: {
       sourceName: 'NOIRLab / Wikimedia Commons',
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:Pleiades_large.jpg',
       licenseName: 'CC BY 4.0',
       licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
     },
-    localeContent: {
-      en: {
-        title: 'Pleiades Dust Is Reflection, Not Emission',
-        summary: 'The blue glow around M45 is starlight scattered by dust.',
-        body: 'Unlike emission nebulae, the Pleiades nebulosity shines because dust reflects blue starlight from hot stars. This makes broadband imaging especially effective. Good calibration frames and careful gradient control are key to preserving faint dust structures.',
-      },
-      zh: {
-        title: '昴星团蓝色星云是反射而非发射',
-        summary: 'M45 周围蓝色辉光来自尘埃对恒星光的散射。',
-        body: '与发射星云不同，昴星团星云主要靠反射高温恒星的蓝光发亮，因此宽带拍摄效果很好。为了保留暗弱尘埃细节，需要重视平场与背景梯度处理。',
-      },
-    },
+    localeContent: localized('Pleiades Dust Is Reflection', 'M45 blue glow is reflected starlight.', 'Broadband imaging works well, but flats and gradient control are essential for faint dust structure.', '昴星团蓝色辉光属于反射星云', 'M45 蓝色外观主要来自恒星光反射。', '宽带拍摄效果好，但要保留暗弱尘埃需要高质量平场和梯度处理。'),
   },
   {
     id: 'curated-transit-and-altitude',
     categories: ['technique', 'event'],
-    tags: ['transit', 'altitude', 'seeing'],
+    tags: ['transit', 'altitude', 'airmass'],
     relatedObjects: [{ name: 'Polaris' }],
-    attribution: {
-      sourceName: 'SkyMap Curated',
-    },
-    localeContent: {
-      en: {
-        title: 'Plan Around Transit For Better Results',
-        summary: 'Targets near transit are highest in the sky and usually cleaner to image.',
-        body: 'When a target crosses the local meridian, air mass is minimized and atmospheric dispersion is reduced. Use transit-centered windows for deep-sky sessions, and place short calibration or refocus blocks before and after the peak altitude period.',
-      },
-      zh: {
-        title: '围绕中天安排拍摄更稳妥',
-        summary: '目标接近中天时高度最高，通常画质更稳定。',
-        body: '目标通过本地子午线时，大气质量数最小，色散也更低。深空拍摄可将核心曝光窗口放在中天附近，把校准与重新对焦安排在中天前后，提高整体成片率。',
-      },
-    },
+    factSources: [fact('Air Mass (astronomy)', 'https://en.wikipedia.org/wiki/Air_mass_(astronomy)', 'Wikipedia')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Air_mass_(astronomy)' },
+    localeContent: localized('Plan Around Transit', 'Targets near transit often provide cleaner data.', 'At transit, airmass is low. Place key exposures near this window and move support tasks elsewhere.', '围绕中天安排拍摄', '目标接近中天时通常信号质量更好。', '中天时大气路径更短，建议将关键曝光集中在此窗口。'),
   },
   {
     id: 'curated-dark-adaptation',
     categories: ['technique', 'culture'],
     tags: ['dark adaptation', 'night vision'],
     relatedObjects: [{ name: 'Moon' }],
-    attribution: {
-      sourceName: 'SkyMap Curated',
-    },
-    localeContent: {
-      en: {
-        title: 'Dark Adaptation Takes Time',
-        summary: 'Human night vision improves after roughly 20–30 minutes in darkness.',
-        body: 'Rod cells dominate low-light vision, but bright phone screens can reset adaptation quickly. Use red-light mode and keep brightness low. For visual observing, this single habit often yields a larger improvement than changing eyepieces.',
-      },
-      zh: {
-        title: '暗适应需要时间建立',
-        summary: '人眼在黑暗环境下通常需要 20–30 分钟完成暗适应。',
-        body: '低照度下主要依赖视杆细胞，明亮屏幕会迅速破坏暗适应。建议开启红光模式并降低亮度。对于目视观测，这个习惯往往比更换目镜带来更明显提升。',
-      },
-    },
+    factSources: [fact('Night Vision Basics', 'https://skyandtelescope.org/astronomy-resources/the-easy-way-to-night-vision/', 'Sky & Telescope')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://skyandtelescope.org/astronomy-resources/the-easy-way-to-night-vision/' },
+    localeContent: localized('Dark Adaptation Takes Time', 'Night vision usually improves after 20–30 minutes.', 'Bright white screens can reset adaptation quickly. Red-light mode helps maintain low-light sensitivity.', '暗适应需要时间建立', '夜视能力通常需要约20-30分钟建立。', '白光屏幕会快速破坏暗适应，建议启用红光模式保持低照度敏感性。'),
+  },
+  {
+    id: 'curated-m13-globular-core',
+    categories: ['object', 'technique'],
+    tags: ['M13', 'globular cluster'],
+    externalUrl: 'https://messier.seds.org/m/m013.html',
+    relatedObjects: [{ name: 'M13', ra: 250.4218, dec: 36.4613 }],
+    factSources: [fact('SEDS M13', 'https://messier.seds.org/m/m013.html', 'SEDS')],
+    attribution: { sourceName: 'SEDS', sourceUrl: 'https://messier.seds.org/m/m013.html' },
+    localeContent: localized('M13 Rewards Stable Focus', 'Globular core detail drops quickly with slight defocus.', 'Check focus frequently when seeing changes. Cleaner short subs can outperform fewer long frames.', 'M13 对对焦稳定性要求高', '轻微失焦就会损失核心细节。', '视宁度波动时应提高对焦频率，多拍稳定短帧通常更可靠。'),
+  },
+  {
+    id: 'curated-moon-terminator-contrast',
+    categories: ['object', 'technique'],
+    tags: ['Moon', 'terminator'],
+    externalUrl: 'https://science.nasa.gov/moon/',
+    relatedObjects: [{ name: 'Moon' }],
+    factSources: [fact('NASA Moon', 'https://science.nasa.gov/moon/', 'NASA')],
+    attribution: { sourceName: 'NASA Moon Science', sourceUrl: 'https://science.nasa.gov/moon/' },
+    localeContent: localized('Lunar Relief Peaks Near the Terminator', 'Low-angle sunlight boosts crater and ridge contrast.', 'Prioritize regions near the terminator to maximize perceived topographic structure.', '月面地形层次在晨昏线附近最明显', '低角度光照会增强陨坑和山脊阴影。', '拍摄月面时优先晨昏线附近区域，可在相同设备下获得更强地形层次。'),
+  },
+  {
+    id: 'curated-polar-alignment-drift',
+    categories: ['technique'],
+    tags: ['polar alignment', 'drift'],
+    relatedObjects: [{ name: 'Polaris' }],
+    factSources: [fact('Drift Alignment Guide', 'https://www.astrobin.com/blog/2018/09/03/how-to-do-a-drift-alignment/', 'AstroBin')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://www.astrobin.com/blog/2018/09/03/how-to-do-a-drift-alignment/' },
+    localeContent: localized('Drift Tests Catch Polar Error Early', 'Small polar-axis errors compound over long runs.', 'Run a quick drift check before major sessions to reduce guiding load and rejected frames.', '漂移检查可提前发现极轴误差', '小误差会在长拍中逐步放大。', '开拍前做短时漂移检查，能降低导星压力并减少后续废片。'),
+  },
+  {
+    id: 'curated-dithering-noise-control',
+    categories: ['technique'],
+    tags: ['dithering', 'stacking', 'noise'],
+    relatedObjects: [{ name: 'M31' }],
+    factSources: [fact('PixInsight Tutorials', 'https://pixinsight.com/tutorials/', 'PixInsight')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://pixinsight.com/tutorials/' },
+    localeContent: localized('Dithering Helps Remove Pattern Noise', 'Random subframe offsets improve stacking rejection.', 'Without dithering, fixed-pattern noise can survive calibration. Gentle offsets improve robustness.', '抖动拍摄有助于压制固定图样噪声', '子帧随机偏移可提升统计剔除效果。', '无抖动时固定噪声更易残留，适度偏移可提升后期伪影清理效果。'),
+  },
+  {
+    id: 'curated-bortle-planning',
+    categories: ['technique', 'culture'],
+    tags: ['Bortle scale', 'light pollution'],
+    relatedObjects: [{ name: 'Milky Way' }],
+    factSources: [fact('Bortle Scale', 'https://en.wikipedia.org/wiki/Bortle_scale', 'Wikipedia')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Bortle_scale' },
+    localeContent: localized('Match Targets to Bortle Class', 'Sky brightness sets practical target difficulty.', 'Bright skies favor compact bright targets and narrowband objects. Save dim structures for dark sites.', '目标应匹配 Bortle 等级', '天空亮度会限制可行目标难度。', '光害环境下优先亮目标和窄带目标，暗弱结构尽量留到暗空地拍摄。'),
+  },
+  {
+    id: 'curated-seeing-and-jetstream',
+    categories: ['technique', 'event'],
+    tags: ['seeing', 'jet stream'],
+    relatedObjects: [{ name: 'Jupiter' }],
+    factSources: [fact('Astronomical Seeing', 'https://en.wikipedia.org/wiki/Astronomical_seeing', 'Wikipedia')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Astronomical_seeing' },
+    localeContent: localized('Seeing Often Matters More Than Aperture', 'Atmospheric stability can dominate planetary detail.', 'In unstable seeing, many short captures plus strict frame selection usually beat long clips.', '行星细节常由视宁度主导', '大气稳定度有时比口径更关键。', '视宁度不稳时应增加短视频采样并严格筛帧，以提升最终细节质量。'),
+  },
+  {
+    id: 'curated-lagoon-nebula-halpha',
+    categories: ['object', 'technique'],
+    tags: ['M8', 'H-alpha'],
+    externalUrl: 'https://messier.seds.org/m/m008.html',
+    relatedObjects: [{ name: 'M8', ra: 270.925, dec: -24.375 }],
+    factSources: [fact('SEDS M8', 'https://messier.seds.org/m/m008.html', 'SEDS')],
+    attribution: { sourceName: 'SEDS', sourceUrl: 'https://messier.seds.org/m/m008.html' },
+    localeContent: localized('Lagoon Nebula Works Well with Dual-Band', 'M8 has strong signal in hydrogen and oxygen bands.', 'Dual-band capture improves contrast under light pollution; keep calibration consistent in warm nights.', '礁湖星云适合双窄带流程', 'M8 在氢氧波段通常都有良好信号。', '双窄带有助于光害环境提升对比度，夏季应重视温漂对校准的一致性影响。'),
+  },
+  {
+    id: 'curated-north-america-nebula',
+    categories: ['object', 'technique'],
+    tags: ['NGC 7000', 'wide field'],
+    externalUrl: 'https://en.wikipedia.org/wiki/North_America_Nebula',
+    relatedObjects: [{ name: 'NGC 7000', ra: 312.5, dec: 44.5 }],
+    factSources: [fact('North America Nebula', 'https://en.wikipedia.org/wiki/North_America_Nebula', 'Wikipedia')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/North_America_Nebula' },
+    localeContent: localized('NGC 7000 Prefers Wide-Field Framing', 'North America Nebula is easier with shorter focal lengths.', 'Cygnus star density can hide nebulosity gradients, so background extraction is often the key processing step.', '北美星云更适合广角构图', 'NGC 7000 通常更适合短焦完整取景。', '天鹅座星场密集，后期常需重点处理背景梯度，才能稳定呈现暗弱星云结构。'),
+  },
+  {
+    id: 'curated-saturn-ring-tilt',
+    categories: ['object', 'event'],
+    tags: ['Saturn', 'ring tilt'],
+    externalUrl: 'https://science.nasa.gov/saturn/',
+    relatedObjects: [{ name: 'Saturn' }],
+    factSources: [fact('NASA Saturn', 'https://science.nasa.gov/saturn/', 'NASA')],
+    attribution: { sourceName: 'NASA Saturn Science', sourceUrl: 'https://science.nasa.gov/saturn/' },
+    localeContent: localized('Saturn Ring Tilt Changes Over Time', 'Ring opening angle evolves with orbital geometry.', 'Comparing seasonal Saturn images is easier when focal scale and processing strategy stay consistent.', '土星环开合角会随时间变化', '环倾角受轨道几何关系持续影响。', '跨季节对比土星时，建议保持采样尺度和处理流程一致，便于可靠比较。'),
+  },
+  {
+    id: 'curated-calibration-frames',
+    categories: ['technique'],
+    tags: ['bias', 'dark', 'flat'],
+    relatedObjects: [{ name: 'M31' }],
+    factSources: [fact('Calibration Workflow', 'https://pixinsight.com/tutorials/', 'PixInsight')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://pixinsight.com/tutorials/' },
+    localeContent: localized('Calibration Frames Protect Data Quality', 'Bias, dark, and flat frames remove systematic artifacts.', 'Consistent calibration improves integration reliability and reduces aggressive corrective processing later.', '校准帧是稳定画质的基础', '偏置、暗场、平场可减少系统性伪影。', '稳定校准流程能提高叠加可靠性，并减少后期对画面缺陷的补救成本。'),
+  },
+  {
+    id: 'curated-meridian-flip-safety',
+    categories: ['technique', 'event'],
+    tags: ['meridian flip', 'mount safety'],
+    relatedObjects: [{ name: 'M42' }],
+    factSources: [fact('Equatorial Mount Basics', 'https://en.wikipedia.org/wiki/Equatorial_mount', 'Wikipedia')],
+    attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Equatorial_mount' },
+    localeContent: localized('Meridian Flip Planning Prevents Failures', 'Crossing meridian can require mount-side change.', 'Reserve time for flip and post-flip checks. Verify guiding and focus recovery before resuming long runs.', '中天翻转预案可减少整夜故障', '目标过中天后常需赤道仪翻转。', '建议预留翻转与复位时间，并在翻转后复核导星和对焦状态再继续拍摄。'),
   },
 ];

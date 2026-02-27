@@ -1,10 +1,22 @@
 /**
- * @jest-environment jsdom
+ * CacheUnifiedTab Tests
+ * 
+ * Strategy: Mock the async functions to resolve synchronously via
+ * immediate resolution. Use React's `act` with real timers (not fake)
+ * and rely on `findBy*` queries which internally use `waitFor`.
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { CacheUnifiedTab } from '../cache-unified-tab';
+
+// Mutable flags
+let _isTauri = false;
+let _isAvailable = false;
+const mockGetStats = jest.fn();
+const mockListKeys = jest.fn();
+const mockClearCache = jest.fn();
+const mockCleanup = jest.fn();
 
 jest.mock('next-intl', () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) => {
@@ -27,16 +39,16 @@ jest.mock('@/lib/offline', () => ({
 
 jest.mock('@/lib/tauri', () => ({
   unifiedCacheApi: {
-    isAvailable: jest.fn(() => false),
-    getStats: jest.fn(),
-    listKeys: jest.fn(),
-    clearCache: jest.fn(),
-    cleanup: jest.fn(),
+    isAvailable: () => _isAvailable,
+    getStats: (...args: unknown[]) => mockGetStats(...args),
+    listKeys: (...args: unknown[]) => mockListKeys(...args),
+    clearCache: (...args: unknown[]) => mockClearCache(...args),
+    cleanup: (...args: unknown[]) => mockCleanup(...args),
   },
 }));
 
 jest.mock('@/lib/storage/platform', () => ({
-  isTauri: jest.fn(() => false),
+  isTauri: () => _isTauri,
 }));
 
 jest.mock('@/components/ui/button', () => ({
@@ -58,6 +70,13 @@ jest.mock('@/components/ui/alert-dialog', () => ({
 }));
 
 describe('CacheUnifiedTab', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    _isTauri = false;
+    _isAvailable = false;
+  });
+
+  // 非 Tauri 环境显示空状态
   it('renders empty state when not in Tauri', () => {
     render(<CacheUnifiedTab isActive={true} />);
     expect(screen.getByText('cache.unifiedCacheEmpty')).toBeInTheDocument();
@@ -66,5 +85,147 @@ describe('CacheUnifiedTab', () => {
   it('renders without crashing when inactive', () => {
     render(<CacheUnifiedTab isActive={false} />);
     expect(screen.getByText('cache.unifiedCacheEmpty')).toBeInTheDocument();
+  });
+
+  // Tauri 环境加载统计数据
+  it('loads and displays stats when in Tauri and active', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 42, total_size: 8192, hit_rate: 0.85 });
+    mockListKeys.mockResolvedValue(['key1', 'key2']);
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    expect(await screen.findByText('42')).toBeInTheDocument();
+    expect(screen.getByText('8192B')).toBeInTheDocument();
+    expect(screen.getByText('85.0%')).toBeInTheDocument();
+  });
+
+  // 显示 cached items 列表
+  it('displays cached items list', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 2, total_size: 1024, hit_rate: 0.5 });
+    mockListKeys.mockResolvedValue(['cache:item1', 'cache:item2']);
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    expect(await screen.findByText('cache:item1')).toBeInTheDocument();
+    expect(screen.getByText('cache:item2')).toBeInTheDocument();
+  });
+
+  // 超过 20 项时显示截断提示
+  it('shows truncation message when more than 20 items', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    const keys = Array.from({ length: 25 }, (_, i) => `key-${i}`);
+    mockGetStats.mockResolvedValue({ total_entries: 25, total_size: 2048, hit_rate: 0.7 });
+    mockListKeys.mockResolvedValue(keys);
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    expect(await screen.findByText(/cache\.moreItems/)).toBeInTheDocument();
+  });
+
+  // 点击 cleanup 按钮
+  it('calls cleanup when cleanup button clicked', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 10, total_size: 500, hit_rate: 0.5 });
+    mockListKeys.mockResolvedValue([]);
+    // cleanup returns a number, and handler then calls refreshUnifiedCache
+    mockCleanup.mockImplementation(() => Promise.resolve(3));
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    const cleanupBtn = await screen.findByText('cache.cleanup');
+    fireEvent.click(cleanupBtn);
+
+    // cleanup is called synchronously after click handler invokes the async fn
+    await waitFor(() => expect(mockCleanup).toHaveBeenCalled(), { timeout: 3000 });
+  });
+
+  // 点击 clear all 确认
+  it('calls clearCache when clear all confirmed', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 10, total_size: 500, hit_rate: 0.5 });
+    mockListKeys.mockResolvedValue([]);
+    mockClearCache.mockImplementation(() => Promise.resolve(10));
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    // Wait for stats to load
+    await screen.findByText('cache.cleanup');
+
+    const clearButtons = screen.getAllByText('cache.clearAll');
+    fireEvent.click(clearButtons[clearButtons.length - 1]);
+
+    await waitFor(() => expect(mockClearCache).toHaveBeenCalled(), { timeout: 3000 });
+  });
+
+  // 0 entries 时禁用 clear 按钮
+  it('disables clear all when entries is 0', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 0, total_size: 0, hit_rate: 0 });
+    mockListKeys.mockResolvedValue([]);
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    await screen.findByText('cache.cleanup');
+
+    const clearBtns = screen.getAllByText('cache.clearAll');
+    const triggerBtn = clearBtns.find(el => el.closest('button')?.getAttribute('disabled') !== null);
+    expect(triggerBtn?.closest('button')).toBeDisabled();
+  });
+
+  // 加载失败显示错误 toast
+  it('shows error toast when loading fails', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockRejectedValue(new Error('Load failed'));
+    mockListKeys.mockResolvedValue([]);
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    const { toast } = jest.requireMock('sonner') as { toast: { error: jest.Mock } };
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('cache.loadFailed'));
+  });
+
+  // cleanup 失败显示错误 toast
+  it('shows error toast when cleanup fails', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 5, total_size: 200, hit_rate: 0.3 });
+    mockListKeys.mockResolvedValue([]);
+    mockCleanup.mockRejectedValue(new Error('Cleanup failed'));
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    const cleanupBtn = await screen.findByText('cache.cleanup');
+    await act(async () => { fireEvent.click(cleanupBtn); });
+
+    const { toast } = jest.requireMock('sonner') as { toast: { error: jest.Mock } };
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('cache.cleanupFailed'));
+  });
+
+  // clear 失败显示错误 toast
+  it('shows error toast when clear fails', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 5, total_size: 200, hit_rate: 0.3 });
+    mockListKeys.mockResolvedValue([]);
+    mockClearCache.mockRejectedValue(new Error('Clear failed'));
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    await screen.findByText('cache.cleanup');
+
+    const clearButtons = screen.getAllByText('cache.clearAll');
+    await act(async () => { fireEvent.click(clearButtons[clearButtons.length - 1]); });
+
+    const { toast } = jest.requireMock('sonner') as { toast: { error: jest.Mock } };
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('cache.clearFailed'));
   });
 });

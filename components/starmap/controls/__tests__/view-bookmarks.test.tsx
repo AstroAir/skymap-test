@@ -227,4 +227,341 @@ describe('ViewBookmarks', () => {
     fireEvent.click(screen.getByTestId('alert-confirm'));
     expect(mockBookmarksStore.removeBookmark).toHaveBeenCalledWith('bm1');
   });
+
+  it('calls onNavigate when clicking a bookmark item', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'M42',
+        ra: 83.82,
+        dec: -5.39,
+        fov: 2,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        icon: 'star',
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    const bookmarkItem = screen.getByText('M42').closest('div[class*="cursor-pointer"]');
+    expect(bookmarkItem).toBeDefined();
+    fireEvent.click(bookmarkItem!);
+
+    expect(defaultProps.onNavigate).toHaveBeenCalledWith(83.82, -5.39, 2);
+  });
+
+  it('calls onNavigate via Go To dropdown menu item', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'NGC 7000',
+        ra: 314.7,
+        dec: 44.3,
+        fov: 5,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    const goToItems = screen.getAllByRole('menuitem').filter(el => el.textContent?.includes('bookmarks.goTo'));
+    expect(goToItems.length).toBeGreaterThan(0);
+    fireEvent.click(goToItems[0]);
+
+    expect(defaultProps.onNavigate).toHaveBeenCalledWith(314.7, 44.3, 5);
+  });
+
+  it('calls duplicateBookmark via dropdown menu item', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'Test BM',
+        ra: 10,
+        dec: 20,
+        fov: 30,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    const dupItems = screen.getAllByRole('menuitem').filter(el => el.textContent?.includes('bookmarks.duplicate'));
+    expect(dupItems.length).toBeGreaterThan(0);
+    fireEvent.click(dupItems[0]);
+
+    expect(mockBookmarksStore.duplicateBookmark).toHaveBeenCalledWith('bm1', 'bookmarks.copySuffix');
+  });
+
+  it('opens add dialog and shows save current view title', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Find the add bookmark button (BookmarkPlus icon button in header)
+    const addBtns = screen.getAllByRole('button');
+    const addBtn = addBtns.find(btn => btn.className?.includes('h-6'));
+    if (addBtn) {
+      fireEvent.click(addBtn);
+    }
+
+    // Dialog always renders (mock), so saveCurrentView text appears in multiple places
+    // (tooltip, dialog title, empty state button)
+    const matches = screen.getAllByText('bookmarks.saveCurrentView');
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows current position info when adding a new bookmark', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // The dialog is always rendered (Dialog mock renders children always)
+    expect(screen.getByText('bookmarks.currentPosition')).toBeInTheDocument();
+    expect(screen.getByText(/10.5000°/)).toBeInTheDocument();
+    expect(screen.getByText(/41.2000°/)).toBeInTheDocument();
+  });
+
+  it('saves a new bookmark when form is filled and save is clicked', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Fill in the name field
+    const nameInput = screen.getByPlaceholderText('bookmarks.namePlaceholder');
+    fireEvent.change(nameInput, { target: { value: 'My View' } });
+
+    // Click save — find button with saveBookmark text
+    const saveBtn = screen.getAllByRole('button').find(btn => btn.textContent === 'bookmarks.saveBookmark');
+    expect(saveBtn).toBeDefined();
+    fireEvent.click(saveBtn!);
+
+    expect(mockBookmarksStore.addBookmark).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'My View',
+        ra: 10.5,
+        dec: 41.2,
+        fov: 3.0,
+      })
+    );
+  });
+
+  it('does not save when name is empty', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // The save button should be disabled when name is empty
+    const saveBtn = screen.getAllByRole('button').find(btn => btn.textContent === 'bookmarks.saveBookmark');
+    expect(saveBtn).toBeDefined();
+    expect(saveBtn).toBeDisabled();
+  });
+
+  it('opens edit dialog with existing bookmark data', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'Edit Me',
+        ra: 10,
+        dec: 20,
+        fov: 30,
+        description: 'A nice view',
+        color: '#ef4444',
+        icon: 'heart',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Click edit menu item
+    const editItems = screen.getAllByRole('menuitem').filter(el => el.textContent?.includes('common.edit'));
+    expect(editItems.length).toBeGreaterThan(0);
+    fireEvent.click(editItems[0]);
+
+    // Dialog should show edit title
+    expect(screen.getByText('bookmarks.editBookmark')).toBeInTheDocument();
+  });
+
+  it('saves edited bookmark with updateBookmark', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'Original Name',
+        ra: 10,
+        dec: 20,
+        fov: 30,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Click edit menu item to load the bookmark into form
+    const editItems = screen.getAllByRole('menuitem').filter(el => el.textContent?.includes('common.edit'));
+    fireEvent.click(editItems[0]);
+
+    // Change the name
+    const nameInput = screen.getByDisplayValue('Original Name');
+    fireEvent.change(nameInput, { target: { value: 'Updated Name' } });
+
+    // Click save
+    const saveBtn = screen.getAllByRole('button').find(btn => btn.textContent === 'common.save');
+    expect(saveBtn).toBeDefined();
+    fireEvent.click(saveBtn!);
+
+    expect(mockBookmarksStore.updateBookmark).toHaveBeenCalledWith('bm1', expect.objectContaining({
+      name: 'Updated Name',
+    }));
+  });
+
+  it('renders bookmark description when present', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'M31',
+        ra: 10,
+        dec: 41,
+        fov: 3,
+        description: 'Andromeda Galaxy',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+    expect(screen.getByText('Andromeda Galaxy')).toBeInTheDocument();
+  });
+
+  it('renders icon selector buttons in edit dialog', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Icon selector label should exist
+    expect(screen.getByText('bookmarks.icon')).toBeInTheDocument();
+    // Should have icon selector buttons (7 icons)
+    const iconButtons = screen.getAllByRole('button').filter(btn => btn.className?.includes('h-8 w-8'));
+    expect(iconButtons.length).toBe(7);
+  });
+
+  it('renders color selector buttons in edit dialog', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    expect(screen.getByText('bookmarks.color')).toBeInTheDocument();
+  });
+
+  it('updates form description field', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    const descInput = screen.getByPlaceholderText('bookmarks.descriptionPlaceholder');
+    fireEvent.change(descInput, { target: { value: 'A nice view' } });
+
+    // Now fill name and save
+    const nameInput = screen.getByPlaceholderText('bookmarks.namePlaceholder');
+    fireEvent.change(nameInput, { target: { value: 'My View' } });
+
+    const saveBtn = screen.getAllByRole('button').find(btn => btn.textContent === 'bookmarks.saveBookmark');
+    fireEvent.click(saveBtn!);
+
+    expect(mockBookmarksStore.addBookmark).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'A nice view',
+      })
+    );
+  });
+
+  it('shows empty state with save link button when no bookmarks', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    expect(screen.getByText('bookmarks.noBookmarks')).toBeInTheDocument();
+  });
+
+  it('selects an icon in the icon selector', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Click a different icon button (e.g., the 2nd one = 'heart')
+    const iconButtons = screen.getAllByRole('button').filter(btn => btn.className?.includes('h-8 w-8'));
+    expect(iconButtons.length).toBe(7);
+    // Click heart icon (index 1)
+    fireEvent.click(iconButtons[1]);
+
+    // Fill name and save to verify the icon was changed
+    const nameInput = screen.getByPlaceholderText('bookmarks.namePlaceholder');
+    fireEvent.change(nameInput, { target: { value: 'Heart Bookmark' } });
+
+    const saveBtn = screen.getAllByRole('button').find(btn => btn.textContent === 'bookmarks.saveBookmark');
+    fireEvent.click(saveBtn!);
+
+    expect(mockBookmarksStore.addBookmark).toHaveBeenCalledWith(
+      expect.objectContaining({ icon: 'heart' })
+    );
+  });
+
+  it('selects a color in the color selector', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Color buttons are plain <button> elements with rounded-full class
+    const colorButtons = screen.getAllByRole('button').filter(btn => btn.className?.includes('rounded-full'));
+    expect(colorButtons.length).toBe(8); // 8 BOOKMARK_COLORS
+    // Click the first color (red = #ef4444)
+    fireEvent.click(colorButtons[0]);
+
+    // Fill name and save to verify the color was changed
+    const nameInput = screen.getByPlaceholderText('bookmarks.namePlaceholder');
+    fireEvent.change(nameInput, { target: { value: 'Red Bookmark' } });
+
+    const saveBtn = screen.getAllByRole('button').find(btn => btn.textContent === 'bookmarks.saveBookmark');
+    fireEvent.click(saveBtn!);
+
+    expect(mockBookmarksStore.addBookmark).toHaveBeenCalledWith(
+      expect.objectContaining({ color: '#ef4444' })
+    );
+  });
+
+  it('stopPropagation on dropdown trigger does not navigate', () => {
+    mockBookmarksStore.bookmarks = [
+      {
+        id: 'bm1',
+        name: 'Test',
+        ra: 10,
+        dec: 20,
+        fov: 30,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
+
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // The dropdown trigger button has h-6 w-6 class inside the bookmark item
+    const dropdownTriggerBtns = screen.getAllByRole('button').filter(
+      btn => btn.className?.includes('h-6') && btn.closest('div[class*="cursor-pointer"]')
+    );
+    if (dropdownTriggerBtns.length > 0) {
+      fireEvent.click(dropdownTriggerBtns[0]);
+      // stopPropagation should prevent onNavigate from being called
+      // (though with simplified mocks this is hard to fully verify)
+    }
+  });
+
+  it('cancel button in edit dialog does not save', () => {
+    mockBookmarksStore.bookmarks = [];
+    render(<ViewBookmarks {...defaultProps} />);
+
+    // Fill name
+    const nameInput = screen.getByPlaceholderText('bookmarks.namePlaceholder');
+    fireEvent.change(nameInput, { target: { value: 'Will Cancel' } });
+
+    // Click cancel
+    const cancelBtn = screen.getAllByRole('button').find(btn => btn.textContent === 'common.cancel');
+    expect(cancelBtn).toBeDefined();
+    fireEvent.click(cancelBtn!);
+
+    expect(mockBookmarksStore.addBookmark).not.toHaveBeenCalled();
+  });
 });

@@ -42,8 +42,9 @@ jest.mock('@/lib/tauri/mount-api', () => ({
   ],
 }));
 
+const mockIsTauri = jest.fn(() => true);
 jest.mock('@/lib/tauri/app-control-api', () => ({
-  isTauri: jest.fn(() => true),
+  isTauri: () => mockIsTauri(),
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -66,8 +67,12 @@ jest.mock('@/components/ui/button', () => ({
   ),
 }));
 
+let capturedOnValueChange: ((value: string) => void) | undefined;
 jest.mock('@/components/ui/select', () => ({
-  Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Select: ({ children, onValueChange }: { children: React.ReactNode; onValueChange?: (v: string) => void }) => {
+    capturedOnValueChange = onValueChange;
+    return <div>{children}</div>;
+  },
   SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -79,6 +84,7 @@ import { MountDirectionPad } from '../mount-direction-pad';
 describe('MountDirectionPad', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsTauri.mockReturnValue(true);
     mountState = {
       mountInfo: { Connected: true, SlewRateIndex: 1, Parked: false },
       capabilities: { canMoveAxis: true },
@@ -212,5 +218,123 @@ describe('MountDirectionPad', () => {
     unmount();
     expect(mockStopAxis).toHaveBeenCalledWith('primary');
     expect(mockStopAxis).toHaveBeenCalledWith('secondary');
+  });
+
+  it('west button calls moveAxis with primary axis and negative rate', async () => {
+    const { getByLabelText } = render(<MountDirectionPad />);
+    const westBtn = getByLabelText('west');
+
+    await act(async () => {
+      fireEvent.pointerDown(westBtn);
+    });
+    expect(mockMoveAxis).toHaveBeenCalledWith('primary', -16);
+  });
+
+  it('south button calls moveAxis with secondary axis and negative rate', async () => {
+    const { getByLabelText } = render(<MountDirectionPad />);
+    const southBtn = getByLabelText('south');
+
+    await act(async () => {
+      fireEvent.pointerDown(southBtn);
+    });
+    expect(mockMoveAxis).toHaveBeenCalledWith('secondary', -16);
+  });
+
+  it('east button calls moveAxis with primary axis and positive rate', async () => {
+    const { getByLabelText } = render(<MountDirectionPad />);
+    const eastBtn = getByLabelText('east');
+
+    await act(async () => {
+      fireEvent.pointerDown(eastBtn);
+    });
+    expect(mockMoveAxis).toHaveBeenCalledWith('primary', 16);
+  });
+
+  it('does not call moveAxis when canMoveAxis is false', async () => {
+    mountState.capabilities.canMoveAxis = false;
+    const { getByLabelText } = render(<MountDirectionPad />);
+    const northBtn = getByLabelText('north');
+
+    await act(async () => {
+      fireEvent.pointerDown(northBtn);
+    });
+    expect(mockMoveAxis).not.toHaveBeenCalled();
+  });
+
+  it('shows toast error when moveAxis fails', async () => {
+    const { toast } = jest.requireMock('sonner');
+    mockMoveAxis.mockRejectedValueOnce(new Error('Axis error'));
+
+    const { getByLabelText } = render(<MountDirectionPad />);
+    const northBtn = getByLabelText('north');
+
+    await act(async () => {
+      fireEvent.pointerDown(northBtn);
+    });
+
+    expect(mockMoveAxis).toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith('Axis error');
+  });
+
+  it('stopMove is no-op when no motion is active', async () => {
+    const { getByLabelText } = render(<MountDirectionPad />);
+    const northBtn = getByLabelText('north');
+
+    // Trigger pointerUp without prior pointerDown — movingRef should be null
+    await act(async () => {
+      fireEvent.pointerUp(northBtn);
+    });
+    expect(mockStopAxis).not.toHaveBeenCalled();
+  });
+
+  it('handleRateChange calls setSlewRate and setMountInfo', async () => {
+    render(<MountDirectionPad />);
+    expect(capturedOnValueChange).toBeDefined();
+
+    await act(async () => {
+      capturedOnValueChange!('0');
+    });
+
+    expect(mockSetSlewRate).toHaveBeenCalledWith(0);
+    expect(mockSetMountInfo).toHaveBeenCalledWith({ SlewRateIndex: 0 });
+  });
+
+  it('handleRateChange shows toast on error', async () => {
+    const { toast } = jest.requireMock('sonner');
+    mockSetSlewRate.mockRejectedValueOnce(new Error('Rate failed'));
+
+    render(<MountDirectionPad />);
+    expect(capturedOnValueChange).toBeDefined();
+
+    await act(async () => {
+      capturedOnValueChange!('1');
+    });
+
+    expect(mockSetSlewRate).toHaveBeenCalledWith(1);
+    expect(toast.error).toHaveBeenCalledWith('Rate failed');
+  });
+
+  it('handleRateChange does nothing when isTauri is false', async () => {
+    mockIsTauri.mockReturnValue(false);
+
+    render(<MountDirectionPad />);
+    expect(capturedOnValueChange).toBeDefined();
+
+    await act(async () => {
+      capturedOnValueChange!('0');
+    });
+
+    expect(mockSetSlewRate).not.toHaveBeenCalled();
+  });
+
+  it('uses correct slew rate from SlewRateIndex', async () => {
+    mountState.mountInfo.SlewRateIndex = 0; // 1x rate
+    const { getByLabelText } = render(<MountDirectionPad />);
+    const northBtn = getByLabelText('north');
+
+    await act(async () => {
+      fireEvent.pointerDown(northBtn);
+    });
+    expect(mockMoveAxis).toHaveBeenCalledWith('secondary', 1);
   });
 });

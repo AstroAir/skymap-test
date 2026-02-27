@@ -84,6 +84,21 @@ describe('plan-exporter', () => {
     expect(parsed.targets[0].name).toBe('M31');
   });
 
+  it('exports NINA Legacy/Simple Sequencer XML target set', () => {
+    const xml = exportSessionPlan(makePlan(), { ...options, format: 'nina-xml' });
+    expect(xml).toContain('<ArrayOfCaptureSequenceList');
+    expect(xml).toContain('<CaptureSequenceList');
+    expect(xml).toContain('TargetName="M31"');
+    expect(xml).toContain('RAHours="0"');
+    expect(xml).toContain('RAMinutes="42"');
+    expect(xml).toContain('NegativeDec="false"');
+    expect(xml).toContain('<Coordinates>');
+    expect(xml).toContain('<RA>');
+    expect(xml).toContain('<Dec>');
+    expect(xml).toContain('<CaptureSequence>');
+    expect(xml).toContain('<ExposureTime>');
+  });
+
   it('maps extension for SGP CSV', () => {
     expect(getExportFileExtension('sgp-csv')).toBe('.csv');
   });

@@ -111,4 +111,66 @@ describe('MarkerEditDialog', () => {
     render(<MarkerEditDialog {...defaultProps} />);
     expect(screen.getByText(/12h 30m/)).toBeInTheDocument();
   });
+
+  // 不显示坐标 when editing existing marker
+  it('hides coordinates when editing existing marker', () => {
+    const marker = { id: '1', name: 'M', ra: 0, dec: 0, raString: '12h', decString: '+45', icon: 'star' as const, color: '#fff', visible: true, createdAt: Date.now(), updatedAt: Date.now() };
+    render(<MarkerEditDialog {...defaultProps} editingMarker={marker} />);
+    expect(screen.queryByText('coordinates.coordinates')).not.toBeInTheDocument();
+  });
+
+  // 测试 name 输入回调
+  it('calls onFormDataChange when name changes', () => {
+    render(<MarkerEditDialog {...defaultProps} />);
+    const nameInput = screen.getByDisplayValue('Test Marker');
+    fireEvent.change(nameInput, { target: { value: 'New Name' } });
+    expect(defaultProps.onFormDataChange).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Name' }));
+  });
+
+  // 测试 description 输入回调
+  it('calls onFormDataChange when description changes', () => {
+    render(<MarkerEditDialog {...defaultProps} />);
+    const descInput = screen.getByDisplayValue('A test marker');
+    fireEvent.change(descInput, { target: { value: 'New desc' } });
+    expect(defaultProps.onFormDataChange).toHaveBeenCalledWith(expect.objectContaining({ description: 'New desc' }));
+  });
+
+  // 测试颜色选择回调
+  it('calls onFormDataChange when color selected', () => {
+    render(<MarkerEditDialog {...defaultProps} />);
+    const colorBtns = screen.getAllByRole('button').filter(b => b.getAttribute('aria-label'));
+    if (colorBtns.length > 0) {
+      fireEvent.click(colorBtns[0]);
+      expect(defaultProps.onFormDataChange).toHaveBeenCalledWith(expect.objectContaining({ color: expect.any(String) }));
+    }
+  });
+
+  // 测试取消按钮
+  it('calls onOpenChange when cancel clicked', () => {
+    render(<MarkerEditDialog {...defaultProps} />);
+    fireEvent.click(screen.getByText('common.cancel'));
+    expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // 测试 group 输入回调
+  it('calls onFormDataChange when group changes', () => {
+    render(<MarkerEditDialog {...defaultProps} />);
+    const groupInput = screen.getByPlaceholderText('markers.groupPlaceholder');
+    fireEvent.change(groupInput, { target: { value: 'New Group' } });
+    expect(defaultProps.onFormDataChange).toHaveBeenCalledWith(expect.objectContaining({ group: 'New Group' }));
+  });
+
+  // 测试 group 下拉选择
+  it('shows group suggestions', () => {
+    render(<MarkerEditDialog {...defaultProps} />);
+    expect(screen.getByText('Group A')).toBeInTheDocument();
+    expect(screen.getByText('Group B')).toBeInTheDocument();
+  });
+
+  // 点击 group 建议
+  it('calls onFormDataChange when group suggestion clicked', () => {
+    render(<MarkerEditDialog {...defaultProps} />);
+    fireEvent.click(screen.getByText('Group A'));
+    expect(defaultProps.onFormDataChange).toHaveBeenCalledWith(expect.objectContaining({ group: 'Group A' }));
+  });
 });

@@ -845,4 +845,56 @@ describe('LocationStep', () => {
       expect(manualButton).toHaveClass('border-primary');
     });
   });
+
+  describe('manual altitude handling', () => {
+    it('should set location with valid altitude', async () => {
+      render(<LocationStep />);
+
+      const manualButton = screen.getByText(/location\.enterManually/i).closest('button');
+      if (manualButton) {
+        fireEvent.click(manualButton);
+      }
+
+      const latInput = screen.getByLabelText(/location\.latitude/i);
+      const lonInput = screen.getByLabelText(/location\.longitude/i);
+      const altInput = screen.getByLabelText(/location\.altitude/i);
+
+      fireEvent.change(latInput, { target: { value: '30' } });
+      fireEvent.change(lonInput, { target: { value: '120' } });
+      fireEvent.change(altInput, { target: { value: '500' } });
+
+      const setButton = screen.getByText(/location\.setLocation$/i).closest('button')!;
+      fireEvent.click(setButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/location\.locationSet/i)).toBeInTheDocument();
+        expect(screen.getByText(/500m/)).toBeInTheDocument();
+      });
+    });
+
+    it('should default altitude to 0 when negative value is entered', async () => {
+      render(<LocationStep />);
+
+      const manualButton = screen.getByText(/location\.enterManually/i).closest('button');
+      if (manualButton) {
+        fireEvent.click(manualButton);
+      }
+
+      const latInput = screen.getByLabelText(/location\.latitude/i);
+      const lonInput = screen.getByLabelText(/location\.longitude/i);
+      const altInput = screen.getByLabelText(/location\.altitude/i);
+
+      fireEvent.change(latInput, { target: { value: '30' } });
+      fireEvent.change(lonInput, { target: { value: '120' } });
+      fireEvent.change(altInput, { target: { value: '-100' } });
+
+      const setButton = screen.getByText(/location\.setLocation$/i).closest('button')!;
+      fireEvent.click(setButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/location\.locationSet/i)).toBeInTheDocument();
+        expect(screen.getByText(/30\.0000°, 120\.0000°/)).toBeInTheDocument();
+      });
+    });
+  });
 });

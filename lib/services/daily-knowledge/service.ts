@@ -5,7 +5,9 @@ import { fetchApodItem } from './source-apod';
 import { getCuratedDailyItem, getCuratedItems } from './source-curated';
 import { fetchWikimediaItem } from './source-wikimedia';
 import type {
+  DailyKnowledgeFactSource,
   DailyKnowledgeItem,
+  DailyKnowledgeLanguageStatus,
   DailyKnowledgeOptions,
   DailyKnowledgeServiceResult,
 } from './types';
@@ -59,6 +61,7 @@ function enrichItemWithWikimedia(
     relatedObjects:
       baseItem.relatedObjects.length > 0 ? baseItem.relatedObjects : wikimediaItem.relatedObjects,
     tags: Array.from(new Set([...baseItem.tags, ...wikimediaItem.tags])),
+    factSources: mergeFactSources(baseItem.factSources, wikimediaItem.factSources),
     attribution: {
       ...baseItem.attribution,
       licenseName: baseItem.attribution.licenseName ?? wikimediaItem.attribution.licenseName,
@@ -66,6 +69,34 @@ function enrichItemWithWikimedia(
       sourceUrl: baseItem.attribution.sourceUrl ?? wikimediaItem.attribution.sourceUrl,
     },
   };
+}
+
+function mergeFactSources(
+  primary: DailyKnowledgeFactSource[],
+  secondary: DailyKnowledgeFactSource[]
+): DailyKnowledgeFactSource[] {
+  const byUrl = new Map<string, DailyKnowledgeFactSource>();
+  for (const source of [...primary, ...secondary]) {
+    byUrl.set(source.url, source);
+  }
+  return Array.from(byUrl.values());
+}
+
+function resolveLanguageStatus(
+  item: DailyKnowledgeItem,
+  locale: 'en' | 'zh'
+): DailyKnowledgeLanguageStatus {
+  return item.contentLanguage.toLowerCase().startsWith(locale) ? 'native' : 'fallback';
+}
+
+function applyLanguageStatus(
+  items: DailyKnowledgeItem[],
+  locale: 'en' | 'zh'
+): DailyKnowledgeItem[] {
+  return items.map((item) => ({
+    ...item,
+    languageStatus: resolveLanguageStatus(item, locale),
+  }));
 }
 
 export function __clearDailyKnowledgeServiceCacheForTests(): void {
@@ -78,6 +109,7 @@ export async function getDailyKnowledge(
   options?: Partial<DailyKnowledgeOptions>
 ): Promise<DailyKnowledgeServiceResult> {
   const onlineEnhancement = options?.onlineEnhancement ?? true;
+  const signal = options?.signal;
   const onlineAvailable = isOnline();
   const cacheKey = getCacheKey(dateKey, locale, onlineEnhancement, onlineAvailable);
   const cachedResult = aggregatedResultCache.get(cacheKey);
@@ -90,7 +122,7 @@ export async function getDailyKnowledge(
   const offlineItems = [curatedDaily, ...curatedItems];
 
   if (!onlineEnhancement || !onlineAvailable) {
-    const deduped = dedupeItems(offlineItems);
+    const deduped = applyLanguageStatus(dedupeItems(offlineItems), locale);
     const result = { items: deduped, selected: deduped[0] };
     aggregatedResultCache.set(cacheKey, { result, expiresAt: getNextLocalMidnight() });
     return result;
@@ -100,24 +132,37 @@ export async function getDailyKnowledge(
   let apodItem = null;
   let wikimediaItem = null;
   try {
-    apodItem = await fetchApodItem(dateKey, apiKey);
+    apodItem = await fetchApodItem(dateKey, apiKey, { signal });
   } catch (error) {
     logger.warn('APOD fetch failed, fallback to curated', error);
   }
 
   try {
     const wikiQuery = apodItem?.title || curatedDaily.relatedObjects[0]?.name || curatedDaily.title;
-    wikimediaItem = await fetchWikimediaItem(dateKey, wikiQuery);
+    wikimediaItem = await fetchWikimediaItem(dateKey, wikiQuery, { locale, signal });
   } catch (error) {
     logger.warn('Wikimedia fetch failed, fallback to curated', error);
   }
 
-  const selectedBase = apodItem ?? curatedDaily;
-  const selected = enrichItemWithWikimedia(selectedBase, wikimediaItem);
-  const mergedCandidates: DailyKnowledgeItem[] = wikimediaItem
-    ? [selected, wikimediaItem, ...offlineItems]
-    : [selected, ...offlineItems];
-  const merged = dedupeItems(mergedCandidates);
+  const localizedWiki = wikimediaItem?.contentLanguage === locale ? wikimediaItem : null;
+  const selectedBase =
+    locale === 'zh'
+      ? enrichItemWithWikimedia(curatedDaily, localizedWiki)
+      : enrichItemWithWikimedia(apodItem ?? curatedDaily, wikimediaItem);
+
+  const mergedCandidates: DailyKnowledgeItem[] = [
+    selectedBase,
+    ...(localizedWiki ? [localizedWiki] : []),
+    ...(apodItem ? [apodItem] : []),
+    ...(wikimediaItem ? [wikimediaItem] : []),
+    ...offlineItems,
+  ];
+
+  const merged = applyLanguageStatus(dedupeItems(mergedCandidates), locale);
+  const selected = merged.find((item) => item.id === selectedBase.id) ?? {
+    ...selectedBase,
+    languageStatus: resolveLanguageStatus(selectedBase, locale),
+  };
   const result = {
     items: merged,
     selected,

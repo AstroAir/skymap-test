@@ -40,6 +40,9 @@ const baseResult = {
       tags: ['M31'],
       relatedObjects: [{ name: 'M31', ra: 10.6847, dec: 41.2687 }],
       attribution: { sourceName: 'Curated' },
+      isDateEvent: false,
+      factSources: [{ title: 'SEDS M31', url: 'https://messier.seds.org/m/m031.html', publisher: 'SEDS' }],
+      languageStatus: 'native' as const,
       fetchedAt: Date.now(),
     },
   ],
@@ -55,6 +58,9 @@ const baseResult = {
     tags: ['M31'],
     relatedObjects: [{ name: 'M31', ra: 10.6847, dec: 41.2687 }],
     attribution: { sourceName: 'Curated' },
+    isDateEvent: false,
+    factSources: [{ title: 'SEDS M31', url: 'https://messier.seds.org/m/m031.html', publisher: 'SEDS' }],
+    languageStatus: 'native' as const,
     fetchedAt: Date.now(),
   },
 };
@@ -156,6 +162,28 @@ describe('daily-knowledge-store', () => {
     expect(state.currentItem?.id).toBe('curated-andromeda-distance');
     expect(state.lastShownDate).toBe(getLocalDateKey());
     expect(state.history[0].entry).toBe('auto');
+  });
+
+  it('refreshes stale cached items when opening dialog on a new date', async () => {
+    useDailyKnowledgeStore.setState({
+      items: [
+        {
+          ...baseResult.items[0],
+          id: 'yesterday-item',
+          dateKey: '2026-02-19',
+        },
+      ],
+      currentItem: {
+        ...baseResult.items[0],
+        id: 'yesterday-item',
+        dateKey: '2026-02-19',
+      },
+    });
+
+    await useDailyKnowledgeStore.getState().openDialog('manual');
+
+    expect(mockGetDailyKnowledge).toHaveBeenCalled();
+    expect(useDailyKnowledgeStore.getState().currentItem?.id).toBe('curated-andromeda-distance');
   });
 
   it('jumps using embedded coordinates before name resolution', async () => {

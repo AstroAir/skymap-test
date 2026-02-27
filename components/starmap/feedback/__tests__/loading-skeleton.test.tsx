@@ -62,6 +62,36 @@ describe('InlineLoader', () => {
     render(<InlineLoader />);
     expect(screen.getByText('common.loading')).toHaveClass('sr-only');
   });
+
+  it.each([
+    ['sm', 'h-3 w-3 border'],
+    ['lg', 'h-6 w-6 border-2'],
+  ] as const)('applies correct classes for size="%s"', (size, expectedClasses) => {
+    const { container } = render(<InlineLoader size={size} />);
+    const loader = container.firstChild as HTMLElement;
+    for (const cls of expectedClasses.split(' ')) {
+      expect(loader).toHaveClass(cls);
+    }
+  });
+});
+
+describe('FullScreenLoader', () => {
+  it('does not render message paragraph when no message provided', () => {
+    render(<FullScreenLoader />);
+    const loader = screen.getByTestId('full-screen-loader');
+    // The only text inside should be from animated rings, not a <p> message
+    expect(loader.querySelector('p')).toBeNull();
+  });
+});
+
+describe('LoadingSkeleton - default fallback', () => {
+  it('falls back to card skeleton for unknown variant', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { container } = render(<LoadingSkeleton variant={'unknown' as any} />);
+    expect(container.firstChild).toBeInTheDocument();
+    // Card skeleton has specific structure: space-y-3, p-4
+    expect(container.firstChild).toHaveClass('space-y-3');
+  });
 });
 
 describe('StarmapLoadingSkeleton', () => {

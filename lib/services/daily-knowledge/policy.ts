@@ -60,3 +60,40 @@ export async function withWikimediaGate<T>(fn: () => Promise<T>): Promise<T> {
 export function isRetryableStatus(status: number): boolean {
   return status === 429 || status >= 500;
 }
+
+export function isAbortLikeError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if ('name' in error && (error as { name?: string }).name === 'AbortError') return true;
+  if ('code' in error && (error as { code?: string }).code === 'ABORT_ERR') return true;
+  if ('message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message.toLowerCase().includes('abort');
+  }
+  return false;
+}
+
+export function createRequestSignal(
+  timeoutMs: number,
+  externalSignal?: AbortSignal
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeoutId);
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', onExternalAbort);
+      }
+    },
+  };
+}

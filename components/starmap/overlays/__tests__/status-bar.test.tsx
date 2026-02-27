@@ -83,4 +83,48 @@ describe('StatusBar', () => {
     render(<StatusBar currentFov={60} />);
     expect(screen.getByText(/40\.0/)).toBeInTheDocument();
   });
+
+  it('displays FOV >= 1 with 1 decimal', () => {
+    render(<StatusBar currentFov={5.678} />);
+    expect(screen.getByText('5.7°')).toBeInTheDocument();
+  });
+
+  it('displays FOV < 1 with 2 decimals', () => {
+    render(<StatusBar currentFov={0.45} />);
+    expect(screen.getByText('0.45°')).toBeInTheDocument();
+  });
+
+  it('applies custom className', () => {
+    const { container } = render(<StatusBar currentFov={60} className="my-custom" />);
+    expect(container.querySelector('.my-custom')).toBeInTheDocument();
+  });
+
+  it('renders moon illumination in conditions popup', () => {
+    render(<StatusBar currentFov={60} />);
+    expect(screen.getByText('100%')).toBeInTheDocument();
+  });
+
+  it('renders sky quality text', () => {
+    render(<StatusBar currentFov={60} />);
+    const matches = screen.getAllByText(/statusBar\.sky\.average/);
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders twilight times', () => {
+    render(<StatusBar currentFov={60} />);
+    // formatTimeShort is mocked to return '12:00'
+    const times = screen.getAllByText('12:00');
+    expect(times.length).toBeGreaterThanOrEqual(2); // sunset, sunrise, etc.
+  });
+
+  it('renders FOV icon label', () => {
+    render(<StatusBar currentFov={60} />);
+    expect(screen.getByText('zoom.fov')).toBeInTheDocument();
+  });
+
+  it('renders time display', () => {
+    render(<StatusBar currentFov={60} />);
+    // LocationTimeDisplay renders Clock icon + time
+    expect(document.body.textContent).toContain('session.location');
+  });
 });

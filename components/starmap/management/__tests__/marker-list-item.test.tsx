@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MarkerListItem } from '../marker-list-item';
 
 jest.mock('@/components/ui/button', () => ({
@@ -81,5 +81,37 @@ describe('MarkerListItem', () => {
       <MarkerListItem {...defaultProps} marker={{ ...mockMarker, visible: false }} />
     );
     expect(container.firstChild).toHaveClass('opacity-50');
+  });
+
+  // 点击导航按钮
+  it('calls onNavigate when navigate button clicked', () => {
+    render(<MarkerListItem {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[0]);
+    expect(defaultProps.onNavigate).toHaveBeenCalledWith(mockMarker);
+  });
+
+  // 点击可见性切换按钮
+  it('calls onToggleVisibility when toggle button clicked', () => {
+    render(<MarkerListItem {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[1]);
+    expect(defaultProps.onToggleVisibility).toHaveBeenCalledWith('marker-1');
+  });
+
+  // 点击编辑按钮
+  it('calls onEdit when edit button clicked', () => {
+    render(<MarkerListItem {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[2]);
+    expect(defaultProps.onEdit).toHaveBeenCalledWith(mockMarker);
+  });
+
+  // 点击删除按钮
+  it('calls onDelete when delete button clicked', () => {
+    render(<MarkerListItem {...defaultProps} />);
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[3]);
+    expect(defaultProps.onDelete).toHaveBeenCalledWith(mockMarker);
   });
 });

@@ -469,6 +469,12 @@ export function SessionPlanner() {
   const [planningMode, setPlanningMode] = useState<'auto' | 'manual'>('auto');
   const [minAltitude, setMinAltitude] = useState(30);
   const [minImagingTime, setMinImagingTime] = useState(30); // minutes
+  const [minMoonDistance, setMinMoonDistance] = useState(20);
+  const [useExposurePlanDuration, setUseExposurePlanDuration] = useState(true);
+  const [sessionWindowStartTime, setSessionWindowStartTime] = useState('');
+  const [sessionWindowEndTime, setSessionWindowEndTime] = useState('');
+  const [enforceMountSafety, setEnforceMountSafety] = useState(false);
+  const [avoidMeridianFlipWindow, setAvoidMeridianFlipWindow] = useState(false);
   const [showGaps, setShowGaps] = useState(true);
   const [planDate, setPlanDate] = useState<Date>(new Date());
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
@@ -488,9 +494,11 @@ export function SessionPlanner() {
   
   const profileInfo = useMountStore((state) => state.profileInfo);
   const mountConnected = useMountStore((state) => state.mountInfo.Connected ?? false);
+  const mountSafetyConfig = useMountStore((state) => state.safetyConfig);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const targets = useTargetListStore((state) => state.targets);
   const setActiveTarget = useTargetListStore((state) => state.setActiveTarget);
+  const addTargetsBatch = useTargetListStore((state) => state.addTargetsBatch);
   
   // Session plan persistence
   const savedPlans = useSessionPlanStore((state) => state.savedPlans);
@@ -575,19 +583,45 @@ export function SessionPlanner() {
   const constraints = useMemo<SessionConstraintSet>(() => ({
     minAltitude,
     minImagingTime,
-    minMoonDistance: 20,
+    minMoonDistance,
+    sessionWindow: sessionWindowStartTime && sessionWindowEndTime
+      ? { startTime: sessionWindowStartTime, endTime: sessionWindowEndTime }
+      : undefined,
+    useExposurePlanDuration,
     weatherLimits: {
       maxCloudCover: 70,
       maxHumidity: 90,
       maxWindSpeed: 25,
     },
-  }), [minAltitude, minImagingTime]);
+    safetyLimits: {
+      enforceMountSafety,
+      avoidMeridianFlipWindow: enforceMountSafety ? avoidMeridianFlipWindow : false,
+    },
+  }), [
+    avoidMeridianFlipWindow,
+    enforceMountSafety,
+    minAltitude,
+    minImagingTime,
+    minMoonDistance,
+    sessionWindowEndTime,
+    sessionWindowStartTime,
+    useExposurePlanDuration,
+  ]);
 
   const applyDraft = useCallback((draft: SessionDraftV2) => {
     setPlanDate(new Date(draft.planDate));
     setStrategy(draft.strategy);
     setMinAltitude(draft.constraints.minAltitude);
     setMinImagingTime(draft.constraints.minImagingTime);
+    setMinMoonDistance(draft.constraints.minMoonDistance ?? 20);
+    setUseExposurePlanDuration(draft.constraints.useExposurePlanDuration ?? true);
+    setSessionWindowStartTime(draft.constraints.sessionWindow?.startTime ?? '');
+    setSessionWindowEndTime(draft.constraints.sessionWindow?.endTime ?? '');
+    const nextEnforceMountSafety = Boolean(draft.constraints.safetyLimits?.enforceMountSafety);
+    setEnforceMountSafety(nextEnforceMountSafety);
+    setAvoidMeridianFlipWindow(
+      nextEnforceMountSafety && Boolean(draft.constraints.safetyLimits?.avoidMeridianFlipWindow),
+    );
     setSessionNotes(draft.notes ?? '');
     const mappedEdits: Record<string, ManualScheduleItem> = {};
     draft.manualEdits.forEach((edit) => {
@@ -647,6 +681,144 @@ export function SessionPlanner() {
   }, []);
 
   const parseImportedDraft = useCallback((rawContent: string): SessionDraftV2 | null => {
+    const content = rawContent.trim();
+    if (!content) return null;
+
+    const parseCsvLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          const next = line[i + 1];
+          if (inQuotes && next === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+        if (ch === ',' && !inQuotes) {
+          result.push(current);
+          current = '';
+          continue;
+        }
+        current += ch;
+      }
+      result.push(current);
+      return result.map((v) => v.trim());
+    };
+
+    const parseSkyMapCsv = (): SessionDraftV2 | null => {
+      const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length < 2) return null;
+      const header = parseCsvLine(lines[0]);
+      const idxName = header.indexOf('name');
+      const idxStart = header.indexOf('start_time');
+      const idxEnd = header.indexOf('end_time');
+      if (idxName < 0 || idxStart < 0 || idxEnd < 0) return null;
+
+      const targetByName = new Map(activeTargets.map((tgt) => [tgt.name.trim().toLowerCase(), tgt.id]));
+      const edits: ManualScheduleItem[] = [];
+      let importedPlanDate: Date | null = null;
+
+      for (const row of lines.slice(1)) {
+        const cols = parseCsvLine(row);
+        const name = cols[idxName]?.trim();
+        const startIso = cols[idxStart]?.trim();
+        const endIso = cols[idxEnd]?.trim();
+        if (!name || !startIso || !endIso) continue;
+        const targetId = targetByName.get(name.toLowerCase());
+        if (!targetId) continue;
+
+        const start = new Date(startIso);
+        const end = new Date(endIso);
+        if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) continue;
+        if (!importedPlanDate) importedPlanDate = start;
+        const durationMinutes = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+
+        edits.push({
+          targetId,
+          startTime: start.toTimeString().slice(0, 5),
+          endTime: end.toTimeString().slice(0, 5),
+          durationMinutes,
+          locked: true,
+        });
+      }
+
+      if (edits.length === 0) return null;
+
+      return {
+        planDate: (importedPlanDate ?? planDate).toISOString(),
+        strategy: 'balanced',
+        constraints,
+        excludedTargetIds: [],
+        manualEdits: edits,
+        notes: '',
+      };
+    };
+
+    const parseNinaXml = (): SessionDraftV2 | null => {
+      if (!content.startsWith('<')) return null;
+      if (typeof DOMParser === 'undefined') return null;
+
+      const doc = new DOMParser().parseFromString(content, 'text/xml');
+      const parseError = doc.getElementsByTagName('parsererror')[0];
+      if (parseError) return null;
+
+      const lists = Array.from(doc.getElementsByTagName('CaptureSequenceList'));
+      if (lists.length === 0) return null;
+
+      const existingByName = new Set(activeTargets.map((tgt) => tgt.name.trim().toLowerCase()));
+      const batch: Array<{ name: string; ra: number; dec: number; raString: string; decString: string }> = [];
+
+      for (const node of lists) {
+        const targetName = node.getAttribute('TargetName')?.trim();
+        if (!targetName) continue;
+        const normalized = targetName.toLowerCase();
+        if (existingByName.has(normalized)) continue;
+
+        const coords = node.getElementsByTagName('Coordinates')[0];
+        const raText = coords?.getElementsByTagName('RA')[0]?.textContent?.trim() ?? '';
+        const decText = coords?.getElementsByTagName('Dec')[0]?.textContent?.trim() ?? '';
+        const raHours = Number(raText);
+        const decDeg = Number(decText);
+        if (!Number.isFinite(raHours) || !Number.isFinite(decDeg)) continue;
+
+        const raDeg = raHours * 15;
+        batch.push({
+          name: targetName,
+          ra: raDeg,
+          dec: decDeg,
+          raString: degreesToHMS(raDeg),
+          decString: degreesToDMS(decDeg),
+        });
+        existingByName.add(normalized);
+      }
+
+      if (batch.length > 0) {
+        addTargetsBatch(batch);
+      }
+
+      return {
+        planDate: planDate.toISOString(),
+        strategy: 'balanced',
+        constraints,
+        excludedTargetIds: [],
+        manualEdits: [],
+        notes: '',
+      };
+    };
+
+    // Try structured imports first
+    const ninaDraft = parseNinaXml();
+    if (ninaDraft) return ninaDraft;
+    const csvDraft = parseSkyMapCsv();
+    if (csvDraft) return csvDraft;
+
+    // JSON import (SkyMap drafts/exports)
     try {
       const parsed = JSON.parse(rawContent) as unknown;
       if (!parsed || typeof parsed !== 'object') return null;
@@ -671,7 +843,7 @@ export function SessionPlanner() {
         const targetByName = new Map(
           activeTargets.map((target) => [target.name.trim().toLowerCase(), target.id]),
         );
-        const manualEdits = maybeDraft.targets
+        const edits = maybeDraft.targets
           .map((target) => {
             const targetId = targetByName.get(target.name.trim().toLowerCase());
             if (!targetId || !target.startTime || !target.endTime) return null;
@@ -691,13 +863,9 @@ export function SessionPlanner() {
         return {
           planDate: maybeDraft.planDate,
           strategy: 'balanced',
-          constraints: {
-            minAltitude,
-            minImagingTime,
-            minMoonDistance: 20,
-          },
+          constraints,
           excludedTargetIds: [],
-          manualEdits,
+          manualEdits: edits,
           notes: '',
         };
       }
@@ -705,7 +873,7 @@ export function SessionPlanner() {
     } catch {
       return null;
     }
-  }, [activeTargets, minAltitude, minImagingTime]);
+  }, [activeTargets, addTargetsBatch, constraints, planDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -731,8 +899,9 @@ export function SessionPlanner() {
       excludedIds,
       manualOverrides,
       weatherSnapshot,
+      { mountSafetyConfig },
     ),
-    [activeTargets, latitude, longitude, twilight, strategy, constraints, planDate, excludedIds, manualOverrides, weatherSnapshot]
+    [activeTargets, latitude, longitude, twilight, strategy, constraints, planDate, excludedIds, manualOverrides, weatherSnapshot, mountSafetyConfig]
   );
 
   useEffect(() => {
@@ -812,6 +981,8 @@ export function SessionPlanner() {
       strategy,
       minAltitude,
       minImagingTime,
+      constraints,
+      planningMode,
       targets: displayedPlan.targets.map(s => ({
         targetId: s.target.id,
         targetName: s.target.name,
@@ -834,7 +1005,7 @@ export function SessionPlanner() {
       manualEdits: Object.values(manualEdits),
     });
     toast.success(t('sessionPlanner.planSaved'));
-  }, [displayedPlan, planDate, latitude, longitude, strategy, minAltitude, minImagingTime, excludedIds, savePlan, t, sessionNotes, weatherSnapshot, manualEdits]);
+  }, [constraints, displayedPlan, excludedIds, latitude, longitude, manualEdits, minAltitude, minImagingTime, planDate, planningMode, savePlan, sessionNotes, strategy, t, weatherSnapshot]);
 
   const handleSaveTemplate = useCallback(() => {
     const draft: SessionDraftV2 = {
@@ -883,10 +1054,35 @@ export function SessionPlanner() {
   }, [applyDraft, availableTemplates, loadTemplate, t]);
   
   const handleLoadPlan = useCallback((saved: SavedSessionPlan) => {
+    const savedConstraints = saved.constraints ?? {
+      minAltitude: saved.minAltitude,
+      minImagingTime: saved.minImagingTime,
+      minMoonDistance: 20,
+      useExposurePlanDuration: true,
+      weatherLimits: {
+        maxCloudCover: 70,
+        maxHumidity: 90,
+        maxWindSpeed: 25,
+      },
+      safetyLimits: {
+        enforceMountSafety: false,
+        avoidMeridianFlipWindow: false,
+      },
+    };
+
     setPlanDate(new Date(saved.planDate));
     setStrategy(saved.strategy);
-    setMinAltitude(saved.minAltitude);
-    setMinImagingTime(saved.minImagingTime);
+    setMinAltitude(savedConstraints.minAltitude);
+    setMinImagingTime(savedConstraints.minImagingTime);
+    setMinMoonDistance(savedConstraints.minMoonDistance ?? 20);
+    setUseExposurePlanDuration(savedConstraints.useExposurePlanDuration ?? true);
+    setSessionWindowStartTime(savedConstraints.sessionWindow?.startTime ?? '');
+    setSessionWindowEndTime(savedConstraints.sessionWindow?.endTime ?? '');
+    const nextEnforceMountSafety = Boolean(savedConstraints.safetyLimits?.enforceMountSafety);
+    setEnforceMountSafety(nextEnforceMountSafety);
+    setAvoidMeridianFlipWindow(
+      nextEnforceMountSafety && Boolean(savedConstraints.safetyLimits?.avoidMeridianFlipWindow),
+    );
     setSessionNotes(saved.notes ?? '');
     if (saved.weatherSnapshot) {
       setWeatherInput({
@@ -903,7 +1099,7 @@ export function SessionPlanner() {
       nextEdits[edit.targetId] = edit;
     });
     setManualEdits(nextEdits);
-    setPlanningMode(saved.manualEdits && saved.manualEdits.length > 0 ? 'manual' : 'auto');
+    setPlanningMode(saved.planningMode ?? (saved.manualEdits && saved.manualEdits.length > 0 ? 'manual' : 'auto'));
     // Filter out stale exclusion IDs that no longer match current targets
     const currentTargetIds = new Set(activeTargets.map(t => t.id));
     const validExcluded = saved.excludedTargetIds.filter(id => currentTargetIds.has(id));
@@ -1124,7 +1320,7 @@ export function SessionPlanner() {
                   step={5}
                 />
               </div>
-              
+               
               <div className="space-y-2">
                 <Label className="text-xs">{t('sessionPlanner.minImagingTime')}: {minImagingTime}m</Label>
                 <Slider
@@ -1135,7 +1331,122 @@ export function SessionPlanner() {
                   step={15}
                 />
               </div>
-              
+
+              <div className="space-y-2">
+                <Label className="text-xs">{t('sessionPlanner.minMoonDistance')}: {minMoonDistance}°</Label>
+                <Slider
+                  value={[minMoonDistance]}
+                  onValueChange={([v]) => setMinMoonDistance(v)}
+                  min={0}
+                  max={90}
+                  step={5}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={useExposurePlanDuration}
+                  onCheckedChange={setUseExposurePlanDuration}
+                  id="useExposurePlanDuration"
+                />
+                <Label htmlFor="useExposurePlanDuration" className="text-xs">
+                  {t('sessionPlanner.useExposurePlanDuration')}
+                </Label>
+              </div>
+
+              <div className="col-span-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs">{t('sessionPlanner.sessionWindow')}</Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[10px]"
+                      disabled={!twilight.astronomicalDusk || !twilight.astronomicalDawn}
+                      onClick={() => {
+                        if (!twilight.astronomicalDusk || !twilight.astronomicalDawn) return;
+                        setSessionWindowStartTime(twilight.astronomicalDusk.toTimeString().slice(0, 5));
+                        setSessionWindowEndTime(twilight.astronomicalDawn.toTimeString().slice(0, 5));
+                      }}
+                    >
+                      <Sun className="mr-1 h-3 w-3" />
+                      {t('sessionPlanner.fillDuskDawn')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[10px]"
+                      disabled={!sessionWindowStartTime && !sessionWindowEndTime}
+                      onClick={() => {
+                        setSessionWindowStartTime('');
+                        setSessionWindowEndTime('');
+                      }}
+                    >
+                      {t('common.clear')}
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="sessionWindowStart" className="text-[10px] text-muted-foreground">
+                      {t('sessionPlanner.sessionWindowStart')}
+                    </Label>
+                    <Input
+                      id="sessionWindowStart"
+                      type="time"
+                      value={sessionWindowStartTime}
+                      onChange={(event) => setSessionWindowStartTime(event.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="sessionWindowEnd" className="text-[10px] text-muted-foreground">
+                      {t('sessionPlanner.sessionWindowEnd')}
+                    </Label>
+                    <Input
+                      id="sessionWindowEnd"
+                      type="time"
+                      value={sessionWindowEndTime}
+                      onChange={(event) => setSessionWindowEndTime(event.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-2 space-y-2">
+                <Label className="text-xs">{t('sessionPlanner.safetyLimits')}</Label>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={enforceMountSafety}
+                    onCheckedChange={(checked) => {
+                      setEnforceMountSafety(checked);
+                      if (!checked) setAvoidMeridianFlipWindow(false);
+                    }}
+                    id="enforceMountSafety"
+                  />
+                  <Label htmlFor="enforceMountSafety" className="text-xs">
+                    {t('sessionPlanner.enforceMountSafety')}
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={avoidMeridianFlipWindow}
+                    onCheckedChange={setAvoidMeridianFlipWindow}
+                    id="avoidMeridianFlipWindow"
+                    disabled={!enforceMountSafety}
+                  />
+                  <Label
+                    htmlFor="avoidMeridianFlipWindow"
+                    className={cn('text-xs', !enforceMountSafety && 'text-muted-foreground')}
+                  >
+                    {t('sessionPlanner.avoidMeridianFlipWindow')}
+                  </Label>
+                </div>
+              </div>
+               
               <div className="flex items-center gap-2">
                 <Switch checked={showGaps} onCheckedChange={setShowGaps} id="showGaps" />
                 <Label htmlFor="showGaps" className="text-xs">{t('sessionPlanner.showGaps')}</Label>

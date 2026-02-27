@@ -4,6 +4,8 @@
 
 import {
   parseFITSHeader,
+  readFITSPixelData,
+  parseXISFHeader,
   formatRA,
   formatDec,
   formatPixelScale,
@@ -547,6 +549,16 @@ describe('FITS Parser', () => {
   });
 
   describe('generatePreviewImageData', () => {
+    const makePixelData = (data: number[]): FITSPixelData => ({
+      width: 2,
+      height: 2,
+      bitpix: -32,
+      data: new Float64Array(data),
+      min: Math.min(...data),
+      max: Math.max(...data),
+      mean: data.reduce((a, b) => a + b, 0) / data.length,
+    });
+
     it('generates ImageData from pixel data with linear stretch', () => {
       const pixelData: FITSPixelData = {
         width: 4,
@@ -591,6 +603,500 @@ describe('FITS Parser', () => {
       // All alpha channels should be 255
       expect(imageData.data[3]).toBe(255);
       expect(imageData.data[7]).toBe(255);
+    });
+
+    it('generates ImageData with log stretch', () => {
+      const pd = makePixelData([0, 500, 1000, 1500]);
+      const imageData = generatePreviewImageData(pd, 'log', 0, 1);
+      expect(imageData.width).toBe(2);
+      expect(imageData.data[3]).toBe(255);
+    });
+
+    it('generates ImageData with sqrt stretch', () => {
+      const pd = makePixelData([0, 500, 1000, 1500]);
+      const imageData = generatePreviewImageData(pd, 'sqrt', 0, 1);
+      expect(imageData.width).toBe(2);
+      expect(imageData.data[3]).toBe(255);
+    });
+
+    it('uses default asinh stretch when no mode specified', () => {
+      const pd = makePixelData([0, 500, 1000, 1500]);
+      const imageData = generatePreviewImageData(pd);
+      expect(imageData.width).toBe(2);
+      expect(imageData.data.length).toBe(2 * 2 * 4);
+    });
+  });
+
+  describe('CONTINUE card parsing', () => {
+    it('appends CONTINUE card value to previous key', async () => {
+      const cards = [
+        "LONGKEY = 'This is the start of a very long string value '",
+        "CONTINUE  'and this is the continuation'",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.header['LONGKEY']).toContain('This is the start');
+      expect(result.header['LONGKEY']).toContain('and this is the continuation');
+    });
+  });
+
+  describe('HIERARCH keyword parsing', () => {
+    it('parses HIERARCH keyword with numeric value', async () => {
+      const cards = [
+        "HIERARCH ESO.DET.CHIP.GAIN = 2.5 / detector gain",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.header['ESO.DET.CHIP.GAIN']).toBeCloseTo(2.5);
+    });
+
+    it('parses HIERARCH keyword with string value', async () => {
+      const cards = [
+        "HIERARCH MY.CUSTOM.KEY = 'hello world' / comment",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.header['MY.CUSTOM.KEY']).toBe('hello world');
+    });
+  });
+
+  describe('WCS from CDELT (legacy) extraction', () => {
+    it('extracts WCS from CDELT without CROTA', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "CRPIX1  =                512.0 / Reference pixel X",
+        "CRPIX2  =                512.0 / Reference pixel Y",
+        "CRVAL1  =              180.000 / Reference RA",
+        "CRVAL2  =               45.000 / Reference Dec",
+        "CDELT1  =            0.0002778 / X scale deg/pix",
+        "CDELT2  =            0.0002778 / Y scale deg/pix",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.wcs).toBeDefined();
+      expect(result.wcs?.pixelScale).toBeGreaterThan(0);
+      expect(result.wcs?.rotation).toBeCloseTo(0, 3);
+    });
+
+    it('extracts WCS with CROTA2 rotation', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "CRPIX1  =                512.0 / Reference pixel X",
+        "CRPIX2  =                512.0 / Reference pixel Y",
+        "CRVAL1  =              180.000 / Reference RA",
+        "CRVAL2  =               45.000 / Reference Dec",
+        "CDELT1  =           -0.0002778 / X scale deg/pix",
+        "CDELT2  =            0.0002778 / Y scale deg/pix",
+        "CROTA2  =                 30.0 / Rotation angle",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.wcs).toBeDefined();
+      expect(result.wcs?.cdMatrix).toBeDefined();
+    });
+  });
+
+  describe('readFITSPixelData', () => {
+    function createFITSWithPixels(bitpix: number, pixelValues: number[]): File {
+      const CARD_SIZE = 80;
+      const BLOCK_SIZE = 2880;
+
+      const cards = [
+        `SIMPLE  =                    T / conforming`,
+        `BITPIX  =                  ${String(bitpix).padStart(3)} / bits per pixel`,
+        `NAXIS   =                    2 / number of axes`,
+        `NAXIS1  =                    2 / width`,
+        `NAXIS2  =                    2 / height`,
+        `BZERO   =                    0 / zero offset`,
+        `BSCALE  =                    1 / scale factor`,
+      ];
+
+      const paddedCards = cards.map(c => c.padEnd(CARD_SIZE, ' '));
+      paddedCards.push('END'.padEnd(CARD_SIZE, ' '));
+
+      const totalCards = paddedCards.length;
+      const headerBlocks = Math.ceil((totalCards * CARD_SIZE) / BLOCK_SIZE);
+      const headerSize = headerBlocks * BLOCK_SIZE;
+
+      const bytesPerPixel = Math.abs(bitpix) / 8;
+      const dataSize = pixelValues.length * bytesPerPixel;
+      const totalSize = headerSize + dataSize;
+
+      const buffer = new ArrayBuffer(totalSize);
+      const headerView = new Uint8Array(buffer);
+
+      paddedCards.forEach((card, index) => {
+        for (let i = 0; i < CARD_SIZE; i++) {
+          headerView[index * CARD_SIZE + i] = card.charCodeAt(i);
+        }
+      });
+
+      const dataView = new DataView(buffer, headerSize);
+      for (let i = 0; i < pixelValues.length; i++) {
+        const offset = i * bytesPerPixel;
+        switch (bitpix) {
+          case 8: dataView.setUint8(offset, pixelValues[i]); break;
+          case 16: dataView.setInt16(offset, pixelValues[i], false); break;
+          case 32: dataView.setInt32(offset, pixelValues[i], false); break;
+          case -32: dataView.setFloat32(offset, pixelValues[i], false); break;
+          case -64: dataView.setFloat64(offset, pixelValues[i], false); break;
+        }
+      }
+
+      return new File([buffer], 'test.fits');
+    }
+
+    it('reads 16-bit integer pixel data', async () => {
+      const file = createFITSWithPixels(16, [100, 200, 300, 400]);
+      const result = await readFITSPixelData(file);
+
+      expect(result).not.toBeNull();
+      expect(result!.width).toBe(2);
+      expect(result!.height).toBe(2);
+      expect(result!.bitpix).toBe(16);
+      expect(result!.data[0]).toBe(100);
+      expect(result!.data[3]).toBe(400);
+      expect(result!.min).toBe(100);
+      expect(result!.max).toBe(400);
+    });
+
+    it('reads 8-bit unsigned pixel data', async () => {
+      const file = createFITSWithPixels(8, [0, 128, 200, 255]);
+      const result = await readFITSPixelData(file);
+
+      expect(result).not.toBeNull();
+      expect(result!.data[0]).toBe(0);
+      expect(result!.data[3]).toBe(255);
+    });
+
+    it('reads 32-bit float pixel data', async () => {
+      const file = createFITSWithPixels(-32, [1.5, 2.5, 3.5, 4.5]);
+      const result = await readFITSPixelData(file);
+
+      expect(result).not.toBeNull();
+      expect(result!.data[0]).toBeCloseTo(1.5, 4);
+      expect(result!.data[3]).toBeCloseTo(4.5, 4);
+    });
+
+    it('reads 64-bit float pixel data', async () => {
+      const file = createFITSWithPixels(-64, [1.123456789, 2.987654321, 3.0, 4.0]);
+      const result = await readFITSPixelData(file);
+
+      expect(result).not.toBeNull();
+      expect(result!.data[0]).toBeCloseTo(1.123456789, 6);
+    });
+
+    it('returns null for non-FITS content', async () => {
+      const file = new File(['not a fits file'], 'bad.fits');
+      const result = await readFITSPixelData(file);
+      expect(result).toBeNull();
+    });
+
+    it('returns null for NAXIS < 2', async () => {
+      const CARD_SIZE = 80;
+      const BLOCK_SIZE = 2880;
+      const cards = [
+        "SIMPLE  =                    T",
+        "BITPIX  =                   16",
+        "NAXIS   =                    1",
+        "NAXIS1  =                  100",
+      ];
+      const paddedCards = cards.map(c => c.padEnd(CARD_SIZE, ' '));
+      paddedCards.push('END'.padEnd(CARD_SIZE, ' '));
+      const totalSize = Math.ceil((paddedCards.length * CARD_SIZE) / BLOCK_SIZE) * BLOCK_SIZE;
+      const buffer = new ArrayBuffer(totalSize);
+      const view = new Uint8Array(buffer);
+      paddedCards.forEach((card, index) => {
+        for (let i = 0; i < CARD_SIZE; i++) {
+          view[index * CARD_SIZE + i] = card.charCodeAt(i);
+        }
+      });
+      const file = new File([buffer], 'test.fits');
+      const result = await readFITSPixelData(file);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('parseXISFHeader', () => {
+    it('parses XISF header with FITSKeyword elements', async () => {
+      const xml = `<?xml version="1.0"?>
+<xisf version="1.0">
+  <Image Geometry="2048:2048:1" sampleFormat="Float32">
+    <FITSKeyword name="OBJECT" value="'M42'" comment="target" />
+    <FITSKeyword name="EXPTIME" value="300" comment="exposure" />
+    <FITSKeyword name="NAXIS" value="2" comment="axes" />
+    <FITSKeyword name="CRPIX1" value="1024" comment="ref pixel" />
+    <FITSKeyword name="CRPIX2" value="1024" comment="ref pixel" />
+    <FITSKeyword name="CRVAL1" value="83.633" comment="ref RA" />
+    <FITSKeyword name="CRVAL2" value="-5.392" comment="ref Dec" />
+    <FITSKeyword name="CD1_1" value="-0.0002778" comment="cd" />
+    <FITSKeyword name="CD1_2" value="0" comment="cd" />
+    <FITSKeyword name="CD2_1" value="0" comment="cd" />
+    <FITSKeyword name="CD2_2" value="0.0002778" comment="cd" />
+    <FITSKeyword name="SIMPLE" value="T" comment="conforming" />
+    <FITSKeyword name="EXTEND" value="F" comment="no ext" />
+  </Image>
+</xisf>`;
+      const file = new File([xml], 'test.xisf');
+      const result = await parseXISFHeader(file);
+
+      expect(result).not.toBeNull();
+      expect(result!.header['OBJECT']).toBe('M42');
+      expect(result!.header['EXPTIME']).toBe(300);
+      expect(result!.header['SIMPLE']).toBe(true);
+      expect(result!.header['EXTEND']).toBe(false);
+      expect(result!.image).toBeDefined();
+      expect(result!.image?.width).toBe(2048);
+      expect(result!.image?.height).toBe(2048);
+      expect(result!.image?.bitpix).toBe(-32);
+      expect(result!.wcs).toBeDefined();
+    });
+
+    it('returns null for empty XML without FITSKeyword elements', async () => {
+      const xml = `<?xml version="1.0"?><xisf></xisf>`;
+      const file = new File([xml], 'empty.xisf');
+      const result = await parseXISFHeader(file);
+      expect(result).toBeNull();
+    });
+
+    it('returns null on invalid content', async () => {
+      const file = new File([new ArrayBuffer(100)], 'bad.xisf');
+      const result = await parseXISFHeader(file);
+      // May parse with empty header → null
+      expect(result).toBeNull();
+    });
+
+    it('parses different sampleFormat types', async () => {
+      const formats = [
+        { fmt: 'Float64', expected: -64 },
+        { fmt: 'UInt16', expected: 16 },
+        { fmt: 'UInt8', expected: 8 },
+        { fmt: 'UInt32', expected: 32 },
+      ];
+
+      for (const { fmt, expected } of formats) {
+        const xml = `<xisf><Image Geometry="100:100:1" sampleFormat="${fmt}"><FITSKeyword name="NAXIS" value="2" comment="" /></Image></xisf>`;
+        const file = new File([xml], 'test.xisf');
+        const result = await parseXISFHeader(file);
+        expect(result).not.toBeNull();
+        expect(result!.header['BITPIX']).toBe(expected);
+      }
+    });
+  });
+
+  describe('Alternative header keywords', () => {
+    it('uses DATE_OBS alternative for date', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "DATE_OBS= '2024-03-15T10:00:00'/ Observation date",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.observation?.dateObs).toBe('2024-03-15T10:00:00');
+    });
+
+    it('uses EXPOSURE alternative for exposure time', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "EXPOSURE=                  120 / Exposure time",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.observation?.exptime).toBe(120);
+    });
+
+    it('uses EGAIN alternative for gain', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "EGAIN   =                 1.23 / Electrons per ADU",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.observation?.gain).toBeCloseTo(1.23);
+    });
+
+    it('uses CCDTEMP alternative for temperature', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "CCDTEMP =                  -15 / CCD temperature",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.observation?.ccdTemp).toBe(-15);
+    });
+
+    it('uses LAT-OBS/LONG-OBS/ALT-OBS for site info', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "LAT-OBS =               35.123 / Latitude",
+        "LONG-OBS=             -120.456 / Longitude",
+        "ALT-OBS =                 1200 / Altitude",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.site?.latitude).toBeCloseTo(35.123);
+      expect(result.site?.longitude).toBeCloseTo(-120.456);
+      expect(result.site?.elevation).toBe(1200);
+    });
+
+    it('uses FLENGTH alternative for focal length', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "FLENGTH =                  600 / Focal length",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.telescope?.focalLength).toBe(600);
+    });
+
+    it('uses PIXSIZE1/PIXSIZE2 alternative for pixel size', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "PIXSIZE1=                 4.63 / Pixel size X",
+        "PIXSIZE2=                 4.63 / Pixel size Y",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.camera?.pixelSizeX).toBeCloseTo(4.63);
+    });
+
+    it('uses CREATOR alternative for processing software', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "CREATOR = 'AstroPixelProcessor' / Software",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.processing?.software).toBe('AstroPixelProcessor');
+    });
+
+    it('uses OBSLAT/OBSLON/OBSALT for site info', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "OBSLAT  =               40.000 / Observatory latitude",
+        "OBSLON  =              -74.000 / Observatory longitude",
+        "OBSALT  =                  500 / Observatory altitude",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.site?.latitude).toBeCloseTo(40.0);
+      expect(result.site?.longitude).toBeCloseTo(-74.0);
+      expect(result.site?.elevation).toBe(500);
+    });
+
+    it('uses APTDIAM alternative for aperture', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "FOCALLEN=                  400 / Focal length",
+        "APTDIAM =                  100 / Aperture diameter",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.telescope?.aperture).toBe(100);
+      expect(result.telescope?.focalRatio).toBeCloseTo(4.0, 1);
+    });
+
+    it('uses XBIN/YBIN alternative for binning', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "XPIXSZ  =                3.76 / Pixel size",
+        "XBIN    =                    2 / X binning",
+        "YBIN    =                    2 / Y binning",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.camera?.binningX).toBe(2);
+      expect(result.camera?.binningY).toBe(2);
+    });
+
+    it('uses SOFTWARE alternative for processing software', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "SOFTWARE= 'DeepSkyStacker'     / Processing software",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.processing?.software).toBe('DeepSkyStacker');
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('handles image with NAXIS < 2 gracefully', async () => {
+      const cards = [
+        "SIMPLE  =                    T",
+        "BITPIX  =                   16",
+        "NAXIS   =                    1",
+        "NAXIS1  =                  100",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.image).toBeUndefined();
+    });
+
+    it('handles string with escaped single quotes', async () => {
+      const cards = [
+        "COMMENT = 'It''s a test'       / escaped quote",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.header['COMMENT']).toBe("It's a test");
+    });
+
+    it('returns undefined for site when no site headers', async () => {
+      const file = createMockFITSFile(basicImageHeader);
+      const result = await parseFITSHeader(file);
+      expect(result.site).toBeUndefined();
+    });
+
+    it('returns undefined for processing when no processing headers', async () => {
+      const file = createMockFITSFile(basicImageHeader);
+      const result = await parseFITSHeader(file);
+      expect(result.processing).toBeUndefined();
+    });
+
+    it('returns undefined for camera when no camera headers', async () => {
+      const file = createMockFITSFile(basicImageHeader);
+      const result = await parseFITSHeader(file);
+      expect(result.camera).toBeUndefined();
+    });
+
+    it('handles CALSTAT without B/D/F', async () => {
+      const cards = [
+        ...basicImageHeader,
+        "CALSTAT = 'X'                  / Unknown calibration",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+      expect(result.processing?.darkApplied).toBe(false);
+      expect(result.processing?.flatApplied).toBe(false);
+      expect(result.processing?.biasApplied).toBe(false);
+    });
+
+    it('handles SIP with AP_ORDER and inverse coefficients', async () => {
+      const cards = [
+        ...wcsHeader,
+        "A_ORDER =                    2",
+        "B_ORDER =                    2",
+        "AP_ORDER=                    2",
+        "BP_ORDER=                    2",
+        "A_2_0   =          1.000E-07  ",
+        "B_0_2   =          2.000E-07  ",
+        "AP_2_0  =         -1.000E-07  ",
+        "BP_0_2  =         -2.000E-07  ",
+      ];
+      const file = createMockFITSFile(cards);
+      const result = await parseFITSHeader(file);
+
+      expect(result.sip).toBeDefined();
+      expect(result.sip?.apOrder).toBe(2);
+      expect(result.sip?.bpOrder).toBe(2);
+      expect(result.sip?.ap['AP_2_0']).toBeCloseTo(-1e-7);
+      expect(result.sip?.bp['BP_0_2']).toBeCloseTo(-2e-7);
     });
   });
 });

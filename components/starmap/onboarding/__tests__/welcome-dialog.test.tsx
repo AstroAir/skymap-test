@@ -213,6 +213,48 @@ describe('WelcomeDialog', () => {
     
     expect(useOnboardingStore.getState().showOnNextVisit).toBe(false);
   });
+
+  it('should return null when hasCompletedOnboarding is true', () => {
+    act(() => {
+      useOnboardingStore.getState().completeOnboarding();
+    });
+
+    const { container } = render(<WelcomeDialog />);
+
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('should not show dialog when isTourActive is true', async () => {
+    act(() => {
+      useOnboardingStore.getState().startTour();
+    });
+
+    render(<WelcomeDialog />);
+
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+
+    expect(screen.queryByText('Welcome to SkyMap')).not.toBeInTheDocument();
+  });
+
+  it('should not show dialog when isSetupOpen is true', async () => {
+    act(() => {
+      useOnboardingStore.getState().openSetup();
+    });
+
+    render(<WelcomeDialog />);
+
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+
+    expect(screen.queryByText('Welcome to SkyMap')).not.toBeInTheDocument();
+  });
 });
 
 describe('OnboardingRestartButton', () => {

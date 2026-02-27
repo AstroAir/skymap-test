@@ -152,4 +152,149 @@ describe('OcularSimulator', () => {
     const saveButton = screen.getByText('common.save');
     expect(saveButton).toBeDisabled();
   });
+
+  it('restores FOV after apply and restore', () => {
+    const onApplyFov = jest.fn();
+    render(<OcularSimulator onApplyFov={onApplyFov} currentFov={4.2} />);
+
+    // Apply first
+    fireEvent.click(screen.getByText('ocular.applyToMap'));
+    expect(onApplyFov).toHaveBeenCalledWith(1.23);
+
+    // Restore
+    fireEvent.click(screen.getByText('ocular.restoreFov'));
+    expect(onApplyFov).toHaveBeenCalledWith(4.2);
+  });
+
+  it('renders overlay enabled toggle', () => {
+    render(<OcularSimulator />);
+    expect(screen.getByText('ocular.overlayEnabled')).toBeInTheDocument();
+  });
+
+  it('renders overlay opacity slider', () => {
+    render(<OcularSimulator />);
+    expect(screen.getByTestId('slider')).toBeInTheDocument();
+  });
+
+  it('renders crosshair toggle', () => {
+    render(<OcularSimulator />);
+    expect(screen.getByText('ocular.overlayCrosshair')).toBeInTheDocument();
+  });
+
+  it('renders magnification stats', () => {
+    render(<OcularSimulator />);
+    expect(screen.getByText('16x')).toBeInTheDocument();
+    expect(screen.getByText('ocular.magnification')).toBeInTheDocument();
+  });
+
+  it('shows over-magnified warning when applicable', () => {
+    mockUseOcularSimulation.mockReturnValue({
+      telescopes: [{ id: 't1', name: 'Scope', focalLength: 400, aperture: 80, type: 'refractor', source: 'builtin' }],
+      eyepieces: [{ id: 'e1', name: 'EP', focalLength: 25, afov: 52, source: 'builtin' }],
+      barlows: [{ id: 'b0', name: 'None', magnification: 1, source: 'builtin' }],
+      selectedOcularTelescopeId: 't1',
+      selectedEyepieceId: 'e1',
+      selectedBarlowId: 'b0',
+      selectedTelescope: null,
+      selectedEyepiece: null,
+      selectedBarlow: null,
+      setSelectedOcularTelescopeId: jest.fn(),
+      setSelectedEyepieceId: jest.fn(),
+      setSelectedBarlowId: jest.fn(),
+      viewData: {
+        magnification: 500,
+        tfov: 0.1,
+        exitPupil: 0.5,
+        dawesLimit: 1.4,
+        rayleighLimit: 1.7,
+        maxUsefulMag: 160,
+        minUsefulMag: 12,
+        bestPlanetaryMag: 120,
+        focalRatio: 5,
+        lightGathering: 130,
+        limitingMag: 11.5,
+        surfaceBrightness: 0.5,
+        isOverMagnified: true,
+        isUnderMagnified: false,
+        effectiveFocalLength: 400,
+        observingSuggestion: 'planetary',
+      },
+      hasDesktopSource: false,
+    });
+
+    render(<OcularSimulator />);
+    expect(screen.getByText('ocular.overMagnifiedWarning')).toBeInTheDocument();
+  });
+
+  it('shows under-magnified warning when applicable', () => {
+    mockUseOcularSimulation.mockReturnValue({
+      telescopes: [{ id: 't1', name: 'Scope', focalLength: 400, aperture: 80, type: 'refractor', source: 'builtin' }],
+      eyepieces: [{ id: 'e1', name: 'EP', focalLength: 25, afov: 52, source: 'builtin' }],
+      barlows: [{ id: 'b0', name: 'None', magnification: 1, source: 'builtin' }],
+      selectedOcularTelescopeId: 't1',
+      selectedEyepieceId: 'e1',
+      selectedBarlowId: 'b0',
+      selectedTelescope: null,
+      selectedEyepiece: null,
+      selectedBarlow: null,
+      setSelectedOcularTelescopeId: jest.fn(),
+      setSelectedEyepieceId: jest.fn(),
+      setSelectedBarlowId: jest.fn(),
+      viewData: {
+        magnification: 5,
+        tfov: 10,
+        exitPupil: 16,
+        dawesLimit: 1.4,
+        rayleighLimit: 1.7,
+        maxUsefulMag: 160,
+        minUsefulMag: 12,
+        bestPlanetaryMag: 120,
+        focalRatio: 5,
+        lightGathering: 130,
+        limitingMag: 11.5,
+        surfaceBrightness: 0.5,
+        isOverMagnified: false,
+        isUnderMagnified: true,
+        effectiveFocalLength: 400,
+        observingSuggestion: 'widefield',
+      },
+      hasDesktopSource: false,
+    });
+
+    render(<OcularSimulator />);
+    expect(screen.getByText('ocular.underMagnifiedWarning')).toBeInTheDocument();
+  });
+
+  it('renders without onApplyFov', () => {
+    render(<OcularSimulator />);
+    expect(screen.getByText('ocular.applyToMap')).toBeInTheDocument();
+  });
+
+  it('shows desktop merge hint when hasDesktopSource', () => {
+    mockUseOcularSimulation.mockReturnValue({
+      telescopes: [],
+      eyepieces: [],
+      barlows: [],
+      selectedOcularTelescopeId: '',
+      selectedEyepieceId: '',
+      selectedBarlowId: '',
+      selectedTelescope: null,
+      selectedEyepiece: null,
+      selectedBarlow: null,
+      setSelectedOcularTelescopeId: jest.fn(),
+      setSelectedEyepieceId: jest.fn(),
+      setSelectedBarlowId: jest.fn(),
+      viewData: {
+        magnification: 16, tfov: 1.23, exitPupil: 5, dawesLimit: 1.4,
+        rayleighLimit: 1.7, maxUsefulMag: 160, minUsefulMag: 12,
+        bestPlanetaryMag: 120, focalRatio: 5, lightGathering: 130,
+        limitingMag: 11.5, surfaceBrightness: 0.5, isOverMagnified: false,
+        isUnderMagnified: false, effectiveFocalLength: 400, observingSuggestion: 'allround',
+      },
+      hasDesktopSource: true,
+    });
+
+    render(<OcularSimulator />);
+    expect(screen.getByText('ocular.desktopMergeHint')).toBeInTheDocument();
+  });
 });
