@@ -12,7 +12,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -34,6 +33,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Card, CardContent } from '@/components/ui/card';
+import { SearchInput } from '@/components/ui/search-input';
 import {
   Telescope,
   Search,
@@ -225,15 +225,12 @@ function FilterPanel({ isOpen, onToggle }: FilterPanelProps) {
         {/* Object Name Search */}
         <div className="space-y-1.5">
           <Label className="text-xs">{t('skyAtlas.searchByName')}</Label>
-          <div className="relative">
-            <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={t('skyAtlas.searchPlaceholder')}
-              value={localObjectName}
-              onChange={(e) => setLocalObjectName(e.target.value)}
-              className="pl-8 h-8 text-sm"
-            />
-          </div>
+          <SearchInput
+            value={localObjectName}
+            onChange={setLocalObjectName}
+            placeholder={t('skyAtlas.searchPlaceholder')}
+            inputClassName="h-8 text-sm"
+          />
         </div>
         
         {/* Object Types */}

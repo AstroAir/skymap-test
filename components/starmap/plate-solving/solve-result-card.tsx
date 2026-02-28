@@ -15,6 +15,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { SolveResultCardProps } from '@/types/starmap/plate-solving';
 
 // Re-export types for backward compatibility
@@ -87,23 +92,32 @@ export function SolveResultCard({ result, onGoTo }: SolveResultCardProps) {
                   {t('plateSolving.goToPosition') || 'Go to Position'}
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size={onGoTo ? 'icon' : 'default'}
-                className={onGoTo ? '' : 'flex-1'}
-                onClick={handleCopyCoordinates}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size={onGoTo ? 'icon' : 'default'}
+                    className={onGoTo ? '' : 'flex-1'}
+                    onClick={handleCopyCoordinates}
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                    {!onGoTo && (
+                      <span className="ml-2">
+                        {copied ? (t('common.copied') || 'Copied!') : (t('common.copy') || 'Copy')}
+                      </span>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                {onGoTo && (
+                  <TooltipContent>
+                    {copied ? (t('common.copied') || 'Copied!') : (t('plateSolving.copyCoordinates') || 'Copy Coordinates')}
+                  </TooltipContent>
                 )}
-                {!onGoTo && (
-                  <span className="ml-2">
-                    {copied ? (t('common.copied') || 'Copied!') : (t('common.copy') || 'Copy')}
-                  </span>
-                )}
-              </Button>
+              </Tooltip>
             </div>
           </div>
         )}

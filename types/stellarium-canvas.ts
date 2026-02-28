@@ -24,6 +24,8 @@ export interface LoadingState {
   loadingStatus: string;
   errorMessage: string | null;
   startTime: number | null;
+  /** 0-100 progress percentage for the loading bar */
+  progress: number;
 }
 
 export interface ViewDirection {

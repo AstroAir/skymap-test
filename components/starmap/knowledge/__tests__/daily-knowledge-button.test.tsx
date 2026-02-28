@@ -54,9 +54,10 @@ describe('DailyKnowledgeButton', () => {
     expect(button).toHaveAttribute('data-tour-id', 'daily-knowledge');
   });
 
-  it('has title attribute matching aria-label', () => {
+  it('has tooltip matching aria-label', () => {
     render(<DailyKnowledgeButton />);
     const button = screen.getByRole('button');
-    expect(button).toHaveAttribute('title', 'dailyKnowledge.open');
+    expect(button).not.toHaveAttribute('title');
+    expect(button).toHaveAttribute('aria-label', 'dailyKnowledge.open');
   });
 });

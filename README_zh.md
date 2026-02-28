@@ -74,7 +74,7 @@
 pnpm dev
 ```
 
-在 [http://localhost:3000](http://localhost:3000) 启动 Next.js 开发服务器。
+在 [http://localhost:1420](http://localhost:1420) 启动 Next.js 开发服务器。
 
 ### 启动 桌面端开发
 
@@ -109,35 +109,51 @@ skymap/
 ├── app/                    # Next.js App Router（页面和布局）
 ├── components/             # React 组件
 │   ├── starmap/           # 星图 UI 组件
-│   │   ├── core/          # 核心视图、搜索、时钟
-│   │   ├── overlays/      # 视野模拟器、卫星追踪器
-│   │   ├── planning/      # 高度图、曝光计算器
-│   │   ├── objects/       # 天体信息面板
-│   │   └── management/    # 设备、位置管理器
+│   │   ├── canvas/        # Stellarium Web Engine 画布封装
+│   │   ├── view/          # 主视图组件
+│   │   ├── search/        # 天体搜索、高级搜索
+│   │   ├── settings/      # 设置面板和对话框
+│   │   ├── controls/      # 缩放、导航、书签
+│   │   ├── time/          # 时间控制和时钟显示
+│   │   ├── overlays/      # 视野模拟器、卫星追踪器、天空标记
+│   │   ├── planning/      # 高度图、曝光计算器、观测计划
+│   │   ├── objects/       # 天体信息面板、详情抽屉
+│   │   ├── management/    # 设备、位置、缓存管理器
+│   │   ├── knowledge/     # 每日天文知识
+│   │   ├── mount/         # 望远镜赤道仪控制
+│   │   ├── onboarding/    # 欢迎向导和新手引导
+│   │   └── map/           # 基于 Leaflet 的位置选择器
+│   ├── common/            # 共享组件（主题、语言、日志查看器）
+│   ├── icons/             # 品牌图标、SkyMap 标志
 │   └── ui/                # shadcn/ui 组件
 ├── lib/                    # 核心逻辑
 │   ├── astronomy/         # 天文计算
 │   │   ├── coordinates/   # 坐标转换
 │   │   ├── time/          # 儒略日、恒星时
-│   │   ├── time-scales.ts # UTC/UT1/TT 与 EOP 新鲜度管理
-│   │   ├── frames.ts      # 坐标帧契约
-│   │   ├── pipeline.ts    # 统一坐标变换管线
 │   │   ├── celestial/     # 太阳、月球计算
 │   │   ├── visibility/    # 目标可见性
 │   │   ├── twilight/      # 曙暮光时间
 │   │   ├── imaging/       # 曝光计算
-│   │   └── engine/        # 统一 Tauri/回退天文引擎
-│   ├── stores/            # Zustand 状态管理
-│   └── tauri/             # Tauri API 封装
+│   │   ├── engine/        # 统一 Tauri/回退天文引擎
+│   │   ├── horizon/       # 自定义地平线轮廓
+│   │   └── object-resolver/ # 天体名称解析
+│   ├── stores/            # Zustand 状态管理（26+ stores）
+│   ├── tauri/             # Tauri API 封装
+│   ├── services/          # 外部 API 服务
+│   ├── hooks/             # 自定义 React Hooks（37+ hooks）
+│   ├── catalogs/          # 天文星表数据
+│   ├── logger/            # 结构化日志系统
+│   ├── storage/           # 存储抽象层
+│   ├── cache/             # 缓存压缩、配置、迁移
+│   └── ...                # core, constants, data, feedback, aladin 等
 ├── src-tauri/             # Rust 后端
 │   └── src/
-│       ├── astronomy.rs   # 天文计算
-│       ├── equipment.rs   # 设备管理
-│       ├── locations.rs   # 位置管理
-│       ├── storage.rs     # JSON 存储系统
-│       ├── security.rs    # 安全工具
-│       ├── rate_limiter.rs # 速率限制
-│       └── ...            # 其他模块
+│       ├── astronomy/     # 坐标变换、天文事件
+│       ├── data/          # JSON 存储、设备、位置、目标
+│       ├── cache/         # 离线瓦片缓存、统一缓存
+│       ├── network/       # HTTP 客户端、安全、速率限制
+│       ├── platform/      # 应用设置、更新器、解板
+│       └── mount/         # ALPACA 赤道仪客户端、模拟器
 ├── public/                 # 静态资源（包含 Stellarium 引擎）
 ├── i18n/                   # 国际化配置
 │   └── messages/          # 翻译文件（en.json, zh.json）

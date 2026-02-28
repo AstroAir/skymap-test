@@ -7,6 +7,7 @@ import { useTargetListActions } from '@/lib/hooks/use-target-list-actions';
 import type { AdvancedSearchDialogProps } from '@/types/starmap/search';
 import { ALL_OBJECT_TYPES, CATALOG_PRESETS } from '@/lib/core/constants/search';
 import { isValidRA, isValidDec } from '@/lib/astronomy/coordinate-validators';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ import {
   Bookmark,
   RotateCcw,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { MultiSelectToolbar } from './multi-select-toolbar';
 import { GroupedResultsList } from './grouped-results-list';
 import { getTypeIcon } from './search-utils';
@@ -331,7 +333,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
                       value={raInput}
                       onChange={(e) => setRaInput(e.target.value)}
                       placeholder={t('coordinates.raPlaceholder')}
-                      className={raInput && !isValidRA(raInput) ? 'border-destructive' : ''}
+                      className={cn(raInput && !isValidRA(raInput) && 'border-destructive')}
                     />
                   </div>
                   <div className="space-y-2">
@@ -341,7 +343,7 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
                       value={decInput}
                       onChange={(e) => setDecInput(e.target.value)}
                       placeholder={t('coordinates.decPlaceholder')}
-                      className={decInput && !isValidDec(decInput) ? 'border-destructive' : ''}
+                      className={cn(decInput && !isValidDec(decInput) && 'border-destructive')}
                     />
                   </div>
                 </div>
@@ -537,11 +539,13 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
 
             {/* Empty State */}
             {!hasResults && !isSearching && (
-              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-                <CircleDot className="h-12 w-12 mb-4 opacity-30" />
-                <p className="text-sm">{t('search.noResultsYet')}</p>
-                <p className="text-xs mt-1">{t('search.configureFiltersAndSearch')}</p>
-              </div>
+              <EmptyState
+                icon={CircleDot}
+                message={t('search.noResultsYet')}
+                hint={t('search.configureFiltersAndSearch')}
+                className="flex-1 flex flex-col items-center justify-center"
+                iconClassName="h-12 w-12"
+              />
             )}
           </TabsContent>
         </Tabs>

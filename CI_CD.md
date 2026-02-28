@@ -365,7 +365,7 @@ Add Slack notifications using the `slack-send` action.
 ## Additional Resources
 
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [Tauri Documentation](https://tauri.app/v1/guides/)
+- [Tauri Documentation](https://tauri.app/start/)
 - [Next.js Deployment](https://nextjs.org/docs/deployment)
 - [Vercel Documentation](https://vercel.com/docs)
-- [Code Signing Guide](https://tauri.app/v1/guides/distribution/sign-macos)
+- [Code Signing Guide](https://tauri.app/distribute/sign/macos/)

@@ -40,7 +40,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { SearchInput } from '@/components/ui/search-input';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Collapsible,
   CollapsibleContent,
@@ -80,6 +82,7 @@ import {
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
 
+import { cn } from '@/lib/utils';
 import { useTargetListStore, useMountStore, useEquipmentStore, useStellariumStore, usePlanningUiStore, type TargetItem } from '@/lib/stores';
 import { tauriApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
@@ -132,15 +135,17 @@ function TargetCard({
   onMoveUp, onMoveDown, onUpdateTarget, onToggleFavorite, onToggleArchive, onEdit,
 }: TargetCardProps) {
   return (
-    <div
-      className={`p-2 rounded-lg border transition-colors ${
+    <Card
+      className={cn(
+        'transition-colors',
         isActive
           ? 'bg-primary/20 border-primary'
           : isSelected
           ? 'bg-accent/30 border-accent'
           : 'bg-muted/50 border-border hover:border-muted-foreground'
-      }`}
+      )}
     >
+      <CardContent className="p-2">
       {/* Header */}
       <div className="flex items-start gap-2">
         <Checkbox
@@ -371,7 +376,8 @@ function TargetCard({
           </Tooltip>
         </div>
       </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -905,25 +911,12 @@ export function ShotList({
               
               {/* Search bar */}
               {targets.length > 0 && (
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                  <Input
-                    placeholder={t('shotList.searchPlaceholder')}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-7 text-xs pl-7 pr-7 bg-muted/50"
-                  />
-                  {searchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-7 w-7"
-                      onClick={() => setSearchQuery('')}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder={t('shotList.searchPlaceholder')}
+                  inputClassName="h-7 text-xs bg-muted/50"
+                />
               )}
               
               {/* Multi-select toolbar */}
@@ -1104,15 +1097,14 @@ export function ShotList({
             {/* Target list */}
             <ScrollArea className="flex-1 min-h-0">
               {targets.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">{t('shotList.noTargetsInList')}</p>
-                  <p className="text-xs mt-1">{t('shotList.selectAndAdd')}</p>
-                </div>
+                <EmptyState
+                  icon={Target}
+                  message={t('shotList.noTargetsInList')}
+                  hint={t('shotList.selectAndAdd')}
+                />
               ) : filteredTargets.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">{t('shotList.noMatchingTargets')}</p>
+                  <EmptyState icon={Search} message={t('shotList.noMatchingTargets')} className="py-0" />
                   <Button variant="link" size="sm" className="text-xs" onClick={() => { setFilterStatus('all'); setFilterPriority('all'); setSearchQuery(''); }}>
                     {t('shotList.clearFilters')}
                   </Button>

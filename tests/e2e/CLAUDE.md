@@ -1,6 +1,6 @@
 # e2e-tests Module
 
-[Root](../CLAUDE.md) > **tests/e2e**
+[Root](../../CLAUDE.md) > **tests/e2e**
 
 > **Last Updated:** 2026-02-01
 > **Module Type:** TypeScript (Playwright)
@@ -9,7 +9,7 @@
 
 ## Breadcrumb
 
-`[Root](../CLAUDE.md) > **tests** > **e2e**`
+`[Root](../../CLAUDE.md) > **tests** > **e2e**`
 
 ---
 

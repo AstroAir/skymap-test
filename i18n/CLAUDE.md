@@ -39,20 +39,64 @@ Translations are organized by namespace:
 
 | Namespace | Purpose |
 |-----------|---------|
-| `common` | Common UI text (buttons, labels, etc.) |
-| `splash` | Splash screen messages |
-| `about` | About dialog content |
-| `home` | Home page content |
-| `starmap` | Star map interface |
-| `coordinates` | Coordinate display |
+| `legend` | Map legend labels |
+| `actions` | Common action buttons |
+| `tonight` | Tonight's highlights |
+| `zoom` | Zoom controls |
+| `fov` | Field of view simulator |
+| `time` | Time controls |
 | `settings` | Settings panels |
-| `equipment` | Equipment management |
-| `targets` | Target list |
-| `observation` | Observation logging |
-| `overlays` | Overlay components |
+| `settingsNew` | Redesigned settings panels |
+| `session` | Observation session |
+| `info` | Object info panel |
+| `chart` | Altitude chart |
+| `feasibility` | Imaging feasibility |
+| `shotList` | Shot list planning |
+| `targetDetail` | Target detail view |
+| `observationLog` | Observation logging |
 | `search` | Search interface |
-| `dialogs` | Dialogs and modals |
-| `errors` | Error messages |
+| `exposure` | Exposure calculator |
+| `mount` | Telescope mount control |
+| `mountSafety` | Mount safety simulator |
+| `cache` | Cache management |
+| `survey` | Sky survey settings |
+| `skyAtlas` | Sky atlas panel |
+| `credits` | Credits dialog |
+| `markers` | Sky markers |
+| `events` | Astronomical events |
+| `eventDetail` | Event detail dialog |
+| `eventSources` | Event source configuration |
+| `ocular` | Ocular simulator |
+| `satellites` | Satellite tracker |
+| `dataManager` | Data import/export |
+| `storagePaths` | Storage path display |
+| `equipment` | Equipment management |
+| `locations` | Location management |
+| `map` | Map/location picker |
+| `objectDetail` | Object detail drawer |
+| `sourceConfig` | Source configuration |
+| `onboarding` | Onboarding tour/wizard |
+| `setupWizard` | Setup wizard steps |
+| `theme` | Theme customization |
+| `plateSolving` | Plate solving |
+| `geolocation` | Geolocation UI |
+| `feedback` | User feedback |
+| `updater` | App updates |
+| `appControl` | App control (restart, quit) |
+| `navigation` | Navigation history |
+| `favorites` | Favorite objects |
+| `bookmarks` | View bookmarks |
+| `sessionPlanner` | Session planner |
+| `planRec` | Plan recommendations |
+| `tonightRec` | Tonight recommendations |
+| `astroCalc` | Astronomy calculator |
+| `system` | System status |
+| `quickActions` | Quick actions panel |
+| `shortcuts` | Keyboard shortcuts |
+| `canvas` | Canvas/engine settings |
+| `logViewer` | Log viewer |
+| `landing` | Landing page |
+| `dailyKnowledge` | Daily astronomy knowledge |
 
 ---
 

@@ -22,10 +22,10 @@ Provides local astronomical object data, fuzzy search, advanced scoring, and rec
 | `catalog-data.ts` | DSO_CATALOG (~260 objects), getDSOById, getMessierObjects, getDSOsByConstellation, getDSOsByType | search hooks, sky-atlas-store |
 | `nighttime-calculator.ts` | Sun/Moon rise-set, twilight, nighttime data | tonight-recommendations, sky-atlas-store |
 | `deep-sky-object.ts` | enrichDeepSkyObject (altitude, transit, moon distance, imaging score) | tonight-recommendations, search hooks |
-| `search-engine.ts` | searchDeepSkyObjects, enhancedSearch, enhancedQuickSearch, searchWithFuzzyName, getTonightsBest | search hooks, sky-atlas-store |
+| `search-engine.ts` | searchDeepSkyObjects, scoredSearch, quickSearch, searchWithFuzzyName, getTonightsBest | search hooks, sky-atlas-store |
 | `fuzzy-search.ts` | Levenshtein, Jaro-Winkler, parseCatalogId, COMMON_NAME_TO_CATALOG, buildSearchIndex | search-engine, local-resolve-service |
 | `scoring-algorithms.ts` | calculateComprehensiveImagingScore, airmass, meridian, moon impact, seasonal scoring | tonight-recommendations |
-| `advanced-recommendation-engine.ts` | AdvancedRecommendationEngine (equipment-aware), getQuickRecommendations | tonight-recommendations |
+| `recommendation-engine.ts` | RecommendationEngine (equipment-aware), getQuickRecommendations | tonight-recommendations |
 | `dso-filters.ts` | applyDSOFilters (NINA-style), checkAltitudeDuration, enrichDSOWithCalculations | Available for advanced filtering |
 | `celestial-search-data.ts` | CELESTIAL_BODIES, POPULAR_DSOS, MESSIER_CATALOG, DSO_NAME_INDEX, fuzzyMatch | search hooks |
 | `sky-atlas-store.ts` | Zustand store for Sky Atlas panel (filters, search, pagination) | sky-atlas-panel, wut-tab, positions-tab |
@@ -38,10 +38,10 @@ Provides local astronomical object data, fuzzy search, advanced scoring, and rec
 | Feature | Status | Consumer |
 |---------|--------|----------|
 | Local catalog ID search | ✅ Active | `use-object-search.ts` |
-| Fuzzy search (enhancedQuickSearch) | ✅ Active | `use-object-search.ts` |
+| Fuzzy search (quickSearch) | ✅ Active | `use-object-search.ts` |
 | Sky Atlas panel + store | ✅ Active | `sky-atlas-panel.tsx` |
 | Tonight's recommendations | ✅ Active | `tonight-recommendations.tsx` |
-| AdvancedRecommendationEngine | ✅ Active | `use-tonight-recommendations.ts` (equipment-aware) |
+| RecommendationEngine | ✅ Active | `use-tonight-recommendations.ts` (equipment-aware) |
 | Local name resolution fallback | ✅ Active | `local-resolve-service.ts` → `use-object-search.ts` |
 | Search result enrichment | ✅ Active | `use-object-search.ts` (altitude, visibility, moon distance) |
 | Messier quick category | ✅ Active | `use-object-search.ts` quickCategories |
@@ -58,7 +58,7 @@ Provides local astronomical object data, fuzzy search, advanced scoring, and rec
 import { DSO_CATALOG, getDSOById, getMessierObjects, getDSOsByConstellation, getDSOsByType } from '@/lib/catalogs';
 
 // Search
-import { enhancedQuickSearch, searchDeepSkyObjects, searchWithFuzzyName } from '@/lib/catalogs';
+import { quickSearch, searchDeepSkyObjects, searchWithFuzzyName } from '@/lib/catalogs';
 
 // Fuzzy search utilities
 import { parseCatalogId, COMMON_NAME_TO_CATALOG, fuzzySearch } from '@/lib/catalogs';
@@ -68,7 +68,7 @@ import { enrichDeepSkyObject, calculateAltitude, calculateMoonDistance } from '@
 import { calculateComprehensiveImagingScore, calculateAirmass } from '@/lib/catalogs';
 
 // Advanced recommendations
-import { AdvancedRecommendationEngine, getQuickRecommendations } from '@/lib/catalogs';
+import { RecommendationEngine, getQuickRecommendations } from '@/lib/catalogs';
 
 // Local name resolution (separate service)
 import { resolveObjectNameLocally, searchLocalCatalog } from '@/lib/services/local-resolve-service';

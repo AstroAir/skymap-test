@@ -8,6 +8,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { LucideIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export interface EquipmentListItemProps {
   icon: LucideIcon;
@@ -38,7 +39,11 @@ export function EquipmentListItem({
 }: EquipmentListItemProps) {
   return (
     <div
-      className={`flex items-center justify-between p-2 border rounded ${selectable ? 'cursor-pointer hover:bg-muted/50' : ''} ${isSelected ? 'border-primary bg-primary/10' : ''}`}
+      className={cn(
+        'flex items-center justify-between p-2 border rounded',
+        selectable && 'cursor-pointer hover:bg-muted/50',
+        isSelected && 'border-primary bg-primary/10'
+      )}
       onClick={selectable ? onSelect : undefined}
     >
       <div className="flex items-center gap-2">

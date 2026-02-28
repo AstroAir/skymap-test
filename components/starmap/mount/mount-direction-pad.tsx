@@ -12,6 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -139,69 +144,94 @@ export const MountDirectionPad = memo(function MountDirectionPad() {
       <div className="grid grid-cols-3 gap-0.5 w-fit">
         {/* Row 1: empty / N / empty */}
         <div />
-        <Button
-          variant="ghost"
-          size="icon"
-          className={btnClass}
-          onPointerDown={() => startMove('secondary', 1)}
-          onPointerUp={stopMove}
-          onPointerLeave={stopMove}
-          onPointerCancel={stopMove}
-          aria-label={t('north')}
-        >
-          <ChevronUp className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={btnClass}
+              onPointerDown={() => startMove('secondary', 1)}
+              onPointerUp={stopMove}
+              onPointerLeave={stopMove}
+              onPointerCancel={stopMove}
+              aria-label={t('north')}
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-[10px] px-1.5 py-0.5">{t('north')}</TooltipContent>
+        </Tooltip>
         <div />
 
         {/* Row 2: W / STOP / E */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={btnClass}
-          onPointerDown={() => startMove('primary', -1)}
-          onPointerUp={stopMove}
-          onPointerLeave={stopMove}
-          onPointerCancel={stopMove}
-          aria-label={t('west')}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(btnClass, 'text-destructive hover:text-destructive hover:bg-destructive/10')}
-          onClick={stopAll}
-          aria-label={t('stop')}
-        >
-          <Square className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={btnClass}
-          onPointerDown={() => startMove('primary', 1)}
-          onPointerUp={stopMove}
-          onPointerLeave={stopMove}
-          onPointerCancel={stopMove}
-          aria-label={t('east')}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={btnClass}
+              onPointerDown={() => startMove('primary', -1)}
+              onPointerUp={stopMove}
+              onPointerLeave={stopMove}
+              onPointerCancel={stopMove}
+              aria-label={t('west')}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="text-[10px] px-1.5 py-0.5">{t('west')}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(btnClass, 'text-destructive hover:text-destructive hover:bg-destructive/10')}
+              onClick={stopAll}
+              aria-label={t('stop')}
+            >
+              <Square className="h-3 w-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-[10px] px-1.5 py-0.5">{t('stop')}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={btnClass}
+              onPointerDown={() => startMove('primary', 1)}
+              onPointerUp={stopMove}
+              onPointerLeave={stopMove}
+              onPointerCancel={stopMove}
+              aria-label={t('east')}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="text-[10px] px-1.5 py-0.5">{t('east')}</TooltipContent>
+        </Tooltip>
 
         {/* Row 3: empty / S / empty */}
         <div />
-        <Button
-          variant="ghost"
-          size="icon"
-          className={btnClass}
-          onPointerDown={() => startMove('secondary', -1)}
-          onPointerUp={stopMove}
-          onPointerLeave={stopMove}
-          onPointerCancel={stopMove}
-          aria-label={t('south')}
-        >
-          <ChevronDown className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={btnClass}
+              onPointerDown={() => startMove('secondary', -1)}
+              onPointerUp={stopMove}
+              onPointerLeave={stopMove}
+              onPointerCancel={stopMove}
+              aria-label={t('south')}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-[10px] px-1.5 py-0.5">{t('south')}</TooltipContent>
+        </Tooltip>
         <div />
       </div>
     </div>

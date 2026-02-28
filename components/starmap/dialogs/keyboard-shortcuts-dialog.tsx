@@ -101,16 +101,17 @@ function KeyCaptureButton({
     : formatKeyBinding(binding);
 
   return (
-    <button
+    <Button
       ref={buttonRef}
-      type="button"
+      variant="outline"
+      size="xs"
       className={cn(
-        'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs transition-colors cursor-pointer select-none min-w-[4rem] justify-center',
+        'font-mono cursor-pointer select-none min-w-[4rem] justify-center',
         isRecording
           ? 'border-primary bg-primary/10 text-primary animate-pulse'
           : isCustom
             ? 'border-primary/50 bg-primary/5 text-primary hover:bg-primary/10'
-            : 'border-border bg-muted/50 text-foreground hover:bg-muted',
+            : 'bg-muted/50 hover:bg-muted',
       )}
       onClick={(e) => {
         e.stopPropagation();
@@ -119,7 +120,7 @@ function KeyCaptureButton({
       title={isRecording ? t('pressKeyOrEsc') : t('clickToEdit')}
     >
       {displayText}
-    </button>
+    </Button>
   );
 }
 
@@ -217,13 +218,14 @@ function ShortcutKeyRowEdit({
         {isCustom && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={() => onReset(actionId)}
               >
                 <RotateCcw className="h-3 w-3" />
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent side="left">
               <p>{t('resetToDefault')}</p>

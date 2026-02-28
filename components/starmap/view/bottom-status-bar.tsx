@@ -6,7 +6,10 @@ import { useStellariumStore, useMountStore } from '@/lib/stores';
 import { rad2deg, degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import { getLST, lstToHours } from '@/lib/astronomy/time/sidereal';
 import { getEopSnapshot } from '@/lib/astronomy/time-scales';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SystemStatusIndicator } from '@/components/common/system-status-indicator';
 import type { BottomStatusBarProps } from '@/types/starmap/view';
 
@@ -70,9 +73,16 @@ const ViewCenterDisplay = memo(function ViewCenterDisplay() {
           </span>
         </>
       )}
-      <span className="hidden lg:inline text-[10px]">
-        {viewCenter.frame}/{viewCenter.timeScale}/{viewCenter.qualityFlag}/{viewCenter.dataFreshness}
-      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="hidden lg:inline text-[10px] cursor-help">
+            {viewCenter.frame}/{viewCenter.timeScale}/{viewCenter.qualityFlag}/{viewCenter.dataFreshness}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <p>{t('coordinates.qualityMetadata', { frame: viewCenter.frame, timeScale: viewCenter.timeScale, quality: viewCenter.qualityFlag, freshness: viewCenter.dataFreshness })}</p>
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 });
@@ -137,9 +147,9 @@ const LocationTimeDisplay = memo(function LocationTimeDisplay() {
         </span>
       )}
       {timeInfo.lst && timeInfo.freshness !== 'fresh' && (
-        <span className="hidden lg:inline text-[10px] text-amber-500">
+        <Badge variant="outline" className="hidden lg:inline-flex h-4 text-[10px] px-1 py-0 text-amber-500 border-amber-500/50">
           EOP {timeInfo.freshness}
-        </span>
+        </Badge>
       )}
       <span>
         <span className="text-foreground font-mono">{timeInfo.currentTime}</span>
@@ -160,12 +170,16 @@ export const BottomStatusBar = memo(function BottomStatusBar({ currentFov }: Bot
             <ViewCenterDisplay />
           </div>
 
+          <Separator orientation="vertical" className="hidden sm:block h-3 bg-border/50" />
+
           {/* Center: FOV */}
           <div className="flex items-center gap-4">
             <span className="text-muted-foreground">
               {t('fov.label')}: <span className="text-foreground font-mono">{currentFov < 1 ? currentFov.toFixed(2) : currentFov.toFixed(1)}°</span>
             </span>
           </div>
+
+          <Separator orientation="vertical" className="hidden sm:block h-3 bg-border/50" />
 
           {/* Right: Location & Time + System Status */}
           <div className="flex items-center gap-4">

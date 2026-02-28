@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Select,
   SelectContent,
@@ -131,35 +132,34 @@ export function AppearanceSettings() {
         icon={<Palette className="h-4 w-4" />}
         defaultOpen={true}
       >
-        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-          <Button
-            variant={theme === 'light' ? 'default' : 'outline'}
-            size="sm"
-            className="flex-col gap-0.5 sm:gap-1 h-auto py-2 sm:py-3 px-1 sm:px-2"
-            onClick={() => setTheme('light')}
+        <ToggleGroup
+          type="single"
+          value={theme}
+          onValueChange={(value) => { if (value) setTheme(value); }}
+          className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full"
+        >
+          <ToggleGroupItem
+            value="light"
+            className="flex-col gap-0.5 sm:gap-1 h-auto py-2 sm:py-3 px-1 sm:px-2 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-[10px] sm:text-xs">{t('settingsNew.appearance.light')}</span>
-          </Button>
-          <Button
-            variant={theme === 'dark' ? 'default' : 'outline'}
-            size="sm"
-            className="flex-col gap-0.5 sm:gap-1 h-auto py-2 sm:py-3 px-1 sm:px-2"
-            onClick={() => setTheme('dark')}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="dark"
+            className="flex-col gap-0.5 sm:gap-1 h-auto py-2 sm:py-3 px-1 sm:px-2 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-[10px] sm:text-xs">{t('settingsNew.appearance.dark')}</span>
-          </Button>
-          <Button
-            variant={theme === 'system' ? 'default' : 'outline'}
-            size="sm"
-            className="flex-col gap-0.5 sm:gap-1 h-auto py-2 sm:py-3 px-1 sm:px-2"
-            onClick={() => setTheme('system')}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="system"
+            className="flex-col gap-0.5 sm:gap-1 h-auto py-2 sm:py-3 px-1 sm:px-2 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             <Monitor className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-[10px] sm:text-xs">{t('settingsNew.appearance.system')}</span>
-          </Button>
-        </div>
+          </ToggleGroupItem>
+        </ToggleGroup>
       </SettingsSection>
 
       <Separator />
@@ -176,11 +176,12 @@ export function AppearanceSettings() {
             const isActive = customization.activePreset === preset.id;
 
             return (
-              <button
+              <Button
                 key={preset.id}
+                variant="outline"
                 onClick={() => setActivePreset(isActive ? null : preset.id)}
                 className={cn(
-                  'relative flex items-center gap-2 rounded-lg border-2 p-2.5 transition-all hover:bg-accent/50 text-left',
+                  'relative flex items-center gap-2 rounded-lg border-2 p-2.5 h-auto transition-all hover:bg-accent/50 text-left justify-start',
                   isActive ? 'border-primary bg-accent/30' : 'border-border'
                 )}
               >
@@ -200,7 +201,7 @@ export function AppearanceSettings() {
                 </div>
                 <span className="text-sm font-medium flex-1">{preset.name}</span>
                 {isActive && <Check className="h-4 w-4 text-primary" />}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -217,36 +218,35 @@ export function AppearanceSettings() {
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs text-muted-foreground">{t('settingsNew.appearance.colorMode')}</Label>
-            <div className="inline-flex rounded-md border border-border p-0.5">
-              <Button
-                type="button"
-                variant={editingMode === 'light' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  setEditingMode('light');
+            <ToggleGroup
+              type="single"
+              value={editingMode}
+              onValueChange={(value) => {
+                if (value) {
+                  setEditingMode(value as 'light' | 'dark');
                   setDrafts({});
                   setInvalidKey(null);
-                }}
+                }
+              }}
+              className="inline-flex rounded-md border border-border p-0.5"
+            >
+              <ToggleGroupItem
+                value="light"
+                size="sm"
+                className="h-7 px-2 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
                 <Sun className="h-3 w-3 mr-1" />
                 {t('settingsNew.appearance.light')}
-              </Button>
-              <Button
-                type="button"
-                variant={editingMode === 'dark' ? 'default' : 'ghost'}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="dark"
                 size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  setEditingMode('dark');
-                  setDrafts({});
-                  setInvalidKey(null);
-                }}
+                className="h-7 px-2 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
                 <Moon className="h-3 w-3 mr-1" />
                 {t('settingsNew.appearance.dark')}
-              </Button>
-            </div>
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
 
           <p className="text-xs text-muted-foreground">{t('theme.customOverridesPreset')}</p>

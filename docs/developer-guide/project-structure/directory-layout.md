@@ -169,7 +169,7 @@ lib/
 │   ├── search-engine.ts       # 搜索引擎
 │   ├── fuzzy-search.ts        # 模糊搜索
 │   ├── scoring-algorithms.ts  # 评分算法
-│   ├── advanced-recommendation-engine.ts  # 推荐引擎
+│   ├── recommendation-engine.ts  # 推荐引擎
 │   ├── nighttime-calculator.ts # 夜间计算
 │   └── sky-atlas-store.ts     # 星图集状态
 ├── services/                  # 外部数据服务

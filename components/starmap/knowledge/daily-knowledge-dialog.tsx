@@ -4,20 +4,24 @@ import { useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import {
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
   Copy,
   ExternalLink,
   Heart,
   History,
+  SearchX,
   Shuffle,
   Share2,
   Star,
   Telescope,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -26,11 +30,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { SearchInput } from '@/components/ui/search-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Toggle } from '@/components/ui/toggle';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { DailyKnowledgeCategory, DailyKnowledgeSource } from '@/lib/services/daily-knowledge';
 import { useDailyKnowledgeStore } from '@/lib/stores';
 import { cn } from '@/lib/utils';
@@ -191,9 +199,9 @@ export function DailyKnowledgeDialog() {
         </DialogHeader>
 
         <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
-          <Input
+          <SearchInput
             value={filters.query}
-            onChange={(event) => setFilters({ query: event.target.value })}
+            onChange={(value) => setFilters({ query: value })}
             placeholder={t('dailyKnowledge.searchPlaceholder')}
           />
           <Select
@@ -226,31 +234,53 @@ export function DailyKnowledgeDialog() {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            variant={filters.favoritesOnly ? 'default' : 'outline'}
-            onClick={() => setFilters({ favoritesOnly: !filters.favoritesOnly })}
+          <Toggle
+            variant="outline"
+            pressed={filters.favoritesOnly}
+            onPressedChange={() => setFilters({ favoritesOnly: !filters.favoritesOnly })}
+            aria-label={t('dailyKnowledge.favorites')}
           >
             <Heart className={cn('h-4 w-4', filters.favoritesOnly && 'fill-current')} />
             {t('dailyKnowledge.favorites')}
-          </Button>
+          </Toggle>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={prev} disabled={loading || !effectiveItem}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={next} disabled={loading || !effectiveItem}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={random} disabled={loading || filteredItems.length === 0}>
-            <Shuffle className="h-4 w-4" />
-          </Button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="icon">
-                <History className="h-4 w-4" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={prev} disabled={loading || !effectiveItem}>
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-            </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent><p>{t('dailyKnowledge.prev')}</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={next} disabled={loading || !effectiveItem}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>{t('dailyKnowledge.next')}</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={random} disabled={loading || filteredItems.length === 0}>
+                <Shuffle className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>{t('dailyKnowledge.random')}</p></TooltipContent>
+          </Tooltip>
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <History className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent><p>{t('dailyKnowledge.history')}</p></TooltipContent>
+            </Tooltip>
             <PopoverContent className="w-80">
               <ScrollArea className="h-52">
                 <div className="space-y-2">
@@ -279,10 +309,29 @@ export function DailyKnowledgeDialog() {
 
         <Separator />
 
-        {loading && <p className="text-sm text-muted-foreground">{t('dailyKnowledge.loading')}</p>}
-        {!loading && error && <p className="text-sm text-destructive">{t(error)}</p>}
+        {loading && (
+          <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
+            <div className="space-y-3">
+              <Skeleton className="h-7 w-3/4" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-64 w-full rounded-md" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-56 w-full rounded-lg" />
+              <Skeleton className="h-24 w-full rounded-md" />
+              <Skeleton className="h-24 w-full rounded-md" />
+            </div>
+          </div>
+        )}
+        {!loading && error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{t(error)}</AlertDescription>
+          </Alert>
+        )}
         {!loading && !error && !effectiveItem && (
-          <p className="text-sm text-muted-foreground">{t('dailyKnowledge.noResults')}</p>
+          <EmptyState icon={SearchX} message={t('dailyKnowledge.noResults')} />
         )}
 
         {!loading && !error && effectiveItem && (
@@ -320,7 +369,7 @@ export function DailyKnowledgeDialog() {
                       void goToRelatedObject(object);
                     }}
                   >
-                    <Telescope className="mr-1 h-3.5 w-3.5" />
+                    <Telescope className="h-3.5 w-3.5" />
                     {object.name}
                   </Button>
                 ))}
@@ -345,53 +394,61 @@ export function DailyKnowledgeDialog() {
                   )}
                 </div>
               )}
-              <div className="rounded-md border p-3 text-sm">
-                <p className="font-medium">{t('dailyKnowledge.attribution')}</p>
-                <p className="text-muted-foreground">{effectiveItem.attribution.sourceName}</p>
-                {effectiveItem.attribution.copyright && (
-                  <p className="text-muted-foreground">{effectiveItem.attribution.copyright}</p>
-                )}
-                {effectiveItem.attribution.licenseName && (
-                  <p className="text-muted-foreground">{effectiveItem.attribution.licenseName}</p>
-                )}
-              </div>
-              <div className="rounded-md border p-3 text-sm">
-                <p className="font-medium">{t('dailyKnowledge.factSources')}</p>
-                {effectiveItem.factSources.length === 0 && (
-                  <p className="text-xs text-muted-foreground">{t('dailyKnowledge.noFactSources')}</p>
-                )}
-                {effectiveItem.factSources.length > 0 && (
-                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                    {effectiveItem.factSources.map((source, index) => (
-                      <li key={`${effectiveItem.id}-source-${index}`} className="leading-5">
-                        <span>{source.publisher}: </span>
-                        <a
-                          href={source.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline underline-offset-2"
-                        >
-                          {source.title}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <Card className="py-3 gap-2">
+                <CardHeader className="px-3 py-0">
+                  <CardTitle className="text-sm">{t('dailyKnowledge.attribution')}</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 py-0 text-sm text-muted-foreground space-y-0.5">
+                  <p>{effectiveItem.attribution.sourceName}</p>
+                  {effectiveItem.attribution.copyright && (
+                    <p>{effectiveItem.attribution.copyright}</p>
+                  )}
+                  {effectiveItem.attribution.licenseName && (
+                    <p>{effectiveItem.attribution.licenseName}</p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card className="py-3 gap-2">
+                <CardHeader className="px-3 py-0">
+                  <CardTitle className="text-sm">{t('dailyKnowledge.factSources')}</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 py-0 text-sm">
+                  {effectiveItem.factSources.length === 0 && (
+                    <p className="text-xs text-muted-foreground">{t('dailyKnowledge.noFactSources')}</p>
+                  )}
+                  {effectiveItem.factSources.length > 0 && (
+                    <ul className="space-y-1 text-xs text-muted-foreground">
+                      {effectiveItem.factSources.map((source, index) => (
+                        <li key={`${effectiveItem.id}-source-${index}`} className="leading-5">
+                          <span>{source.publisher}: </span>
+                          <a
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-2"
+                          >
+                            {source.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant={isFavorite ? 'default' : 'outline'}
                   onClick={() => toggleFavorite(effectiveItem.id)}
                 >
-                  <Star className={cn('mr-2 h-4 w-4', isFavorite && 'fill-current')} />
+                  <Star className={cn('h-4 w-4', isFavorite && 'fill-current')} />
                   {isFavorite ? t('dailyKnowledge.favorited') : t('dailyKnowledge.favorite')}
                 </Button>
                 <Button variant="outline" onClick={() => void handleCopy()}>
-                  <Copy className="mr-2 h-4 w-4" />
+                  <Copy className="h-4 w-4" />
                   {t('dailyKnowledge.copy')}
                 </Button>
                 <Button variant="outline" onClick={() => void handleShare()}>
-                  <Share2 className="mr-2 h-4 w-4" />
+                  <Share2 className="h-4 w-4" />
                   {t('dailyKnowledge.share')}
                 </Button>
                 {effectiveItem.externalUrl && (
@@ -399,7 +456,7 @@ export function DailyKnowledgeDialog() {
                     variant="outline"
                     onClick={() => window.open(effectiveItem.externalUrl, '_blank', 'noopener,noreferrer')}
                   >
-                    <ExternalLink className="mr-2 h-4 w-4" />
+                    <ExternalLink className="h-4 w-4" />
                     {t('dailyKnowledge.openSource')}
                   </Button>
                 )}

@@ -381,26 +381,28 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                 <Separator className="my-3" />
                 <div className="flex flex-wrap gap-2">
                   {objectInfo?.simbadUrl && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs gap-1.5"
                       onClick={() => openExternalUrl(objectInfo.simbadUrl!)}
-                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline cursor-pointer"
                     >
                       <Database className="h-3.5 w-3.5" />
                       SIMBAD
                       <ExternalLink className="h-3 w-3" />
-                    </button>
+                    </Button>
                   )}
                   {objectInfo?.wikipediaUrl && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs gap-1.5"
                       onClick={() => openExternalUrl(objectInfo.wikipediaUrl!)}
-                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline cursor-pointer"
                     >
                       <Info className="h-3.5 w-3.5" />
                       Wikipedia
                       <ExternalLink className="h-3 w-3" />
-                    </button>
+                    </Button>
                   )}
                 </div>
 

@@ -2,7 +2,6 @@
 // Stellarium Canvas Utilities
 // ============================================================================
 
-import { unifiedCache } from '@/lib/offline';
 import { WASM_PATH } from './constants/stellarium-canvas';
 
 /** Timeout wrapper for promises */
@@ -14,11 +13,15 @@ export const withTimeout = <T,>(promise: Promise<T>, ms: number, message: string
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 };
 
-/** Prefetch WASM into cache for faster subsequent loads */
+/** Prefetch WASM into browser cache for faster subsequent loads.
+ *  Uses the original (non-intercepted) fetch so the browser can cache the
+ *  compiled WASM module natively via V8/SpiderMonkey code caching. */
 export const prefetchWasm = async (): Promise<boolean> => {
   try {
-    // Use unified cache to prefetch WASM file
-    const response = await unifiedCache.fetch(WASM_PATH, {}, 'cache-first');
+    const fetchFn = typeof window !== 'undefined' && (window as unknown as { __originalFetch?: typeof fetch }).__originalFetch
+      ? (window as unknown as { __originalFetch: typeof fetch }).__originalFetch
+      : fetch;
+    const response = await fetchFn(WASM_PATH, { credentials: 'same-origin' });
     return response.ok;
   } catch {
     return false;

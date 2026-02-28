@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { CheckSquare, Square, ListPlus } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export interface MultiSelectToolbarProps {
   selectedCount: number;
@@ -21,7 +22,7 @@ export const MultiSelectToolbar = memo(function MultiSelectToolbar({
   const t = useTranslations();
 
   return (
-    <div className={`flex items-center justify-between text-xs ${className ?? ''}`}>
+    <div className={cn('flex items-center justify-between text-xs', className)}>
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"

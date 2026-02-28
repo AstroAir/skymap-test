@@ -130,7 +130,8 @@ export const CACHEABLE_URL_PATTERNS = [
  * Critical resources to prefetch on startup
  */
 export const PREFETCH_RESOURCES = [
-  '/stellarium-js/stellarium-web-engine.wasm',
+  // WASM is intentionally excluded — the Stellarium engine fetches it directly
+  // via WebAssembly.instantiateStreaming, and the browser handles code caching.
   '/stellarium-js/stellarium-web-engine.js',
 ] as const;
 

@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { SwitchItem } from '@/components/ui/switch-item';
 import { Slider } from '@/components/ui/slider';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -666,16 +667,12 @@ export function ImageCapture({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="space-y-3 p-3 bg-muted/30 rounded-lg mt-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="compression" className="text-sm">
-                    {t('plateSolving.enableCompression') || 'Enable Compression'}
-                  </Label>
-                  <Switch
-                    id="compression"
-                    checked={compressionEnabled}
-                    onCheckedChange={setCompressionEnabled}
-                  />
-                </div>
+                <SwitchItem
+                  id="compression"
+                  label={t('plateSolving.enableCompression') || 'Enable Compression'}
+                  checked={compressionEnabled}
+                  onCheckedChange={setCompressionEnabled}
+                />
                 {compressionEnabled && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">

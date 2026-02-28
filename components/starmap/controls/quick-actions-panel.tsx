@@ -35,6 +35,8 @@ import {
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Toggle } from '@/components/ui/toggle';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useAladinStore, useEquipmentStore, useMountStore, useSettingsStore, useStellariumStore } from '@/lib/stores';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
@@ -147,71 +149,72 @@ export const QuickActionsPanel = memo(function QuickActionsPanel({
         align="end"
         sideOffset={8}
       >
-        <div className="p-3 border-b border-border">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium text-sm flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" />
-              {t('quickActions.title')}
-            </h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </Button>
-          </div>
-        </div>
-
-        <ScrollArea className="max-h-[60vh]">
-          <div className="p-3 space-y-4">
-            {/* Current Conditions Summary */}
-            <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2">
-                {conditions.isDark ? (
-                  <Moon className="h-4 w-4 text-blue-400" />
-                ) : conditions.isTwilight ? (
-                  <Sun className="h-4 w-4 text-orange-400" />
-                ) : (
-                  <Sun className="h-4 w-4 text-yellow-400" />
-                )}
-                <span className="text-xs">
-                  {conditions.isDark 
-                    ? t('quickActions.darkSky') 
-                    : conditions.isTwilight 
-                      ? t('quickActions.twilight') 
-                      : t('quickActions.daylight')}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Moon className="h-3 w-3" />
-                <span>{conditions.moonIllumination}%</span>
-              </div>
-            </div>
-
-            {/* Active Target Quick Access */}
-            {activeTarget && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <Target className="h-3 w-3" />
-                  {t('quickActions.activeTarget')}
-                </h4>
+        <Collapsible open={expanded} onOpenChange={setExpanded}>
+          <div className="p-3 border-b border-border">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-sm flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                {t('quickActions.title')}
+              </h3>
+              <CollapsibleTrigger asChild>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start h-9 text-xs"
-                  onClick={navigateToActiveTarget}
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
                 >
-                  <Star className="h-3 w-3 mr-2 text-primary" />
-                  <span className="truncate flex-1 text-left">{activeTarget.name}</span>
-                  <Navigation className="h-3 w-3 ml-2 text-muted-foreground" />
+                  {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </Button>
-              </div>
-            )}
+              </CollapsibleTrigger>
+            </div>
+          </div>
 
-            {expanded && (
-              <>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-3 space-y-4">
+              {/* Current Conditions Summary */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2">
+                  {conditions.isDark ? (
+                    <Moon className="h-4 w-4 text-blue-400" />
+                  ) : conditions.isTwilight ? (
+                    <Sun className="h-4 w-4 text-orange-400" />
+                  ) : (
+                    <Sun className="h-4 w-4 text-yellow-400" />
+                  )}
+                  <span className="text-xs">
+                    {conditions.isDark 
+                      ? t('quickActions.darkSky') 
+                      : conditions.isTwilight 
+                        ? t('quickActions.twilight') 
+                        : t('quickActions.daylight')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Moon className="h-3 w-3" />
+                  <span>{conditions.moonIllumination}%</span>
+                </div>
+              </div>
+
+              {/* Active Target Quick Access */}
+              {activeTarget && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Target className="h-3 w-3" />
+                    {t('quickActions.activeTarget')}
+                  </h4>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start h-9 text-xs"
+                    onClick={navigateToActiveTarget}
+                  >
+                    <Star className="h-3 w-3 mr-2 text-primary" />
+                    <span className="truncate flex-1 text-left">{activeTarget.name}</span>
+                    <Navigation className="h-3 w-3 ml-2 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+
+              <CollapsibleContent className="space-y-4">
                 {/* Quick Navigation */}
                 <div className="space-y-2">
                   <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -272,51 +275,61 @@ export const QuickActionsPanel = memo(function QuickActionsPanel({
                   </h4>
                   {isStellarium ? (
                     <div className="grid grid-cols-2 gap-1.5">
-                      <Button
-                        variant={stellariumSettings.constellationsLinesVisible ? "default" : "outline"}
+                      <Toggle
+                        variant="outline"
                         size="sm"
                         className="h-8 text-xs justify-start"
-                        onClick={() => toggleStellariumSetting('constellationsLinesVisible')}
+                        pressed={stellariumSettings.constellationsLinesVisible}
+                        onPressedChange={() => toggleStellariumSetting('constellationsLinesVisible')}
+                        aria-label={t('quickActions.constellations')}
                       >
                         <Sparkles className="h-3 w-3 mr-1.5" />
                         {t('quickActions.constellations')}
-                      </Button>
-                      <Button
-                        variant={stellariumSettings.equatorialLinesVisible ? "default" : "outline"}
+                      </Toggle>
+                      <Toggle
+                        variant="outline"
                         size="sm"
                         className="h-8 text-xs justify-start"
-                        onClick={() => toggleStellariumSetting('equatorialLinesVisible')}
+                        pressed={stellariumSettings.equatorialLinesVisible}
+                        onPressedChange={() => toggleStellariumSetting('equatorialLinesVisible')}
+                        aria-label={t('quickActions.eqGrid')}
                       >
                         <Grid3X3 className="h-3 w-3 mr-1.5" />
                         {t('quickActions.eqGrid')}
-                      </Button>
-                      <Button
-                        variant={stellariumSettings.azimuthalLinesVisible ? "default" : "outline"}
+                      </Toggle>
+                      <Toggle
+                        variant="outline"
                         size="sm"
                         className="h-8 text-xs justify-start"
-                        onClick={() => toggleStellariumSetting('azimuthalLinesVisible')}
+                        pressed={stellariumSettings.azimuthalLinesVisible}
+                        onPressedChange={() => toggleStellariumSetting('azimuthalLinesVisible')}
+                        aria-label={t('quickActions.azGrid')}
                       >
                         <Compass className="h-3 w-3 mr-1.5" />
                         {t('quickActions.azGrid')}
-                      </Button>
-                      <Button
-                        variant={fovEnabled ? "default" : "outline"}
+                      </Toggle>
+                      <Toggle
+                        variant="outline"
                         size="sm"
                         className="h-8 text-xs justify-start"
-                        onClick={() => setFovEnabled(!fovEnabled)}
+                        pressed={fovEnabled}
+                        onPressedChange={() => setFovEnabled(!fovEnabled)}
+                        aria-label={t('quickActions.fovOverlay')}
                       >
                         <Camera className="h-3 w-3 mr-1.5" />
                         {t('quickActions.fovOverlay')}
-                      </Button>
-                      <Button
-                        variant={stellariumSettings.dsosVisible ? "default" : "outline"}
+                      </Toggle>
+                      <Toggle
+                        variant="outline"
                         size="sm"
                         className="h-8 text-xs justify-start"
-                        onClick={() => toggleStellariumSetting('dsosVisible')}
+                        pressed={stellariumSettings.dsosVisible}
+                        onPressedChange={() => toggleStellariumSetting('dsosVisible')}
+                        aria-label={t('quickActions.dsos')}
                       >
                         <Layers className="h-3 w-3 mr-1.5" />
                         {t('quickActions.dsos')}
-                      </Button>
+                      </Toggle>
                       <Button
                         variant="outline"
                         size="sm"
@@ -330,52 +343,60 @@ export const QuickActionsPanel = memo(function QuickActionsPanel({
                   ) : (
                     <div className="grid grid-cols-2 gap-1.5">
                       {catalogLayers.map((layer) => (
-                        <Button
+                        <Toggle
                           key={layer.id}
-                          variant={layer.enabled ? "default" : "outline"}
+                          variant="outline"
                           size="sm"
                           className="h-8 text-xs justify-start"
-                          onClick={() => toggleCatalogLayer(layer.id)}
+                          pressed={layer.enabled}
+                          onPressedChange={() => toggleCatalogLayer(layer.id)}
+                          aria-label={layer.name}
                         >
                           <Layers className="h-3 w-3 mr-1.5" />
                           {layer.name}
-                        </Button>
+                        </Toggle>
                       ))}
                       {mocLayers.map((layer) => (
-                        <Button
+                        <Toggle
                           key={layer.id}
-                          variant={layer.visible ? "default" : "outline"}
+                          variant="outline"
                           size="sm"
                           className="h-8 text-xs justify-start"
-                          onClick={() => toggleMocLayer(layer.id)}
+                          pressed={layer.visible}
+                          onPressedChange={() => toggleMocLayer(layer.id)}
+                          aria-label={layer.name}
                         >
                           <Grid3X3 className="h-3 w-3 mr-1.5" />
                           {layer.name}
-                        </Button>
+                        </Toggle>
                       ))}
                       {overlayLayers.map((layer) => (
-                        <Button
+                        <Toggle
                           key={layer.id}
-                          variant={layer.enabled ? "default" : "outline"}
+                          variant="outline"
                           size="sm"
                           className="h-8 text-xs justify-start"
-                          onClick={() => toggleImageOverlayLayer(layer.id)}
+                          pressed={layer.enabled}
+                          onPressedChange={() => toggleImageOverlayLayer(layer.id)}
+                          aria-label={layer.name}
                         >
                           <Camera className="h-3 w-3 mr-1.5" />
                           {layer.name}
-                        </Button>
+                        </Toggle>
                       ))}
                       {fitsLayers.map((layer) => (
-                        <Button
+                        <Toggle
                           key={layer.id}
-                          variant={layer.enabled ? "default" : "outline"}
+                          variant="outline"
                           size="sm"
                           className="h-8 text-xs justify-start"
-                          onClick={() => toggleFitsLayer(layer.id)}
+                          pressed={layer.enabled}
+                          onPressedChange={() => toggleFitsLayer(layer.id)}
+                          aria-label={layer.name}
                         >
                           <Camera className="h-3 w-3 mr-1.5" />
                           {layer.name}
-                        </Button>
+                        </Toggle>
                       ))}
                       <Button
                         variant="outline"
@@ -428,10 +449,10 @@ export const QuickActionsPanel = memo(function QuickActionsPanel({
                     </div>
                   </>
                 )}
-              </>
-            )}
-          </div>
-        </ScrollArea>
+              </CollapsibleContent>
+            </div>
+          </ScrollArea>
+        </Collapsible>
       </PopoverContent>
     </Popover>
   );

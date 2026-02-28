@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { STAR_POSITIONS } from '@/lib/constants';
 import type { LoadingSkeletonProps } from '@/types';
 
@@ -11,20 +12,24 @@ import type { LoadingSkeletonProps } from '@/types';
  */
 function CardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('space-y-3 p-4 rounded-lg border bg-card', className)}>
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <div className="space-y-2 flex-1">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
+    <Card className={cn('gap-3 py-0 shadow-none', className)}>
+      <CardHeader className="p-4 pb-0 gap-0">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
         </div>
-      </div>
-      <Skeleton className="h-20 w-full" />
-      <div className="flex gap-2">
+      </CardHeader>
+      <CardContent className="px-4">
+        <Skeleton className="h-20 w-full" />
+      </CardContent>
+      <CardFooter className="px-4 pb-4 gap-2">
         <Skeleton className="h-8 w-20" />
         <Skeleton className="h-8 w-20" />
-      </div>
-    </div>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -79,30 +84,32 @@ function ListSkeleton({ className }: { className?: string }) {
  */
 function ChartSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between">
+    <Card className={cn('gap-2 py-0 shadow-none', className)}>
+      <CardHeader className="p-4 pb-0 flex-row items-center justify-between gap-0">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-4 w-16" />
-      </div>
-      <div className="relative h-32 w-full">
-        <Skeleton className="absolute inset-0 rounded-lg" />
-        {/* Simulated chart lines */}
-        <div className="absolute inset-4 flex items-end justify-between gap-1">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton
-              key={i}
-              className="w-2 rounded-t"
-              style={{ height: `${30 + Math.sin(i / 2) * 40}%` }}
-            />
-          ))}
+      </CardHeader>
+      <CardContent className="px-4 pb-4 space-y-2">
+        <div className="relative h-32 w-full">
+          <Skeleton className="absolute inset-0 rounded-lg" />
+          {/* Simulated chart lines */}
+          <div className="absolute inset-4 flex items-end justify-between gap-1">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Skeleton
+                key={i}
+                className="w-2 rounded-t"
+                style={{ height: `${30 + Math.sin(i / 2) * 40}%` }}
+              />
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="flex justify-between text-xs">
-        <Skeleton className="h-3 w-8" />
-        <Skeleton className="h-3 w-8" />
-        <Skeleton className="h-3 w-8" />
-      </div>
-    </div>
+        <div className="flex justify-between text-xs">
+          <Skeleton className="h-3 w-8" />
+          <Skeleton className="h-3 w-8" />
+          <Skeleton className="h-3 w-8" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -87,6 +87,27 @@ jest.mock('@/components/ui/skeleton', () => ({
   Skeleton: ({ className }: { className?: string }) => <div data-testid="skeleton" className={className} />,
 }));
 
+jest.mock('@/components/ui/toggle', () => ({
+  Toggle: ({ children, pressed, onPressedChange, className, ...props }: { children: React.ReactNode; pressed?: boolean; onPressedChange?: (pressed: boolean) => void; className?: string; 'aria-label'?: string; size?: string }) => (
+    <button
+      data-testid="toggle"
+      data-state={pressed ? 'on' : 'off'}
+      aria-label={props['aria-label']}
+      aria-pressed={pressed}
+      className={className}
+      onClick={() => onPressedChange?.(!pressed)}
+    >
+      {children}
+    </button>
+  ),
+}));
+
+jest.mock('@/components/ui/tooltip', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => <>{children}</>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => <span data-testid="tooltip-content">{children}</span>,
+}));
+
 import { MapLocationPicker } from '@/components/starmap/map/map-location-picker';
 
 describe('MapLocationPicker', () => {
@@ -184,20 +205,20 @@ describe('MapLocationPicker', () => {
   describe('Controls', () => {
     it('renders light pollution toggle button when showControls is true', () => {
       render(<MapLocationPicker onLocationChange={mockOnLocationChange} showControls />);
-      const lightPollutionBtn = screen.getByTitle(/map\.lightPollution|Light Pollution/);
+      const lightPollutionBtn = screen.getByLabelText(/map\.lightPollution|Light Pollution/);
       expect(lightPollutionBtn).toBeInTheDocument();
     });
 
     it('toggles light pollution on click', () => {
       render(<MapLocationPicker onLocationChange={mockOnLocationChange} showControls />);
-      const lightPollutionBtn = screen.getByTitle(/map\.lightPollution|Light Pollution/);
+      const lightPollutionBtn = screen.getByLabelText(/map\.lightPollution|Light Pollution/);
 
       fireEvent.click(lightPollutionBtn);
-      // After click, variant should change to 'secondary'
-      expect(lightPollutionBtn.getAttribute('data-variant')).toBe('secondary');
+      // After click, toggle state should be 'on'
+      expect(lightPollutionBtn.getAttribute('data-state')).toBe('on');
 
       fireEvent.click(lightPollutionBtn);
-      expect(lightPollutionBtn.getAttribute('data-variant')).toBe('ghost');
+      expect(lightPollutionBtn.getAttribute('data-state')).toBe('off');
     });
 
     it('renders tile layer dropdown', () => {

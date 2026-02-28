@@ -47,11 +47,17 @@ A desktop star map and astronomy planning application built with **Next.js 16 (A
 React Component → Zustand Store → lib/tauri/*-api.ts → Tauri invoke() → Rust command
 ```
 
-- `lib/astronomy/` - Pure astronomical calculations (coordinates, time, visibility, twilight)
-- `lib/stores/` - Zustand state management (stellarium, settings, equipment, target-list, markers)
-- `lib/tauri/` - TypeScript wrappers for Tauri IPC
-- `components/starmap/` - Star map UI components (core, overlays, planning, objects, management)
-- `src-tauri/src/` - Rust backend modules (storage, equipment, astronomy, cache, events, markers)
+- `lib/astronomy/` - Pure astronomical calculations (coordinates, time, celestial, visibility, twilight, imaging, engine, horizon, object-resolver, mount-safety)
+- `lib/stores/` - Zustand state management (26+ stores: settings, equipment, target-list, markers, stellarium, onboarding, aladin, daily-knowledge, feedback, session-plan, etc.)
+- `lib/tauri/` - TypeScript wrappers for Tauri IPC (storage, astronomy, events, mount, cache, updater, etc.)
+- `lib/services/` - External API services (online search, object info, HiPS, satellite, geocoding, daily-knowledge, map-providers, search)
+- `lib/hooks/` - Custom React hooks (37+ hooks, aladin/, stellarium/ subdirs)
+- `lib/catalogs/` - Astronomical catalog data, search, and recommendation engine
+- `lib/logger/` - Structured logging system with multiple transports
+- `lib/storage/` - Storage abstraction layer (Tauri/Web adapters, Zustand bridge)
+- `components/starmap/` - Star map UI components (canvas, view, search, settings, controls, time, overlays, planning, objects, management, knowledge, mount, onboarding, map)
+- `components/icons/` - Brand icons, SkyMap logo
+- `src-tauri/src/` - Rust backend modules (astronomy, data, cache, network, platform, mount)
 - `i18n/messages/` - Translation files (en.json, zh.json)
 
 ### Tauri Integration

@@ -142,7 +142,9 @@
     "raPlaceholder": "例如 10.68 或 00h42m44s",
     "decPlaceholder": "例如 41.27 或 +41°16'09\"",
     "invalidCoordinates": "坐标格式无效",
-    "goTo": "前往"
+    "goTo": "前往",
+    "goToDescription": "输入赤经和赤纬以导航到指定天球坐标",
+    "qualityMetadata": "参考系: {frame} / 时标: {timeScale} / 质量: {quality} / 新鲜度: {freshness}"
   },
   "objects": {
     "comet": "彗星",
@@ -1779,7 +1781,8 @@
     "loading": "正在加载天体信息...",
     "enhancing": "正在获取更多数据...",
     "previousImage": "上一张图片",
-    "nextImage": "下一张图片"
+    "nextImage": "下一张图片",
+    "fullscreen": "全屏查看"
   },
   "sourceConfig": {
     "title": "信息来源",
@@ -1830,7 +1833,9 @@
     "priorityHint": "优先级顺序",
     "sourceType": "类型",
     "customImageSourceDefault": "自定义图像来源：{name}",
-    "customDataSourceDefault": "自定义数据来源：{name}"
+    "customDataSourceDefault": "自定义数据来源：{name}",
+    "checkHealth": "检查健康状态",
+    "editSettings": "编辑设置"
   },
   "onboarding": {
     "stepOf": "{current} / {total}",
@@ -3334,6 +3339,7 @@
     "starmapInitTimedOut": "星图初始化超时",
     "overallTimeout": "加载超时，请重试",
     "loadingSlowHint": "加载时间较长",
+    "firstLoadHint": "首次加载需要编译引擎，请稍候",
     "switchToAladin": "切换到 Aladin",
     "autoSwitchedToAladin": "Stellarium 加载失败，已切换到 Aladin。",
     "tryStellariumAgain": "重试 Stellarium",
@@ -3567,6 +3573,10 @@
     "favorite": "收藏",
     "favorited": "已收藏",
     "noHistory": "暂无历史记录。",
+    "prev": "上一条",
+    "next": "下一条",
+    "random": "随机",
+    "history": "历史记录",
     "resultCount": "{count} 条结果",
     "loading": "正在加载每日知识...",
     "noResults": "没有匹配的每日知识条目。",

@@ -16,7 +16,7 @@ import {
   getDSOById,
   parseCatalogId,
   COMMON_NAME_TO_CATALOG,
-  enhancedQuickSearch,
+  quickSearch,
   type DeepSkyObject,
 } from '@/lib/catalogs';
 import { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
@@ -133,7 +133,7 @@ export function resolveObjectNameLocally(name: string): OnlineSearchResult | nul
   }
 
   // 4. Fuzzy search fallback
-  const fuzzyResults = enhancedQuickSearch(DSO_CATALOG, trimmed, 1);
+  const fuzzyResults = quickSearch(DSO_CATALOG, trimmed, 1);
   if (fuzzyResults.length > 0) {
     logger.debug('Local resolve: fuzzy match', { input: trimmed, matched: fuzzyResults[0].id });
     return dsoToSearchResult(fuzzyResults[0]);
@@ -201,7 +201,7 @@ export function searchLocalCatalog(
   }
 
   // 3. Enhanced fuzzy search
-  const fuzzyResults = enhancedQuickSearch(DSO_CATALOG, trimmed, limit);
+  const fuzzyResults = quickSearch(DSO_CATALOG, trimmed, limit);
   for (const dso of fuzzyResults) {
     addResult(dso);
     if (results.length >= limit) break;

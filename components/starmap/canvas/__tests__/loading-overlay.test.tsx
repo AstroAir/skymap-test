@@ -27,6 +27,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: '',
             errorMessage: null,
             startTime: null,
+            progress: 0,
           }}
           onRetry={mockOnRetry}
         />
@@ -43,6 +44,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Loading engine...',
             errorMessage: null,
             startTime: null,
+            progress: 20,
           }}
           onRetry={mockOnRetry}
         />
@@ -59,6 +61,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Initializing...',
             errorMessage: null,
             startTime: null,
+            progress: 40,
           }}
           onRetry={mockOnRetry}
         />
@@ -77,6 +80,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Failed',
             errorMessage: 'Script load failed',
             startTime: null,
+            progress: 0,
           }}
           onRetry={mockOnRetry}
         />
@@ -93,6 +97,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Error',
             errorMessage: 'Connection failed',
             startTime: null,
+            progress: 0,
           }}
           onRetry={mockOnRetry}
         />
@@ -110,6 +115,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Error',
             errorMessage: 'Something went wrong',
             startTime: null,
+            progress: 0,
           }}
           onRetry={mockOnRetry}
         />
@@ -130,6 +136,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Error',
             errorMessage: 'Load failed',
             startTime: null,
+            progress: 0,
           }}
           onRetry={mockOnRetry}
         />
@@ -151,6 +158,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Loading...',
             errorMessage: null,
             startTime: null,
+            progress: 50,
           }}
           onRetry={mockOnRetry}
         />
@@ -168,6 +176,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Error',
             errorMessage: 'Critical error',
             startTime: null,
+            progress: 0,
           }}
           onRetry={mockOnRetry}
         />
@@ -187,6 +196,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Preparing resources...',
             errorMessage: null,
             startTime: null,
+            progress: 10,
           }}
           onRetry={mockOnRetry}
         />
@@ -203,6 +213,7 @@ describe('LoadingOverlay', () => {
             loadingStatus: 'Initialization failed',
             errorMessage: 'WASM error',
             startTime: null,
+            progress: 0,
           }}
           onRetry={mockOnRetry}
         />

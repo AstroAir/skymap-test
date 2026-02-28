@@ -1,6 +1,6 @@
 /**
- * Unit tests for Advanced Recommendation Engine
- * Tests utility functions, AdvancedRecommendationEngine class, and helper functions
+ * Unit tests for Recommendation Engine
+ * Tests utility functions, RecommendationEngine class, and helper functions
  */
 
 import {
@@ -10,10 +10,10 @@ import {
   checkResolutionMatch,
   estimateExposure,
   checkMeridianCrossing,
-  AdvancedRecommendationEngine,
+  RecommendationEngine,
   getQuickRecommendations,
   type WeatherConditions,
-} from '../advanced-recommendation-engine';
+} from '../recommendation-engine';
 import type { DeepSkyObject } from '../types';
 
 // ============================================================================
@@ -233,18 +233,18 @@ describe('checkMeridianCrossing', () => {
 });
 
 // ============================================================================
-// AdvancedRecommendationEngine Class Tests
+// RecommendationEngine Class Tests
 // ============================================================================
 
-describe('AdvancedRecommendationEngine', () => {
+describe('RecommendationEngine', () => {
   describe('constructor', () => {
     it('should create with default values', () => {
-      const engine = new AdvancedRecommendationEngine();
+      const engine = new RecommendationEngine();
       expect(engine).toBeDefined();
     });
 
     it('should accept partial equipment profile', () => {
-      const engine = new AdvancedRecommendationEngine({
+      const engine = new RecommendationEngine({
         telescopeFocalLength: 1000,
         telescopeAperture: 200,
       });
@@ -252,7 +252,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should accept partial site configuration', () => {
-      const engine = new AdvancedRecommendationEngine({}, {
+      const engine = new RecommendationEngine({}, {
         latitude: 45,
         longitude: -75,
         bortleClass: 4,
@@ -261,7 +261,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should accept partial recommendation config', () => {
-      const engine = new AdvancedRecommendationEngine({}, {}, {
+      const engine = new RecommendationEngine({}, {}, {
         minimumAltitude: 30,
         difficultyPreference: 'beginner',
       });
@@ -271,7 +271,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('setLocation', () => {
     it('should update site location', () => {
-      const engine = new AdvancedRecommendationEngine();
+      const engine = new RecommendationEngine();
       engine.setLocation(45, -75, 100);
       // Verify by scoring an object (it uses the location internally)
       expect(engine).toBeDefined();
@@ -280,7 +280,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('setEquipment', () => {
     it('should update equipment and recalculate FOV/image scale', () => {
-      const engine = new AdvancedRecommendationEngine();
+      const engine = new RecommendationEngine();
       engine.setEquipment({
         telescopeFocalLength: 1000,
         telescopeAperture: 200,
@@ -292,7 +292,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('setSite', () => {
     it('should update site and clear cached nighttime data', () => {
-      const engine = new AdvancedRecommendationEngine();
+      const engine = new RecommendationEngine();
       engine.setSite({
         latitude: 30,
         longitude: -100,
@@ -304,7 +304,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('setConfig', () => {
     it('should update configuration', () => {
-      const engine = new AdvancedRecommendationEngine();
+      const engine = new RecommendationEngine();
       engine.setConfig({
         minimumAltitude: 35,
         minimumMoonDistance: 40,
@@ -316,7 +316,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('setWeather', () => {
     it('should set weather conditions', () => {
-      const engine = new AdvancedRecommendationEngine();
+      const engine = new RecommendationEngine();
       const weather: WeatherConditions = {
         cloudCover: 10,
         humidity: 40,
@@ -333,7 +333,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('scoreObject', () => {
     it('should return null for objects that never rise', () => {
-      const engine = new AdvancedRecommendationEngine({}, {
+      const engine = new RecommendationEngine({}, {
         latitude: 45,
         longitude: -75,
       });
@@ -351,7 +351,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should score a visible object', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         { telescopeFocalLength: 500, telescopeAperture: 80 },
         { latitude: 45, longitude: -75, bortleClass: 5 },
         { minimumAltitude: 10, minimumImagingHours: 0.5 }
@@ -371,7 +371,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should include score breakdown fields', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -393,7 +393,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should include imaging feasibility', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -413,7 +413,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('getRecommendations', () => {
     it('should return sorted recommendations', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         { telescopeFocalLength: 500, telescopeAperture: 80 },
         { latitude: 45, longitude: -75, bortleClass: 5 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -427,7 +427,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should respect limit parameter', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -437,7 +437,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should prioritize preferred object types', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1, objectTypePreferences: ['Nebula'] }
@@ -456,13 +456,13 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('planSession', () => {
     it('should return empty for empty recommendations', () => {
-      const engine = new AdvancedRecommendationEngine();
+      const engine = new RecommendationEngine();
       const result = engine.planSession([]);
       expect(result).toEqual([]);
     });
 
     it('should plan session with non-overlapping targets', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1, maxTargetsPerSession: 3 }
@@ -480,7 +480,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should respect maxTargets parameter', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -495,7 +495,7 @@ describe('AdvancedRecommendationEngine', () => {
 
   describe('scoring with different configurations', () => {
     it('should score with dark site (low Bortle)', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75, bortleClass: 2 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -507,7 +507,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should score with light-polluted site (high Bortle)', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         { filterWheelType: 'narrowband' },
         { latitude: 45, longitude: -75, bortleClass: 8 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -519,7 +519,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle beginner difficulty preference', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1, difficultyPreference: 'beginner' }
@@ -531,7 +531,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle advanced difficulty preference', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1, difficultyPreference: 'advanced' }
@@ -543,7 +543,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle meridian transit preference', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1, preferMeridianTransit: true }
@@ -555,7 +555,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle avoid meridian flip preference', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         { mountType: 'equatorial' },
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1, avoidMeridianFlip: true }
@@ -567,7 +567,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle narrowband filter with suitable object', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         { filterWheelType: 'narrowband' },
         { latitude: 45, longitude: -75, bortleClass: 6 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -580,7 +580,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should score objects without seasonal data', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -603,7 +603,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle faint objects with low surface brightness', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75, bortleClass: 7 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -615,7 +615,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle objects with no magnitude', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         { latitude: 45, longitude: -75 },
         { minimumAltitude: 10, minimumImagingHours: 0.1 }
@@ -636,7 +636,7 @@ describe('AdvancedRecommendationEngine', () => {
     });
 
     it('should handle horizon obstructions', () => {
-      const engine = new AdvancedRecommendationEngine(
+      const engine = new RecommendationEngine(
         {},
         {
           latitude: 45,

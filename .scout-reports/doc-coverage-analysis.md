@@ -49,14 +49,21 @@
 - `lib/stores/target-list-store.ts` (Target List): Observation targets with filtering, sorting, favorites.
 - `lib/stores/marker-store.ts` (Sky Markers): Custom marker groups and visibility.
 - `lib/stores/settings-store.ts` (App Settings): User preferences, display options, behavior settings.
-- `lib/stores/satellite-store.ts` (Satellites): Real-time satellite tracking data. **Undocumented**.
-- `lib/stores/mount-store.ts` (Mount Control): Equatorial mount tracking state. **Undocumented**.
-- `lib/stores/framing-store.ts` (Image Framing): Composition guide and ROI state. **Undocumented**.
-- `lib/stores/onboarding-store.ts` (Onboarding): Tutorial flow state. **Undocumented**.
-- `lib/stores/setup-wizard-store.ts` (Setup Wizard): Initial setup state. **Undocumented**.
-- `lib/stores/theme-store.ts` (Theme): Dark mode and UI customization. **Undocumented**.
-- `lib/stores/bookmarks-store.ts` (View Bookmarks): Saved view positions. **Undocumented**.
-- `lib/stores/favorites-store.ts` (Favorites): User-favorited objects. **Undocumented**.
+- `lib/stores/satellite-store.ts` (Satellites): Real-time satellite tracking data. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/mount-store.ts` (Mount Control): Equatorial mount tracking state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/framing-store.ts` (Image Framing): Composition guide and ROI state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/onboarding-store.ts` (Onboarding): Tutorial flow state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/setup-wizard-store.ts` (Setup Wizard): Initial setup state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/theme-store.ts` (Theme): Dark mode and UI customization. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/bookmarks-store.ts` (View Bookmarks): Saved view positions. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/favorites-store.ts` (Favorites): User-favorited objects. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/aladin-store.ts` (Aladin Lite): Aladin viewer state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/daily-knowledge-store.ts` (Daily Knowledge): Daily astronomy knowledge. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/feedback-store.ts` (Feedback): User feedback state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/planning-ui-store.ts` (Planning UI): Planning panel state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/session-plan-store.ts` (Session Plan): Session plan state. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/web-location-store.ts` (Web Location): Web-only location. **Listed in stores CLAUDE.md (2026-02-28)**.
+- `lib/stores/onboarding-bridge-store.ts` (Onboarding Bridge): Adapter state. **Listed in stores CLAUDE.md (2026-02-28)**.
 
 ### Astronomy Calculation Libraries (lib/astronomy/)
 
@@ -161,7 +168,7 @@
 **Factual Findings:**
 
 - **130+ Backend Commands**: All registered in `lib.rs` handler, mostly documented in `tauri-commands.md`
-- **27 Zustand Stores**: 11 main stores documented, 8 stores completely undocumented, 2 missing (bookmarks, favorites)
+- **27 Zustand Stores**: All 26+ stores now listed in `lib/stores/CLAUDE.md` (updated 2026-02-28); detailed API docs exist for key stores only
 - **18 Astronomy Modules**: 6 modules well-documented, 5 visibility modules undocumented, 3+ imaging utilities minimally documented
 - **144 React Components**: ~40 components documented, ~80+ components undocumented (especially overlays, planning, management subcomponents)
 - **12 Tauri API Files**: 7 fully documented, 2 partially documented, 3 completely undocumented
@@ -212,15 +219,9 @@
 - [ ] `geolocation-api.ts` - Create mobile API guide with permission handling
 - [ ] `updater-hooks.ts` - Document update status hooks and event handling
 
-### Zustand Stores (8 stores need docs)
-- [ ] `satellite-store.ts` - Real-time satellite tracking state
-- [ ] `mount-store.ts` - Equatorial mount position and tracking
-- [ ] `framing-store.ts` - Image composition and ROI state
-- [ ] `onboarding-store.ts` - Tutorial progress tracking
-- [ ] `setup-wizard-store.ts` - Initial configuration flow state
-- [ ] `theme-store.ts` - Dark mode and color customization
-- [ ] `bookmarks-store.ts` - Saved view positions (implied but undocumented)
-- [ ] `favorites-store.ts` - Favorited objects (implied but undocumented)
+### Zustand Stores (listed in CLAUDE.md, but detailed API docs still needed for some)
+- [x] All 26+ stores now listed in `lib/stores/CLAUDE.md` (2026-02-28)
+- [ ] Detailed API docs for newer stores (aladin, daily-knowledge, feedback, planning-ui, session-plan, web-location, onboarding-bridge)
 
 ### Astronomy Modules (9 items need docs)
 - [ ] Visibility module guide: altitude calculations, circumpolar detection, transit times

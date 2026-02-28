@@ -516,21 +516,3 @@ function calculateImagingScoreSimple(
   return Math.max(0, Math.min(100, score));
 }
 
-// ============================================================================
-// Backward Compatibility Aliases (deprecated, use new names)
-// ============================================================================
-
-/** @deprecated Use DSOSearchFilters instead */
-export type EnhancedSearchFilters = DSOSearchFilters;
-
-/** @deprecated Use DSOOrderByField instead */
-export type SkyAtlasOrderByField = DSOOrderByField;
-
-/** @deprecated Use DSOFilterResult instead */
-export type FilteredDSOResult = DSOFilterResult;
-
-/** @deprecated Use DEFAULT_DSO_FILTERS instead */
-export const DEFAULT_ENHANCED_FILTERS = DEFAULT_DSO_FILTERS;
-
-/** @deprecated Use applyDSOFilters instead */
-export const applyEnhancedFilters = applyDSOFilters;

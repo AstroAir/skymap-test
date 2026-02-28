@@ -36,6 +36,7 @@ export function useAladinLoader({
     loadingStatus: '',
     errorMessage: null,
     startTime: null,
+    progress: 0,
   });
   const [engineReady, setEngineReady] = useState(false);
   const loadingRef = useRef(false);
@@ -51,6 +52,7 @@ export function useAladinLoader({
         loadingStatus: '',
         errorMessage: 'Container element not found',
         startTime: null,
+        progress: 0,
       });
       loadingRef.current = false;
       return;
@@ -61,6 +63,7 @@ export function useAladinLoader({
       loadingStatus: 'Loading Aladin Lite WASM...',
       errorMessage: null,
       startTime: Date.now(),
+      progress: 20,
     });
     setEngineReady(false);
 
@@ -76,6 +79,7 @@ export function useAladinLoader({
       setLoadingState(prev => ({
         ...prev,
         loadingStatus: 'Initializing Aladin Lite engine...',
+        progress: 50,
       }));
 
       // Wait for WASM init
@@ -168,6 +172,7 @@ export function useAladinLoader({
         loadingStatus: 'Aladin Lite ready',
         errorMessage: null,
         startTime: null,
+        progress: 100,
       });
       setEngineReady(true);
       loadingRef.current = false;
@@ -181,6 +186,7 @@ export function useAladinLoader({
         loadingStatus: '',
         errorMessage: message,
         startTime: null,
+        progress: 0,
       });
       loadingRef.current = false;
     }

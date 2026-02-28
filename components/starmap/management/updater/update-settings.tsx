@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { SwitchItem } from '@/components/ui/switch-item';
 import { RefreshCw, Download, CheckCircle2 } from 'lucide-react';
 import { useAppSettings } from '@/lib/tauri';
 import { useUpdater } from '@/lib/tauri/updater-hooks';
@@ -75,22 +75,16 @@ export function UpdateSettings({ className }: UpdateSettingsProps) {
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <Label htmlFor="auto-update">{t('autoUpdate')}</Label>
-            <p className="text-sm text-muted-foreground">
-              {t('autoUpdateDescription')}
-            </p>
-          </div>
-          <Switch
-            id="auto-update"
-            checked={autoUpdate}
-            disabled={autoUpdateDisabled}
-            onCheckedChange={(checked) => {
-              updateAppSettings({ check_updates: checked });
-            }}
-          />
-        </div>
+        <SwitchItem
+          id="auto-update"
+          label={t('autoUpdate')}
+          description={t('autoUpdateDescription')}
+          checked={autoUpdate}
+          onCheckedChange={(checked) => {
+            updateAppSettings({ check_updates: checked });
+          }}
+          switchProps={{ disabled: autoUpdateDisabled }}
+        />
       </div>
 
       <UpdateDialog open={dialogOpen} onOpenChange={setDialogOpen} />

@@ -758,6 +758,13 @@ export function installFetchInterceptor(strategy: CacheStrategy = 'cache-first')
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     
+    // Never intercept .wasm files — WebAssembly.instantiateStreaming requires
+    // a genuine fetch Response with correct Content-Type. Cached/cloned responses
+    // break streaming compilation and can cause the WASM init to hang.
+    if (url.endsWith('.wasm')) {
+      return getOriginalFetch()(input, init);
+    }
+
     // Only intercept cacheable URLs
     if (unifiedCache.shouldCache(url)) {
       const cache = unifiedCache;

@@ -23,6 +23,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { validateCameraForm, validateCameraFields, type FieldErrors } from '@/lib/core/management-validators';
 import { normalizeCameras } from '@/lib/core/equipment-normalize';
 import type { NormalizedCamera } from '@/types/starmap/management';
+import { EmptyState } from '@/components/ui/empty-state';
 import { EquipmentListItem } from './equipment-list-item';
 
 interface CameraTabProps {
@@ -200,10 +201,11 @@ export function CameraTab({ isTauriAvailable, rawCameras, onDeleteRequest, onRef
     <div className="space-y-4">
       <ScrollArea className="h-[200px]">
         {cameraList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <Camera className="h-10 w-10 mb-3 opacity-50" />
-            <p className="text-sm">{t('equipment.noCameras') || 'No cameras added'}</p>
-          </div>
+          <EmptyState
+            icon={Camera}
+            message={t('equipment.noCameras') || 'No cameras added'}
+            iconClassName="h-10 w-10 mb-3"
+          />
         ) : (
           <div className="space-y-2">
             {cameraList.map((cam) => (

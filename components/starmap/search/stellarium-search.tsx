@@ -7,10 +7,12 @@ import { useTargetListActions } from '@/lib/hooks/use-target-list-actions';
 import type { SearchResultItem } from '@/lib/core/types';
 import type { StellariumSearchRef, StellariumSearchProps } from '@/types/starmap/search';
 import { getResultId } from '@/lib/core/search-utils';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Kbd } from '@/components/ui/kbd';
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +25,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -37,9 +41,6 @@ import {
   SlidersHorizontal,
   Trash2,
   MapPin,
-  ArrowUp,
-  ArrowDown,
-  CornerDownLeft,
 } from 'lucide-react';
 import { AdvancedSearchDialog } from './advanced-search-dialog';
 
@@ -349,36 +350,23 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuLabel>{t('search.sortBy')}</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem
-                checked={sortBy === 'name'}
-                onCheckedChange={() => setSortBy('name')}
-              >
-                {t('search.sortByName')}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={sortBy === 'type'}
-                onCheckedChange={() => setSortBy('type')}
-              >
-                {t('search.sortByType')}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={sortBy === 'magnitude'}
-                onCheckedChange={() => setSortBy('magnitude')}
-              >
-                {t('search.sortByMagnitude', { defaultValue: 'Magnitude' })}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={sortBy === 'altitude'}
-                onCheckedChange={() => setSortBy('altitude')}
-              >
-                {t('search.sortByAltitude', { defaultValue: 'Altitude' })}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={sortBy === 'distance'}
-                onCheckedChange={() => setSortBy('distance')}
-              >
-                {t('search.sortByDistance', { defaultValue: 'Distance' })}
-              </DropdownMenuCheckboxItem>
+              <DropdownMenuRadioGroup value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+                <DropdownMenuRadioItem value="name">
+                  {t('search.sortByName')}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="type">
+                  {t('search.sortByType')}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="magnitude">
+                  {t('search.sortByMagnitude', { defaultValue: 'Magnitude' })}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="altitude">
+                  {t('search.sortByAltitude', { defaultValue: 'Altitude' })}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="distance">
+                  {t('search.sortByDistance', { defaultValue: 'Distance' })}
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -395,15 +383,18 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         {showResultsPanel && showKeyboardHints && hasResults && (
           <div className="flex items-center justify-center gap-3 py-1 text-[10px] text-muted-foreground bg-muted/30 rounded-md">
             <span className="flex items-center gap-1">
-              <ArrowUp className="h-3 w-3" />
-              <ArrowDown className="h-3 w-3" />
+              <Kbd>↑</Kbd>
+              <Kbd>↓</Kbd>
               {t('search.navigateHint')}
             </span>
             <span className="flex items-center gap-1">
-              <CornerDownLeft className="h-3 w-3" />
+              <Kbd>↵</Kbd>
               {t('search.selectHint')}
             </span>
-            <span>Esc {t('search.closeHint')}</span>
+            <span className="flex items-center gap-1">
+              <Kbd>Esc</Kbd>
+              {t('search.closeHint')}
+            </span>
           </div>
         )}
 
@@ -470,11 +461,12 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
 
         {/* Empty State */}
         {showResultsPanel && query && !hasResults && !isSearching && (
-          <div className="text-center py-4 text-muted-foreground">
-            <CircleDot className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">{t('starmap.noObjectsFound')}</p>
-            <p className="text-xs mt-1">{t('starmap.trySearching')}</p>
-          </div>
+          <EmptyState
+            icon={CircleDot}
+            message={t('starmap.noObjectsFound')}
+            hint={t('starmap.trySearching')}
+            className="py-4"
+          />
         )}
 
         {/* Command hint */}

@@ -187,21 +187,26 @@ export function AboutDialog() {
 
                 {/* Links */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <a
-                    href={APP_INFO.repository}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/50 transition-colors"
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="flex items-center justify-start gap-3 p-3 h-auto rounded-lg hover:border-primary/50 hover:bg-muted/50"
                   >
-                    <Github className="h-5 w-5" />
-                    <div>
-                      <p className="text-sm font-medium">{t('about.sourceCode')}</p>
-                      <p className="text-xs text-muted-foreground">GitHub</p>
-                    </div>
-                  </a>
-                  <button
-                    type="button"
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/50 transition-colors text-left"
+                    <a
+                      href={APP_INFO.repository}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Github className="h-5 w-5" />
+                      <div>
+                        <p className="text-sm font-medium">{t('about.sourceCode')}</p>
+                        <p className="text-xs text-muted-foreground">GitHub</p>
+                      </div>
+                    </a>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex items-center justify-start gap-3 p-3 h-auto rounded-lg hover:border-primary/50 hover:bg-muted/50 text-left"
                     onClick={() => setFeedbackOpen(true)}
                     data-testid="report-issue-button"
                   >
@@ -210,7 +215,7 @@ export function AboutDialog() {
                       <p className="text-sm font-medium">{t('about.reportIssue')}</p>
                       <p className="text-xs text-muted-foreground">{t('about.reportIssueDescription')}</p>
                     </div>
-                  </button>
+                  </Button>
                 </div>
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-border">
                   <Heart className="h-5 w-5 text-red-500" />

@@ -45,6 +45,11 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -765,46 +770,53 @@ export function PlateSolverUnified({
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <div className="space-y-1 mt-2 max-h-48 overflow-y-auto">
-                  {solveHistory.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-center justify-between text-xs p-2 rounded border bg-muted/30"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {entry.result.success ? (
-                          <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{entry.imageName}</div>
-                          <div className="text-muted-foreground">
-                            {new Date(entry.timestamp).toLocaleString()} · {entry.solveMode}
-                            {entry.result.success && entry.result.coordinates && (
-                              <span className="ml-1">
-                                · {entry.result.coordinates.raHMS}
-                              </span>
-                            )}
+                <ScrollArea className="max-h-48 mt-2">
+                  <div className="space-y-1">
+                    {solveHistory.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between text-xs p-2 rounded border bg-muted/30"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {entry.result.success ? (
+                            <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
+                          ) : (
+                            <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{entry.imageName}</div>
+                            <div className="text-muted-foreground">
+                              {new Date(entry.timestamp).toLocaleString()} · {entry.solveMode}
+                              {entry.result.success && entry.result.coordinates && (
+                                <span className="ml-1">
+                                  · {entry.result.coordinates.raHMS}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+                        {entry.result.success && entry.result.coordinates && onGoToCoordinates && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 flex-shrink-0"
+                                onClick={() => {
+                                  onGoToCoordinates(entry.result.coordinates!.ra, entry.result.coordinates!.dec);
+                                  setOpen(false);
+                                }}
+                              >
+                                <MapPin className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('plateSolving.goToPosition') || 'Go to Position'}</TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
-                      {entry.result.success && entry.result.coordinates && onGoToCoordinates && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 flex-shrink-0"
-                          onClick={() => {
-                            onGoToCoordinates(entry.result.coordinates!.ra, entry.result.coordinates!.dec);
-                            setOpen(false);
-                          }}
-                        >
-                          <MapPin className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </ScrollArea>
                 <Button
                   variant="ghost"
                   size="sm"

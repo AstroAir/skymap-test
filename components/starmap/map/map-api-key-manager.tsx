@@ -16,7 +16,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Select,
   SelectContent,
@@ -211,21 +216,15 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
 
         <div className="space-y-4 py-4">
           {/* Security Notice */}
-          <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
-            <CardContent className="p-3">
-              <div className="flex items-start gap-2">
-                <Shield className="h-4 w-4 text-amber-600 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-amber-800 dark:text-amber-200">
-                    {t('map.securityNotice') || 'Security Notice'}
-                  </p>
-                  <p className="text-amber-700 dark:text-amber-300 text-xs mt-1">
-                    {t('map.securityNoticeDescription') || 'API keys are stored locally. Never share your API keys publicly.'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <Alert>
+            <Shield className="h-4 w-4" />
+            <AlertTitle>
+              {t('map.securityNotice') || 'Security Notice'}
+            </AlertTitle>
+            <AlertDescription>
+              {t('map.securityNoticeDescription') || 'API keys are stored locally. Never share your API keys publicly.'}
+            </AlertDescription>
+          </Alert>
 
           {/* API Keys Table */}
           <Table>
@@ -240,10 +239,12 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
             <TableBody>
               {apiKeys.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    <Key className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>{t('map.noApiKeys') || 'No API keys configured'}</p>
-                    <p className="text-xs mt-1">{t('map.addKeyHint') || 'Add an API key to enable premium map features'}</p>
+                  <TableCell colSpan={4}>
+                    <EmptyState
+                      icon={Key}
+                      message={t('map.noApiKeys') || 'No API keys configured'}
+                    />
+                    <p className="text-xs text-center text-muted-foreground -mt-4">{t('map.addKeyHint') || 'Add an API key to enable premium map features'}</p>
                   </TableCell>
                 </TableRow>
               ) : (

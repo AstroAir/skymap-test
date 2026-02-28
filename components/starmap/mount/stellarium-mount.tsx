@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Toggle } from '@/components/ui/toggle';
 import {
   Tooltip,
   TooltipContent,
@@ -247,14 +248,15 @@ function MountPanel({ compact }: StellariumMountProps) {
         {/* Auto-sync */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn('h-7 w-7', effectiveAutoSync && 'text-primary bg-primary/20')}
-              onClick={toggleAutoSync}
+            <Toggle
+              size="sm"
+              pressed={effectiveAutoSync}
+              onPressedChange={toggleAutoSync}
+              className="h-7 w-7 min-w-7 p-0 data-[state=on]:text-primary data-[state=on]:bg-primary/20"
+              aria-label={effectiveAutoSync ? t('disableAutoSync') : t('enableAutoSync')}
             >
               <RefreshCw className={cn('h-3.5 w-3.5', effectiveAutoSync && 'animate-spin')} />
-            </Button>
+            </Toggle>
           </TooltipTrigger>
           <TooltipContent side="left">
             {effectiveAutoSync ? t('disableAutoSync') : t('enableAutoSync')}
@@ -265,14 +267,15 @@ function MountPanel({ compact }: StellariumMountProps) {
         {canSetTracking && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn('h-7 w-7', tracking ? 'text-green-400' : 'text-muted-foreground')}
-                onClick={handleToggleTracking}
+              <Toggle
+                size="sm"
+                pressed={!!tracking}
+                onPressedChange={handleToggleTracking}
+                className="h-7 w-7 min-w-7 p-0 data-[state=on]:text-green-400 data-[state=off]:text-muted-foreground"
+                aria-label={tracking ? t('stopTracking') : t('startTracking')}
               >
                 {tracking ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-              </Button>
+              </Toggle>
             </TooltipTrigger>
             <TooltipContent side="left">
               {tracking ? t('stopTracking') : t('startTracking')}
@@ -284,14 +287,15 @@ function MountPanel({ compact }: StellariumMountProps) {
         {canPark && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn('h-7 w-7', parked && 'text-yellow-400')}
-                onClick={handlePark}
+              <Toggle
+                size="sm"
+                pressed={!!parked}
+                onPressedChange={handlePark}
+                className="h-7 w-7 min-w-7 p-0 data-[state=on]:text-yellow-400"
+                aria-label={parked ? t('unpark') : t('park')}
               >
                 <ParkingSquare className="h-3.5 w-3.5" />
-              </Button>
+              </Toggle>
             </TooltipTrigger>
             <TooltipContent side="left">
               {parked ? t('unpark') : t('park')}

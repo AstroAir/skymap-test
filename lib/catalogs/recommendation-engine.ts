@@ -743,7 +743,7 @@ function isAboveHorizon(
 // Main Recommendation Engine
 // ============================================================================
 
-export class AdvancedRecommendationEngine {
+export class RecommendationEngine {
   private equipment: EquipmentProfile;
   private site: ObservingSite;
   private config: RecommendationConfig;
@@ -1423,7 +1423,7 @@ export class AdvancedRecommendationEngine {
 // Export singleton instance
 // ============================================================================
 
-export const recommendationEngine = new AdvancedRecommendationEngine();
+export const recommendationEngine = new RecommendationEngine();
 
 // ============================================================================
 // Helper functions
@@ -1444,7 +1444,7 @@ export function getQuickRecommendations(
     aperture?: number;
   } = {}
 ): ScoredRecommendation[] {
-  const engine = new AdvancedRecommendationEngine(
+  const engine = new RecommendationEngine(
     {
       telescopeFocalLength: options.focalLength || 500,
       telescopeAperture: options.aperture || 80,

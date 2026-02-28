@@ -60,16 +60,16 @@ export {
   quickSearchByName,
   getCatalogStats,
   getTonightsBest,
-  // Enhanced fuzzy search
-  enhancedSearch,
-  enhancedQuickSearch,
+  // Scored fuzzy search
+  scoredSearch,
+  quickSearch,
   searchWithFuzzyName,
   clearSearchIndexCache,
   type SearchOptions,
   type CatalogStats,
   type TonightsBestOptions,
-  type EnhancedSearchOptions,
-  type EnhancedSearchResult,
+  type ScoredSearchOptions,
+  type ScoredSearchResult,
 } from './search-engine';
 
 // Catalog Data
@@ -87,7 +87,7 @@ export {
   initializeSkyAtlas,
 } from './sky-atlas-store';
 
-// Advanced Scoring Algorithms
+// Scoring Algorithms
 export {
   // Airmass calculations
   calculateAirmass,
@@ -163,10 +163,10 @@ export {
   type WeightedSearchOptions,
 } from './fuzzy-search';
 
-// Advanced Recommendation Engine
+// Recommendation Engine
 export {
   // Main engine class
-  AdvancedRecommendationEngine,
+  RecommendationEngine,
   recommendationEngine,
   
   // Quick recommendation function
@@ -190,7 +190,7 @@ export {
   type ScoreBreakdown,
   type ImagingWindow,
   type ImagingFeasibility,
-} from './advanced-recommendation-engine';
+} from './recommendation-engine';
 
 // Celestial Search Data (shared between search hooks)
 export {
@@ -221,10 +221,4 @@ export {
   type DSOOrderByField,
   type DSOFilterResult,
   
-  // Backward compatibility aliases (deprecated)
-  applyEnhancedFilters,
-  DEFAULT_ENHANCED_FILTERS,
-  type EnhancedSearchFilters,
-  type SkyAtlasOrderByField,
-  type FilteredDSOResult,
 } from './dso-filters';

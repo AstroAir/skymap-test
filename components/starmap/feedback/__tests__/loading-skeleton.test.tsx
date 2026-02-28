@@ -89,8 +89,8 @@ describe('LoadingSkeleton - default fallback', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { container } = render(<LoadingSkeleton variant={'unknown' as any} />);
     expect(container.firstChild).toBeInTheDocument();
-    // Card skeleton has specific structure: space-y-3, p-4
-    expect(container.firstChild).toHaveClass('space-y-3');
+    // Card skeleton uses shadcn Card component with data-slot="card"
+    expect(container.firstChild).toHaveAttribute('data-slot', 'card');
   });
 });
 

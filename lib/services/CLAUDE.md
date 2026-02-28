@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > [lib](../) > **services**
 
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-28
 > **Module Type:** TypeScript
 
 ---
@@ -25,10 +25,13 @@ The `services` module provides service classes for external API integration. The
 
 | Directory | Purpose |
 |-----------|---------|
-| `astro_events/` | Moon phases, meteor showers, astronomical events |
+| `astro-events/` | Moon phases, meteor showers, astronomical events |
 | `hips/` | HiPS (Hierarchical Progressive Survey) service |
 | `object-info/` | Object information from online sources |
 | `satellite/` | Satellite TLE data and pass predictions |
+| `daily-knowledge/` | Daily astronomy knowledge service |
+| `map-providers/` | Map tile provider configuration |
+| `search/` | Search service abstraction |
 
 ---
 
@@ -82,12 +85,16 @@ class SatelliteService {
 | Service | File | Purpose |
 |---------|------|---------|
 | `geocoding-service.ts` | Forward/reverse geocoding |
-| `online-search-service.ts` | Online object search |
+| `online-search-service.ts` | Online object search (Sesame, SIMBAD TAP) |
 | `connectivity-checker.ts` | Network connectivity detection |
 | `satellite-propagator.ts` | Satellite position calculation |
 | `celestial-icons.ts` | Celestial object icon mapping |
 | `http-fetch.ts` | HTTP fetch utilities |
 | `map-config.ts` | Map provider configuration |
+| `astro-data-sources.ts` | Astronomical data source configuration |
+| `local-resolve-service.ts` | Local object resolution (offline) |
+| `lru-cache.ts` | LRU cache implementation |
+| `object-info-config.ts` | Object info service configuration |
 
 ---
 

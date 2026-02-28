@@ -109,35 +109,51 @@ skymap/
 ├── app/                    # Next.js App Router (pages and layouts)
 ├── components/             # React components
 │   ├── starmap/           # Star map UI components
-│   │   ├── core/          # Core view, search, clock
-│   │   ├── overlays/      # FOV simulator, satellite tracker
-│   │   ├── planning/      # Altitude charts, exposure calculator
-│   │   ├── objects/       # Object info panels
-│   │   └── management/    # Equipment, location managers
+│   │   ├── canvas/        # Stellarium Web Engine canvas wrapper
+│   │   ├── view/          # Main sky view component
+│   │   ├── search/        # Object search, advanced search
+│   │   ├── settings/      # Settings panels and dialogs
+│   │   ├── controls/      # Zoom, navigation, bookmarks
+│   │   ├── time/          # Time control and clock display
+│   │   ├── overlays/      # FOV simulator, satellite tracker, sky markers
+│   │   ├── planning/      # Altitude charts, exposure calculator, session planning
+│   │   ├── objects/       # Object info panels, detail drawers
+│   │   ├── management/    # Equipment, location, cache managers
+│   │   ├── knowledge/     # Daily astronomy knowledge
+│   │   ├── mount/         # Telescope mount control
+│   │   ├── onboarding/    # Welcome dialog and tour
+│   │   └── map/           # Leaflet-based location picker
+│   ├── common/            # Shared components (theme, language, log viewer)
+│   ├── icons/             # Brand icons, SkyMap logo
 │   └── ui/                # shadcn/ui components
 ├── lib/                    # Core logic
 │   ├── astronomy/         # Astronomical calculations
 │   │   ├── coordinates/   # Coordinate conversions
 │   │   ├── time/          # Julian date, sidereal time
-│   │   ├── time-scales.ts # UTC/UT1/TT and EOP freshness
-│   │   ├── frames.ts      # Coordinate frame contracts
-│   │   ├── pipeline.ts    # Unified coordinate transform pipeline
 │   │   ├── celestial/     # Sun, Moon calculations
 │   │   ├── visibility/    # Target visibility
 │   │   ├── twilight/      # Twilight times
 │   │   ├── imaging/       # Exposure calculations
-│   │   └── engine/        # Unified Tauri/fallback astronomy engine
-│   ├── stores/            # Zustand state management
-│   └── tauri/             # Tauri API wrappers
+│   │   ├── engine/        # Unified Tauri/fallback astronomy engine
+│   │   ├── horizon/       # Custom horizon profiles
+│   │   └── object-resolver/ # Object name parsing
+│   ├── stores/            # Zustand state management (26+ stores)
+│   ├── tauri/             # Tauri API wrappers
+│   ├── services/          # External API services
+│   ├── hooks/             # Custom React hooks (37+ hooks)
+│   ├── catalogs/          # Astronomical catalog data
+│   ├── logger/            # Structured logging system
+│   ├── storage/           # Storage abstraction layer
+│   ├── cache/             # Cache compression, config, migration
+│   └── ...                # core, constants, data, feedback, aladin, etc.
 ├── src-tauri/             # Rust backend
 │   └── src/
-│       ├── astronomy.rs   # Astronomical calculations
-│       ├── equipment.rs   # Equipment management
-│       ├── locations.rs   # Location management
-│       ├── storage.rs     # JSON storage system
-│       ├── security.rs    # Security utilities
-│       ├── rate_limiter.rs # Rate limiting
-│       └── ...            # Other modules
+│       ├── astronomy/     # Coordinate transforms, events
+│       ├── data/          # JSON storage, equipment, locations, targets
+│       ├── cache/         # Offline tile caching, unified cache
+│       ├── network/       # HTTP client, security, rate limiting
+│       ├── platform/      # App settings, updater, plate solver
+│       └── mount/         # ALPACA mount client, simulator
 ├── public/                 # Static assets including Stellarium engine
 ├── i18n/                   # Internationalization
 │   └── messages/          # Translation files (en.json, zh.json)

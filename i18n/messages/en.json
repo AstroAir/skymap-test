@@ -142,7 +142,9 @@
     "raPlaceholder": "e.g. 10.68 or 00h42m44s",
     "decPlaceholder": "e.g. 41.27 or +41°16'09\"",
     "invalidCoordinates": "Invalid coordinates format",
-    "goTo": "Go To"
+    "goTo": "Go To",
+    "goToDescription": "Enter RA and Dec to navigate the view to specific celestial coordinates",
+    "qualityMetadata": "Frame: {frame} / Time Scale: {timeScale} / Quality: {quality} / Freshness: {freshness}"
   },
   "objects": {
     "comet": "Comet",
@@ -1779,7 +1781,8 @@
     "loading": "Loading object information...",
     "enhancing": "Fetching additional data...",
     "previousImage": "Previous image",
-    "nextImage": "Next image"
+    "nextImage": "Next image",
+    "fullscreen": "View fullscreen"
   },
   "sourceConfig": {
     "title": "Information Sources",
@@ -1830,7 +1833,9 @@
     "priorityHint": "Priority order",
     "sourceType": "Type",
     "customImageSourceDefault": "Custom image source: {name}",
-    "customDataSourceDefault": "Custom data source: {name}"
+    "customDataSourceDefault": "Custom data source: {name}",
+    "checkHealth": "Check health",
+    "editSettings": "Edit settings"
   },
   "onboarding": {
     "stepOf": "{current} of {total}",
@@ -3334,6 +3339,7 @@
     "starmapInitTimedOut": "Star map initialization timed out",
     "overallTimeout": "Loading timed out. Please retry.",
     "loadingSlowHint": "Loading is taking longer than expected",
+    "firstLoadHint": "First load may take a moment to compile the engine",
     "switchToAladin": "Switch to Aladin",
     "autoSwitchedToAladin": "Stellarium failed to load. Switched to Aladin.",
     "tryStellariumAgain": "Try Stellarium again",
@@ -3567,6 +3573,10 @@
     "favorite": "Favorite",
     "favorited": "Favorited",
     "noHistory": "No history yet.",
+    "prev": "Previous",
+    "next": "Next",
+    "random": "Random",
+    "history": "History",
     "resultCount": "{count} results",
     "loading": "Loading daily knowledge...",
     "noResults": "No matching daily knowledge entries.",

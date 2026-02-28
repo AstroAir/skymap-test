@@ -218,7 +218,7 @@ describe('useTonightRecommendations', () => {
     });
   });
 
-  describe('equipment-aware scoring (AdvancedRecommendationEngine)', () => {
+  describe('equipment-aware scoring (RecommendationEngine)', () => {
     beforeEach(() => {
       mockEquipment = {
         focalLength: 600,

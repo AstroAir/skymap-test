@@ -49,9 +49,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { EmptyState } from '@/components/ui/empty-state';
 import { usePlateSolverStore, selectActiveSolver } from '@/lib/stores/plate-solver-store';
 import type { IndexManagerProps, DownloadState } from '@/types/starmap/plate-solving';
 import type { IndexInfo, DownloadableIndex } from '@/lib/tauri/plate-solver-api';
@@ -290,14 +290,19 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
           )}
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-        onClick={() => setDeleteConfirm(index)}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setDeleteConfirm(index)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t('plateSolving.deleteIndex') || 'Delete Index'}</TooltipContent>
+      </Tooltip>
     </div>
   );
 
@@ -363,17 +368,15 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
                 </Badge>
               )}
               {downloadState.status === 'error' && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Badge variant="destructive">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        {t('plateSolving.error') || 'Error'}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>{downloadState.error}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="destructive">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      {t('plateSolving.error') || 'Error'}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>{downloadState.error}</TooltipContent>
+                </Tooltip>
               )}
             </div>
           ) : installed ? (
@@ -462,15 +465,15 @@ export function IndexManager({ solverType, trigger, className }: IndexManagerPro
                   {installedIndexes.map(renderInstalledIndex)}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-[300px] text-center">
-                  <Database className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                  <p className="text-muted-foreground">
-                    {t('plateSolving.noIndexesInstalled') ||
-                      'No index files installed'}
-                  </p>
+                <div className="flex flex-col items-center justify-center h-[300px]">
+                  <EmptyState
+                    icon={Database}
+                    message={t('plateSolving.noIndexesInstalled') || 'No index files installed'}
+                    iconClassName="h-12 w-12 mb-4"
+                  />
                   <Button
                     variant="outline"
-                    className="mt-4"
+                    className="mt-2"
                     onClick={() => setActiveTab('available')}
                   >
                     <Download className="h-4 w-4 mr-2" />

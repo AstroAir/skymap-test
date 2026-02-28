@@ -13,6 +13,7 @@ import {
   Tooltip as RechartsTooltip,
 } from 'recharts';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useMountStore } from '@/lib/stores';
 import {
   getAltitudeOverTime,
@@ -200,22 +201,32 @@ export const AltitudeChartCompact = memo(function AltitudeChartCompact({
           {t('chart.timeRange')}: <span className="font-mono font-medium text-foreground">{hoursAhead}h</span>
         </span>
         <div className="flex items-center gap-1">
-          <Button 
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground touch-target"
-            onClick={() => setHoursAhead(prev => Math.max(minHours, prev - 2))}
-          >
-            <span className="text-sm sm:text-xs">−</span>
-          </Button>
-          <Button 
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground touch-target"
-            onClick={() => setHoursAhead(prev => Math.min(maxHours, prev + 2))}
-          >
-            <span className="text-sm sm:text-xs">+</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground touch-target"
+                onClick={() => setHoursAhead(prev => Math.max(minHours, prev - 2))}
+              >
+                <span className="text-sm sm:text-xs">−</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('zoom.zoomOut')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground touch-target"
+                onClick={() => setHoursAhead(prev => Math.min(maxHours, prev + 2))}
+              >
+                <span className="text-sm sm:text-xs">+</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('zoom.zoomIn')}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
       {/* Chart - taller on mobile for better touch interaction */}

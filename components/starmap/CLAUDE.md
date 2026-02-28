@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > [components](../) > **starmap**
 
-> **Last Updated:** 2025-01-31
+> **Last Updated:** 2026-02-28
 > **Module Type:** React Components (TSX)
 
 ---
@@ -26,16 +26,17 @@ The `starmap` module contains all UI components for the star map interface. It i
 | `canvas/` | Stellarium Web Engine canvas wrapper and integration |
 | `view/` | Main sky view component that orchestrates the canvas and overlays |
 | `search/` | Object search, advanced search, and favorites quick access |
-| `settings/` | Settings panels and configuration dialogs |
+| `settings/` | Settings panels and configuration dialogs (including event-sources-settings) |
 | `controls/` | Zoom controls, navigation history, bookmarks, keyboard shortcuts |
 | `time/` | Time control and clock display |
 | `overlays/` | FOV simulator, satellite tracker, ocular simulator, sky markers |
-| `planning/` | Altitude charts, exposure calculator, session planning |
+| `planning/` | Altitude charts, exposure calculator, session planning, mount-safety-simulator, event-detail-dialog |
 | `objects/` | Object info panels, detail drawers, image galleries |
 | `management/` | Equipment, location, cache, and data managers |
 | `dialogs/` | About, credits, keyboard shortcuts dialogs |
 | `onboarding/` | Welcome dialog and tour components |
 | `setup-wizard/` | First-time setup wizard |
+| `knowledge/` | Daily astronomy knowledge (button, dialog, startup coordinator) |
 | `plate-solving/` | Image capture and plate solving |
 | `feedback/` | Loading skeletons and splash screens |
 | `mount/` | Telescope mount control |

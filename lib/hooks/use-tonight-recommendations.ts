@@ -26,8 +26,8 @@ import {
   calculateSeasonalScore,
   calculateComprehensiveImagingScore,
   EXTENDED_SEASONAL_DATA,
-  // Advanced Recommendation Engine
-  AdvancedRecommendationEngine,
+  // Recommendation Engine
+  RecommendationEngine,
   type DeepSkyObject,
   type NighttimeData,
   type ImagingScoreResult,
@@ -280,13 +280,13 @@ export function useTonightRecommendations(
 
     const scored: RecommendedTarget[] = [];
 
-    // Try equipment-aware scoring via AdvancedRecommendationEngine
+    // Try equipment-aware scoring via RecommendationEngine
     const hasEquipmentData = focalLength > 0 && aperture > 0 && sensorWidth > 0;
     let advancedResults: ScoredRecommendation[] | null = null;
 
     if (hasEquipmentData) {
       try {
-        const engine = new AdvancedRecommendationEngine(
+        const engine = new RecommendationEngine(
           {
             telescopeFocalLength: focalLength,
             telescopeAperture: aperture,

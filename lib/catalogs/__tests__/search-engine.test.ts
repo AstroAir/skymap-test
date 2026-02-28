@@ -7,8 +7,8 @@ import {
   initializeFiltersWithNighttime,
   searchDeepSkyObjects,
   quickSearchByName,
-  enhancedSearch,
-  enhancedQuickSearch,
+  scoredSearch,
+  quickSearch,
   searchWithFuzzyName,
   getCatalogStats,
   getTonightsBest,
@@ -447,7 +447,7 @@ describe('quickSearchByName', () => {
   });
 });
 
-describe('enhancedSearch', () => {
+describe('scoredSearch', () => {
   const mockCatalog: DeepSkyObject[] = [
     { id: 'M31', name: 'M31', type: 'Galaxy', ra: 10, dec: 41, constellation: 'And', alternateNames: ['Andromeda Galaxy'] },
     { id: 'M42', name: 'M42', type: 'Nebula', ra: 83, dec: -5, constellation: 'Ori', alternateNames: ['Orion Nebula'] },
@@ -459,33 +459,33 @@ describe('enhancedSearch', () => {
   });
 
   it('should return empty for empty query', () => {
-    expect(enhancedSearch(mockCatalog, '')).toEqual([]);
-    expect(enhancedSearch(mockCatalog, '  ')).toEqual([]);
+    expect(scoredSearch(mockCatalog, '')).toEqual([]);
+    expect(scoredSearch(mockCatalog, '  ')).toEqual([]);
   });
 
   it('should find objects with fuzzy=true (default)', () => {
-    const results = enhancedSearch(mockCatalog, 'M31');
+    const results = scoredSearch(mockCatalog, 'M31');
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].object.name).toBe('M31');
   });
 
   it('should find objects with fuzzy=false', () => {
-    const results = enhancedSearch(mockCatalog, 'M31', { fuzzy: false });
+    const results = scoredSearch(mockCatalog, 'M31', { fuzzy: false });
     expect(results.length).toBeGreaterThan(0);
   });
 
   it('should respect minScore option', () => {
-    const results = enhancedSearch(mockCatalog, 'xyz', { minScore: 0.9 });
+    const results = scoredSearch(mockCatalog, 'xyz', { minScore: 0.9 });
     expect(results.length).toBe(0);
   });
 
   it('should respect limit option', () => {
-    const results = enhancedSearch(mockCatalog, 'M', { limit: 1 });
+    const results = scoredSearch(mockCatalog, 'M', { limit: 1 });
     expect(results.length).toBeLessThanOrEqual(1);
   });
 
   it('should include match details', () => {
-    const results = enhancedSearch(mockCatalog, 'M31');
+    const results = scoredSearch(mockCatalog, 'M31');
     if (results.length > 0) {
       expect(results[0].score).toBeGreaterThan(0);
       expect(results[0].matchedField).toBeDefined();
@@ -493,14 +493,14 @@ describe('enhancedSearch', () => {
   });
 
   it('should accept custom weights', () => {
-    const results = enhancedSearch(mockCatalog, 'Galaxy', {
+    const results = scoredSearch(mockCatalog, 'Galaxy', {
       weights: { name: 2.0, type: 1.0 },
     });
     expect(Array.isArray(results)).toBe(true);
   });
 });
 
-describe('enhancedQuickSearch', () => {
+describe('quickSearch', () => {
   const mockCatalog: DeepSkyObject[] = [
     { id: 'M31', name: 'M31', type: 'Galaxy', ra: 10, dec: 41, constellation: 'And', alternateNames: ['Andromeda Galaxy'] },
     { id: 'M42', name: 'M42', type: 'Nebula', ra: 83, dec: -5, constellation: 'Ori' },
@@ -511,7 +511,7 @@ describe('enhancedQuickSearch', () => {
   });
 
   it('should return DeepSkyObject array', () => {
-    const results = enhancedQuickSearch(mockCatalog, 'M31');
+    const results = quickSearch(mockCatalog, 'M31');
     expect(Array.isArray(results)).toBe(true);
     if (results.length > 0) {
       expect(results[0].name).toBeDefined();
@@ -519,7 +519,7 @@ describe('enhancedQuickSearch', () => {
   });
 
   it('should respect limit', () => {
-    const results = enhancedQuickSearch(mockCatalog, 'M', 1);
+    const results = quickSearch(mockCatalog, 'M', 1);
     expect(results.length).toBeLessThanOrEqual(1);
   });
 });
@@ -654,7 +654,7 @@ describe('clearSearchIndexCache', () => {
     const catalog: DeepSkyObject[] = [
       { id: 'M31', name: 'M31', type: 'Galaxy', ra: 10, dec: 41, constellation: 'And' },
     ];
-    const results = enhancedSearch(catalog, 'M31');
+    const results = scoredSearch(catalog, 'M31');
     expect(results.length).toBeGreaterThan(0);
     clearSearchIndexCache();
   });

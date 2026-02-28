@@ -12,6 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -351,7 +353,8 @@ function TargetCard({
   const t = useTranslations();
   
   return (
-    <div className="p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+    <Card className="border-border hover:bg-accent/50 transition-colors">
+      <CardContent className="p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -475,7 +478,8 @@ function TargetCard({
           ))}
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -790,10 +794,7 @@ export function TonightRecommendations() {
               ))}
             </div>
           ) : filteredRecommendations.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">{t('tonight.noRecommendations')}</p>
-            </div>
+            <EmptyState icon={Sparkles} message={t('tonight.noRecommendations')} />
           ) : (
             <ScrollArea className="h-[38vh] min-h-[200px]">
               <div className="space-y-2 pr-2">

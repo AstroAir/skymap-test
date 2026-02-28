@@ -29,9 +29,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  TooltipProvider,
-} from '@/components/ui/tooltip';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -128,7 +125,6 @@ export function ObjectInfoSourcesConfig() {
   const onlineDataCount = dataSources.filter(s => s.enabled && s.status === 'online').length;
   
   return (
-    <TooltipProvider>
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -422,7 +418,6 @@ export function ObjectInfoSourcesConfig() {
         />
       )}
     </div>
-    </TooltipProvider>
   );
 }
 

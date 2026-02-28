@@ -17,6 +17,8 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import type { ObjectImageGalleryProps, ImageState } from '@/types/starmap/objects';
 
@@ -250,16 +252,11 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
 
   if (!images.length) {
     return (
-      <div className={cn(
-        'flex items-center justify-center bg-muted/30 rounded-lg',
-        'h-48',
-        className
-      )}>
-        <div className="text-center text-muted-foreground">
-          <ImageOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p className="text-xs">{t('objectDetail.noImages')}</p>
-        </div>
-      </div>
+      <EmptyState
+        icon={ImageOff}
+        message={t('objectDetail.noImages')}
+        className={cn('h-48 rounded-lg bg-muted/30', className)}
+      />
     );
   }
 
@@ -322,14 +319,19 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
           )}
 
           {/* Fullscreen Button - Always visible on mobile */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target"
-            onClick={() => setFullscreenOpen(true)}
-          >
-            <Maximize2 className="h-5 w-5 sm:h-4 sm:w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 bg-black/50 hover:bg-black/70 text-white sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target"
+                onClick={() => setFullscreenOpen(true)}
+              >
+                <Maximize2 className="h-5 w-5 sm:h-4 sm:w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('objectDetail.fullscreen')}</TooltipContent>
+          </Tooltip>
 
           {/* Dots Indicator - Larger on mobile */}
           <DotsPagination count={images.length} currentIndex={currentIndex} onSelect={setCurrentIndex} variant="default" className="bottom-2" />
@@ -412,15 +414,16 @@ export const ObjectImageGallery = memo(function ObjectImageGallery({
                   <span className="text-sm text-white/70">
                     {currentIndex + 1} / {images.length}
                   </span>
-                  <a
-                    href={currentImage.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <ExternalLink className="h-5 w-5" />
-                  </a>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-white/10 text-white" asChild>
+                    <a
+                      href={currentImage.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-5 w-5" />
+                    </a>
+                  </Button>
                 </div>
               </div>
             </div>

@@ -43,7 +43,8 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import { useMountStore, useStellariumStore, useEventSourcesStore } from '@/lib/stores';
 import {
@@ -469,10 +470,7 @@ export function AstroEventsCalendar() {
                 ))}
               </div>
             ) : filteredDailyEvents.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground">
-                <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">{t('events.noEventsToday')}</p>
-              </div>
+              <EmptyState icon={Calendar} message={t('events.noEventsToday')} />
             ) : (
               <>
                 {exactEvents.length > 0 && (
@@ -506,7 +504,9 @@ export function AstroEventsCalendar() {
 
             <Separator className="my-3" />
             <Collapsible open={showMonthOverview} onOpenChange={setShowMonthOverview}>
-              <Button variant="ghost" className="w-full justify-start text-xs">{t('events.monthOverview')}</Button>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-start text-xs">{t('events.monthOverview')}</Button>
+              </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1">
                 {monthEvents.slice(0, 12).map((event) => (
                   <div key={`month-${event.id}`} className="text-xs text-muted-foreground flex items-center justify-between">

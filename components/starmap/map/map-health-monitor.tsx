@@ -27,7 +27,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -137,28 +136,26 @@ function MapHealthMonitorComponent({ className, compact = false, refreshToken = 
   if (compact) {
     return (
       <div className={cn('flex items-center gap-2', className)}>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1">
-                {networkQuality?.isOnline ? (
-                  <Wifi className="h-4 w-4 text-green-500" />
-                ) : (
-                  <WifiOff className="h-4 w-4 text-destructive" />
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {providerHealth.filter(p => p.isHealthy).length}/{providerHealth.length}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{t('map.healthyProviders') || 'Healthy providers'}: {providerHealth.filter(p => p.isHealthy).length}/{providerHealth.length}</p>
-              {networkQuality && (
-                <p>{t('map.avgResponseTime') || 'Avg response time'}: {formatResponseTime(networkQuality.averageResponseTime)}</p>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-1">
+              {networkQuality?.isOnline ? (
+                <Wifi className="h-4 w-4 text-green-500" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-destructive" />
               )}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+              <span className="text-xs text-muted-foreground">
+                {providerHealth.filter(p => p.isHealthy).length}/{providerHealth.length}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('map.healthyProviders') || 'Healthy providers'}: {providerHealth.filter(p => p.isHealthy).length}/{providerHealth.length}</p>
+            {networkQuality && (
+              <p>{t('map.avgResponseTime') || 'Avg response time'}: {formatResponseTime(networkQuality.averageResponseTime)}</p>
+            )}
+          </TooltipContent>
+        </Tooltip>
       </div>
     );
   }

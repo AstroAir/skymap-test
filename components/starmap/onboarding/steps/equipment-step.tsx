@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Telescope, Camera, Check, ChevronDown, Search } from 'lucide-react';
+import { Telescope, Camera, Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchInput } from '@/components/ui/search-input';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import {
   Collapsible,
@@ -132,16 +133,12 @@ export function EquipmentStep() {
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-3">
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder={t('setupWizard.steps.equipment.searchPlaceholder')}
-              value={telescopeSearch}
-              onChange={(e) => setTelescopeSearch(e.target.value)}
-              className="h-8 pl-8 text-sm"
-            />
-          </div>
+          <SearchInput
+            value={telescopeSearch}
+            onChange={setTelescopeSearch}
+            placeholder={t('setupWizard.steps.equipment.searchPlaceholder')}
+            inputClassName="h-8 text-sm"
+          />
 
           {/* Preset grid */}
           <ScrollArea className="max-h-40">
@@ -234,16 +231,12 @@ export function EquipmentStep() {
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-3">
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder={t('setupWizard.steps.equipment.searchPlaceholder')}
-              value={cameraSearch}
-              onChange={(e) => setCameraSearch(e.target.value)}
-              className="h-8 pl-8 text-sm"
-            />
-          </div>
+          <SearchInput
+            value={cameraSearch}
+            onChange={setCameraSearch}
+            placeholder={t('setupWizard.steps.equipment.searchPlaceholder')}
+            inputClassName="h-8 text-sm"
+          />
 
           {/* Preset grid */}
           <ScrollArea className="max-h-40">

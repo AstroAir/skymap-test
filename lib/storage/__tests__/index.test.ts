@@ -5,6 +5,17 @@ import {
   getStorageAdapter,
   storage,
 } from '../index';
+import { WebStorageAdapter } from '../web-storage';
+import { TauriStorageAdapter } from '../tauri-storage';
+
+// Mock Tauri APIs (needed when tauriStorageAdapter is loaded)
+jest.mock('@tauri-apps/api/core', () => ({
+  invoke: jest.fn(),
+}));
+jest.mock('@tauri-apps/plugin-dialog', () => ({
+  save: jest.fn(),
+  open: jest.fn(),
+}));
 
 // Mock platform detection
 jest.mock('../platform', () => ({
@@ -12,183 +23,196 @@ jest.mock('../platform', () => ({
   isServer: jest.fn().mockReturnValue(false),
 }));
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const platformMock = require('../platform') as {
+  isTauri: jest.Mock;
+  isServer: jest.Mock;
+};
+
+const mockSetItem = localStorage.setItem as jest.Mock;
+const mockRemoveItem = localStorage.removeItem as jest.Mock;
+
 describe('Storage Module', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    platformMock.isTauri.mockReturnValue(false);
+    platformMock.isServer.mockReturnValue(false);
+    mockSetItem.mockImplementation(() => {});
+    mockRemoveItem.mockImplementation(() => {});
+  });
+
   // ============================================================================
-  // getStorageAdapter
+  // getStorageAdapter — web
   // ============================================================================
-  describe('getStorageAdapter', () => {
-    it('returns a storage adapter', () => {
+  describe('getStorageAdapter (web)', () => {
+    it('returns a web storage adapter', () => {
       const adapter = getStorageAdapter();
       expect(adapter).toBeDefined();
+      expect(adapter).toBeInstanceOf(WebStorageAdapter);
     });
 
-    it('adapter has isAvailable method', () => {
+    it('adapter implements all StorageAdapter methods', () => {
       const adapter = getStorageAdapter();
-      expect(typeof adapter.isAvailable).toBe('function');
-    });
-
-    it('adapter has saveStore method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.saveStore).toBe('function');
-    });
-
-    it('adapter has loadStore method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.loadStore).toBe('function');
-    });
-
-    it('adapter has deleteStore method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.deleteStore).toBe('function');
-    });
-
-    it('adapter has listStores method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.listStores).toBe('function');
-    });
-
-    it('adapter has exportAllData method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.exportAllData).toBe('function');
-    });
-
-    it('adapter has importAllData method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.importAllData).toBe('function');
-    });
-
-    it('adapter has getStorageStats method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.getStorageStats).toBe('function');
-    });
-
-    it('adapter has getDataDirectory method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.getDataDirectory).toBe('function');
-    });
-
-    it('adapter has clearAllData method', () => {
-      const adapter = getStorageAdapter();
-      expect(typeof adapter.clearAllData).toBe('function');
+      const methods = [
+        'isAvailable', 'saveStore', 'loadStore', 'deleteStore',
+        'listStores', 'exportAllData', 'importAllData',
+        'getStorageStats', 'getDataDirectory', 'clearAllData',
+      ];
+      for (const method of methods) {
+        expect(typeof (adapter as unknown as Record<string, unknown>)[method]).toBe('function');
+      }
     });
   });
 
   // ============================================================================
-  // storage unified API
+  // getStorageAdapter — Tauri
+  // ============================================================================
+  describe('getStorageAdapter (Tauri)', () => {
+    it('returns a Tauri storage adapter', () => {
+      platformMock.isTauri.mockReturnValue(true);
+      const adapter = getStorageAdapter();
+      expect(adapter).toBeInstanceOf(TauriStorageAdapter);
+    });
+  });
+
+  // ============================================================================
+  // getStorageAdapter — SSR
+  // ============================================================================
+  describe('getStorageAdapter (SSR)', () => {
+    beforeEach(() => {
+      platformMock.isServer.mockReturnValue(true);
+    });
+
+    it('returns a no-op adapter', () => {
+      const adapter = getStorageAdapter();
+      expect(adapter.isAvailable()).toBe(false);
+    });
+
+    it('saveStore is a no-op', async () => {
+      const adapter = getStorageAdapter();
+      await expect(adapter.saveStore('test', 'data')).resolves.toBeUndefined();
+    });
+
+    it('loadStore returns null', async () => {
+      const adapter = getStorageAdapter();
+      const result = await adapter.loadStore('test');
+      expect(result).toBeNull();
+    });
+
+    it('deleteStore returns false', async () => {
+      const adapter = getStorageAdapter();
+      const result = await adapter.deleteStore('test');
+      expect(result).toBe(false);
+    });
+
+    it('listStores returns empty array', async () => {
+      const adapter = getStorageAdapter();
+      const stores = await adapter.listStores();
+      expect(stores).toEqual([]);
+    });
+
+    it('exportAllData is a no-op', async () => {
+      const adapter = getStorageAdapter();
+      await expect(adapter.exportAllData()).resolves.toBeUndefined();
+    });
+
+    it('importAllData returns error result', async () => {
+      const adapter = getStorageAdapter();
+      const result = await adapter.importAllData();
+      expect(result.imported_count).toBe(0);
+      expect(result.skipped_count).toBe(0);
+      expect(result.errors).toContain('Not available on server');
+      expect(result.metadata.version).toBe('0');
+    });
+
+    it('getStorageStats returns empty stats', async () => {
+      const adapter = getStorageAdapter();
+      const stats = await adapter.getStorageStats();
+      expect(stats.total_size).toBe(0);
+      expect(stats.store_count).toBe(0);
+      expect(stats.stores).toEqual([]);
+      expect(stats.directory).toBe('');
+    });
+
+    it('getDataDirectory returns empty string', async () => {
+      const adapter = getStorageAdapter();
+      const dir = await adapter.getDataDirectory();
+      expect(dir).toBe('');
+    });
+
+    it('clearAllData returns 0', async () => {
+      const adapter = getStorageAdapter();
+      const count = await adapter.clearAllData();
+      expect(count).toBe(0);
+    });
+  });
+
+  // ============================================================================
+  // storage unified API — method presence
   // ============================================================================
   describe('storage unified API', () => {
-    it('has isAvailable method', () => {
-      expect(typeof storage.isAvailable).toBe('function');
-    });
-
-    it('has saveStore method', () => {
-      expect(typeof storage.saveStore).toBe('function');
-    });
-
-    it('has loadStore method', () => {
-      expect(typeof storage.loadStore).toBe('function');
-    });
-
-    it('has deleteStore method', () => {
-      expect(typeof storage.deleteStore).toBe('function');
-    });
-
-    it('has listStores method', () => {
-      expect(typeof storage.listStores).toBe('function');
-    });
-
-    it('has exportAllData method', () => {
-      expect(typeof storage.exportAllData).toBe('function');
-    });
-
-    it('has importAllData method', () => {
-      expect(typeof storage.importAllData).toBe('function');
-    });
-
-    it('has getStorageStats method', () => {
-      expect(typeof storage.getStorageStats).toBe('function');
-    });
-
-    it('has getDataDirectory method', () => {
-      expect(typeof storage.getDataDirectory).toBe('function');
-    });
-
-    it('has clearAllData method', () => {
-      expect(typeof storage.clearAllData).toBe('function');
+    it('has all expected methods', () => {
+      const methods = [
+        'isAvailable', 'saveStore', 'loadStore', 'deleteStore',
+        'listStores', 'exportAllData', 'importAllData',
+        'getStorageStats', 'getDataDirectory', 'clearAllData',
+      ];
+      for (const method of methods) {
+        expect(typeof (storage as unknown as Record<string, unknown>)[method]).toBe('function');
+      }
     });
   });
 
   // ============================================================================
-  // storage operations (web adapter)
+  // storage unified API — delegation
   // ============================================================================
-  describe('storage operations', () => {
+  describe('storage delegation (web)', () => {
     beforeEach(() => {
-      // Clear localStorage before each test
       localStorage.clear();
     });
 
     it('isAvailable returns boolean', () => {
-      const result = storage.isAvailable();
+      expect(typeof storage.isAvailable()).toBe('boolean');
+    });
+
+    it('saveStore delegates to adapter', async () => {
+      await storage.saveStore('test-store', '{"key":"value"}');
+      expect(mockSetItem).toHaveBeenCalledWith('test-store', '{"key":"value"}');
+    });
+
+    it('loadStore delegates to adapter', async () => {
+      (localStorage.getItem as jest.Mock).mockReturnValue('{"data":1}');
+      const result = await storage.loadStore('test-store');
+      expect(result).toBe('{"data":1}');
+    });
+
+    it('deleteStore delegates to adapter', async () => {
+      (localStorage.getItem as jest.Mock).mockReturnValue(null);
+      const result = await storage.deleteStore('non-existent');
       expect(typeof result).toBe('boolean');
     });
 
-    it('saveStore and loadStore work', async () => {
-      const storeName = 'test-store';
-      const data = JSON.stringify({ key: 'value' });
-      
-      await storage.saveStore(storeName, data);
-      const loaded = await storage.loadStore(storeName);
-      
-      // Web storage adapter may return undefined instead of the data
-      // depending on localStorage mock behavior
-      expect(loaded === data || loaded === undefined || loaded === null).toBe(true);
-    });
-
-    it('loadStore returns null or undefined for non-existent store', async () => {
-      const result = await storage.loadStore('non-existent-store');
-      expect(result === null || result === undefined).toBe(true);
-    });
-
-    it('deleteStore removes the store', async () => {
-      const storeName = 'test-delete';
-      await storage.saveStore(storeName, 'data');
-      
-      const deleted = await storage.deleteStore(storeName);
-      // deleteStore returns a boolean
-      expect(typeof deleted).toBe('boolean');
-      
-      const loaded = await storage.loadStore(storeName);
-      expect(loaded === null || loaded === undefined).toBe(true);
-    });
-
-    it('deleteStore returns boolean', async () => {
-      const deleted = await storage.deleteStore('non-existent');
-      expect(typeof deleted).toBe('boolean');
-    });
-
-    it('listStores returns array', async () => {
+    it('listStores delegates to adapter', async () => {
       const stores = await storage.listStores();
       expect(Array.isArray(stores)).toBe(true);
     });
 
-    it('getStorageStats returns stats object', async () => {
+    it('getStorageStats delegates to adapter', async () => {
+      Object.defineProperty(localStorage, 'length', { value: 0, configurable: true });
       const stats = await storage.getStorageStats();
-      
       expect(stats).toHaveProperty('total_size');
       expect(stats).toHaveProperty('store_count');
       expect(stats).toHaveProperty('stores');
+      expect(stats).toHaveProperty('directory');
     });
 
-    it('getDataDirectory returns string', async () => {
+    it('getDataDirectory delegates to adapter', async () => {
       const dir = await storage.getDataDirectory();
-      expect(typeof dir).toBe('string');
+      expect(dir).toBe('localStorage');
     });
 
-    it('clearAllData returns count', async () => {
-      // Add some data first
-      await storage.saveStore('store1', 'data1');
-      await storage.saveStore('store2', 'data2');
-      
+    it('clearAllData delegates to adapter', async () => {
+      Object.defineProperty(localStorage, 'length', { value: 0, configurable: true });
       const count = await storage.clearAllData();
       expect(typeof count).toBe('number');
     });

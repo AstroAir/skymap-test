@@ -8,6 +8,8 @@ import {
   getPlatform,
   onlyInTauri,
   onlyInWeb,
+  isMobile,
+  isDesktop,
 } from '../platform';
 
 describe('Platform Detection', () => {
@@ -139,6 +141,94 @@ describe('Platform Detection', () => {
       
       // @ts-expect-error - Cleaning up
       delete window.__TAURI__;
+    });
+  });
+
+  // ============================================================================
+  // isMobile
+  // ============================================================================
+  describe('isMobile', () => {
+    const originalUserAgent = navigator.userAgent;
+
+    afterEach(() => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: originalUserAgent,
+        configurable: true,
+      });
+    });
+
+    it('returns false for desktop user agent', () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        configurable: true,
+      });
+      expect(isMobile()).toBe(false);
+    });
+
+    it('returns true for Android user agent', () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36',
+        configurable: true,
+      });
+      expect(isMobile()).toBe(true);
+    });
+
+    it('returns true for iPhone user agent', () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
+        configurable: true,
+      });
+      expect(isMobile()).toBe(true);
+    });
+
+    it('returns true for iPad user agent', () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X)',
+        configurable: true,
+      });
+      expect(isMobile()).toBe(true);
+    });
+
+    it('returns true for iPod user agent', () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (iPod touch; CPU iPhone OS 15_0 like Mac OS X)',
+        configurable: true,
+      });
+      expect(isMobile()).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // isDesktop
+  // ============================================================================
+  describe('isDesktop', () => {
+    const originalUserAgent = navigator.userAgent;
+
+    afterEach(() => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: originalUserAgent,
+        configurable: true,
+      });
+    });
+
+    it('returns true for desktop user agent', () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        configurable: true,
+      });
+      expect(isDesktop()).toBe(true);
+    });
+
+    it('returns false for mobile user agent', () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36',
+        configurable: true,
+      });
+      expect(isDesktop()).toBe(false);
+    });
+
+    it('is opposite of isMobile in browser context', () => {
+      expect(isDesktop()).toBe(!isMobile());
     });
   });
 });

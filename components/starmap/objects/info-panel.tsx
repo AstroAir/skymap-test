@@ -17,6 +17,9 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
   TooltipProvider,
 } from '@/components/ui/tooltip';
 
@@ -158,15 +161,20 @@ export const InfoPanel = memo(function InfoPanel({
                     <span className="text-sm font-medium truncate">{primaryName || selectedObject.names[0]}</span>
                     {objectExpanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
                   </CollapsibleTrigger>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 sm:h-6 sm:w-6 text-muted-foreground hover:text-foreground shrink-0 touch-target"
-                    onClick={onClose}
-                    aria-label={t('common.close')}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 sm:h-6 sm:w-6 text-muted-foreground hover:text-foreground shrink-0 touch-target"
+                        onClick={onClose}
+                        aria-label={t('common.close')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('common.close')}</TooltipContent>
+                  </Tooltip>
                 </div>
                 
                 <CollapsibleContent className="mt-2 space-y-2">

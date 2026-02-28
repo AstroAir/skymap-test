@@ -15,14 +15,33 @@ A desktop star map and astronomy planning application built with Next.js 16 + Ta
 
 - `app/` Next.js App Router (routes: `page.tsx`, `layout.tsx`, global styles in `globals.css`).
 - `components/ui/` Reusable UI components (shadcn patterns).
-- `components/starmap/` Star map feature components (core, overlays, planning, objects, management).
-- `lib/astronomy/` Pure astronomical calculations (coordinates, time, celestial, visibility, twilight, imaging).
-- `lib/stores/` Zustand state management (stellarium, settings, equipment, target-list, markers).
-- `lib/tauri/` TypeScript wrappers for Tauri IPC calls.
+- `components/starmap/` Star map feature components (canvas, controls, overlays, planning, objects, management, settings, search, knowledge, mount, map, onboarding).
+- `components/common/` Shared components (theme, language, log viewer, system status).
+- `components/icons/` Brand icons, SkyMap logo, Stellarium/Zustand icons.
+- `lib/astronomy/` Pure astronomical calculations (coordinates, time, celestial, visibility, twilight, imaging, engine, horizon, object-resolver, mount-safety).
+- `lib/stores/` Zustand state management (settings, equipment, target-list, markers, stellarium, onboarding, theme, aladin, daily-knowledge, feedback, session-plan, etc.).
+- `lib/tauri/` TypeScript wrappers for Tauri IPC calls (storage, astronomy, events, mount, cache, updater, etc.).
+- `lib/services/` External API services (online search, object info, HiPS, satellite, geocoding, daily-knowledge, map-providers, search).
+- `lib/hooks/` Custom React hooks (37+ hooks, aladin/, stellarium/ subdirs).
 - `lib/i18n/` Internationalization utilities.
-- `public/` Static assets (SVGs, icons).
-- `src-tauri/` Tauri desktop wrapper (Rust backend modules).
+- `lib/storage/` Storage abstraction layer (Tauri/Web adapters, Zustand bridge).
+- `lib/catalogs/` Astronomical catalog data and types.
+- `lib/logger/` Structured logging system with transports.
+- `lib/cache/` Cache compression, config, migration, stats.
+- `lib/offline/` Offline cache manager, unified cache.
+- `lib/core/` Core constants and type definitions.
+- `lib/constants/` App constants (equipment presets, shortcuts, onboarding, satellite).
+- `lib/data/` Curated data (daily knowledge content).
+- `lib/plate-solving/` Astrometry API, FITS parser.
+- `lib/security/` Frontend security utilities.
+- `lib/feedback/` Feedback utilities.
+- `lib/aladin/` Aladin Lite compatibility layer.
+- `lib/utils/` Map utilities, observer location, scroll animation.
+- `public/` Static assets (SVGs, icons, Stellarium engine).
+- `src-tauri/` Tauri desktop wrapper (Rust backend: astronomy, data, cache, network, platform, mount).
 - `i18n/messages/` Translation files (en.json, zh.json).
+- `tests/e2e/` Playwright end-to-end tests.
+- `docs/` MkDocs-based developer and user documentation.
 - Root configs: `next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `postcss.config.mjs`, `components.json`.
 
 ## Build, Test, and Development Commands

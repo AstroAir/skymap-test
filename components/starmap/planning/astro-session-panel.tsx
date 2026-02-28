@@ -11,9 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import {
-  TooltipProvider,
-} from '@/components/ui/tooltip';
+
 import {
   Collapsible,
   CollapsibleContent,
@@ -191,8 +189,7 @@ export function AstroSessionPanel({
   };
 
   return (
-    <TooltipProvider>
-      <Card className="bg-transparent border-0 shadow-none">
+    <Card className="bg-transparent border-0 shadow-none">
         <CardHeader className="pb-2 px-0 pt-0">
           <CardTitle className="text-sm flex items-center gap-2 text-primary">
             <Eye className="h-4 w-4" />
@@ -433,7 +430,7 @@ export function AstroSessionPanel({
           </div>
         </CardContent>
       </Card>
-    </TooltipProvider>
+
   );
 }
 

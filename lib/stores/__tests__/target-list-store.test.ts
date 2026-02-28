@@ -13,6 +13,15 @@ jest.mock('@/lib/tauri/target-list-api', () => ({
     removeTarget: jest.fn().mockResolvedValue(undefined),
     updateTarget: jest.fn().mockResolvedValue(undefined),
     getTargets: jest.fn().mockResolvedValue([]),
+    setActiveTarget: jest.fn().mockResolvedValue(undefined),
+    toggleFavorite: jest.fn().mockResolvedValue(undefined),
+    toggleArchive: jest.fn().mockResolvedValue(undefined),
+    archiveCompleted: jest.fn().mockResolvedValue(undefined),
+    clearCompleted: jest.fn().mockResolvedValue(undefined),
+    clearAll: jest.fn().mockResolvedValue(undefined),
+    addTargetsBatch: jest.fn().mockResolvedValue(undefined),
+    removeTargetsBatch: jest.fn().mockResolvedValue(undefined),
+    load: jest.fn().mockResolvedValue(null),
   },
 }));
 
@@ -797,5 +806,590 @@ describe('useTargetListStore', () => {
       const dup = result.current.checkDuplicate('M42', 83.822, -5.391);
       expect(dup).toBeUndefined();
     });
+  });
+});
+
+describe('target-list additional coverage', () => {
+  const mockTarget = {
+    name: 'T1',
+    ra: 10.684,
+    dec: 41.269,
+    raString: '00h 42m 44s',
+    decString: '+41d 16m 09s',
+    priority: 'high' as const,
+  };
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { result } = require('@testing-library/react').renderHook(() => useTargetListStore());
+    act(() => {
+      result.current.clearAll();
+      result.current.setSearchQuery('');
+      result.current.setFilterStatus('all');
+      result.current.setFilterPriority('all');
+      result.current.setFilterTags([]);
+      result.current.setSortBy('manual');
+      result.current.setSortOrder('asc');
+      result.current.setShowArchived(false);
+    });
+  });
+
+  describe('selection management', () => {
+    it('should toggle selection', () => {
+      const store = useTargetListStore.getState();
+      act(() => { store.addTarget(mockTarget); });
+      const id = useTargetListStore.getState().targets[0].id;
+      act(() => { useTargetListStore.getState().toggleSelection(id); });
+      expect(useTargetListStore.getState().selectedIds.has(id)).toBe(true);
+      act(() => { useTargetListStore.getState().toggleSelection(id); });
+      expect(useTargetListStore.getState().selectedIds.has(id)).toBe(false);
+    });
+
+    it('should select all targets', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'B' });
+        useTargetListStore.getState().selectAll();
+      });
+      expect(useTargetListStore.getState().selectedIds.size).toBe(2);
+    });
+
+    it('should clear selection', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget(mockTarget);
+        useTargetListStore.getState().selectAll();
+        useTargetListStore.getState().clearSelection();
+      });
+      expect(useTargetListStore.getState().selectedIds.size).toBe(0);
+    });
+
+    it('should select by status', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'B' });
+      });
+      const idB = useTargetListStore.getState().targets[1].id;
+      act(() => {
+        useTargetListStore.getState().updateTarget(idB, { status: 'completed' });
+        useTargetListStore.getState().selectByStatus('completed');
+      });
+      expect(useTargetListStore.getState().selectedIds.size).toBe(1);
+      expect(useTargetListStore.getState().selectedIds.has(idB)).toBe(true);
+    });
+
+    it('should select by priority', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'H', priority: 'high' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'L', priority: 'low' });
+        useTargetListStore.getState().selectByPriority('low');
+      });
+      expect(useTargetListStore.getState().selectedIds.size).toBe(1);
+    });
+
+    it('should get selected targets', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'B' });
+      });
+      const idA = useTargetListStore.getState().targets[0].id;
+      act(() => { useTargetListStore.getState().toggleSelection(idA); });
+      const selected = useTargetListStore.getState().getSelectedTargets();
+      expect(selected).toHaveLength(1);
+      expect(selected[0].name).toBe('A');
+    });
+  });
+
+  describe('reorderTargets', () => {
+    it('should move a target from one position to another', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'B' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'C' });
+        useTargetListStore.getState().reorderTargets(2, 0);
+      });
+      const names = useTargetListStore.getState().targets.map(t => t.name);
+      expect(names).toEqual(['C', 'A', 'B']);
+    });
+  });
+
+  describe('updateTargetsBatch', () => {
+    it('should update multiple targets at once', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'B' });
+      });
+      const ids = useTargetListStore.getState().targets.map(t => t.id);
+      act(() => {
+        useTargetListStore.getState().updateTargetsBatch(ids, { notes: 'batch note' });
+      });
+      expect(useTargetListStore.getState().targets.every(t => t.notes === 'batch note')).toBe(true);
+    });
+  });
+
+  describe('clearCompleted', () => {
+    it('should remove only completed targets', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Planned' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Done' });
+      });
+      const doneId = useTargetListStore.getState().targets[1].id;
+      act(() => {
+        useTargetListStore.getState().updateTarget(doneId, { status: 'completed' });
+        useTargetListStore.getState().clearCompleted();
+      });
+      expect(useTargetListStore.getState().targets).toHaveLength(1);
+      expect(useTargetListStore.getState().targets[0].name).toBe('Planned');
+    });
+  });
+
+  describe('archiveCompleted', () => {
+    it('should archive all completed targets', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Done' });
+      });
+      const id = useTargetListStore.getState().targets[0].id;
+      act(() => {
+        useTargetListStore.getState().updateTarget(id, { status: 'completed' });
+        useTargetListStore.getState().archiveCompleted();
+      });
+      expect(useTargetListStore.getState().targets[0].isArchived).toBe(true);
+    });
+  });
+
+  describe('tag management (available tags)', () => {
+    it('should add a new available tag', () => {
+      act(() => { useTargetListStore.getState().addTag('custom-tag'); });
+      expect(useTargetListStore.getState().availableTags).toContain('custom-tag');
+    });
+
+    it('should remove an available tag', () => {
+      act(() => { useTargetListStore.getState().removeTag('galaxy'); });
+      expect(useTargetListStore.getState().availableTags).not.toContain('galaxy');
+    });
+  });
+
+  describe('getGroupedTargets', () => {
+    it('should group by priority', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'H', priority: 'high' });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'L', priority: 'low' });
+        useTargetListStore.getState().setGroupBy('priority');
+      });
+      const grouped = useTargetListStore.getState().getGroupedTargets();
+      expect(grouped.size).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should group by status', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'P' });
+        useTargetListStore.getState().setGroupBy('status');
+      });
+      const grouped = useTargetListStore.getState().getGroupedTargets();
+      expect(grouped.has('planned')).toBe(true);
+    });
+
+    it('should return single group when groupBy is none', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+        useTargetListStore.getState().setGroupBy('none');
+      });
+      const grouped = useTargetListStore.getState().getGroupedTargets();
+      expect(grouped.size).toBe(1);
+    });
+  });
+
+  describe('filter by tags', () => {
+    it('should filter targets by tag', () => {
+      act(() => {
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A', tags: ['galaxy'] });
+        useTargetListStore.getState().addTarget({ ...mockTarget, name: 'B', tags: ['nebula'] });
+        useTargetListStore.getState().setFilterTags(['galaxy']);
+      });
+      const filtered = useTargetListStore.getState().getFilteredTargets();
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].name).toBe('A');
+    });
+  });
+
+  describe('updateObservableWindow', () => {
+    it('should update observable window for a target', () => {
+      act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+      const id = useTargetListStore.getState().targets[0].id;
+      const window = {
+        start: new Date('2026-01-01T20:00:00Z'),
+        end: new Date('2026-01-01T23:00:00Z'),
+        maxAltitude: 65,
+        transitTime: new Date('2026-01-01T21:30:00Z'),
+        isCircumpolar: false,
+      };
+      act(() => { useTargetListStore.getState().updateObservableWindow(id, window); });
+      expect(useTargetListStore.getState().targets[0].observableWindow?.maxAltitude).toBe(65);
+    });
+  });
+
+  describe('score settings', () => {
+    it('should set score profile', () => {
+      act(() => { useTargetListStore.getState().setScoreProfile('visual'); });
+      expect(useTargetListStore.getState().scoreProfile).toBe('visual');
+    });
+
+    it('should set score version', () => {
+      act(() => { useTargetListStore.getState().setScoreVersion('v1'); });
+      expect(useTargetListStore.getState().scoreVersion).toBe('v1');
+    });
+
+    it('should set score breakdown visibility', () => {
+      act(() => { useTargetListStore.getState().setScoreBreakdownVisibility('expanded'); });
+      expect(useTargetListStore.getState().scoreBreakdownVisibility).toBe('expanded');
+    });
+  });
+});
+
+describe('target-list groupBy tag and sort addedAt', () => {
+  const mockTarget = {
+    name: 'T1',
+    ra: 10.684,
+    dec: 41.269,
+    raString: '00h 42m 44s',
+    decString: '+41d 16m 09s',
+    priority: 'high' as const,
+  };
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { result } = require('@testing-library/react').renderHook(() => useTargetListStore());
+    act(() => {
+      result.current.clearAll();
+      result.current.setSearchQuery('');
+      result.current.setFilterStatus('all');
+      result.current.setFilterPriority('all');
+      result.current.setFilterTags([]);
+      result.current.setSortBy('manual');
+      result.current.setSortOrder('asc');
+      result.current.setShowArchived(false);
+    });
+  });
+
+  it('should group by tag (including untagged)', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Tagged', tags: ['galaxy'] });
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Untagged' });
+      useTargetListStore.getState().setGroupBy('tag');
+    });
+    const grouped = useTargetListStore.getState().getGroupedTargets();
+    expect(grouped.has('galaxy')).toBe(true);
+    expect(grouped.has('untagged')).toBe(true);
+  });
+
+  it('should group by tag with multi-tag targets', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Multi', tags: ['galaxy', 'nebula'] });
+      useTargetListStore.getState().setGroupBy('tag');
+    });
+    const grouped = useTargetListStore.getState().getGroupedTargets();
+    expect(grouped.get('galaxy')?.length).toBe(1);
+    expect(grouped.get('nebula')?.length).toBe(1);
+  });
+
+  it('should sort by addedAt ascending', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'First' });
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Second' });
+      useTargetListStore.getState().setSortBy('addedAt');
+      useTargetListStore.getState().setSortOrder('asc');
+    });
+    const filtered = useTargetListStore.getState().getFilteredTargets();
+    expect(filtered[0].name).toBe('First');
+    expect(filtered[1].name).toBe('Second');
+  });
+
+  it('should sort by addedAt descending', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'First' });
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Second' });
+    });
+    // Ensure different addedAt timestamps
+    const ids = useTargetListStore.getState().targets.map(t => t.id);
+    act(() => {
+      useTargetListStore.getState().updateTarget(ids[0], { addedAt: 1000 } as never);
+      useTargetListStore.getState().updateTarget(ids[1], { addedAt: 2000 } as never);
+      useTargetListStore.getState().setSortBy('addedAt');
+      useTargetListStore.getState().setSortOrder('desc');
+    });
+    const filtered = useTargetListStore.getState().getFilteredTargets();
+    expect(filtered[0].name).toBe('Second');
+    expect(filtered[1].name).toBe('First');
+  });
+
+  it('removeTag should also remove tag from targets and filterTags', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A', tags: ['galaxy', 'nebula'] });
+      useTargetListStore.getState().setFilterTags(['galaxy']);
+      useTargetListStore.getState().removeTag('galaxy');
+    });
+    const s = useTargetListStore.getState();
+    expect(s.targets[0].tags).toEqual(['nebula']);
+    expect(s.filterTags).not.toContain('galaxy');
+    expect(s.availableTags).not.toContain('galaxy');
+  });
+
+  it('addTargetsBatch should apply defaultSettings', () => {
+    act(() => {
+      useTargetListStore.getState().addTargetsBatch(
+        [
+          { name: 'A', ra: 1, dec: 2, raString: '1', decString: '2' },
+          { name: 'B', ra: 3, dec: 4, raString: '3', decString: '4' },
+        ],
+        { priority: 'low', tags: ['tonight'] }
+      );
+    });
+    const targets = useTargetListStore.getState().targets;
+    expect(targets).toHaveLength(2);
+    expect(targets[0].priority).toBe('low');
+    expect(targets[0].tags).toContain('tonight');
+  });
+
+  it('removeTargetsBatch should clear selection and activeTarget', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'B' });
+    });
+    const ids = useTargetListStore.getState().targets.map(t => t.id);
+    act(() => {
+      useTargetListStore.getState().setActiveTarget(ids[0]);
+      useTargetListStore.getState().toggleSelection(ids[0]);
+      useTargetListStore.getState().removeTargetsBatch([ids[0]]);
+    });
+    expect(useTargetListStore.getState().activeTargetId).toBeNull();
+    expect(useTargetListStore.getState().selectedIds.has(ids[0])).toBe(false);
+  });
+
+  it('addTagBatch should add new tag to availableTags', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'A' });
+    });
+    const id = useTargetListStore.getState().targets[0].id;
+    act(() => {
+      useTargetListStore.getState().addTagBatch([id], 'custom-new-tag');
+    });
+    expect(useTargetListStore.getState().availableTags).toContain('custom-new-tag');
+    expect(useTargetListStore.getState().targets[0].tags).toContain('custom-new-tag');
+  });
+
+  it('clearCompleted should also clean selection', () => {
+    act(() => {
+      useTargetListStore.getState().addTarget({ ...mockTarget, name: 'Done' });
+    });
+    const id = useTargetListStore.getState().targets[0].id;
+    act(() => {
+      useTargetListStore.getState().updateTarget(id, { status: 'completed' });
+      useTargetListStore.getState().toggleSelection(id);
+      useTargetListStore.getState().clearCompleted();
+    });
+    expect(useTargetListStore.getState().targets).toHaveLength(0);
+    expect(useTargetListStore.getState().selectedIds.size).toBe(0);
+  });
+});
+
+describe('target-list Tauri paths', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { isTauri } = require('@/lib/storage/platform');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { targetListApi } = require('@/lib/tauri/target-list-api');
+  const mockTarget = {
+    name: 'T1',
+    ra: 10.684,
+    dec: 41.269,
+    raString: '00h 42m 44s',
+    decString: '+41d 16m 09s',
+    priority: 'high' as const,
+  };
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { result } = require('@testing-library/react').renderHook(() => useTargetListStore());
+    act(() => { result.current.clearAll(); });
+    jest.clearAllMocks();
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  afterAll(() => {
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri addTarget when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.addTarget.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+    expect(targetListApi.addTarget).toHaveBeenCalled();
+    const arg = targetListApi.addTarget.mock.calls[0][0];
+    expect(arg.name).toBe('T1');
+    expect(arg.ra_string).toBe('00h 42m 44s');
+  });
+
+  it('should call Tauri addTarget with exposurePlan conversion', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.addTarget.mockResolvedValue(undefined);
+
+    act(() => {
+      useTargetListStore.getState().addTarget({
+        ...mockTarget,
+        exposurePlan: {
+          singleExposure: 120,
+          totalExposure: 60,
+          subFrames: 30,
+          filter: 'L',
+          advanced: {
+            sqm: 20.5,
+            filterBandwidthNm: 7,
+            readNoiseLimitPercent: 5,
+            gainStrategy: 'unity',
+            recommendedGain: 100,
+            recommendedExposureSec: 120,
+            skyFluxPerPixel: 0.5,
+            targetSignalPerPixelPerSec: 0.1,
+            dynamicRangeScore: 0.8,
+            dynamicRangeStops: 12,
+            readNoiseUsed: 3.5,
+            darkCurrentUsed: 0.01,
+            noiseFractions: { read: 0.3, sky: 0.5, dark: 0.2 },
+            stackEstimate: {
+              recommendedFrameCount: 30,
+              estimatedTotalMinutes: 60,
+              framesForTargetSNR: 25,
+              framesForTimeNoise: 20,
+              targetSNR: 50,
+              targetTimeNoiseRatio: 0.1,
+            },
+          },
+        },
+      });
+    });
+
+    expect(targetListApi.addTarget).toHaveBeenCalled();
+    const arg = targetListApi.addTarget.mock.calls[0][0];
+    expect(arg.exposure_plan).toBeDefined();
+    expect(arg.exposure_plan.single_exposure).toBe(120);
+    expect(arg.exposure_plan.advanced.sqm).toBe(20.5);
+    expect(arg.exposure_plan.advanced.noise_fractions.read).toBe(0.3);
+    expect(arg.exposure_plan.advanced.stack_estimate.target_snr).toBe(50);
+  });
+
+  it('should call Tauri removeTarget when isTauri is true', () => {
+    act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+    const id = useTargetListStore.getState().targets[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.removeTarget.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().removeTarget(id); });
+    expect(targetListApi.removeTarget).toHaveBeenCalledWith(id);
+  });
+
+  it('should call Tauri updateTarget when isTauri is true', () => {
+    act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+    const id = useTargetListStore.getState().targets[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.updateTarget.mockResolvedValue(undefined);
+
+    act(() => {
+      useTargetListStore.getState().updateTarget(id, {
+        name: 'Updated',
+        ra: 20,
+        dec: 30,
+        raString: '01h',
+        decString: '+30d',
+        priority: 'low',
+        status: 'in_progress',
+        notes: 'note',
+        tags: ['x'],
+        isFavorite: true,
+        isArchived: false,
+        exposurePlan: { singleExposure: 60, totalExposure: 30, subFrames: 15 },
+      });
+    });
+    expect(targetListApi.updateTarget).toHaveBeenCalled();
+  });
+
+  it('should call Tauri toggleFavorite when isTauri is true', () => {
+    act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+    const id = useTargetListStore.getState().targets[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.toggleFavorite.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().toggleFavorite(id); });
+    expect(targetListApi.toggleFavorite).toHaveBeenCalledWith(id);
+  });
+
+  it('should call Tauri toggleArchive when isTauri is true', () => {
+    act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+    const id = useTargetListStore.getState().targets[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.toggleArchive.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().toggleArchive(id); });
+    expect(targetListApi.toggleArchive).toHaveBeenCalledWith(id);
+  });
+
+  it('should call Tauri archiveCompleted when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.archiveCompleted.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().archiveCompleted(); });
+    expect(targetListApi.archiveCompleted).toHaveBeenCalled();
+  });
+
+  it('should call Tauri clearCompleted when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.clearCompleted.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().clearCompleted(); });
+    expect(targetListApi.clearCompleted).toHaveBeenCalled();
+  });
+
+  it('should call Tauri clearAll when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.clearAll.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().clearAll(); });
+    expect(targetListApi.clearAll).toHaveBeenCalled();
+  });
+
+  it('should call Tauri setActiveTarget when isTauri is true', () => {
+    act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+    const id = useTargetListStore.getState().targets[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.setActiveTarget.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().setActiveTarget(id); });
+    expect(targetListApi.setActiveTarget).toHaveBeenCalledWith(id);
+  });
+
+  it('should call Tauri addTargetsBatch when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.addTargetsBatch.mockResolvedValue(undefined);
+
+    act(() => {
+      useTargetListStore.getState().addTargetsBatch([
+        { name: 'A', ra: 1, dec: 2, raString: '1', decString: '2' },
+      ]);
+    });
+    expect(targetListApi.addTargetsBatch).toHaveBeenCalled();
+  });
+
+  it('should call Tauri removeTargetsBatch when isTauri is true', () => {
+    act(() => { useTargetListStore.getState().addTarget(mockTarget); });
+    const id = useTargetListStore.getState().targets[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    targetListApi.removeTargetsBatch.mockResolvedValue(undefined);
+
+    act(() => { useTargetListStore.getState().removeTargetsBatch([id]); });
+    expect(targetListApi.removeTargetsBatch).toHaveBeenCalledWith([id]);
   });
 });

@@ -20,7 +20,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
 import { SETUP_WIZARD_STEPS, STEP_ICONS } from '@/lib/constants/onboarding';
@@ -287,7 +300,8 @@ export function UnifiedOnboarding({
               </AnimatePresence>
             </div>
 
-            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/30">
+            <Separator />
+            <div className="flex items-center justify-between px-6 py-4 bg-muted/30">
               <div>
                 {setupStep !== 'complete' && (
                   <Button
@@ -337,26 +351,26 @@ export function UnifiedOnboarding({
         </Dialog>
       )}
 
-      <Dialog open={showSetupSkipConfirm} onOpenChange={setShowSetupSkipConfirm}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t('setupWizard.softGuard.title')}</DialogTitle>
-            <DialogDescription>
+      <AlertDialog open={showSetupSkipConfirm} onOpenChange={setShowSetupSkipConfirm}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('setupWizard.softGuard.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
               {pendingSetupSkipStep === 'location'
                 ? t('setupWizard.softGuard.locationImpact')
                 : t('setupWizard.softGuard.equipmentImpact')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSetupSkipConfirm(false)}>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
               {t('common.cancel')}
-            </Button>
-            <Button onClick={handleConfirmSkipStep}>
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSkipStep}>
               {t('setupWizard.softGuard.continueAnyway')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={showTourHub} onOpenChange={setShowTourHub}>
         <DialogContent className="sm:max-w-xl">
@@ -372,33 +386,35 @@ export function UnifiedOnboarding({
               const progress = getTourProgress(tour.id);
               const done = completedTours.includes(tour.id);
               return (
-                <div
-                  key={tour.id}
-                  className="rounded-lg border border-border p-3 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm">{t(tour.titleKey)}</p>
-                    <p className="text-xs text-muted-foreground">{t(tour.descriptionKey)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {done
-                        ? t('onboarding.hub.completed')
-                        : t('onboarding.hub.progress', {
-                            current: Math.max(progress.currentStepIndex + 1, 0),
-                            total: progress.totalSteps,
-                          })}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={done ? 'outline' : 'default'}
-                    onClick={() => {
-                      setShowTourHub(false);
-                      startTourById(tour.id);
-                    }}
-                  >
-                    {done ? t('onboarding.hub.restart') : t('onboarding.hub.start')}
-                  </Button>
-                </div>
+                <Card key={tour.id} className="py-3 gap-0">
+                  <CardContent className="flex items-center justify-between gap-3 px-4">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm">{t(tour.titleKey)}</p>
+                      <p className="text-xs text-muted-foreground">{t(tour.descriptionKey)}</p>
+                      <Badge
+                        variant={done ? 'secondary' : 'outline'}
+                        className="mt-1.5 text-xs"
+                      >
+                        {done
+                          ? t('onboarding.hub.completed')
+                          : t('onboarding.hub.progress', {
+                              current: Math.max(progress.currentStepIndex + 1, 0),
+                              total: progress.totalSteps,
+                            })}
+                      </Badge>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={done ? 'outline' : 'default'}
+                      onClick={() => {
+                        setShowTourHub(false);
+                        startTourById(tour.id);
+                      }}
+                    >
+                      {done ? t('onboarding.hub.restart') : t('onboarding.hub.start')}
+                    </Button>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>

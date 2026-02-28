@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -56,6 +57,9 @@ export const GoToCoordinatesDialog = memo(function GoToCoordinatesDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t('coordinates.goToCoordinates')}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('coordinates.goToDescription')}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">

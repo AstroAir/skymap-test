@@ -19,7 +19,7 @@ import {
   RETRY_DELAY_MS,
   OVERALL_LOADING_TIMEOUT,
 } from '@/lib/core/constants/stellarium-canvas';
-import { withTimeout, prefetchWasm, fovToRad } from '@/lib/core/stellarium-canvas-utils';
+import { withTimeout, fovToRad } from '@/lib/core/stellarium-canvas-utils';
 import { pointAndLockTargetAt } from './target-object-pool';
 import type { StellariumEngine, SelectedObjectData } from '@/lib/core/types';
 import type { LoadingState } from '@/types/stellarium-canvas';
@@ -83,6 +83,7 @@ export function useStellariumLoader({
   // Provide an immediate, non-empty status so the loading overlay doesn't render blank
   // for a frame before startLoading kicks in (scheduled via requestAnimationFrame).
   const [loadingStatus, setLoadingStatus] = useState(() => t('preparingResources'));
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [engineReady, setEngineReady] = useState(false);
   
@@ -204,27 +205,30 @@ export function useStellariumLoader({
       }
     };
 
-    // Core data sources (loaded immediately)
+    // Essential data sources (loaded synchronously — needed for first render)
     safeAdd(core.stars, { url: baseUrl + 'stars' }, 'stars');
     safeAdd(core.skycultures, { url: baseUrl + 'skycultures/western', key: 'western' }, 'skycultures');
-    safeAdd(core.dsos, { url: baseUrl + 'dso' }, 'dsos');
-    safeAdd(core.dss, { url: baseUrl + 'surveys/dss' }, 'dss');
-    safeAdd(core.milkyway, { url: baseUrl + 'surveys/milkyway' }, 'milkyway');
-
-    // Planets - use local surveys
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/moon', key: 'moon' }, 'moon');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/sun', key: 'sun' }, 'sun');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/mercury', key: 'mercury' }, 'mercury');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/venus', key: 'venus' }, 'venus');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/mars', key: 'mars' }, 'mars');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/jupiter', key: 'jupiter' }, 'jupiter');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/saturn', key: 'saturn' }, 'saturn');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/uranus', key: 'uranus' }, 'uranus');
-    safeAdd(core.planets, { url: baseUrl + 'surveys/sso/neptune', key: 'neptune' }, 'neptune');
     safeAdd(core.planets, { url: baseUrl + 'surveys/sso', key: 'default' }, 'planets-default');
 
-    // Non-core data sources (deferred to avoid slowing initialization)
-    const loadDeferredSources = () => {
+    // Secondary data sources (deferred via microtask to unblock initStellarium return)
+    const loadSecondarySources = () => {
+      safeAdd(core.dsos, { url: baseUrl + 'dso' }, 'dsos');
+      safeAdd(core.dss, { url: baseUrl + 'surveys/dss' }, 'dss');
+      safeAdd(core.milkyway, { url: baseUrl + 'surveys/milkyway' }, 'milkyway');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/moon', key: 'moon' }, 'moon');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/sun', key: 'sun' }, 'sun');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/mercury', key: 'mercury' }, 'mercury');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/venus', key: 'venus' }, 'venus');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/mars', key: 'mars' }, 'mars');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/jupiter', key: 'jupiter' }, 'jupiter');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/saturn', key: 'saturn' }, 'saturn');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/uranus', key: 'uranus' }, 'uranus');
+      safeAdd(core.planets, { url: baseUrl + 'surveys/sso/neptune', key: 'neptune' }, 'neptune');
+    };
+    setTimeout(loadSecondarySources, 0);
+
+    // Tertiary data sources (loaded during idle time)
+    const loadTertiarySources = () => {
       safeAdd(core.minor_planets, { url: baseUrl + 'mpcorb.dat', key: 'mpc_asteroids' }, 'minor_planets');
       safeAdd(core.comets, { url: baseUrl + 'CometEls.txt', key: 'mpc_comets' }, 'comets');
       safeAdd(core.planets, { url: baseUrl + 'surveys/sso/io', key: 'io' }, 'io');
@@ -234,9 +238,9 @@ export function useStellariumLoader({
     };
 
     if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(loadDeferredSources);
+      requestIdleCallback(loadTertiarySources);
     } else {
-      setTimeout(loadDeferredSources, 0);
+      setTimeout(loadTertiarySources, 500);
     }
 
     // Apply initial settings - get latest from store to avoid stale closure
@@ -425,6 +429,7 @@ export function useStellariumLoader({
       setErrorMessage(null);
       setIsLoading(true);
       setLoadingStatus(t('preparingResources'));
+      setLoadingProgress(5);
     }
 
     let shouldRetry = false;
@@ -446,14 +451,23 @@ export function useStellariumLoader({
           canvas.width = Math.round(rect.width * dpr);
           canvas.height = Math.round(rect.height * dpr);
 
-          // Step 2: Prefetch WASM into cache (non-blocking)
+          // Step 2: Hint browser to prefetch WASM (non-blocking, no await).
+          // The actual WASM fetch is performed by StelWebEngine via
+          // WebAssembly.instantiateStreaming; this hint just warms the HTTP cache.
           setLoadingStatus(t('preparingResources'));
-          prefetchWasm().catch(() => {
-            // Ignore prefetch errors - will try direct load
-          });
+          setLoadingProgress(10);
+          if (!document.querySelector('link[href$=".wasm"][rel="prefetch"]')) {
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.as = 'fetch';
+            link.href = WASM_PATH;
+            link.crossOrigin = 'anonymous';
+            document.head.appendChild(link);
+          }
 
           // Step 3: Load script
           setLoadingStatus(t('loadingScript'));
+          setLoadingProgress(20);
           try {
             await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, t('engineScriptTimedOut'));
           } catch (error) {
@@ -467,6 +481,7 @@ export function useStellariumLoader({
 
           // Step 4: Initialize WASM engine
           setLoadingStatus(t('initializingStarmap'));
+          setLoadingProgress(40);
           try {
             await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, t('starmapInitTimedOut'));
           } catch (error) {
@@ -480,6 +495,7 @@ export function useStellariumLoader({
 
           // Success
           if (mountedRef.current) {
+            setLoadingProgress(100);
             setIsLoading(false);
             setErrorMessage(null);
           }
@@ -528,6 +544,27 @@ export function useStellariumLoader({
           setErrorMessage(t('overallTimeout'));
           setIsLoading(false);
         }
+      } else if (containerRef.current) {
+        // Use ResizeObserver to retry as soon as the container has a non-zero size,
+        // instead of a fixed 1s poll delay.
+        const obs = new ResizeObserver((entries) => {
+          const entry = entries[0];
+          if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+            obs.disconnect();
+            if (mountedRef.current && !loadAbortController.signal.aborted) {
+              void startLoading();
+            }
+          }
+        });
+        obs.observe(containerRef.current);
+        // Safety fallback: if observer doesn't fire within RETRY_DELAY_MS, use timeout
+        retryTimeoutRef.current = window.setTimeout(() => {
+          obs.disconnect();
+          retryTimeoutRef.current = null;
+          if (mountedRef.current && !loadAbortController.signal.aborted) {
+            void startLoading();
+          }
+        }, RETRY_DELAY_MS);
       } else {
         retryTimeoutRef.current = window.setTimeout(() => {
           retryTimeoutRef.current = null;
@@ -585,6 +622,7 @@ export function useStellariumLoader({
       loadingStatus,
       errorMessage,
       startTime: loadingStartTime,
+      progress: loadingProgress,
     },
     engineReady,
     startLoading,

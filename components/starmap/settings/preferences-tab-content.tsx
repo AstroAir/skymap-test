@@ -12,6 +12,7 @@ import {
   Keyboard,
   Smartphone,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -60,11 +61,13 @@ export function PreferencesTabContent() {
           {PREF_SECTIONS.map((section) => {
             const Icon = section.icon;
             return (
-              <button
+              <Button
                 key={section.id}
+                variant="ghost"
+                size="sm"
                 onClick={() => scrollToSection(section.id)}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors whitespace-nowrap",
+                  "inline-flex items-center gap-1 px-2 py-1 h-auto rounded-md text-[10px] font-medium transition-colors whitespace-nowrap",
                   activeSection === section.id
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -72,7 +75,7 @@ export function PreferencesTabContent() {
               >
                 <Icon className="h-3 w-3" />
                 {t(section.labelKey)}
-              </button>
+              </Button>
             );
           })}
         </div>

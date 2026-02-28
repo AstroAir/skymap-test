@@ -205,7 +205,7 @@ describe('daily-knowledge-dialog', () => {
     mockStore.loading = true;
     mockStore.currentItem = null;
     render(<DailyKnowledgeDialog />);
-    expect(screen.getByText('dailyKnowledge.loading')).toBeInTheDocument();
+    expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
     expect(screen.queryByText('Item A')).not.toBeInTheDocument();
   });
 

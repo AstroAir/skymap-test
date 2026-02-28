@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > **src-tauri/src**
 
-> **Last Updated:** 2025-01-31
+> **Last Updated:** 2026-02-28
 > **Module Type:** Rust (Tauri 2.9)
 
 ---
@@ -40,6 +40,7 @@ graph TD
     A --> E["network"]
     A --> F["platform"]
     A --> G["utils"]
+    A --> H["mount"]
 
     B --> B1["calculations.rs"]
     B --> B2["events.rs"]
@@ -62,6 +63,11 @@ graph TD
     F --> F2["app_control.rs"]
     F --> F3["updater.rs"]
     F --> F4["plate_solver.rs"]
+
+    H --> H1["alpaca_client.rs"]
+    H --> H2["commands.rs"]
+    H --> H3["simulator.rs"]
+    H --> H4["types.rs"]
 ```
 
 ---
@@ -97,6 +103,15 @@ Provides HTTP client with security and rate limiting.
 Desktop-only features (not available on mobile).
 
 **See:** [platform/CLAUDE.md](./platform/CLAUDE.md)
+
+### mount/
+
+ALPACA telescope mount protocol client, simulator, and Tauri commands.
+
+- `alpaca_client.rs` - ALPACA protocol HTTP client for telescope mount control
+- `commands.rs` - Tauri commands for mount operations (connect, slew, sync, park, etc.)
+- `simulator.rs` - Mount simulator for testing without real hardware
+- `types.rs` - Mount type definitions (MountInfo, MountState, SlewRate, etc.)
 
 ---
 

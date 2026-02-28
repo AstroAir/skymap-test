@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > [lib](../) > **astronomy**
 
-> **Last Updated:** 2026-02-13
+> **Last Updated:** 2026-02-28
 > **Module Type:** TypeScript (Pure Functions)
 
 ---
@@ -17,6 +17,7 @@
 
 | Date | Changes |
 |------|---------|
+| 2026-02-28 | Added engine/, horizon/, object-resolver/, data/ subdirectories and top-level utility files |
 | 2026-02-13 | Added mount-safety.ts and mount-simulator.ts documentation |
 | 2025-01-31 | Initial documentation |
 
@@ -40,6 +41,10 @@ The `astronomy` module provides pure astronomical calculation functions with no 
 | `visibility/` | Target visibility and circumpolar calculations |
 | `twilight/` | Twilight time calculations |
 | `imaging/` | Astrophotography exposure and feasibility |
+| `engine/` | Unified Tauri-first backend with `astronomy-engine` fallback (cache, types) |
+| `horizon/` | Custom horizon profile support |
+| `object-resolver/` | Object name parsing (catalog, minor body, coordinate) with `parser/` subdir |
+| `data/` | EOP baseline data (`eop-baseline.ts`) |
 
 ---
 
@@ -49,6 +54,23 @@ The `astronomy` module provides pure astronomical calculation functions with no 
 |------|---------|
 | `mount-safety.ts` | GEM mount safety configuration and checks |
 | `mount-simulator.ts` | Sequence simulation for mount safety analysis |
+| `frames.ts` | Coordinate frame contracts (ICRF/CIRS/OBSERVED) |
+| `pipeline.ts` | Unified coordinate transform pipeline |
+| `time-scales.ts` | UTC/UT1/TT and EOP freshness management |
+| `session-scheduler.ts` | Observation session scheduling |
+| `session-scheduler-v2.ts` | Improved session scheduling algorithm |
+| `plan-exporter.ts` | Session plan export |
+| `fov-calculations.ts` | Field of view calculations |
+| `fov-utils.ts` | FOV utility helpers |
+| `sky-quality.ts` | Sky quality/Bortle estimation |
+| `navigation.ts` | Star map navigation helpers |
+| `starmap-utils.ts` | Star map utility functions |
+| `ocular-utils.ts` | Eyepiece simulation utilities |
+| `exposure-utils.ts` | Exposure calculation utilities |
+| `event-utils.ts` | Astronomical event utilities |
+| `object-type-utils.ts` | Object type classification |
+| `coordinate-validators.ts` | Coordinate validation functions |
+| `astro-utils.ts` | General astronomy helpers |
 
 ---
 

@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import {
   useNavigationHistoryStore,
@@ -162,10 +163,11 @@ export const NavigationHistory = memo(function NavigationHistory({ onNavigate, c
 
           <ScrollArea className="max-h-64">
             {history.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">
-                <MapPin className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>{t('navigation.noHistory')}</p>
-              </div>
+              <EmptyState
+                icon={MapPin}
+                message={t('navigation.noHistory')}
+                iconClassName="opacity-30"
+              />
             ) : (
               <div className="py-1">
                 {[...history].reverse().map((point, reverseIndex) => {

@@ -95,3 +95,234 @@ describe('useAladinStore - image overlay layers', () => {
     expect(useAladinStore.getState().imageOverlayLayers).toHaveLength(0);
   });
 });
+
+describe('useAladinStore - MOC layers', () => {
+  it('should add a MOC layer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addMocLayer({
+        name: 'Test MOC',
+        url: 'http://example.com/moc',
+        color: '#ff0000',
+        opacity: 0.5,
+        lineWidth: 2,
+        visible: true,
+      });
+    });
+    expect(id).toBeDefined();
+    const layers = useAladinStore.getState().mocLayers;
+    expect(layers).toHaveLength(1);
+    expect(layers[0].name).toBe('Test MOC');
+  });
+
+  it('should update a MOC layer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addMocLayer({
+        name: 'MOC',
+        color: '#ff0000',
+        opacity: 0.5,
+        lineWidth: 2,
+        visible: true,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().updateMocLayer(id, { opacity: 0.8 });
+    });
+    expect(useAladinStore.getState().mocLayers[0].opacity).toBe(0.8);
+  });
+
+  it('should toggle MOC layer visibility', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addMocLayer({
+        name: 'MOC',
+        color: '#ff0000',
+        opacity: 0.5,
+        lineWidth: 2,
+        visible: true,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().toggleMocLayer(id);
+    });
+    expect(useAladinStore.getState().mocLayers[0].visible).toBe(false);
+  });
+
+  it('should remove a MOC layer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addMocLayer({
+        name: 'MOC',
+        color: '#ff0000',
+        opacity: 0.5,
+        lineWidth: 2,
+        visible: true,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().removeMocLayer(id);
+    });
+    expect(useAladinStore.getState().mocLayers).toHaveLength(0);
+  });
+});
+
+describe('useAladinStore - FITS layers', () => {
+  it('should add a FITS layer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addFitsLayer({
+        name: 'Test FITS',
+        url: 'http://example.com/fits',
+        mode: 'base',
+        enabled: true,
+        opacity: 1.0,
+      });
+    });
+    expect(id).toBeDefined();
+    expect(useAladinStore.getState().fitsLayers).toHaveLength(1);
+    expect(useAladinStore.getState().fitsLayers[0].name).toBe('Test FITS');
+  });
+
+  it('should update a FITS layer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addFitsLayer({
+        name: 'FITS',
+        url: 'http://example.com/fits',
+        mode: 'base',
+        enabled: true,
+        opacity: 1.0,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().updateFitsLayer(id, { opacity: 0.5 });
+    });
+    expect(useAladinStore.getState().fitsLayers[0].opacity).toBe(0.5);
+  });
+
+  it('should toggle a FITS layer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addFitsLayer({
+        name: 'FITS',
+        url: 'http://example.com/fits',
+        mode: 'base',
+        enabled: true,
+        opacity: 1.0,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().toggleFitsLayer(id);
+    });
+    expect(useAladinStore.getState().fitsLayers[0].enabled).toBe(false);
+  });
+
+  it('should remove a FITS layer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addFitsLayer({
+        name: 'FITS',
+        url: 'http://example.com/fits',
+        mode: 'base',
+        enabled: true,
+        opacity: 1.0,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().removeFitsLayer(id);
+    });
+    expect(useAladinStore.getState().fitsLayers).toHaveLength(0);
+  });
+});
+
+describe('useAladinStore - additional catalog/overlay operations', () => {
+  it('should setCatalogLayers to replace all catalog layers', () => {
+    act(() => {
+      useAladinStore.getState().setCatalogLayers([
+        { id: 'custom', type: 'simbad', name: 'Custom', enabled: true, color: '#000', radius: 1, limit: 50 },
+      ]);
+    });
+    expect(useAladinStore.getState().catalogLayers).toHaveLength(1);
+    expect(useAladinStore.getState().catalogLayers[0].id).toBe('custom');
+  });
+
+  it('should updateCatalogLayer partial properties', () => {
+    const id = useAladinStore.getState().catalogLayers[0]?.id;
+    if (!id) return;
+    act(() => {
+      useAladinStore.getState().updateCatalogLayer(id, { color: '#00ff00', limit: 9999 });
+    });
+    const layer = useAladinStore.getState().catalogLayers.find(l => l.id === id);
+    expect(layer?.color).toBe('#00ff00');
+    expect(layer?.limit).toBe(9999);
+  });
+
+  it('should updateImageOverlayLayer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addImageOverlayLayer({
+        name: 'DSS',
+        surveyId: 'P/DSS2/color',
+        enabled: true,
+        opacity: 0.7,
+        additive: false,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().updateImageOverlayLayer(id, { opacity: 0.3 });
+    });
+    expect(useAladinStore.getState().imageOverlayLayers[0].opacity).toBe(0.3);
+  });
+
+  it('should toggleImageOverlayLayer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addImageOverlayLayer({
+        name: 'DSS',
+        surveyId: 'P/DSS2/color',
+        enabled: true,
+        opacity: 0.7,
+        additive: false,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().toggleImageOverlayLayer(id);
+    });
+    expect(useAladinStore.getState().imageOverlayLayers[0].enabled).toBe(false);
+  });
+
+  it('should removeImageOverlayLayer', () => {
+    let id = '';
+    act(() => {
+      id = useAladinStore.getState().addImageOverlayLayer({
+        name: 'DSS',
+        surveyId: 'P/DSS2/color',
+        enabled: true,
+        opacity: 0.7,
+        additive: false,
+      });
+    });
+    act(() => {
+      useAladinStore.getState().removeImageOverlayLayer(id);
+    });
+    expect(useAladinStore.getState().imageOverlayLayers).toHaveLength(0);
+  });
+
+  it('should upsert (update existing) catalog layer', () => {
+    act(() => {
+      useAladinStore.getState().upsertCatalogLayer({
+        id: 'simbad',
+        type: 'simbad',
+        name: 'Updated SIMBAD',
+        enabled: true,
+        color: '#ff0000',
+        radius: 1.0,
+        limit: 2000,
+      });
+    });
+    const layer = useAladinStore.getState().catalogLayers.find(l => l.id === 'simbad');
+    expect(layer?.name).toBe('Updated SIMBAD');
+    expect(layer?.limit).toBe(2000);
+  });
+});

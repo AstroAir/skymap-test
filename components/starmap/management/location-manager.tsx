@@ -51,6 +51,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { useLocations, tauriApi } from '@/lib/tauri';
 import { MapLocationPicker } from '@/components/starmap/map';
+import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 import { validateLocationForm } from '@/lib/core/management-validators';
 import { fetchElevation } from '@/lib/utils/map-utils';
 import { useWebLocationStore } from '@/lib/stores/web-location-store';
@@ -355,18 +357,20 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
           <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-1">
             <ScrollArea className="max-h-[160px]">
               {locationList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <MapPin className="h-10 w-10 mb-3 opacity-50" />
-                  <p className="text-sm">{t('locations.noLocations') || 'No locations added'}</p>
-                </div>
+                <EmptyState
+                  icon={MapPin}
+                  message={t('locations.noLocations') || 'No locations added'}
+                  iconClassName="h-10 w-10 mb-3"
+                />
               ) : (
                 <div className="space-y-2">
                   {locationList.map((loc) => (
                     <div 
                       key={loc.id} 
-                      className={`flex items-center justify-between p-2 border rounded ${
-                        loc.is_current ? 'border-primary bg-primary/5' : ''
-                      }`}
+                      className={cn(
+                        'flex items-center justify-between p-2 border rounded',
+                        loc.is_current && 'border-primary bg-primary/5'
+                      )}
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <MapPin className="h-4 w-4 shrink-0" />

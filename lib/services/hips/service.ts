@@ -81,6 +81,10 @@ export const DEFAULT_SURVEYS: HiPSSurvey[] = [
 
 let registryCache: HiPSRegistry | null = null;
 
+export function __resetRegistryCacheForTests(): void {
+  registryCache = null;
+}
+
 // ============================================================================
 // Service Functions
 // ============================================================================

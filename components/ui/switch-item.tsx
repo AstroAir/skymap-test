@@ -10,6 +10,7 @@ interface SwitchItemProps {
   onCheckedChange: (checked: boolean) => void;
   id?: string;
   className?: string;
+  switchProps?: Omit<React.ComponentProps<typeof Switch>, 'checked' | 'onCheckedChange' | 'id'> & Record<string, unknown>;
 }
 
 export function SwitchItem({
@@ -19,6 +20,7 @@ export function SwitchItem({
   onCheckedChange,
   id,
   className,
+  switchProps,
 }: SwitchItemProps) {
   return (
     <div className={cn('flex items-center justify-between', className)}>
@@ -28,7 +30,7 @@ export function SwitchItem({
           <p className="text-xs text-muted-foreground">{description}</p>
         )}
       </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} {...switchProps} />
     </div>
   );
 }

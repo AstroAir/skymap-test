@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Drawer,
   DrawerContent,
@@ -550,11 +551,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                         {t('common.loading')}
                       </div>
                     ) : sessions.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">{t('observationLog.noSessions')}</p>
-                        <p className="text-xs mt-1">{t('observationLog.createFirst')}</p>
-                      </div>
+                      <EmptyState icon={Calendar} message={t('observationLog.noSessions')} hint={t('observationLog.createFirst')} />
                     ) : (
                       <div className="space-y-2">
                         {filteredSessions.map((session) => (
@@ -723,10 +720,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
 
                   <ScrollArea className="flex-1 min-h-0">
                     {searchResults.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">{t('observationLog.searchHint')}</p>
-                      </div>
+                      <EmptyState icon={Search} message={t('observationLog.searchHint')} />
                     ) : (
                       <div className="space-y-2">
                         {searchResults.map((obs) => (
@@ -818,10 +812,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">{t('observationLog.noStats')}</p>
-                  </div>
+                  <EmptyState icon={BarChart3} message={t('observationLog.noStats')} />
                 )}
               </TabsContent>
             </Tabs>

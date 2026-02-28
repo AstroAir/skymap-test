@@ -4,6 +4,12 @@ import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { MapPin, Layers, Sun } from 'lucide-react';
+import { Toggle } from '@/components/ui/toggle';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +45,37 @@ interface MapLocationPickerProps {
   compact?: boolean;
 }
 
+interface TileLayerDropdownProps {
+  options: { value: TileLayerType; label: string }[];
+  current: TileLayerType;
+  onChange: (value: TileLayerType) => void;
+  size?: 'sm' | 'default';
+}
+
+function TileLayerDropdown({ options, current, onChange, size = 'default' }: TileLayerDropdownProps) {
+  const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
+  const btnSize = size === 'sm' ? 'h-7 w-7' : 'h-8 w-8';
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className={btnSize}>
+          <Layers className={iconSize} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            className={cn(current === option.value && 'bg-muted')}
+          >
+            {option.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 function MapLocationPickerComponent({
   initialLocation = { latitude: 39.9042, longitude: 116.4074 },
   onLocationChange,
@@ -204,33 +241,23 @@ function MapLocationPickerComponent({
       <div className={cn('w-full space-y-3', className)}>
         {showControls && (
           <div className="flex justify-end gap-1">
-            <Button
-              variant={showLightPollution ? 'secondary' : 'ghost'}
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setShowLightPollution(prev => !prev)}
-              title={t('map.lightPollution') || 'Light Pollution'}
-            >
-              <Sun className="h-3.5 w-3.5" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                  <Layers className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {TILE_LAYER_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => setTileLayer(option.value)}
-                    className={cn(tileLayer === option.value && 'bg-muted')}
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Toggle
+                  size="sm"
+                  pressed={showLightPollution}
+                  onPressedChange={setShowLightPollution}
+                  aria-label={t('map.lightPollution') || 'Light Pollution'}
+                  className="h-7 w-7"
+                >
+                  <Sun className="h-3.5 w-3.5" />
+                </Toggle>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('map.lightPollution') || 'Light Pollution'}
+              </TooltipContent>
+            </Tooltip>
+            <TileLayerDropdown options={TILE_LAYER_OPTIONS} current={tileLayer} onChange={setTileLayer} size="sm" />
           </div>
         )}
         {mapContent}
@@ -248,33 +275,22 @@ function MapLocationPickerComponent({
           </CardTitle>
           {showControls && (
             <div className="flex items-center gap-1">
-              <Button
-                variant={showLightPollution ? 'secondary' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setShowLightPollution(prev => !prev)}
-                title={t('map.lightPollution') || 'Light Pollution'}
-              >
-                <Sun className="h-4 w-4" />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Layers className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {TILE_LAYER_OPTIONS.map((option) => (
-                    <DropdownMenuItem
-                      key={option.value}
-                      onClick={() => setTileLayer(option.value)}
-                      className={cn(tileLayer === option.value && 'bg-muted')}
-                    >
-                      {option.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Toggle
+                    pressed={showLightPollution}
+                    onPressedChange={setShowLightPollution}
+                    aria-label={t('map.lightPollution') || 'Light Pollution'}
+                    className="h-8 w-8"
+                  >
+                    <Sun className="h-4 w-4" />
+                  </Toggle>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t('map.lightPollution') || 'Light Pollution'}
+                </TooltipContent>
+              </Tooltip>
+              <TileLayerDropdown options={TILE_LAYER_OPTIONS} current={tileLayer} onChange={setTileLayer} />
             </div>
           )}
         </div>

@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Collapsible,
   CollapsibleContent,
@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useEquipmentStore } from '@/lib/stores';
+import { ToggleItem } from './settings-shared';
 import {
   TRACKING_OPTIONS,
   TARGET_TYPE_OPTIONS,
@@ -44,19 +45,23 @@ export function ExposureSettings() {
           <Label className="text-sm">{t('exposure.defaultExposure')}</Label>
           <span className="text-xs text-muted-foreground font-mono">{exposureDefaults.exposureTime}s</span>
         </div>
-        <div className="flex gap-1 flex-wrap">
+        <ToggleGroup
+          type="single"
+          value={String(exposureDefaults.exposureTime)}
+          onValueChange={(value) => { if (value) setExposureDefaults({ exposureTime: Number(value) }); }}
+          className="flex gap-1 flex-wrap"
+        >
           {[30, 60, 120, 180, 300, 600].map((time) => (
-            <Button
+            <ToggleGroupItem
               key={time}
-              variant={exposureDefaults.exposureTime === time ? 'default' : 'outline'}
+              value={String(time)}
               size="sm"
-              className="h-7 text-xs"
-              onClick={() => setExposureDefaults({ exposureTime: time })}
+              className="h-7 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               {time}s
-            </Button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
       <Separator />
@@ -88,19 +93,23 @@ export function ExposureSettings() {
       {/* Binning */}
       <div className="space-y-2">
         <Label className="text-sm">{t('exposure.binning')}</Label>
-        <div className="flex gap-1">
+        <ToggleGroup
+          type="single"
+          value={exposureDefaults.binning}
+          onValueChange={(value) => { if (value) setExposureDefaults({ binning: value as typeof exposureDefaults.binning }); }}
+          className="flex gap-1 w-full"
+        >
           {BINNING_OPTIONS.map((b) => (
-            <Button
+            <ToggleGroupItem
               key={b}
-              variant={exposureDefaults.binning === b ? 'default' : 'outline'}
+              value={b}
               size="sm"
-              className="flex-1 h-7 text-xs"
-              onClick={() => setExposureDefaults({ binning: b })}
+              className="flex-1 h-7 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               {b}
-            </Button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
       {/* Filter */}
@@ -139,28 +148,25 @@ export function ExposureSettings() {
       </div>
 
       {/* Dither */}
-      <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
-        <div className="space-y-0.5">
-          <Label htmlFor="dither-enabled" className="text-sm cursor-pointer">{t('exposure.dither')}</Label>
-          <p className="text-[10px] text-muted-foreground">{t('exposure.ditherDescription')}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch
-            id="dither-enabled"
-            checked={exposureDefaults.ditherEnabled}
-            onCheckedChange={(checked) => setExposureDefaults({ ditherEnabled: checked })}
+      <ToggleItem
+        id="dither-enabled"
+        label={t('exposure.dither')}
+        description={t('exposure.ditherDescription')}
+        checked={exposureDefaults.ditherEnabled}
+        onCheckedChange={(checked) => setExposureDefaults({ ditherEnabled: checked })}
+      />
+      {exposureDefaults.ditherEnabled && (
+        <div className="flex items-center gap-2 px-3">
+          <Label className="text-xs text-muted-foreground">{t('exposure.ditherEvery')}</Label>
+          <Input
+            type="number"
+            value={exposureDefaults.ditherEvery}
+            onChange={(e) => setExposureDefaults({ ditherEvery: Math.max(1, parseInt(e.target.value) || 1) })}
+            className="h-7 w-12 text-center text-xs"
+            min={1}
           />
-          {exposureDefaults.ditherEnabled && (
-            <Input
-              type="number"
-              value={exposureDefaults.ditherEvery}
-              onChange={(e) => setExposureDefaults({ ditherEvery: Math.max(1, parseInt(e.target.value) || 1) })}
-              className="h-7 w-12 text-center text-xs"
-              min={1}
-            />
-          )}
         </div>
-      </div>
+      )}
 
       <Separator />
 
@@ -184,37 +190,45 @@ export function ExposureSettings() {
       {/* Tracking Type */}
       <div className="space-y-2">
         <Label className="text-sm">{t('exposure.tracking')}</Label>
-        <div className="flex gap-1">
+        <ToggleGroup
+          type="single"
+          value={exposureDefaults.tracking}
+          onValueChange={(value) => { if (value) setExposureDefaults({ tracking: value as typeof exposureDefaults.tracking }); }}
+          className="flex gap-1 w-full"
+        >
           {TRACKING_OPTIONS.map(({ value, labelKey }) => (
-            <Button
+            <ToggleGroupItem
               key={value}
-              variant={exposureDefaults.tracking === value ? 'default' : 'outline'}
+              value={value}
               size="sm"
-              className="flex-1 h-7 text-xs"
-              onClick={() => setExposureDefaults({ tracking: value })}
+              className="flex-1 h-7 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               {t(labelKey)}
-            </Button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
       {/* Target Type */}
       <div className="space-y-2">
         <Label className="text-sm">{t('exposure.targetType')}</Label>
-        <div className="grid grid-cols-2 gap-1">
+        <ToggleGroup
+          type="single"
+          value={exposureDefaults.targetType}
+          onValueChange={(value) => { if (value) setExposureDefaults({ targetType: value as typeof exposureDefaults.targetType }); }}
+          className="grid grid-cols-2 gap-1 w-full"
+        >
           {TARGET_TYPE_OPTIONS.map(({ value, labelKey }) => (
-            <Button
+            <ToggleGroupItem
               key={value}
-              variant={exposureDefaults.targetType === value ? 'default' : 'outline'}
+              value={value}
               size="sm"
-              className="h-7 text-xs"
-              onClick={() => setExposureDefaults({ targetType: value })}
+              className="h-7 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               {t(labelKey)}
-            </Button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
       <Separator />
@@ -331,19 +345,13 @@ export function ExposureSettings() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30">
-            <div className="space-y-0.5">
-              <Label htmlFor="manual-read-noise" className="text-sm cursor-pointer">
-                {t('exposure.manualCameraNoise')}
-              </Label>
-              <p className="text-[10px] text-muted-foreground">{t('exposure.manualCameraNoiseDescription')}</p>
-            </div>
-            <Switch
-              id="manual-read-noise"
-              checked={exposureDefaults.manualReadNoiseEnabled ?? false}
-              onCheckedChange={(checked) => setExposureDefaults({ manualReadNoiseEnabled: checked })}
-            />
-          </div>
+          <ToggleItem
+            id="manual-read-noise"
+            label={t('exposure.manualCameraNoise')}
+            description={t('exposure.manualCameraNoiseDescription')}
+            checked={exposureDefaults.manualReadNoiseEnabled ?? false}
+            onCheckedChange={(checked) => setExposureDefaults({ manualReadNoiseEnabled: checked })}
+          />
 
           {Boolean(exposureDefaults.manualReadNoiseEnabled) && (
             <div className="grid grid-cols-2 gap-3">

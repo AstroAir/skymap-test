@@ -25,7 +25,7 @@ import {
   getDSOById,
   getMessierObjects,
   parseCatalogId,
-  enhancedQuickSearch,
+  quickSearch,
   calculateAltitude,
   calculateMoonDistance,
 } from '@/lib/catalogs';
@@ -313,7 +313,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
       }
 
       if (enableFuzzySearch) {
-        const dsoResults = enhancedQuickSearch(DSO_CATALOG, queryForMatching, Math.max(maxSearchResults, 20));
+        const dsoResults = quickSearch(DSO_CATALOG, queryForMatching, Math.max(maxSearchResults, 20));
         for (const dso of dsoResults) {
           addResult({
             Name: dso.name,

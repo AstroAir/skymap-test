@@ -61,7 +61,6 @@ import {
   Eye,
   EyeOff,
   Trash,
-  Search,
   Tag,
   Download,
   Upload,
@@ -70,6 +69,8 @@ import {
 } from 'lucide-react';
 // Note: Dialog, Textarea, ToggleGroup, Navigation, Edit moved to marker-edit-dialog.tsx & marker-list-item.tsx
 import { cn } from '@/lib/utils';
+import { SearchInput } from '@/components/ui/search-input';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { MarkerFormData, MarkerManagerProps } from '@/types/starmap/management';
 import { MarkerListItem } from './marker-list-item';
 import { MarkerEditDialog } from './marker-edit-dialog';
@@ -410,15 +411,13 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
           {/* Search & Sort */}
           <div className="px-4 pb-2 space-y-2">
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('markers.search')}
-                  className="h-8 pl-8 text-sm"
-                />
-              </div>
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={t('markers.search')}
+                className="flex-1"
+                inputClassName="h-8 text-sm"
+              />
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as MarkerSortBy)}>
                 <SelectTrigger className="h-8 w-[110px] text-xs">
                   <ArrowUpDown className="h-3 w-3 mr-1" />
@@ -521,11 +520,13 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
 
           <ScrollArea className="h-[calc(100vh-180px)]">
             {filteredMarkers.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-                <MapPinned className="h-12 w-12 mb-4 opacity-50" />
-                <p className="text-center">{t('markers.noMarkers')}</p>
-                <p className="text-center text-sm mt-1">{t('markers.noMarkersHint')}</p>
-              </div>
+              <EmptyState
+                icon={MapPinned}
+                message={t('markers.noMarkers')}
+                hint={t('markers.noMarkersHint')}
+                className="p-8"
+                iconClassName="h-12 w-12 mb-4"
+              />
             ) : (
               <div className="p-2 space-y-1">
                 {filteredMarkers.map((marker) => (

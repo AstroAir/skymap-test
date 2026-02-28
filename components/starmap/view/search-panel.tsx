@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Toggle } from '@/components/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StellariumSearch, type StellariumSearchRef } from '../search/stellarium-search';
 import { FavoritesQuickAccess } from '../search/favorites-quick-access';
@@ -32,27 +33,29 @@ export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps
           <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant={showFavorites ? 'secondary' : 'ghost'}
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => { setShowFavorites(!showFavorites); setShowSettings(false); }}
+                <Toggle
+                  pressed={showFavorites}
+                  onPressedChange={(pressed) => { setShowFavorites(pressed); if (pressed) setShowSettings(false); }}
+                  size="sm"
+                  className="h-6 w-6 min-w-6 data-[state=on]:bg-secondary"
+                  aria-label={t('search.favorites')}
                 >
                   <Star className="h-3.5 w-3.5" />
-                </Button>
+                </Toggle>
               </TooltipTrigger>
               <TooltipContent>{t('search.favorites')}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant={showSettings ? 'secondary' : 'ghost'}
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => { setShowSettings(!showSettings); setShowFavorites(false); }}
+                <Toggle
+                  pressed={showSettings}
+                  onPressedChange={(pressed) => { setShowSettings(pressed); if (pressed) setShowFavorites(false); }}
+                  size="sm"
+                  className="h-6 w-6 min-w-6 data-[state=on]:bg-secondary"
+                  aria-label={t('search.onlineSearchSettings')}
                 >
                   <Settings2 className="h-3.5 w-3.5" />
-                </Button>
+                </Toggle>
               </TooltipTrigger>
               <TooltipContent>{t('search.onlineSearchSettings')}</TooltipContent>
             </Tooltip>

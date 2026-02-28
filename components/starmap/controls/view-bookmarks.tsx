@@ -24,6 +24,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Popover,
   PopoverContent,
@@ -204,18 +206,22 @@ export const ViewBookmarks = memo(function ViewBookmarks({
 
           <ScrollArea className="max-h-64">
             {bookmarks.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">
-                <Bookmark className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>{t('bookmarks.noBookmarks')}</p>
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="mt-2"
-                  onClick={handleAddBookmark}
-                >
-                  <BookmarkPlus className="h-3 w-3 mr-1" />
-                  {t('bookmarks.saveCurrentView')}
-                </Button>
+              <div>
+                <EmptyState
+                  icon={Bookmark}
+                  message={t('bookmarks.noBookmarks')}
+                  iconClassName="opacity-30"
+                />
+                <div className="text-center -mt-4 pb-4">
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={handleAddBookmark}
+                  >
+                    <BookmarkPlus className="h-3 w-3 mr-1" />
+                    {t('bookmarks.saveCurrentView')}
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="py-1">
@@ -345,22 +351,30 @@ export const ViewBookmarks = memo(function ViewBookmarks({
 
             <div className="space-y-2">
               <Label>{t('bookmarks.icon')}</Label>
-              <div className="flex flex-wrap gap-1">
+              <ToggleGroup
+                type="single"
+                value={form.icon}
+                onValueChange={(value) => {
+                  if (value) updateForm({ icon: value as BookmarkIcon });
+                }}
+                className="flex flex-wrap gap-1"
+              >
                 {BOOKMARK_ICONS.map((icon) => {
                   const IconComp = BookmarkIconComponent[icon];
                   return (
-                    <Button
+                    <ToggleGroupItem
                       key={icon}
-                      variant={form.icon === icon ? 'default' : 'outline'}
-                      size="icon"
+                      value={icon}
+                      variant="outline"
+                      size="sm"
                       className="h-8 w-8"
-                      onClick={() => updateForm({ icon })}
+                      aria-label={icon}
                     >
                       <IconComp className="h-4 w-4" />
-                    </Button>
+                    </ToggleGroupItem>
                   );
                 })}
-              </div>
+              </ToggleGroup>
             </div>
 
             <div className="space-y-2">

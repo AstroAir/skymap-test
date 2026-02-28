@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { HighlightText } from './search-utils';
 import { SourceBadge } from './online-search-settings';
 
@@ -43,9 +44,11 @@ export const SearchResultItemRow = memo(forwardRef<HTMLDivElement, SearchResultI
       id={`search-option-${itemId}`}
       role="option"
       aria-selected={isHighlighted}
-      className={`flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors ${
-        checked ? 'bg-accent/30' : ''
-      } ${isHighlighted ? 'ring-2 ring-primary bg-accent/40' : ''}`}
+      className={cn(
+        'flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors',
+        checked && 'bg-accent/30',
+        isHighlighted && 'ring-2 ring-primary bg-accent/40'
+      )}
       onMouseEnter={() => onMouseEnter?.(globalIndex)}
     >
       {showCheckbox && onToggleSelection && (

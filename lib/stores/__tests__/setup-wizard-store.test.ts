@@ -221,3 +221,68 @@ describe('setup-wizard (unified onboarding store)', () => {
     });
   });
 });
+
+describe('setup-wizard-store adapter (backward compatibility)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const adapter = require('../setup-wizard-store');
+
+  beforeEach(() => {
+    act(() => {
+      useOnboardingStore.getState().resetAll();
+    });
+  });
+
+  it('should export useSetupWizardStore with getState()', () => {
+    expect(adapter.useSetupWizardStore).toBeDefined();
+    expect(adapter.useSetupWizardStore.getState).toBeDefined();
+  });
+
+  it('should map getState() fields correctly', () => {
+    const s = adapter.useSetupWizardStore.getState();
+    expect(s.hasCompletedSetup).toBe(false);
+    expect(s.showOnNextVisit).toBe(true);
+    expect(s.currentStep).toBe('welcome');
+    expect(s.isOpen).toBe(false);
+    expect(s.completedSteps).toEqual([]);
+    expect(s.setupData).toBeDefined();
+  });
+
+  it('should map action functions correctly', () => {
+    const s = adapter.useSetupWizardStore.getState();
+    expect(typeof s.openWizard).toBe('function');
+    expect(typeof s.closeWizard).toBe('function');
+    expect(typeof s.nextStep).toBe('function');
+    expect(typeof s.prevStep).toBe('function');
+    expect(typeof s.goToStep).toBe('function');
+    expect(typeof s.completeSetup).toBe('function');
+    expect(typeof s.resetSetup).toBe('function');
+    expect(typeof s.updateSetupData).toBe('function');
+    expect(typeof s.getCurrentStepIndex).toBe('function');
+    expect(typeof s.getTotalSteps).toBe('function');
+    expect(typeof s.isFirstStep).toBe('function');
+    expect(typeof s.isLastStep).toBe('function');
+    expect(typeof s.canProceed).toBe('function');
+  });
+
+  it('openWizard should set step to welcome and open setup', () => {
+    const s = adapter.useSetupWizardStore.getState();
+    act(() => { s.openWizard(); });
+    const os = useOnboardingStore.getState();
+    expect(os.isSetupOpen).toBe(true);
+    expect(os.setupStep).toBe('welcome');
+    expect(os.phase).toBe('setup');
+  });
+
+  it('adapter nextStep should delegate to onboarding store', () => {
+    const s = adapter.useSetupWizardStore.getState();
+    act(() => { s.nextStep(); });
+    const updated = adapter.useSetupWizardStore.getState();
+    expect(updated.currentStep).toBe('location');
+  });
+
+  it('should re-export SETUP_WIZARD_STEPS', () => {
+    expect(adapter.SETUP_WIZARD_STEPS).toEqual([
+      'welcome', 'location', 'equipment', 'preferences', 'complete',
+    ]);
+  });
+});

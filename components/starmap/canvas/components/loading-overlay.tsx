@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Spinner } from '@/components/common/spinner';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import type { LoadingState } from '@/types/stellarium-canvas';
 
 const SLOW_LOADING_THRESHOLD = 15;
+const ELAPSED_SHOW_THRESHOLD = 3;
 
 interface LoadingOverlayProps {
   loadingState: LoadingState;
@@ -14,12 +17,14 @@ interface LoadingOverlayProps {
 
 /**
  * Loading overlay component for Stellarium canvas
- * Shows loading spinner, status message, and retry button on error
+ * Shows loading spinner, progress bar, status message, and retry button on error
  */
 export function LoadingOverlay({ loadingState, onRetry }: LoadingOverlayProps) {
   const t = useTranslations('canvas');
-  const { isLoading, loadingStatus, errorMessage, startTime } = loadingState;
+  const { isLoading, loadingStatus, errorMessage, startTime, progress } = loadingState;
   const [elapsed, setElapsed] = useState(0);
+  const [smoothProgress, setSmoothProgress] = useState(0);
+  const animRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isLoading || !startTime) {
@@ -34,12 +39,37 @@ export function LoadingOverlay({ loadingState, onRetry }: LoadingOverlayProps) {
     };
   }, [isLoading, startTime]);
 
+  // Smoothly animate progress towards the target value
+  useEffect(() => {
+    if (animRef.current !== null) cancelAnimationFrame(animRef.current);
+
+    const animate = () => {
+      setSmoothProgress(prev => {
+        const target = progress;
+        if (prev >= target) return target;
+        // Ease towards target: fast jump + slow approach
+        const step = Math.max(0.5, (target - prev) * 0.15);
+        const next = Math.min(prev + step, target);
+        if (next < target) {
+          animRef.current = requestAnimationFrame(animate);
+        }
+        return next;
+      });
+    };
+    animRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animRef.current !== null) cancelAnimationFrame(animRef.current);
+    };
+  }, [progress]);
+
   // Don't render if not loading and no error
   if (!isLoading && !errorMessage) {
     return null;
   }
 
   const isSlow = isLoading && !errorMessage && elapsed >= SLOW_LOADING_THRESHOLD;
+  const isFirstLoad = isLoading && !errorMessage && elapsed >= 5 && elapsed < SLOW_LOADING_THRESHOLD;
 
   return (
     <div
@@ -51,32 +81,41 @@ export function LoadingOverlay({ loadingState, onRetry }: LoadingOverlayProps) {
       {isLoading && !errorMessage && (
         <Spinner className="h-8 w-8 text-primary mb-4" />
       )}
+
+      {/* Progress bar */}
+      {isLoading && !errorMessage && (
+        <div className="w-48 sm:w-56 mb-3">
+          <Progress
+            value={Math.round(smoothProgress)}
+            className="h-1.5 bg-muted/30"
+          />
+        </div>
+      )}
+
       <p className="text-muted-foreground text-sm mb-2">{loadingStatus}</p>
-      {isLoading && !errorMessage && elapsed >= 10 && (
+
+      {isLoading && !errorMessage && elapsed >= ELAPSED_SHOW_THRESHOLD && (
         <p className="text-muted-foreground/60 text-xs mb-1 tabular-nums">
           {t('elapsedTime', { seconds: elapsed })}
         </p>
       )}
+      {isFirstLoad && (
+        <p className="text-muted-foreground/40 text-xs mt-1">{t('firstLoadHint')}</p>
+      )}
       {isSlow && (
         <div className="mt-2 flex flex-col items-center gap-2">
           <p className="text-yellow-500/80 text-xs">{t('loadingSlowHint')}</p>
-          <button
-            className="px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors"
-            onClick={onRetry}
-          >
+          <Button size="sm" onClick={onRetry}>
             {t('retry')}
-          </button>
+          </Button>
         </div>
       )}
       {errorMessage && (
         <>
           <p className="text-destructive text-xs mb-3">{errorMessage}</p>
-          <button
-            className="px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors"
-            onClick={onRetry}
-          >
+          <Button size="sm" onClick={onRetry}>
             {t('retry')}
-          </button>
+          </Button>
         </>
       )}
     </div>

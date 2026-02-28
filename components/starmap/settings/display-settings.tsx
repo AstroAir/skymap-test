@@ -8,7 +8,6 @@ import {
   Globe,
   Palette,
   Moon,
-  Smartphone,
   Database,
   Star,
   SunDim,
@@ -18,7 +17,6 @@ import {
   Crosshair,
   Image as ImageIcon,
 } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -99,11 +97,12 @@ export function DisplaySettings() {
       >
         <div className="grid grid-cols-2 gap-2">
           {(['stellarium', 'aladin'] as SkyEngineType[]).map((engine) => (
-            <button
+            <Button
               key={engine}
+              variant="outline"
               onClick={() => setSkyEngine(engine)}
               className={cn(
-                'flex flex-col items-center gap-1.5 p-3 rounded-lg border text-xs transition-all',
+                'flex flex-col items-center gap-1.5 p-3 h-auto rounded-lg border text-xs transition-all',
                 skyEngine === engine
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-muted bg-muted/30 text-muted-foreground hover:bg-muted/50'
@@ -120,7 +119,7 @@ export function DisplaySettings() {
               <span className="text-[10px] text-muted-foreground text-center leading-tight">
                 {engine === 'stellarium' ? t('settings.stellariumDesc') : t('settings.aladinDesc')}
               </span>
-            </button>
+            </Button>
           ))}
         </div>
       </SettingsSection>
@@ -343,20 +342,14 @@ export function DisplaySettings() {
             icon={<Moon className="h-4 w-4" />}
             defaultOpen={false}
           >
-            <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-              <div className="flex-1 min-w-0 mr-2">
-                <Label htmlFor="night-mode" className="text-sm cursor-pointer flex items-center gap-2">
-                  <Moon className="h-4 w-4 text-red-400" />
-                  {t('settings.nightMode')}
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">{t('settings.nightModeDescription')}</p>
-              </div>
-              <Switch
-                id="night-mode"
-                checked={stellarium.nightMode}
-                onCheckedChange={() => toggleStellariumSetting('nightMode')}
-              />
-            </div>
+            <ToggleItem
+              id="night-mode"
+              icon="🌙"
+              label={t('settings.nightMode')}
+              description={t('settings.nightModeDescription')}
+              checked={stellarium.nightMode}
+              onCheckedChange={() => toggleStellariumSetting('nightMode')}
+            />
             <ToggleItem
               id="flip-vertical"
               label={t('settings.flipViewVertical')}
@@ -369,20 +362,14 @@ export function DisplaySettings() {
               checked={stellarium.flipViewHorizontal}
               onCheckedChange={() => toggleStellariumSetting('flipViewHorizontal')}
             />
-            <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-              <div className="flex-1 min-w-0 mr-2">
-                <Label htmlFor="sensor-control" className="text-sm cursor-pointer flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-blue-400" />
-                  {t('settings.sensorControl')}
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">{t('settings.sensorControlPermission')}</p>
-              </div>
-              <Switch
-                id="sensor-control"
-                checked={stellarium.sensorControl}
-                onCheckedChange={() => toggleStellariumSetting('sensorControl')}
-              />
-            </div>
+            <ToggleItem
+              id="sensor-control"
+              icon="📱"
+              label={t('settings.sensorControl')}
+              description={t('settings.sensorControlPermission')}
+              checked={stellarium.sensorControl}
+              onCheckedChange={() => toggleStellariumSetting('sensorControl')}
+            />
             <ToggleItem
               id="sensor-absolute-preferred"
               label={t('settings.sensorAbsolutePreferred')}

@@ -13,7 +13,10 @@ jest.mock('../../security/url-validator', () => ({
   },
 }));
 
-import { unifiedCache, createCachedFetch, installFetchInterceptor } from '../unified-cache';
+import { unifiedCache, createCachedFetch, installFetchInterceptor, getOriginalFetch } from '../unified-cache';
+import { validateUrl } from '../../security/url-validator';
+
+const mockedValidateUrl = validateUrl as jest.Mock;
 
 // Polyfill Response for jsdom
 class MockResponse {
@@ -358,6 +361,208 @@ describe('UnifiedCacheManager', () => {
       expect(unifiedCache.isOnline()).toBe(false);
     });
   });
+
+  describe('fetch with stale-while-revalidate strategy', () => {
+    it('returns stale cache and revalidates in background', async () => {
+      const cachedResponse = new MockResponse('stale data', {
+        status: 200,
+        headers: {
+          'x-cached-at': Date.now().toString(),
+          'x-cache-ttl': '86400000',
+        },
+      });
+      mockCache.match.mockResolvedValue(cachedResponse);
+      mockFetch.mockResolvedValue(new MockResponse('fresh data', { status: 200 }));
+
+      const response = await unifiedCache.fetch('/stellarium-data/test.json', {}, 'stale-while-revalidate');
+
+      expect(response).toBeDefined();
+      // Should return immediately from cache
+      expect(mockCache.match).toHaveBeenCalled();
+    });
+
+    it('fetches from network when no cache exists', async () => {
+      mockCache.match.mockResolvedValue(null);
+      mockFetch.mockResolvedValue(new MockResponse('network data', { status: 200 }));
+
+      const response = await unifiedCache.fetch('/stellarium-data/test.json', {}, 'stale-while-revalidate');
+
+      expect(response).toBeDefined();
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  describe('fetch with forceNetwork option', () => {
+    it('bypasses cache when forceNetwork is true', async () => {
+      const cachedResponse = new MockResponse('cached data', {
+        status: 200,
+        headers: {
+          'x-cached-at': Date.now().toString(),
+          'x-cache-ttl': '86400000',
+        },
+      });
+      mockCache.match.mockResolvedValue(cachedResponse);
+      mockFetch.mockResolvedValue(new MockResponse('network data', { status: 200 }));
+
+      const response = await unifiedCache.fetch(
+        '/stellarium-data/test.json',
+        { forceNetwork: true },
+        'cache-first'
+      );
+
+      expect(response).toBeDefined();
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  describe('fetch with cacheKey option', () => {
+    it('uses custom cacheKey for cache operations', async () => {
+      mockCache.match.mockResolvedValue(null);
+      mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
+
+      await unifiedCache.fetch(
+        '/stellarium-data/test.json',
+        { cacheKey: 'custom-key' },
+        'cache-first'
+      );
+
+      // The cache should be checked/populated with the custom key
+      expect(mockCache.match).toHaveBeenCalledWith('custom-key');
+    });
+  });
+
+  describe('getCacheStats and resetCacheStats', () => {
+    it('tracks cache hits and misses', async () => {
+      // Reset stats first
+      unifiedCache.resetCacheStats();
+
+      // Cache miss
+      mockCache.match.mockResolvedValue(null);
+      mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
+      await unifiedCache.fetch('/stellarium-data/test1.json', {}, 'cache-first');
+
+      let stats = unifiedCache.getCacheStats();
+      expect(stats.misses).toBeGreaterThanOrEqual(1);
+
+      // Cache hit
+      const cachedResponse = new MockResponse('cached', {
+        status: 200,
+        headers: { 'x-cached-at': Date.now().toString(), 'x-cache-ttl': '86400000' },
+      });
+      mockCache.match.mockResolvedValue(cachedResponse);
+      await unifiedCache.fetch('/stellarium-data/test2.json', {}, 'cache-first');
+
+      stats = unifiedCache.getCacheStats();
+      expect(stats.hits).toBeGreaterThanOrEqual(1);
+    });
+
+    it('resets stats to zero', () => {
+      unifiedCache.resetCacheStats();
+      const stats = unifiedCache.getCacheStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+      expect(stats.errors).toBe(0);
+    });
+
+    it('computes hitRate correctly', async () => {
+      unifiedCache.resetCacheStats();
+
+      // 1 hit
+      const cachedResponse = new MockResponse('cached', {
+        status: 200,
+        headers: { 'x-cached-at': Date.now().toString(), 'x-cache-ttl': '86400000' },
+      });
+      mockCache.match.mockResolvedValue(cachedResponse);
+      await unifiedCache.fetch('/stellarium-data/hit.json', {}, 'cache-first');
+
+      // 1 miss
+      mockCache.match.mockResolvedValue(null);
+      mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
+      await unifiedCache.fetch('/stellarium-data/miss.json', {}, 'cache-first');
+
+      const stats = unifiedCache.getCacheStats();
+      expect(stats.hitRate).toBeDefined();
+      expect(stats.hitRate).toBeCloseTo(0.5, 1);
+    });
+
+    it('returns undefined hitRate when no requests made', () => {
+      unifiedCache.resetCacheStats();
+      const stats = unifiedCache.getCacheStats();
+      expect(stats.hitRate).toBeUndefined();
+    });
+  });
+
+  describe('URL validation for absolute URLs', () => {
+    it('validates absolute HTTPS URLs', async () => {
+      mockedValidateUrl.mockClear();
+      mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
+
+      await unifiedCache.fetch('https://celestrak.org/test', {}, 'network-only');
+
+      expect(mockedValidateUrl).toHaveBeenCalledWith('https://celestrak.org/test', { allowHttp: false });
+    });
+
+    it('skips validation for relative URLs', async () => {
+      mockedValidateUrl.mockClear();
+      mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
+
+      await unifiedCache.fetch('/stellarium-data/test.json', {}, 'cache-first');
+
+      expect(mockedValidateUrl).not.toHaveBeenCalled();
+    });
+
+    it('throws on SecurityError for invalid URLs', async () => {
+      const { SecurityError } = jest.requireMock('../../security/url-validator');
+      mockedValidateUrl.mockImplementation(() => {
+        throw new SecurityError('SSRF detected');
+      });
+
+      await expect(
+        unifiedCache.fetch('https://evil.com/malicious', {}, 'network-only')
+      ).rejects.toThrow('URL validation failed');
+
+      // Restore
+      mockedValidateUrl.mockImplementation(() => {});
+    });
+  });
+
+  describe('network-first throws when both network and cache fail', () => {
+    it('throws error when network fails and cache is empty', async () => {
+      mockFetch.mockRejectedValue(new Error('Network error'));
+      mockCache.match.mockResolvedValue(null);
+
+      await expect(
+        unifiedCache.fetch('/stellarium-data/test.json', {}, 'network-first')
+      ).rejects.toThrow('Network error');
+    });
+  });
+
+  describe('does not cache non-ok responses', () => {
+    it('skips caching for 404 responses', async () => {
+      mockCache.match.mockResolvedValue(null);
+      mockFetch.mockResolvedValue(new MockResponse('not found', { status: 404 }));
+
+      const response = await unifiedCache.fetch('/stellarium-data/test.json', {}, 'cache-first');
+
+      expect(response.status).toBe(404);
+      expect(mockCache.put).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('does not cache non-cacheable URLs', () => {
+    it('does not cache URLs that do not match patterns', async () => {
+      mockCache.match.mockResolvedValue(null);
+      mockFetch.mockResolvedValue(new MockResponse('data', { status: 200 }));
+
+      // This URL doesn't match cacheable patterns, but we use cache-first which will still fetch
+      // The non-cacheable URL won't be put in cache
+      const response = await unifiedCache.fetch('/random/other.json', {}, 'cache-first');
+
+      expect(response).toBeDefined();
+      // shouldCache returns false for this URL, so put should not be called
+      expect(mockCache.put).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('createCachedFetch', () => {
@@ -411,5 +616,83 @@ describe('installFetchInterceptor', () => {
 
     // The global fetch should be replaced
     expect(global.fetch).not.toBe(mockFetchFn);
+  });
+});
+
+describe('getOriginalFetch', () => {
+  it('returns a function', () => {
+    const original = getOriginalFetch();
+    expect(typeof original).toBe('function');
+  });
+});
+
+describe('installFetchInterceptor caching behavior', () => {
+  const savedFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = savedFetch;
+  });
+
+  it('intercepts cacheable GET requests', async () => {
+    const origFn = jest.fn().mockResolvedValue(new MockResponse('data', { status: 200 }));
+    global.fetch = origFn;
+    // Store on window to simulate what installFetchInterceptor does
+    (window as unknown as { __originalFetch: typeof fetch }).__originalFetch = origFn;
+
+    installFetchInterceptor('cache-first');
+
+    // Use the intercepted fetch with a cacheable URL
+    mockCache.match.mockResolvedValue(null);
+    const response = await global.fetch('/stellarium-data/test.json');
+    expect(response).toBeDefined();
+  });
+
+  it('passes non-cacheable URLs through without caching', async () => {
+    const origFn = jest.fn().mockResolvedValue(new MockResponse('data', { status: 200 }));
+    global.fetch = origFn;
+    (window as unknown as { __originalFetch: typeof fetch }).__originalFetch = origFn;
+
+    installFetchInterceptor('cache-first');
+
+    const intercepted = global.fetch;
+    // Non-cacheable URL should not trigger cache.put
+    const response = await intercepted('https://example.com/non-cacheable');
+    expect(response).toBeDefined();
+    expect(mockCache.put).not.toHaveBeenCalled();
+  });
+
+  it('does not cache POST requests on cacheable URLs', async () => {
+    const origFn = jest.fn().mockResolvedValue(new MockResponse('data', { status: 200 }));
+    global.fetch = origFn;
+    (window as unknown as { __originalFetch: typeof fetch }).__originalFetch = origFn;
+
+    installFetchInterceptor('cache-first');
+
+    await global.fetch('/stellarium-data/test.json', { method: 'POST' });
+    // POST should not be cached
+    expect(mockCache.put).not.toHaveBeenCalled();
+  });
+});
+
+describe('createCachedFetch with URL input types', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCache.match.mockResolvedValue(null);
+    mockFetch.mockResolvedValue(new MockResponse('test data', { status: 200 }));
+  });
+
+  it('handles URL object input', async () => {
+    const cachedFetch = createCachedFetch('cache-first');
+    const url = new URL('https://celestrak.org/test');
+    const response = await cachedFetch(url);
+    expect(response).toBeDefined();
+  });
+
+  it('handles Request-like object input', async () => {
+    const cachedFetch = createCachedFetch('cache-first');
+    // createCachedFetch extracts url from input.url for non-string, non-URL inputs
+    const requestLike = { url: 'https://celestrak.org/test' } as unknown as RequestInfo;
+    const response = await cachedFetch(requestLike);
+    expect(response).toBeDefined();
   });
 });

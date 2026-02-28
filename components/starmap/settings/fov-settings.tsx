@@ -3,12 +3,13 @@
 import { useTranslations } from 'next-intl';
 import { LayoutGrid, Grid3X3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { NumberStepper } from '@/components/ui/number-stepper';
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { useEquipmentStore } from '@/lib/stores';
 import { cn } from '@/lib/utils';
+import { ToggleItem } from './settings-shared';
 import { GRID_TYPE_OPTIONS, FRAME_COLORS, MAX_MOSAIC_ROWS, MAX_MOSAIC_COLS } from './settings-constants';
 
 export function FOVSettings() {
@@ -52,20 +54,23 @@ export function FOVSettings() {
       {/* Grid Type */}
       <div className="space-y-2">
         <Label className="text-sm">{t('fov.compositionGrid')}</Label>
-        <div className="grid grid-cols-5 gap-1">
+        <ToggleGroup
+          type="single"
+          value={fovDisplay.gridType}
+          onValueChange={(value) => { if (value) setGridType(value as typeof fovDisplay.gridType); }}
+          className="grid grid-cols-5 gap-1 w-full"
+        >
           {GRID_TYPE_OPTIONS.map((option) => (
-            <Button
+            <ToggleGroupItem
               key={option.value}
-              variant={fovDisplay.gridType === option.value ? 'default' : 'outline'}
-              size="sm"
-              className="h-10 flex-col gap-0.5 text-xs"
-              onClick={() => setGridType(option.value)}
+              value={option.value}
+              className="h-10 flex-col gap-0.5 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
               <span className="text-base font-mono">{option.icon}</span>
               <span className="text-[10px]">{t(option.labelKey)}</span>
-            </Button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
       <Separator />
@@ -86,68 +91,22 @@ export function FOVSettings() {
         {mosaic.enabled && (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">{t('fov.columns')}</Label>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setMosaicGrid(mosaic.rows, Math.max(1, mosaic.cols - 1))}
-                    disabled={mosaic.cols <= 1}
-                  >
-                    -
-                  </Button>
-                  <Input
-                    type="number"
-                    value={mosaic.cols}
-                    onChange={(e) => setMosaicGrid(mosaic.rows, Math.max(1, parseInt(e.target.value) || 1))}
-                    className="h-7 w-12 text-center"
-                    min={1}
-                    max={MAX_MOSAIC_COLS}
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setMosaicGrid(mosaic.rows, Math.min(MAX_MOSAIC_COLS, mosaic.cols + 1))}
-                    disabled={mosaic.cols >= MAX_MOSAIC_COLS}
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">{t('fov.rows')}</Label>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setMosaicGrid(Math.max(1, mosaic.rows - 1), mosaic.cols)}
-                    disabled={mosaic.rows <= 1}
-                  >
-                    -
-                  </Button>
-                  <Input
-                    type="number"
-                    value={mosaic.rows}
-                    onChange={(e) => setMosaicGrid(Math.max(1, parseInt(e.target.value) || 1), mosaic.cols)}
-                    className="h-7 w-12 text-center"
-                    min={1}
-                    max={MAX_MOSAIC_ROWS}
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setMosaicGrid(Math.min(MAX_MOSAIC_ROWS, mosaic.rows + 1), mosaic.cols)}
-                    disabled={mosaic.rows >= MAX_MOSAIC_ROWS}
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
+              <NumberStepper
+                label={t('fov.columns')}
+                value={mosaic.cols}
+                onChange={(v) => setMosaicGrid(mosaic.rows, v)}
+                min={1}
+                max={MAX_MOSAIC_COLS}
+                step={1}
+              />
+              <NumberStepper
+                label={t('fov.rows')}
+                value={mosaic.rows}
+                onChange={(v) => setMosaicGrid(v, mosaic.cols)}
+                min={1}
+                max={MAX_MOSAIC_ROWS}
+                step={1}
+              />
             </div>
             
             <div className="space-y-2">
@@ -189,20 +148,18 @@ export function FOVSettings() {
       <div className="space-y-2">
         <Label className="text-sm font-medium">{t('fov.displayOptions')}</Label>
         <div className="space-y-2">
-          <div className="flex items-center justify-between py-1">
-            <span className="text-sm text-muted-foreground">{t('fov.showCoordinateGrid')}</span>
-            <Switch
-              checked={fovDisplay.showCoordinateGrid}
-              onCheckedChange={(checked) => setFOVDisplay({ showCoordinateGrid: checked })}
-            />
-          </div>
-          <div className="flex items-center justify-between py-1">
-            <span className="text-sm text-muted-foreground">{t('fov.showDSOLabels')}</span>
-            <Switch
-              checked={fovDisplay.showDSOLabels}
-              onCheckedChange={(checked) => setFOVDisplay({ showDSOLabels: checked })}
-            />
-          </div>
+          <ToggleItem
+            id="fov-show-coordinate-grid"
+            label={t('fov.showCoordinateGrid')}
+            checked={fovDisplay.showCoordinateGrid}
+            onCheckedChange={(checked) => setFOVDisplay({ showCoordinateGrid: checked })}
+          />
+          <ToggleItem
+            id="fov-show-dso-labels"
+            label={t('fov.showDSOLabels')}
+            checked={fovDisplay.showDSOLabels}
+            onCheckedChange={(checked) => setFOVDisplay({ showDSOLabels: checked })}
+          />
         </div>
       </div>
 

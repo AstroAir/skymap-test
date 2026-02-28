@@ -51,6 +51,7 @@ import { useEquipment, tauriApi } from '@/lib/tauri';
 import { useEquipmentStore } from '@/lib/stores/equipment-store';
 import { createLogger } from '@/lib/logger';
 import type { EquipmentManagerProps } from '@/types/starmap/management';
+import { EmptyState } from '@/components/ui/empty-state';
 import { EquipmentListItem } from './equipment-list-item';
 import { TelescopeTab } from './equipment-telescope-tab';
 import { CameraTab } from './equipment-camera-tab';
@@ -278,10 +279,11 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
             <TabsContent value="barlows" className="space-y-4">
               <ScrollArea className="h-[200px]">
                 {equipment?.barlow_reducers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Plus className="h-10 w-10 mb-3 opacity-50" />
-                    <p className="text-sm">{t('equipment.noBarlows') || 'No barlows/reducers added'}</p>
-                  </div>
+                  <EmptyState
+                    icon={Plus}
+                    message={t('equipment.noBarlows') || 'No barlows/reducers added'}
+                    iconClassName="h-10 w-10 mb-3"
+                  />
                 ) : (
                   <div className="space-y-2">
                     {equipment?.barlow_reducers.map((barlow) => (
@@ -348,10 +350,11 @@ export function EquipmentManager({ trigger }: EquipmentManagerProps) {
             <TabsContent value="filters" className="space-y-4">
               <ScrollArea className="h-[200px]">
                 {equipment?.filters.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Wrench className="h-10 w-10 mb-3 opacity-50" />
-                    <p className="text-sm">{t('equipment.noFilters') || 'No filters added'}</p>
-                  </div>
+                  <EmptyState
+                    icon={Wrench}
+                    message={t('equipment.noFilters') || 'No filters added'}
+                    iconClassName="h-10 w-10 mb-3"
+                  />
                 ) : (
                   <div className="space-y-2">
                     {equipment?.filters.map((filter) => (

@@ -17,8 +17,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { SwitchItem } from '@/components/ui/switch-item';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -75,24 +75,6 @@ function SliderField({ label, value, displayValue, onChange, min, max, step }: {
   );
 }
 
-function SwitchField({ label, description, checked, onCheckedChange }: {
-  label: string;
-  description?: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
-        <Label>{label}</Label>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-      </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  );
-}
 
 // ============================================================================
 // Component
@@ -388,7 +370,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
 
           {/* Use SIP */}
           {isLocalSolver(config.solver_type) && (
-            <SwitchField
+            <SwitchItem
               label={t('plateSolving.useSip')}
               description={t('plateSolving.useSipDesc') || 'Add polynomial distortion correction'}
               checked={config.use_sip}
@@ -427,7 +409,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                   onChange={(value) => setConfig({ astap_min_star_size: value / 10 })}
                   min={5} max={50} step={5}
                 />
-                <SwitchField
+                <SwitchItem
                   label={t('plateSolving.equaliseBackground')}
                   description={t('plateSolving.equaliseBackgroundDesc') || 'For images with gradient backgrounds'}
                   checked={config.astap_equalise_background}
@@ -479,13 +461,13 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                   />
                 </div>
 
-                <SwitchField
+                <SwitchItem
                   label={t('plateSolving.skipVerify') || 'Skip Verification'}
                   description={t('plateSolving.skipVerifyDesc') || 'Faster but may reduce accuracy'}
                   checked={config.astrometry_no_verify}
                   onCheckedChange={(checked) => setConfig({ astrometry_no_verify: checked })}
                 />
-                <SwitchField
+                <SwitchItem
                   label={t('plateSolving.crpixCenter') || 'Center Reference Pixel'}
                   description={t('plateSolving.crpixCenterDesc') || 'Set reference point to image center'}
                   checked={config.astrometry_crpix_center}
@@ -502,19 +484,19 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
               {t('plateSolving.generalOptions') || 'General Options'}
             </h4>
 
-            <SwitchField
+            <SwitchItem
               label={t('plateSolving.autoHints') || 'Auto Position Hints'}
               description={t('plateSolving.autoHintsDesc') || 'Use current view position as hint'}
               checked={config.auto_hints}
               onCheckedChange={(checked) => setConfig({ auto_hints: checked })}
             />
-            <SwitchField
+            <SwitchItem
               label={t('plateSolving.keepWcs') || 'Keep WCS File'}
               description={t('plateSolving.keepWcsDesc') || 'Save WCS output for later use'}
               checked={config.keep_wcs_file}
               onCheckedChange={(checked) => setConfig({ keep_wcs_file: checked })}
             />
-            <SwitchField
+            <SwitchItem
               label={t('plateSolving.retryOnFailure') || 'Retry on Failure'}
               description={t('plateSolving.retryOnFailureDesc') || 'Retry with different settings'}
               checked={config.retry_on_failure}

@@ -82,15 +82,15 @@ app/                    # Next.js App Router (page.tsx, layout.tsx, starmap/ rou
 components/
   ui/                   # Reusable shadcn/ui components
   starmap/              # Star map feature components (canvas, controls, overlays, planning, objects, management, settings, search, etc.)
-  common/               # Shared components (titlebar, theme, language, log viewer)
+  common/               # Shared components (theme, language, log viewer, system status)
   landing/              # Landing page sections
   providers/            # React context providers
 lib/
-  astronomy/            # Pure astronomical calculations (coordinates, time, celestial, visibility, twilight, imaging)
-  stores/               # Zustand stores (settings, equipment, target-list, markers, stellarium, onboarding, theme, etc.)
-  tauri/                # TypeScript wrappers for Tauri IPC calls
-  services/             # External API services (online search, object info, HiPS, satellite, geocoding, etc.)
-  hooks/                # Custom React hooks (search, geolocation, keyboard shortcuts, orientation, etc.)
+  astronomy/            # Pure astronomical calculations (coordinates, time, celestial, visibility, twilight, imaging, engine, horizon, object-resolver)
+  stores/               # Zustand stores (settings, equipment, target-list, markers, stellarium, onboarding, theme, aladin, daily-knowledge, feedback, session-plan, etc.)
+  tauri/                # TypeScript wrappers for Tauri IPC calls (storage, astronomy, events, mount, cache, updater, etc.)
+  services/             # External API services (online search, object info, HiPS, satellite, geocoding, daily-knowledge, map-providers, search)
+  hooks/                # Custom React hooks (37+ hooks, aladin/, stellarium/ subdirs)
   core/                 # Core constants and type definitions
   cache/                # Cache compression, config, migration, stats
   offline/              # Offline cache manager, unified cache
@@ -98,15 +98,21 @@ lib/
   logger/               # Structured logging system with transports
   plate-solving/        # Astrometry API, FITS parser
   security/             # Security utilities
-  storage/              # Storage abstraction layer
+  storage/              # Storage abstraction layer (Tauri/Web adapters, Zustand bridge)
   i18n/                 # Internationalization utilities
   translations/         # Translation helpers
+  data/                 # Curated data (daily knowledge content)
+  feedback/             # Feedback utilities
+  constants/            # App constants (equipment presets, shortcuts, onboarding, satellite)
+  aladin/               # Aladin Lite compatibility layer
+  utils/                # Map utilities, observer location, scroll animation
 src-tauri/src/          # Rust backend
   astronomy/            # Coordinate transforms, visibility, astronomical events
   data/                 # JSON storage for equipment, locations, targets, markers, logs
   cache/                # Offline tile caching, unified cache
   network/              # HTTP client, SSRF protection, rate limiting
   platform/             # App settings, updater, plate solver, app control
+  mount/                # ALPACA mount client, simulator, types, commands
 i18n/messages/          # Translation files (en.json, zh.json)
 tests/e2e/              # Playwright E2E tests
 docs/                   # MkDocs documentation (developer guide, user guide, reference)
@@ -118,7 +124,7 @@ docs/                   # MkDocs documentation (developer guide, user guide, ref
 
 ```bash
 # Development
-pnpm dev                    # Start Next.js dev server (localhost:3000)
+pnpm dev                    # Start Next.js dev server (localhost:1420)
 pnpm tauri dev              # Launch desktop app with hot-reload
 
 # Build

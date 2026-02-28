@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > [lib](../) > **tauri**
 
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-28
 > **Module Type:** TypeScript (Tauri IPC Wrapper)
 
 ---
@@ -41,6 +41,9 @@ lib/tauri/
 ├── updater-hooks.ts          # Update React hooks
 ├── app-control-api.ts        # App control commands
 ├── plate-solver-api.ts       # Plate solver commands
+├── mount-api.ts              # ALPACA mount control commands
+├── map-keys-api.ts           # Map tile API key commands
+├── path-config-api.ts        # Path configuration commands
 ├── TauriSyncProvider.tsx     # Zustand sync provider component
 ├── index.ts                  # Module exports
 └── __tests__/                # Unit tests

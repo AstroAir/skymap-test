@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 import type { StellariumCreditsProps } from '@/types/stellarium-credits';
 
 export function StellariumCredits({ trigger }: StellariumCreditsProps) {
@@ -68,6 +69,8 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
               </ul>
             </section>
 
+            <Separator />
+
             <section>
               <h3 className="font-semibold text-lg mb-2">{t('credits.deepSkyObjects')}</h3>
               <p className="mb-2">{t('credits.dsoDescription')}</p>
@@ -85,6 +88,8 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
               </ul>
             </section>
 
+            <Separator />
+
             <section>
               <h3 className="font-semibold text-lg mb-2">{t('credits.backgroundImage')}</h3>
               <p className="mb-2">{t('credits.dssDescription')}</p>
@@ -94,16 +99,22 @@ export function StellariumCredits({ trigger }: StellariumCreditsProps) {
               </ul>
             </section>
 
+            <Separator />
+
             <section>
               <h3 className="font-semibold text-lg mb-2">{t('credits.planetTextures')}</h3>
               <p className="mb-2">{t('credits.planetTexturesDescription')}</p>
               <p>{t('credits.planetTexturesSource')}</p>
             </section>
 
+            <Separator />
+
             <section>
               <h3 className="font-semibold text-lg mb-2">{t('credits.minorPlanets')}</h3>
               <p>{t('credits.minorPlanetsDescription')}</p>
             </section>
+
+            <Separator />
 
             <section>
               <h3 className="font-semibold text-lg mb-2">{t('credits.others')}</h3>

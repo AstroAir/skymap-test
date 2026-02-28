@@ -2,7 +2,7 @@
 
 [Root](../../CLAUDE.md) > [lib](../) > **stores**
 
-> **Last Updated:** 2026-02-13
+> **Last Updated:** 2026-02-28
 > **Module Type:** TypeScript (Zustand Stores)
 
 ---
@@ -17,6 +17,7 @@
 
 | Date | Changes |
 |------|---------|
+| 2026-02-28 | Added 7 missing stores: aladin, daily-knowledge, feedback, onboarding-bridge, planning-ui, session-plan, web-location |
 | 2026-02-13 | Added event-sources-store and updater-store documentation |
 | 2026-02-01 | Initial documentation |
 
@@ -53,6 +54,13 @@ The `stores` module contains Zustand stores for client-side state management. Ea
 | `useLogStore` | `log-store.ts` | Application logs | (session only) |
 | `useEventSourcesStore` | `event-sources-store.ts` | Astronomical event source config | `starmap-event-sources` |
 | `useUpdaterStore` | `updater-store.ts` | Application update state | (session only) |
+| `useAladinStore` | `aladin-store.ts` | Aladin Lite viewer state | (session only) |
+| `useDailyKnowledgeStore` | `daily-knowledge-store.ts` | Daily astronomy knowledge | `starmap-daily-knowledge` |
+| `useFeedbackStore` | `feedback-store.ts` | User feedback state | `starmap-feedback` |
+| `useOnboardingBridgeStore` | `onboarding-bridge-store.ts` | Onboarding bridge/adapter | (session only) |
+| `usePlanningUiStore` | `planning-ui-store.ts` | Planning panel UI state | (session only) |
+| `useSessionPlanStore` | `session-plan-store.ts` | Observation session plan | (session only) |
+| `useWebLocationStore` | `web-location-store.ts` | Web-only location state | (session only) |
 
 ---
 

@@ -153,14 +153,16 @@ export function MarkerEditDialog({
                     {groups
                       .filter((g) => !formData.group || g.toLowerCase().includes(formData.group.toLowerCase()))
                       .map((group) => (
-                        <button
+                        <Button
                           key={group}
                           type="button"
-                          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-sm h-auto px-2 py-1.5"
                           onClick={() => onFormDataChange({ ...formData, group })}
                         >
                           {group}
-                        </button>
+                        </Button>
                       ))}
                   </div>
                 </PopoverContent>

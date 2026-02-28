@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -22,6 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
 
 import { useMountStore } from '@/lib/stores';
 import { mountApi, type DiscoveredDevice } from '@/lib/tauri/mount-api';
@@ -155,21 +158,26 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
             {connected ? <Wifi className="h-4 w-4 text-green-500" /> : <WifiOff className="h-4 w-4 text-muted-foreground" />}
             {t('connectionSettings')}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('connectionSettings')}
+          </DialogDescription>
         </DialogHeader>
 
         {connected ? (
-          <div className="space-y-4 py-4">
-            <div className="flex items-center gap-2">
-              <Badge variant="default" className="bg-green-600">{t('connected')}</Badge>
-              <span className="text-sm text-muted-foreground">
-                {connectionConfig.protocol === 'simulator' ? t('simulator') : `${connectionConfig.host}:${connectionConfig.port}`}
-              </span>
-            </div>
-            <Button variant="destructive" onClick={handleDisconnect} className="w-full">
-              <WifiOff className="h-4 w-4 mr-2" />
-              {t('disconnect')}
-            </Button>
-          </div>
+          <Card className="py-4 gap-3 shadow-none">
+            <CardContent className="px-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant="default" className="bg-green-600">{t('connected')}</Badge>
+                <span className="text-sm text-muted-foreground">
+                  {connectionConfig.protocol === 'simulator' ? t('simulator') : `${connectionConfig.host}:${connectionConfig.port}`}
+                </span>
+              </div>
+              <Button variant="destructive" onClick={handleDisconnect} className="w-full">
+                <WifiOff className="h-4 w-4 mr-2" />
+                {t('disconnect')}
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <div className="space-y-4 py-4">
             {/* Protocol Selection */}
@@ -249,14 +257,15 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
                   {devices.length > 0 && (
                     <div className="space-y-1">
                       {devices.map((d, i) => (
-                        <button
+                        <Button
                           key={i}
-                          className="w-full text-left text-xs p-2 rounded border border-border hover:bg-accent transition-colors"
+                          variant="outline"
+                          className="w-full justify-start text-xs h-auto py-2 px-2 font-normal"
                           onClick={() => handleDeviceSelect(d)}
                         >
                           <span className="font-medium">{d.deviceName}</span>
                           <span className="text-muted-foreground ml-2">{d.host}:{d.port}</span>
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   )}
@@ -265,7 +274,10 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
             )}
 
             {error && (
-              <p className="text-sm text-destructive">{error}</p>
+              <Alert variant="destructive" className="py-2 text-xs">
+                <WifiOff className="h-3.5 w-3.5" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
           </div>
         )}

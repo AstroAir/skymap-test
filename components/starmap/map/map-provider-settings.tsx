@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { SwitchItem } from '@/components/ui/switch-item';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -364,18 +365,12 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
 
           {/* Fallback Settings */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>{t('map.autoFallback') || 'Auto Fallback'}</Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('map.autoFallbackDescription') || 'Automatically switch to backup provider on failure'}
-                </p>
-              </div>
-              <Switch
-                checked={config.enableAutoFallback}
-                onCheckedChange={handleAutoFallbackToggle}
-              />
-            </div>
+            <SwitchItem
+              label={t('map.autoFallback') || 'Auto Fallback'}
+              description={t('map.autoFallbackDescription') || 'Automatically switch to backup provider on failure'}
+              checked={config.enableAutoFallback}
+              onCheckedChange={handleAutoFallbackToggle}
+            />
 
             {config.enableAutoFallback && (
               <div className="space-y-3">
@@ -406,18 +401,12 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
 
           {/* Cache Settings */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>{t('map.cacheResponses') || 'Cache Responses'}</Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('map.cacheDescription') || 'Cache geocoding results to reduce API calls'}
-                </p>
-              </div>
-              <Switch
-                checked={config.cacheResponses}
-                onCheckedChange={handleCacheToggle}
-              />
-            </div>
+            <SwitchItem
+              label={t('map.cacheResponses') || 'Cache Responses'}
+              description={t('map.cacheDescription') || 'Cache geocoding results to reduce API calls'}
+              checked={config.cacheResponses}
+              onCheckedChange={handleCacheToggle}
+            />
 
             {config.cacheResponses && (
               <div className="space-y-3">
@@ -479,18 +468,12 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
           <Separator />
 
           {/* Offline Mode */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>{t('map.offlineMode') || 'Offline Mode'}</Label>
-              <p className="text-xs text-muted-foreground">
-                {t('map.offlineModeDescription') || 'Use cached data when offline'}
-              </p>
-            </div>
-            <Switch
-              checked={config.enableOfflineMode}
-              onCheckedChange={handleOfflineModeToggle}
-            />
-          </div>
+          <SwitchItem
+            label={t('map.offlineMode') || 'Offline Mode'}
+            description={t('map.offlineModeDescription') || 'Use cached data when offline'}
+            checked={config.enableOfflineMode}
+            onCheckedChange={handleOfflineModeToggle}
+          />
 
           <Separator />
 

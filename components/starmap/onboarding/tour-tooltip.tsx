@@ -4,6 +4,9 @@ import { useRef, useId } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getArrowStyles } from '@/lib/constants/onboarding';
 import { useTourPosition } from '@/lib/hooks/use-tour-position';
@@ -53,22 +56,29 @@ export function TourTooltip({
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold" aria-hidden="true">
+          <Badge className="h-6 w-6 justify-center p-0 text-xs font-bold" aria-hidden="true">
             {currentIndex + 1}
-          </div>
+          </Badge>
           <span className="text-xs text-muted-foreground" role="status">
             {t('onboarding.stepOf', { current: currentIndex + 1, total: totalSteps })}
           </span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted"
-          onClick={onClose}
-          aria-label={t('onboarding.skip')}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={onClose}
+              aria-label={t('onboarding.skip')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {t('onboarding.skip')}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Content */}
@@ -99,7 +109,8 @@ export function TourTooltip({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-4 pb-4 pt-2 border-t border-border">
+      <Separator />
+      <div className="flex items-center justify-between px-4 pb-4 pt-2">
         <div>
           {step.showSkip !== false && !isLast && (
             <Button

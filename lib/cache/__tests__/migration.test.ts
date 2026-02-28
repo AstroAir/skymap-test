@@ -4,11 +4,13 @@
 
 import {
   getCacheVersion,
+  setCacheVersion,
   isMigrationNeeded,
   runMigrations,
   initializeCacheSystem,
   resetAllCaches,
 } from '../migration';
+import cacheMigration from '../migration';
 
 // Mock isTauri
 jest.mock('@/lib/storage/platform', () => ({
@@ -41,6 +43,17 @@ const cachesMock = {
 
 Object.defineProperty(global, 'caches', { value: cachesMock });
 
+// Mock Tauri cache APIs for dynamic imports in resetAllCaches
+const mockClearUnifiedCache = jest.fn().mockResolvedValue(0);
+const mockClearAllCache = jest.fn().mockResolvedValue(0);
+
+jest.mock('@/lib/tauri/unified-cache-api', () => ({
+  unifiedCacheApi: { clearCache: mockClearUnifiedCache },
+}));
+jest.mock('@/lib/tauri/cache-api', () => ({
+  cacheApi: { clearAllCache: mockClearAllCache },
+}));
+
 describe('getCacheVersion', () => {
   beforeEach(() => {
     localStorageMock.clear();
@@ -70,6 +83,29 @@ describe('getCacheVersion', () => {
     
     const version = getCacheVersion();
     expect(version).toBeNull();
+  });
+});
+
+describe('setCacheVersion', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+  });
+
+  it('should store version that can be retrieved by getCacheVersion', () => {
+    setCacheVersion(2, 'Test migration');
+    const version = getCacheVersion();
+    expect(version).not.toBeNull();
+    expect(version?.version).toBe(2);
+    expect(version?.description).toBe('Test migration');
+    expect(version?.migrationDate).toBeGreaterThan(0);
+  });
+
+  it('should overwrite existing version', () => {
+    setCacheVersion(1, 'First');
+    setCacheVersion(3, 'Second');
+    const version = getCacheVersion();
+    expect(version?.version).toBe(3);
+    expect(version?.description).toBe('Second');
   });
 });
 
@@ -135,6 +171,20 @@ describe('runMigrations', () => {
     expect(result.toVersion).toBe(1);
   });
 
+  it('should clean up old localStorage keys during v0->v1 migration', async () => {
+    localStorageMock.setItem('skymap-old-data', 'stale');
+    localStorageMock.setItem('skymap-old-config', 'stale');
+    localStorageMock.setItem('cache-meta-tiles', 'stale');
+    localStorageMock.setItem('unrelated-key', 'keep');
+
+    await runMigrations();
+
+    expect(localStorageMock.getItem('skymap-old-data')).toBeNull();
+    expect(localStorageMock.getItem('skymap-old-config')).toBeNull();
+    expect(localStorageMock.getItem('cache-meta-tiles')).toBeNull();
+    expect(localStorageMock.getItem('unrelated-key')).toBe('keep');
+  });
+
   it('should delete legacy caches', async () => {
     cachesMock.keys.mockResolvedValue([
       'skymap-cache-old',
@@ -154,6 +204,21 @@ describe('runMigrations', () => {
     
     const version = getCacheVersion();
     expect(version).not.toBeNull();
+    expect(version?.version).toBe(1);
+  });
+
+  it('should handle migration errors and report them', async () => {
+    // Make caches.delete reject to trigger error in migrateV0ToV1
+    cachesMock.keys.mockResolvedValue(['skymap-cache-old']);
+    cachesMock.delete.mockRejectedValueOnce(new Error('Delete failed'));
+
+    const result = await runMigrations();
+
+    expect(result.success).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0]).toContain('failed');
+    // Version should still be updated even with errors
+    const version = getCacheVersion();
     expect(version?.version).toBe(1);
   });
 });
@@ -246,35 +311,33 @@ describe('resetAllCaches', () => {
   });
 
   it('should call Tauri cache APIs when in Tauri environment', async () => {
-    const mockClearCache = jest.fn().mockResolvedValue(0);
-    const mockClearAllCache = jest.fn().mockResolvedValue(0);
-
     mockIsTauri.mockReturnValue(true);
+    mockClearUnifiedCache.mockResolvedValue(0);
+    mockClearAllCache.mockResolvedValue(0);
 
-    jest.mock('@/lib/tauri/unified-cache-api', () => ({
-      unifiedCacheApi: { clearCache: mockClearCache },
-    }));
-    jest.mock('@/lib/tauri/cache-api', () => ({
-      cacheApi: { clearAllCache: mockClearAllCache },
-    }));
-
-    // resetAllCaches uses dynamic import, so the mocks above apply
     await resetAllCaches();
 
     expect(mockIsTauri).toHaveBeenCalled();
+    expect(mockClearUnifiedCache).toHaveBeenCalled();
+    expect(mockClearAllCache).toHaveBeenCalled();
   });
 
   it('should handle Tauri API errors gracefully', async () => {
     mockIsTauri.mockReturnValue(true);
-
-    jest.mock('@/lib/tauri/unified-cache-api', () => ({
-      unifiedCacheApi: { clearCache: jest.fn().mockRejectedValue(new Error('Tauri error')) },
-    }));
-    jest.mock('@/lib/tauri/cache-api', () => ({
-      cacheApi: { clearAllCache: jest.fn().mockRejectedValue(new Error('Tauri error')) },
-    }));
+    mockClearUnifiedCache.mockRejectedValueOnce(new Error('Tauri error'));
 
     // Should not throw even if Tauri APIs fail
     await expect(resetAllCaches()).resolves.not.toThrow();
+  });
+});
+
+describe('cacheMigration default export', () => {
+  it('should expose all public functions and CURRENT_VERSION', () => {
+    expect(typeof cacheMigration.getCacheVersion).toBe('function');
+    expect(typeof cacheMigration.isMigrationNeeded).toBe('function');
+    expect(typeof cacheMigration.runMigrations).toBe('function');
+    expect(typeof cacheMigration.resetAllCaches).toBe('function');
+    expect(typeof cacheMigration.initializeCacheSystem).toBe('function');
+    expect(cacheMigration.CURRENT_VERSION).toBe(1);
   });
 });

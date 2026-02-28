@@ -13,6 +13,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
 
 import { useMountStore } from '@/lib/stores';
 import { mountApi } from '@/lib/tauri/mount-api';
@@ -112,57 +114,62 @@ export function SlewConfirmDialog({
 
         <div className="space-y-3 py-2">
           {/* Target info */}
-          <div className="rounded-lg border border-border p-3 space-y-1">
-            <p className="text-sm font-medium">{targetName}</p>
-            <div className="flex gap-3 text-xs font-mono text-muted-foreground">
-              <span>RA: {raDisplay}</span>
-              <span>Dec: {decDisplay}</span>
-            </div>
-          </div>
+          <Card className="py-3 gap-0 shadow-none">
+            <CardContent className="px-3 space-y-1">
+              <p className="text-sm font-medium">{targetName}</p>
+              <div className="flex gap-3 text-xs font-mono text-muted-foreground">
+                <span>RA: {raDisplay}</span>
+                <span>Dec: {decDisplay}</span>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Safety status */}
           {safetyResult && (
             <div className="space-y-2">
               {dangers.length === 0 && warnings.length === 0 && (
-                <div className="flex items-center gap-2 text-green-500 text-sm">
-                  <ShieldCheck className="h-4 w-4" />
-                  {t('safetyClear')}
-                </div>
+                <Alert className="bg-green-500/10 text-green-500 border-green-500/30 py-2 text-xs [&>svg]:text-green-500">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <AlertDescription>{t('safetyClear')}</AlertDescription>
+                </Alert>
               )}
 
               {dangers.map((issue, i) => (
-                <div key={`d-${i}`} className="flex items-start gap-2 text-destructive text-xs rounded-md bg-destructive/10 p-2">
-                  <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  <span>{t(`safetyIssues.${issue.type}`)}</span>
-                </div>
+                <Alert key={`d-${i}`} variant="destructive" className="py-2 text-xs">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <AlertDescription>{t(`safetyIssues.${issue.type}`)}</AlertDescription>
+                </Alert>
               ))}
 
               {warnings.map((issue, i) => (
-                <div key={`w-${i}`} className="flex items-start gap-2 text-yellow-500 text-xs rounded-md bg-yellow-500/10 p-2">
-                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  <span>{t(`safetyIssues.${issue.type}`)}</span>
-                </div>
+                <Alert key={`w-${i}`} className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 py-2 text-xs [&>svg]:text-yellow-500">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <AlertDescription>{t(`safetyIssues.${issue.type}`)}</AlertDescription>
+                </Alert>
               ))}
             </div>
           )}
 
           {/* Status warnings */}
           {parked && (
-            <div className="flex items-center gap-2 text-yellow-500 text-xs">
+            <Alert className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 py-2 text-xs [&>svg]:text-yellow-500">
               <AlertTriangle className="h-3.5 w-3.5" />
-              {t('mountParkedWarning')}
-            </div>
+              <AlertDescription>{t('mountParkedWarning')}</AlertDescription>
+            </Alert>
           )}
 
           {!connected && (
-            <div className="flex items-center gap-2 text-destructive text-xs">
+            <Alert variant="destructive" className="py-2 text-xs">
               <AlertTriangle className="h-3.5 w-3.5" />
-              {t('notConnectedWarning')}
-            </div>
+              <AlertDescription>{t('notConnectedWarning')}</AlertDescription>
+            </Alert>
           )}
 
           {error && (
-            <p className="text-sm text-destructive">{error}</p>
+            <Alert variant="destructive" className="py-2 text-xs">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
         </div>
 

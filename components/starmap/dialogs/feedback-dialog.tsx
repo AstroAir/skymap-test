@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+import { SwitchItem } from '@/components/ui/switch-item';
 import { Textarea } from '@/components/ui/textarea';
 import { useFeedbackStore } from '@/lib/stores/feedback-store';
 import { buildGitHubIssueUrl, buildIssueBodyMarkdown, collectDiagnostics, exportDiagnosticsBundle } from '@/lib/feedback/feedback-utils';
@@ -271,28 +271,22 @@ export function FeedbackDialog({ trigger, open, onOpenChange }: FeedbackDialogPr
 
           <div className="space-y-3">
             <p className="text-sm font-medium">{t('feedback.diagnosticsTitle')}</p>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div className="pr-2">
-                <p className="text-sm">{t('feedback.includeSystemInfo')}</p>
-                <p className="text-xs text-muted-foreground">{t('feedback.includeSystemInfoDesc')}</p>
-              </div>
-              <Switch
-                checked={draft.includeSystemInfo}
-                onCheckedChange={setIncludeSystemInfo}
-                data-testid="feedback-include-system-switch"
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div className="pr-2">
-                <p className="text-sm">{t('feedback.includeLogs')}</p>
-                <p className="text-xs text-muted-foreground">{t('feedback.includeLogsDesc')}</p>
-              </div>
-              <Switch
-                checked={draft.includeLogs}
-                onCheckedChange={setIncludeLogs}
-                data-testid="feedback-include-logs-switch"
-              />
-            </div>
+            <SwitchItem
+              label={t('feedback.includeSystemInfo')}
+              description={t('feedback.includeSystemInfoDesc')}
+              checked={draft.includeSystemInfo}
+              onCheckedChange={setIncludeSystemInfo}
+              className="rounded-md border p-3"
+              switchProps={{ 'data-testid': 'feedback-include-system-switch' }}
+            />
+            <SwitchItem
+              label={t('feedback.includeLogs')}
+              description={t('feedback.includeLogsDesc')}
+              checked={draft.includeLogs}
+              onCheckedChange={setIncludeLogs}
+              className="rounded-md border p-3"
+              switchProps={{ 'data-testid': 'feedback-include-logs-switch' }}
+            />
             <p className="text-xs text-muted-foreground">{t('feedback.privacyHint')}</p>
           </div>
         </div>

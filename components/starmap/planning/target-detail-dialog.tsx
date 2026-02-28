@@ -210,9 +210,9 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
               {tags.map(tag => (
                 <Badge key={tag} variant="secondary" className="h-5 text-[10px] px-1.5 gap-1">
                   {tag}
-                  <button onClick={() => handleRemoveTag(tag)} className="hover:text-red-400">
+                  <Button variant="ghost" size="icon" className="h-4 w-4 hover:text-red-400" onClick={() => handleRemoveTag(tag)}>
                     <X className="h-2.5 w-2.5" />
-                  </button>
+                  </Button>
                 </Badge>
               ))}
             </div>

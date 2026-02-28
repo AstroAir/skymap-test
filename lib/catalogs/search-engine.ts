@@ -360,7 +360,7 @@ export function quickSearchByName(
 }
 
 // ============================================================================
-// Enhanced Fuzzy Search
+// Scored Fuzzy Search
 // ============================================================================
 
 // Cached search index for performance
@@ -387,7 +387,7 @@ export function clearSearchIndexCache(): void {
   cachedCatalogLength = 0;
 }
 
-export interface EnhancedSearchOptions {
+export interface ScoredSearchOptions {
   /** Use fuzzy matching (tolerates typos) */
   fuzzy?: boolean;
   /** Minimum similarity score (0-1) for fuzzy matches */
@@ -406,7 +406,7 @@ export interface EnhancedSearchOptions {
   };
 }
 
-export interface EnhancedSearchResult {
+export interface ScoredSearchResult {
   object: DeepSkyObject;
   score: number;
   matchType: 'exact' | 'prefix' | 'contains' | 'fuzzy' | 'catalog' | 'common_name';
@@ -415,7 +415,7 @@ export interface EnhancedSearchResult {
 }
 
 /**
- * Enhanced search with fuzzy matching, common name recognition,
+ * Scored search with fuzzy matching, common name recognition,
  * and multi-field weighted scoring
  * 
  * Features:
@@ -426,11 +426,11 @@ export interface EnhancedSearchResult {
  * - Phonetic variations (Andromeda → Andromida)
  * - Multi-field weighted scoring
  */
-export function enhancedSearch(
+export function scoredSearch(
   catalog: DeepSkyObject[],
   query: string,
-  options: EnhancedSearchOptions = {}
-): EnhancedSearchResult[] {
+  options: ScoredSearchOptions = {}
+): ScoredSearchResult[] {
   const {
     fuzzy = true,
     minScore = 0.3,
@@ -457,7 +457,7 @@ export function enhancedSearch(
     };
     
     const matches = weightedSearch(query, searchIndex, weightedOptions);
-    const results: EnhancedSearchResult[] = [];
+    const results: ScoredSearchResult[] = [];
     
     for (const match of matches.slice(0, limit)) {
       const obj = catalogMap.get(match.id);
@@ -481,7 +481,7 @@ export function enhancedSearch(
     };
     
     const matches = fuzzySearch(query, searchIndex, fuzzyOptions);
-    const results: EnhancedSearchResult[] = [];
+    const results: ScoredSearchResult[] = [];
     
     for (const match of matches) {
       const obj = catalogMap.get(match.id);
@@ -503,12 +503,12 @@ export function enhancedSearch(
 /**
  * Quick fuzzy search for autocomplete with intelligent ranking
  */
-export function enhancedQuickSearch(
+export function quickSearch(
   catalog: DeepSkyObject[],
   query: string,
   limit: number = 10
 ): DeepSkyObject[] {
-  const results = enhancedSearch(catalog, query, {
+  const results = scoredSearch(catalog, query, {
     fuzzy: true,
     minScore: 0.4,
     limit,
@@ -527,9 +527,9 @@ export async function searchWithFuzzyName(
 ): Promise<SkyAtlasSearchResult> {
   const { fuzzySearch: useFuzzy = true, ...searchOptions } = options;
   
-  // If there's a name filter and fuzzy search is enabled, use enhanced search first
+  // If there's a name filter and fuzzy search is enabled, use scored search first
   if (useFuzzy && filters.objectName && filters.objectName.trim().length > 0) {
-    const fuzzyResults = enhancedSearch(catalog, filters.objectName, {
+    const fuzzyResults = scoredSearch(catalog, filters.objectName, {
       fuzzy: true,
       minScore: 0.3,
       limit: catalog.length, // Get all matches, will filter further

@@ -23,6 +23,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { validateTelescopeForm, validateTelescopeFields, type FieldErrors } from '@/lib/core/management-validators';
 import { normalizeTelescopes } from '@/lib/core/equipment-normalize';
 import type { NormalizedTelescope } from '@/types/starmap/management';
+import { EmptyState } from '@/components/ui/empty-state';
 import { EquipmentListItem } from './equipment-list-item';
 
 interface TelescopeTabProps {
@@ -180,10 +181,11 @@ export function TelescopeTab({ isTauriAvailable, rawTelescopes, onDeleteRequest,
     <div className="space-y-4">
       <ScrollArea className="h-[200px]">
         {telescopeList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <Telescope className="h-10 w-10 mb-3 opacity-50" />
-            <p className="text-sm">{t('equipment.noTelescopes') || 'No telescopes added'}</p>
-          </div>
+          <EmptyState
+            icon={Telescope}
+            message={t('equipment.noTelescopes') || 'No telescopes added'}
+            iconClassName="h-10 w-10 mb-3"
+          />
         ) : (
           <div className="space-y-2">
             {telescopeList.map((scope) => (

@@ -12,6 +12,7 @@ import type { OnlineSearchSettingsProps, OnlineSearchSettingsContentProps } from
 import { SOURCE_COLOR_MAP } from '@/lib/core/constants/search';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { SwitchItem } from '@/components/ui/switch-item';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -222,31 +223,28 @@ function OnlineSearchSettingsContent({
         </div>
         
         {/* Cache settings */}
-        <div className="flex items-center justify-between">
-          <Label className="text-xs">{t('search.cacheResults')}</Label>
-          <Switch
-            checked={settings.cacheResults}
-            onCheckedChange={(checked) => updateSettings({ cacheResults: checked })}
-          />
-        </div>
+        <SwitchItem
+          label={t('search.cacheResults')}
+          checked={settings.cacheResults}
+          onCheckedChange={(checked) => updateSettings({ cacheResults: checked })}
+          className="text-xs"
+        />
         
         {/* Show source badges */}
-        <div className="flex items-center justify-between">
-          <Label className="text-xs">{t('search.showSourceBadges')}</Label>
-          <Switch
-            checked={settings.showSourceBadges}
-            onCheckedChange={(checked) => updateSettings({ showSourceBadges: checked })}
-          />
-        </div>
+        <SwitchItem
+          label={t('search.showSourceBadges')}
+          checked={settings.showSourceBadges}
+          onCheckedChange={(checked) => updateSettings({ showSourceBadges: checked })}
+          className="text-xs"
+        />
 
         {/* Group by source */}
-        <div className="flex items-center justify-between">
-          <Label className="text-xs">{t('search.groupBySource', { defaultValue: 'Group by Source' })}</Label>
-          <Switch
-            checked={settings.groupBySource}
-            onCheckedChange={(checked) => updateSettings({ groupBySource: checked })}
-          />
-        </div>
+        <SwitchItem
+          label={t('search.groupBySource', { defaultValue: 'Group by Source' })}
+          checked={settings.groupBySource}
+          onCheckedChange={(checked) => updateSettings({ groupBySource: checked })}
+          className="text-xs"
+        />
         
         {/* Clear cache */}
         <Button

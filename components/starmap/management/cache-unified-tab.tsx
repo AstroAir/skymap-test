@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { formatBytes } from '@/lib/offline';
+import { EmptyState } from '@/components/ui/empty-state';
 import { unifiedCacheApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
 import { toast } from 'sonner';
@@ -188,12 +189,11 @@ export function CacheUnifiedTab({ isActive }: CacheUnifiedTabProps) {
           )}
         </>
       ) : (
-        <div className="text-center py-8">
-          <HardDrive className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">
-            {t('cache.unifiedCacheEmpty')}
-          </p>
-        </div>
+        <EmptyState
+          icon={HardDrive}
+          message={t('cache.unifiedCacheEmpty')}
+          iconClassName="h-12 w-12 mb-3"
+        />
       )}
     </div>
   );

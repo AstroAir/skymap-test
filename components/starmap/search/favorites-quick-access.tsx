@@ -11,6 +11,8 @@ import {
   Download,
   Upload,
 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -146,7 +148,9 @@ export function FavoritesQuickAccess({
         </Button>
       </div>
       {importStatus && (
-        <p className="text-[11px] text-muted-foreground px-1">{importStatus}</p>
+        <Alert className="py-1.5 px-3">
+          <AlertDescription className="text-[11px]">{importStatus}</AlertDescription>
+        </Alert>
       )}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'favorites' | 'recent')}>
         <TabsList className="w-full grid grid-cols-2">
@@ -184,11 +188,11 @@ export function FavoritesQuickAccess({
 
           <ScrollArea className="h-48">
             {filteredFavorites.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">
-                <Heart className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>{t('favorites.noFavorites')}</p>
-                <p className="text-xs mt-1">{t('favorites.addHint')}</p>
-              </div>
+              <EmptyState
+                icon={Heart}
+                message={t('favorites.noFavorites')}
+                hint={t('favorites.addHint')}
+              />
             ) : (
               <div className="space-y-0.5">
                 {filteredFavorites.map(fav => (
@@ -223,10 +227,10 @@ export function FavoritesQuickAccess({
 
           <ScrollArea className="h-48">
             {recentlyViewed.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">
-                <Clock className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>{t('favorites.noRecent')}</p>
-              </div>
+              <EmptyState
+                icon={Clock}
+                message={t('favorites.noRecent')}
+              />
             ) : (
               <div className="space-y-0.5">
                 {recentlyViewed.map(item => (
@@ -257,12 +261,14 @@ export function FavoritesQuickAccess({
               {editingTags && favorites.find(f => f.id === editingTags)?.tags.map(tag => (
                 <Badge key={tag} variant="secondary" className="gap-1">
                   {t(`favorites.tags.${tag}` as Parameters<typeof t>[0], { defaultValue: tag })}
-                  <button
-                    className="hover:text-destructive"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0 hover:text-destructive"
                     onClick={() => removeTag(editingTags, tag)}
                   >
                     <X className="h-3 w-3" />
-                  </button>
+                  </Button>
                 </Badge>
               ))}
             </div>

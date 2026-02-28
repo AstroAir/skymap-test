@@ -535,3 +535,392 @@ describe('import/export', () => {
     }).toThrow();
   });
 });
+
+describe('marker-store additional coverage', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { result } = require('@testing-library/react').renderHook(() => useMarkerStore());
+    act(() => { result.current.clearAllMarkers(); });
+  });
+
+  describe('renameGroup', () => {
+    it('should rename a group and update markers in that group', () => {
+      const store = useMarkerStore.getState();
+      act(() => {
+        store.addGroup('OldGroup');
+        store.addMarker({
+          name: 'M1', ra: 10, dec: 20, raString: '10', decString: '20',
+          color: '#ff0000', icon: 'star', group: 'OldGroup',
+        });
+        store.renameGroup('OldGroup', 'NewGroup');
+      });
+      const s = useMarkerStore.getState();
+      expect(s.groups).toContain('NewGroup');
+      expect(s.groups).not.toContain('OldGroup');
+      expect(s.markers[0].group).toBe('NewGroup');
+    });
+
+    it('should no-op when renaming to same name', () => {
+      act(() => { useMarkerStore.getState().addGroup('Same'); });
+      const before = useMarkerStore.getState().groups.length;
+      act(() => { useMarkerStore.getState().renameGroup('Same', 'Same'); });
+      expect(useMarkerStore.getState().groups.length).toBe(before);
+    });
+  });
+
+  describe('removeMarkersByGroup', () => {
+    it('should remove all markers in a group', () => {
+      const store = useMarkerStore.getState();
+      act(() => {
+        store.addMarker({
+          name: 'M1', ra: 10, dec: 20, raString: '10', decString: '20',
+          color: '#ff0000', icon: 'star', group: 'GroupA',
+        });
+        store.addMarker({
+          name: 'M2', ra: 20, dec: 30, raString: '20', decString: '30',
+          color: '#00ff00', icon: 'circle', group: 'GroupB',
+        });
+        store.removeMarkersByGroup('GroupA');
+      });
+      const s = useMarkerStore.getState();
+      expect(s.markers).toHaveLength(1);
+      expect(s.markers[0].name).toBe('M2');
+    });
+
+    it('should clear activeMarkerId if active marker is in removed group', () => {
+      const store = useMarkerStore.getState();
+      let id: string | null = null;
+      act(() => {
+        id = store.addMarker({
+          name: 'M1', ra: 10, dec: 20, raString: '10', decString: '20',
+          color: '#ff0000', icon: 'star', group: 'GroupA',
+        });
+        store.setActiveMarker(id);
+      });
+      expect(useMarkerStore.getState().activeMarkerId).toBe(id);
+      act(() => { useMarkerStore.getState().removeMarkersByGroup('GroupA'); });
+      expect(useMarkerStore.getState().activeMarkerId).toBeNull();
+    });
+  });
+
+  describe('setAllMarkersVisible', () => {
+    it('should set all markers to visible or hidden', () => {
+      const store = useMarkerStore.getState();
+      act(() => {
+        store.addMarker({
+          name: 'M1', ra: 10, dec: 20, raString: '10', decString: '20',
+          color: '#ff0000', icon: 'star',
+        });
+        store.addMarker({
+          name: 'M2', ra: 20, dec: 30, raString: '20', decString: '30',
+          color: '#00ff00', icon: 'circle',
+        });
+        store.setAllMarkersVisible(false);
+      });
+      expect(useMarkerStore.getState().markers.every(m => !m.visible)).toBe(true);
+      act(() => { useMarkerStore.getState().setAllMarkersVisible(true); });
+      expect(useMarkerStore.getState().markers.every(m => m.visible)).toBe(true);
+    });
+  });
+
+  describe('getVisibleMarkers', () => {
+    it('should return empty when showMarkers is false', () => {
+      const store = useMarkerStore.getState();
+      act(() => {
+        store.addMarker({
+          name: 'M1', ra: 10, dec: 20, raString: '10', decString: '20',
+          color: '#ff0000', icon: 'star',
+        });
+        store.setShowMarkers(false);
+      });
+      expect(useMarkerStore.getState().getVisibleMarkers()).toEqual([]);
+    });
+
+    it('should return only visible markers when showMarkers is true', () => {
+      const store = useMarkerStore.getState();
+      let id: string | null = null;
+      act(() => {
+        store.setShowMarkers(true);
+        id = store.addMarker({
+          name: 'M1', ra: 10, dec: 20, raString: '10', decString: '20',
+          color: '#ff0000', icon: 'star',
+        });
+        store.addMarker({
+          name: 'M2', ra: 20, dec: 30, raString: '20', decString: '30',
+          color: '#00ff00', icon: 'circle',
+        });
+        store.toggleMarkerVisibility(id!);
+      });
+      const visible = useMarkerStore.getState().getVisibleMarkers();
+      expect(visible).toHaveLength(1);
+      expect(visible[0].name).toBe('M2');
+    });
+  });
+
+  describe('setPendingCoords / setEditingMarkerId', () => {
+    it('should set and clear pending coords', () => {
+      act(() => { useMarkerStore.getState().setPendingCoords({ ra: 10, dec: 20, raString: '00h 40m 00s', decString: '+20d 00m 00s' }); });
+      expect(useMarkerStore.getState().pendingCoords).toEqual({ ra: 10, dec: 20, raString: '00h 40m 00s', decString: '+20d 00m 00s' });
+      act(() => { useMarkerStore.getState().setPendingCoords(null); });
+      expect(useMarkerStore.getState().pendingCoords).toBeNull();
+    });
+
+    it('should set and clear editing marker id', () => {
+      act(() => { useMarkerStore.getState().setEditingMarkerId('abc'); });
+      expect(useMarkerStore.getState().editingMarkerId).toBe('abc');
+      act(() => { useMarkerStore.getState().setEditingMarkerId(null); });
+      expect(useMarkerStore.getState().editingMarkerId).toBeNull();
+    });
+  });
+
+  describe('import edge cases', () => {
+    it('should import array format (legacy)', () => {
+      const data = JSON.stringify([
+        { name: 'Legacy', ra: 10, dec: 20, raString: '10', decString: '20', color: '#ff0000', icon: 'star', visible: true },
+      ]);
+      let result: { count: number } = { count: 0 };
+      act(() => { result = useMarkerStore.getState().importMarkers(data); });
+      expect(result.count).toBe(1);
+    });
+
+    it('should throw on empty markers array', () => {
+      const data = JSON.stringify({ version: 2, markers: [] });
+      expect(() => {
+        act(() => { useMarkerStore.getState().importMarkers(data); });
+      }).toThrow('No markers found');
+    });
+
+    it('should import with showMarkers and groups', () => {
+      const data = JSON.stringify({
+        version: 2,
+        markers: [{ name: 'X', ra: 1, dec: 2, raString: '1', decString: '2', color: '#000', icon: 'pin', visible: true }],
+        groups: ['MyGroup'],
+        showMarkers: false,
+        showMarkersUpdatedAt: 999999,
+      });
+      act(() => { useMarkerStore.getState().importMarkers(data); });
+      const s = useMarkerStore.getState();
+      expect(s.showMarkers).toBe(false);
+      expect(s.groups).toContain('MyGroup');
+    });
+
+    it('should respect MAX_MARKERS during import', () => {
+      // Fill to near max
+      act(() => {
+        for (let i = 0; i < 498; i++) {
+          useMarkerStore.getState().addMarker({
+            name: `M${i}`, ra: i, dec: i, raString: `${i}`, decString: `${i}`,
+            color: '#ff0000', icon: 'star',
+          });
+        }
+      });
+      const data = JSON.stringify({
+        version: 2,
+        markers: [
+          { name: 'A', ra: 1, dec: 1, visible: true },
+          { name: 'B', ra: 2, dec: 2, visible: true },
+          { name: 'C', ra: 3, dec: 3, visible: true },
+        ],
+      });
+      let result: { count: number } = { count: 0 };
+      act(() => { result = useMarkerStore.getState().importMarkers(data); });
+      expect(result.count).toBe(2); // only 2 slots left
+    });
+  });
+});
+
+describe('marker-store Tauri paths', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { isTauri } = require('@/lib/storage/platform');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { markersApi } = require('@/lib/tauri/markers-api');
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { result } = require('@testing-library/react').renderHook(() => useMarkerStore());
+    act(() => { result.current.clearAllMarkers(); });
+    jest.clearAllMocks();
+  });
+
+  it('should call Tauri addMarker when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.addMarker.mockResolvedValue({
+      markers: [],
+      groups: ['Default'],
+      show_markers: true,
+      show_markers_updated_at: 0,
+    });
+
+    act(() => {
+      useMarkerStore.getState().addMarker({
+        name: 'TauriMarker', ra: 10, dec: 20, raString: '10', decString: '20',
+        color: '#ff0000', icon: 'star',
+      });
+    });
+
+    expect(markersApi.addMarker).toHaveBeenCalled();
+    const callArg = markersApi.addMarker.mock.calls[0][0];
+    expect(callArg.name).toBe('TauriMarker');
+    expect(callArg.ra_string).toBe('10');
+    expect(callArg.dec_string).toBe('20');
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri removeMarker when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(false);
+    act(() => {
+      useMarkerStore.getState().addMarker({
+        name: 'ToRemove', ra: 10, dec: 20, raString: '10', decString: '20',
+        color: '#ff0000', icon: 'star',
+      });
+    });
+    const id = useMarkerStore.getState().markers[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.removeMarker.mockResolvedValue({
+      markers: [],
+      groups: ['Default'],
+      show_markers: true,
+      show_markers_updated_at: 0,
+    });
+
+    act(() => { useMarkerStore.getState().removeMarker(id); });
+    expect(markersApi.removeMarker).toHaveBeenCalledWith(id);
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri updateMarker when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(false);
+    act(() => {
+      useMarkerStore.getState().addMarker({
+        name: 'ToUpdate', ra: 10, dec: 20, raString: '10', decString: '20',
+        color: '#ff0000', icon: 'star',
+      });
+    });
+    const id = useMarkerStore.getState().markers[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.updateMarker.mockResolvedValue({
+      markers: [],
+      groups: ['Default'],
+      show_markers: true,
+      show_markers_updated_at: 0,
+    });
+
+    act(() => {
+      useMarkerStore.getState().updateMarker(id, {
+        name: 'Updated', color: '#00ff00', icon: 'circle',
+        ra: 15, dec: 25, raString: '15', decString: '25',
+        group: 'NewGroup', visible: false, description: 'desc',
+      });
+    });
+    expect(markersApi.updateMarker).toHaveBeenCalled();
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri toggleVisibility when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(false);
+    act(() => {
+      useMarkerStore.getState().addMarker({
+        name: 'Toggle', ra: 10, dec: 20, raString: '10', decString: '20',
+        color: '#ff0000', icon: 'star',
+      });
+    });
+    const id = useMarkerStore.getState().markers[0].id;
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.toggleVisibility.mockResolvedValue({
+      markers: [],
+      groups: ['Default'],
+      show_markers: true,
+      show_markers_updated_at: 0,
+    });
+
+    act(() => { useMarkerStore.getState().toggleMarkerVisibility(id); });
+    expect(markersApi.toggleVisibility).toHaveBeenCalledWith(id);
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri setAllVisible when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.setAllVisible.mockResolvedValue({
+      markers: [],
+      groups: ['Default'],
+      show_markers: true,
+      show_markers_updated_at: 0,
+    });
+
+    act(() => { useMarkerStore.getState().setAllMarkersVisible(false); });
+    expect(markersApi.setAllVisible).toHaveBeenCalledWith(false);
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri setShowMarkers when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.setShowMarkers.mockResolvedValue({
+      markers: [],
+      groups: ['Default'],
+      show_markers: false,
+      show_markers_updated_at: 0,
+    });
+
+    act(() => { useMarkerStore.getState().setShowMarkers(false); });
+    expect(markersApi.setShowMarkers).toHaveBeenCalledWith(false);
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri group operations when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.addGroup.mockResolvedValue({ markers: [], groups: ['Default', 'New'], show_markers: true, show_markers_updated_at: 0 });
+    markersApi.removeGroup.mockResolvedValue({ markers: [], groups: ['Default'], show_markers: true, show_markers_updated_at: 0 });
+    markersApi.renameGroup.mockResolvedValue({ markers: [], groups: ['Default', 'Renamed'], show_markers: true, show_markers_updated_at: 0 });
+
+    act(() => { useMarkerStore.getState().addGroup('New'); });
+    expect(markersApi.addGroup).toHaveBeenCalledWith('New');
+
+    act(() => { useMarkerStore.getState().removeGroup('New'); });
+    expect(markersApi.removeGroup).toHaveBeenCalledWith('New');
+
+    act(() => {
+      useMarkerStore.getState().addGroup('Old');
+      useMarkerStore.getState().renameGroup('Old', 'Renamed');
+    });
+    expect(markersApi.renameGroup).toHaveBeenCalledWith('Old', 'Renamed');
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri removeMarkersByGroup when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(false);
+    act(() => {
+      useMarkerStore.getState().addMarker({
+        name: 'G', ra: 10, dec: 20, raString: '10', decString: '20',
+        color: '#ff0000', icon: 'star', group: 'TestGroup',
+      });
+    });
+
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.removeMarkersByGroup.mockResolvedValue({ markers: [], groups: ['Default'], show_markers: true, show_markers_updated_at: 0 });
+
+    act(() => { useMarkerStore.getState().removeMarkersByGroup('TestGroup'); });
+    expect(markersApi.removeMarkersByGroup).toHaveBeenCalledWith('TestGroup');
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+
+  it('should call Tauri clearAll when isTauri is true', () => {
+    (isTauri as jest.Mock).mockReturnValue(true);
+    markersApi.clearAll.mockResolvedValue({ markers: [], groups: ['Default'], show_markers: true, show_markers_updated_at: 0 });
+
+    act(() => { useMarkerStore.getState().clearAllMarkers(); });
+    expect(markersApi.clearAll).toHaveBeenCalled();
+
+    (isTauri as jest.Mock).mockReturnValue(false);
+  });
+});
