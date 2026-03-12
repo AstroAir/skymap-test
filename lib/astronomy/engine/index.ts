@@ -2,12 +2,25 @@ import { isTauri } from '@/lib/storage/platform';
 import { astronomyEngineCache } from './cache';
 import { fallbackAstronomyBackend } from './backend-fallback';
 import { tauriAstronomyBackend } from './backend-tauri';
+import { withCacheState } from './meta';
+import {
+  AstronomyEngineValidationError,
+  buildNormalizedContext,
+  normalizeAlmanacRequest,
+  normalizeCoordinateComputationInput,
+  normalizeEphemerisRequest,
+  normalizePhenomenaRequest,
+  normalizeRiseTransitSetRequest,
+} from './normalization';
 import type {
   AlmanacRequest,
   AlmanacResponse,
   AstronomyEngineBackend,
+  CalculationCacheState,
+  CalculationMeta,
   CoordinateComputationInput,
   CoordinateComputationResult,
+  EngineBackend,
   EphemerisRequest,
   EphemerisResponse,
   PhenomenaRequest,
@@ -24,6 +37,19 @@ const CACHE_TTL = {
   almanac: 60_000,
 } as const;
 
+type EngineOperation = 'coordinates' | 'ephemeris' | 'riseTransitSet' | 'phenomena' | 'almanac';
+
+const OPERATION_PREFIX: Record<EngineOperation, string> = {
+  coordinates: 'coordinates',
+  ephemeris: 'ephemeris',
+  riseTransitSet: 'rts',
+  phenomena: 'phenomena',
+  almanac: 'almanac',
+} as const;
+
+const lastContextByOperation = new Map<EngineOperation, string>();
+let lastBackendAvailability: EngineBackend | null = null;
+
 function truncateDates(obj: unknown): unknown {
   if (obj instanceof Date) {
     return new Date(Math.floor(obj.getTime() / 1000) * 1000).toISOString();
@@ -39,34 +65,138 @@ function truncateDates(obj: unknown): unknown {
   return obj;
 }
 
+function getBackendAvailability(): EngineBackend {
+  return isTauri() ? 'tauri' : 'fallback';
+}
+
+function ensureBackendInvalidation(): void {
+  const current = getBackendAvailability();
+  if (lastBackendAvailability && lastBackendAvailability !== current) {
+    astronomyEngineCache.clear();
+    lastContextByOperation.clear();
+  }
+  lastBackendAvailability = current;
+}
+
+function buildOperationCacheKey(operation: EngineOperation, payload: unknown): string {
+  return `${OPERATION_PREFIX[operation]}:${serializeCacheKey(payload)}`;
+}
+
+function buildContextFingerprint(operation: EngineOperation, payload: { observerKey: string; timeWindowKey: string; requestKey: string }): string {
+  return [
+    operation,
+    getBackendAvailability(),
+    payload.observerKey,
+    payload.timeWindowKey,
+    payload.requestKey,
+  ].join('|');
+}
+
+function invalidateOperationCache(operation: EngineOperation): void {
+  astronomyEngineCache.deleteByPrefix(`${OPERATION_PREFIX[operation]}:`);
+}
+
+function invalidateOnContextShift(operation: EngineOperation, fingerprint: string): void {
+  const previous = lastContextByOperation.get(operation);
+  if (previous && previous !== fingerprint) {
+    invalidateOperationCache(operation);
+  }
+  lastContextByOperation.set(operation, fingerprint);
+}
+
+type InvalidationReason = 'observer_change' | 'time_window_change' | 'backend_source_change' | 'planner_refresh' | 'manual';
+
+export function invalidateAstronomyCache(
+  reason: InvalidationReason = 'manual',
+  operation?: EngineOperation
+): void {
+  if (operation) {
+    invalidateOperationCache(operation);
+    lastContextByOperation.delete(operation);
+    return;
+  }
+
+  astronomyEngineCache.clear();
+  lastContextByOperation.clear();
+
+  if (reason === 'backend_source_change') {
+    lastBackendAvailability = getBackendAvailability();
+  }
+}
+
 export function serializeCacheKey(payload: unknown): string {
   return JSON.stringify(truncateDates(payload));
 }
 
-async function withCache<T>(key: string, ttlMs: number, factory: () => Promise<T>): Promise<T> {
+async function withCache<T>(key: string, ttlMs: number, factory: () => Promise<T>): Promise<{ value: T; cache: CalculationCacheState }> {
   const cached = astronomyEngineCache.get<T>(key);
   if (cached !== undefined) {
-    return cached;
+    return { value: cached, cache: 'hit' };
   }
 
   const value = await factory();
   astronomyEngineCache.set(key, value, ttlMs);
-  return value;
+  return { value, cache: 'miss' };
 }
 
 async function runWithFallback<T>(
   primaryAction: () => Promise<T>,
   fallbackAction: () => Promise<T>
-): Promise<T> {
+): Promise<{ value: T; source: EngineBackend; degraded: boolean; warnings: string[] }> {
   if (!isTauri()) {
-    return fallbackAction();
+    return {
+      value: await fallbackAction(),
+      source: 'fallback',
+      degraded: true,
+      warnings: ['tauri_unavailable'],
+    };
   }
 
   try {
-    return await primaryAction();
+    return {
+      value: await primaryAction(),
+      source: 'tauri',
+      degraded: false,
+      warnings: [],
+    };
   } catch {
-    return fallbackAction();
+    return {
+      value: await fallbackAction(),
+      source: 'fallback',
+      degraded: true,
+      warnings: ['tauri_primary_failed'],
+    };
   }
+}
+
+function mergeWarnings(existing?: string[], next?: string[]): string[] {
+  const unique = new Set<string>([...(existing ?? []), ...(next ?? [])]);
+  return [...unique];
+}
+
+function applyExecutionMeta<T extends { meta: CalculationMeta }>(
+  value: T,
+  execution: { source: EngineBackend; degraded: boolean; warnings: string[] }
+): T {
+  return {
+    ...value,
+    meta: {
+      ...value.meta,
+      source: execution.source,
+      degraded: execution.degraded,
+      computedAt: value.meta.computedAt || new Date().toISOString(),
+      cache: 'miss',
+      warnings: mergeWarnings(value.meta.warnings, execution.warnings),
+    },
+  };
+}
+
+function buildTimeWindowKey(date: Date): string {
+  return date.toISOString().slice(0, 13);
+}
+
+function buildDateRangeKey(startDate: Date, endDate: Date): string {
+  return `${startDate.toISOString().slice(0, 10)}..${endDate.toISOString().slice(0, 10)}`;
 }
 
 export function getAstronomyEngine(): AstronomyEngineBackend {
@@ -77,66 +207,142 @@ export function getAstronomyEngine(): AstronomyEngineBackend {
 }
 
 export async function computeCoordinates(input: CoordinateComputationInput): Promise<CoordinateComputationResult> {
-  const cacheKey = serializeCacheKey({
-    operation: 'coordinates',
-    coordinate: input.coordinate,
-    observer: input.observer,
-    date: input.date,
-    refraction: input.refraction ?? 'normal',
+  ensureBackendInvalidation();
+  const normalized = normalizeCoordinateComputationInput(input);
+  const requestKey = serializeCacheKey({
+    coordinate: normalized.coordinate,
+    refraction: normalized.refraction ?? 'normal',
+  });
+  const context = buildNormalizedContext(normalized.observer, normalized.date, requestKey);
+  const fingerprint = buildContextFingerprint('coordinates', {
+    ...context,
+    timeWindowKey: buildTimeWindowKey(normalized.date),
+  });
+  invalidateOnContextShift('coordinates', fingerprint);
+
+  const cacheKey = buildOperationCacheKey('coordinates', {
+    coordinate: normalized.coordinate,
+    observer: normalized.observer,
+    date: normalized.date,
+    refraction: normalized.refraction ?? 'normal',
   });
 
-  return withCache(cacheKey, CACHE_TTL.coordinates, () => runWithFallback(
-    () => tauriAstronomyBackend.computeCoordinates(input),
-    () => fallbackAstronomyBackend.computeCoordinates(input)
-  ));
+  const { value, cache } = await withCache(cacheKey, CACHE_TTL.coordinates, async () => {
+    const execution = await runWithFallback(
+      () => tauriAstronomyBackend.computeCoordinates(normalized),
+      () => fallbackAstronomyBackend.computeCoordinates(normalized),
+    );
+    return applyExecutionMeta(execution.value, execution);
+  });
+
+  return withCacheState(value, cache);
 }
 
 export async function computeEphemeris(request: EphemerisRequest): Promise<EphemerisResponse> {
-  const cacheKey = serializeCacheKey({
-    operation: 'ephemeris',
-    request,
+  ensureBackendInvalidation();
+  const normalized = normalizeEphemerisRequest(request);
+  const requestKey = serializeCacheKey({
+    body: normalized.body,
+    stepHours: normalized.stepHours,
+    steps: normalized.steps,
+    refraction: normalized.refraction ?? 'normal',
+    customCoordinate: normalized.customCoordinate,
   });
+  const context = buildNormalizedContext(normalized.observer, normalized.startDate, requestKey);
+  const fingerprint = buildContextFingerprint('ephemeris', {
+    ...context,
+    timeWindowKey: buildTimeWindowKey(normalized.startDate),
+  });
+  invalidateOnContextShift('ephemeris', fingerprint);
 
-  return withCache(cacheKey, CACHE_TTL.ephemeris, () => runWithFallback(
-    () => tauriAstronomyBackend.computeEphemeris(request),
-    () => fallbackAstronomyBackend.computeEphemeris(request)
-  ));
+  const cacheKey = buildOperationCacheKey('ephemeris', normalized);
+  const { value, cache } = await withCache(cacheKey, CACHE_TTL.ephemeris, async () => {
+    const execution = await runWithFallback(
+      () => tauriAstronomyBackend.computeEphemeris(normalized),
+      () => fallbackAstronomyBackend.computeEphemeris(normalized),
+    );
+    return applyExecutionMeta(execution.value, execution);
+  });
+  return withCacheState(value, cache);
 }
 
 export async function computeRiseTransitSet(request: RiseTransitSetRequest): Promise<RiseTransitSetResponse> {
-  const cacheKey = serializeCacheKey({
-    operation: 'rts',
-    request,
+  ensureBackendInvalidation();
+  const normalized = normalizeRiseTransitSetRequest(request);
+  const requestKey = serializeCacheKey({
+    body: normalized.body,
+    minAltitude: normalized.minAltitude ?? 0,
+    customCoordinate: normalized.customCoordinate,
   });
+  const context = buildNormalizedContext(normalized.observer, normalized.date, requestKey);
+  const fingerprint = buildContextFingerprint('riseTransitSet', {
+    ...context,
+    timeWindowKey: buildTimeWindowKey(normalized.date),
+  });
+  invalidateOnContextShift('riseTransitSet', fingerprint);
 
-  return withCache(cacheKey, CACHE_TTL.riseTransitSet, () => runWithFallback(
-    () => tauriAstronomyBackend.computeRiseTransitSet(request),
-    () => fallbackAstronomyBackend.computeRiseTransitSet(request)
-  ));
+  const cacheKey = buildOperationCacheKey('riseTransitSet', normalized);
+  const { value, cache } = await withCache(cacheKey, CACHE_TTL.riseTransitSet, async () => {
+    const execution = await runWithFallback(
+      () => tauriAstronomyBackend.computeRiseTransitSet(normalized),
+      () => fallbackAstronomyBackend.computeRiseTransitSet(normalized),
+    );
+    return applyExecutionMeta(execution.value, execution);
+  });
+  return withCacheState(value, cache);
 }
 
 export async function searchPhenomena(request: PhenomenaRequest): Promise<PhenomenaResponse> {
-  const cacheKey = serializeCacheKey({
-    operation: 'phenomena',
-    request,
+  ensureBackendInvalidation();
+  const normalized = normalizePhenomenaRequest(request);
+  const requestKey = serializeCacheKey({
+    includeMinor: normalized.includeMinor ?? false,
   });
+  const context = buildNormalizedContext(
+    normalized.observer,
+    { startDate: normalized.startDate, endDate: normalized.endDate },
+    requestKey,
+  );
+  const fingerprint = buildContextFingerprint('phenomena', {
+    ...context,
+    timeWindowKey: buildDateRangeKey(normalized.startDate, normalized.endDate),
+  });
+  invalidateOnContextShift('phenomena', fingerprint);
 
-  return withCache(cacheKey, CACHE_TTL.phenomena, () => runWithFallback(
-    () => tauriAstronomyBackend.searchPhenomena(request),
-    () => fallbackAstronomyBackend.searchPhenomena(request)
-  ));
+  const cacheKey = buildOperationCacheKey('phenomena', normalized);
+  const { value, cache } = await withCache(cacheKey, CACHE_TTL.phenomena, async () => {
+    const execution = await runWithFallback(
+      () => tauriAstronomyBackend.searchPhenomena(normalized),
+      () => fallbackAstronomyBackend.searchPhenomena(normalized),
+    );
+    return applyExecutionMeta(execution.value, execution);
+  });
+  return withCacheState(value, cache);
 }
 
 export async function computeAlmanac(request: AlmanacRequest): Promise<AlmanacResponse> {
-  const cacheKey = serializeCacheKey({
-    operation: 'almanac',
-    request,
+  ensureBackendInvalidation();
+  const normalized = normalizeAlmanacRequest(request);
+  const requestKey = serializeCacheKey({
+    refraction: normalized.refraction ?? 'normal',
   });
+  const context = buildNormalizedContext(normalized.observer, normalized.date, requestKey);
+  const fingerprint = buildContextFingerprint('almanac', {
+    ...context,
+    timeWindowKey: buildTimeWindowKey(normalized.date),
+  });
+  invalidateOnContextShift('almanac', fingerprint);
 
-  return withCache(cacheKey, CACHE_TTL.almanac, () => runWithFallback(
-    () => tauriAstronomyBackend.computeAlmanac(request),
-    () => fallbackAstronomyBackend.computeAlmanac(request)
-  ));
+  const cacheKey = buildOperationCacheKey('almanac', normalized);
+  const { value, cache } = await withCache(cacheKey, CACHE_TTL.almanac, async () => {
+    const execution = await runWithFallback(
+      () => tauriAstronomyBackend.computeAlmanac(normalized),
+      () => fallbackAstronomyBackend.computeAlmanac(normalized),
+    );
+    return applyExecutionMeta(execution.value, execution);
+  });
+  return withCacheState(value, cache);
 }
 
+export { AstronomyEngineValidationError };
 export type * from './types';

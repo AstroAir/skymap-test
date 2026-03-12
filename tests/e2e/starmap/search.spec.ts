@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
 import { TEST_OBJECTS, TEST_COORDINATES } from '../fixtures/test-data';
-import { waitForStarmapReady } from '../fixtures/test-helpers';
+import {
+  ensureSearchPanelOpen,
+  waitForSearchResults,
+  waitForStarmapReady,
+} from '../fixtures/test-helpers';
 
 test.describe('Search Functionality', () => {
   test.beforeEach(async ({ page }) => {
@@ -277,6 +281,46 @@ test.describe('Search Functionality', () => {
         // Should not crash
         await expect(searchInput).toBeVisible();
       }
+    });
+  });
+
+  test.describe('Critical Regression Coverage', () => {
+    test('@smoke @regression should return selectable M31 results with stable selectors', async ({ page }) => {
+      const searchInput = await ensureSearchPanelOpen(page);
+      await searchInput.fill(TEST_OBJECTS.M31.name);
+
+      const options = await waitForSearchResults(page, 1);
+      await expect(page.locator('[data-testid="starmap-search-results"]').first()).toBeVisible();
+      await expect(options.first()).toBeVisible();
+    });
+
+    test('@regression should select a search result and persist it to recent searches', async ({ page }) => {
+      await waitForStarmapReady(page);
+      const searchInput = await ensureSearchPanelOpen(page);
+      await searchInput.fill(TEST_OBJECTS.M31.name);
+
+      const options = await waitForSearchResults(page, 1);
+      const firstOption = options.first();
+      await firstOption.locator('button').first().click();
+
+      await expect
+        .poll(async () => page.evaluate(() => {
+          const raw = localStorage.getItem('starmap-search-store');
+          if (!raw) return false;
+          try {
+            const parsed = JSON.parse(raw) as {
+              state?: {
+                recentSearches?: Array<{ query?: string }>;
+              };
+            };
+            return (parsed.state?.recentSearches ?? []).some(
+              (item) => (item.query ?? '').toLowerCase() === 'm31',
+            );
+          } catch {
+            return false;
+          }
+        }), { timeout: 15_000 })
+        .toBe(true);
     });
   });
 });

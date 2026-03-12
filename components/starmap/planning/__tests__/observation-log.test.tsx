@@ -43,6 +43,22 @@ jest.mock('@/lib/tauri', () => ({
       updateSession: jest.fn().mockResolvedValue({}),
       endSession: jest.fn().mockResolvedValue({}),
       deleteSession: jest.fn().mockResolvedValue(undefined),
+      updateObservation: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        date: '2024-01-15',
+        observations: [{ id: 'obs-1', object_name: 'M31' }],
+        equipment_ids: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      deleteObservation: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        date: '2024-01-15',
+        observations: [],
+        equipment_ids: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
       getStats: jest.fn().mockResolvedValue({
         total_sessions: 5,
         total_observations: 25,
@@ -52,6 +68,7 @@ jest.mock('@/lib/tauri', () => ({
         monthly_counts: [],
       }),
       search: jest.fn().mockResolvedValue([]),
+      exportLog: jest.fn().mockResolvedValue(''),
     },
     sessionIo: {
       exportSessionPlan: jest.fn().mockResolvedValue('/tmp/execution.md'),
@@ -269,6 +286,115 @@ describe('ObservationLog', () => {
     // Component should still render even when isTauri returns false
     render(<ObservationLog {...defaultProps} />);
     expect(screen.getByTestId('drawer')).toBeInTheDocument();
+  });
+
+  it('passes structured filters to observation search API', async () => {
+    render(<ObservationLog {...defaultProps} />);
+
+    fireEvent.change(screen.getByPlaceholderText('observationLog.searchPlaceholder'), {
+      target: { value: 'M31' },
+    });
+    const dateInputs = screen.getAllByTestId('input').filter((element) => element.getAttribute('type') === 'date');
+    fireEvent.change(dateInputs[0], { target: { value: '2025-01-01' } });
+    fireEvent.change(dateInputs[1], { target: { value: '2025-01-31' } });
+    fireEvent.keyDown(screen.getByPlaceholderText('observationLog.searchPlaceholder'), {
+      key: 'Enter',
+      code: 'Enter',
+    });
+
+    await waitFor(() => {
+      expect(tauriApi.observationLog.search).toHaveBeenCalledWith(expect.objectContaining({
+        text: 'M31',
+        startDate: '2025-01-01',
+        endDate: '2025-01-31',
+      }));
+    });
+  });
+
+  it('opens related session from a search result', async () => {
+    tauriApi.observationLog.load.mockResolvedValue({
+      sessions: [{
+        id: 'session-ctx',
+        date: '2025-06-15',
+        observations: [{
+          id: 'obs-ctx',
+          object_name: 'M31',
+          observed_at: '2025-06-15T20:00:00.000Z',
+          image_paths: [],
+        }],
+        equipment_ids: [],
+        created_at: '2025-06-15T19:00:00.000Z',
+        updated_at: '2025-06-15T19:00:00.000Z',
+      }],
+    });
+    tauriApi.observationLog.search.mockResolvedValue([{
+      id: 'obs-ctx',
+      object_name: 'M31',
+      observed_at: '2025-06-15T20:00:00.000Z',
+      image_paths: [],
+      session_id: 'session-ctx',
+      session_date: '2025-06-15',
+      session_location_name: 'Backyard',
+    }]);
+
+    render(<ObservationLog {...defaultProps} />);
+
+    fireEvent.change(screen.getByPlaceholderText('observationLog.searchPlaceholder'), {
+      target: { value: 'M31' },
+    });
+    fireEvent.keyDown(screen.getByPlaceholderText('observationLog.searchPlaceholder'), {
+      key: 'Enter',
+      code: 'Enter',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-log-open-session-session-ctx-obs-ctx')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('observation-log-open-session-session-ctx-obs-ctx'));
+
+    expect(screen.getByRole('button', { name: 'observationLog.addObs' })).toBeInTheDocument();
+  });
+
+  it('prevents saving observation without object name', async () => {
+    const { toast } = jest.requireMock('sonner');
+    tauriApi.observationLog.load.mockResolvedValue({
+      sessions: [{
+        id: 'session-1',
+        date: '2025-06-15',
+        observations: [],
+        equipment_ids: [],
+        source_plan_id: 'plan-1',
+        source_plan_name: 'Tonight Plan',
+        execution_status: 'active',
+        execution_targets: [{
+          id: 'exec-target-1',
+          target_id: 'target-1',
+          target_name: 'M31',
+          scheduled_start: '2025-06-15T20:30:00.000Z',
+          scheduled_end: '2025-06-15T22:00:00.000Z',
+          scheduled_duration_minutes: 90,
+          order: 1,
+          status: 'planned',
+          observation_ids: [],
+        }],
+        created_at: '2025-06-15T19:00:00.000Z',
+        updated_at: '2025-06-15T19:00:00.000Z',
+      }],
+    });
+
+    render(<ObservationLog {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'observationLog.addTargetObservation' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'observationLog.addTargetObservation' }));
+    fireEvent.change(screen.getByPlaceholderText('M31, NGC 7000...'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'observationLog.addObservation' }));
+
+    expect(tauriApi.observationLog.addObservation).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith('observationLog.objectNameRequired');
   });
 
   it('renders active execution targets and updates target status', async () => {

@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createLogger } from '@/lib/logger';
 import {
   closeWindow,
+  focusWindow,
   minimizeWindow,
   toggleMaximizeWindow,
   isWindowMaximized,
@@ -19,9 +20,18 @@ import {
   isTauri,
   setAlwaysOnTop,
   isAlwaysOnTop,
+  isTrayPositioningReady,
+  listenForTrayActivation,
   saveWindowState,
+  showWindow,
   centerWindow,
+  unminimizeWindow,
 } from '@/lib/tauri/app-control-api';
+import {
+  positionerApi,
+  TRAY_REVEAL_PRESET,
+  type WindowPositionPreset,
+} from '@/lib/tauri/positioner-api';
 
 const logger = createLogger('use-window-controls');
 
@@ -30,6 +40,7 @@ export interface WindowControlsState {
   isMaximized: boolean;
   isFullscreen: boolean;
   isPinned: boolean;
+  isTrayReady: boolean;
 }
 
 export interface WindowControlsActions {
@@ -44,6 +55,8 @@ export interface WindowControlsActions {
   handleToggleFullscreen: () => Promise<void>;
   handleTogglePin: () => Promise<void>;
   handleCenterWindow: () => Promise<void>;
+  handleMoveWindow: (preset: WindowPositionPreset) => Promise<void>;
+  handleRevealFromTray: () => Promise<void>;
   handleWebReload: () => void;
 }
 
@@ -59,6 +72,7 @@ export function useWindowControls(): UseWindowControlsReturn {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+  const [isTrayReady, setIsTrayReady] = useState(false);
   const isPinnedRef = useRef(false);
   useEffect(() => { isPinnedRef.current = isPinned; }, [isPinned]);
 
@@ -68,10 +82,14 @@ export function useWindowControls(): UseWindowControlsReturn {
       if (isTauri()) {
         setIsTauriEnv(true);
         try {
-          const maximized = await isWindowMaximized();
+          const [maximized, pinned, trayReady] = await Promise.all([
+            isWindowMaximized(),
+            isAlwaysOnTop(),
+            isTrayPositioningReady(),
+          ]);
           setIsMaximized(maximized);
-          const pinned = await isAlwaysOnTop();
           setIsPinned(pinned);
+          setIsTrayReady(trayReady);
         } catch (error) {
           logger.error('Failed to get window state', error);
         }
@@ -178,13 +196,71 @@ export function useWindowControls(): UseWindowControlsReturn {
     }
   }, []);
 
-  const handleCenterWindow = useCallback(async () => {
+  const handleMoveWindow = useCallback(async (preset: WindowPositionPreset) => {
     try {
-      await centerWindow();
+      const result = await positionerApi.moveToPreset(preset);
+      if (!result.moved && (preset === 'Center' || positionerApi.isTrayPositionPreset(preset))) {
+        await centerWindow();
+      }
     } catch (error) {
-      logger.error('Failed to center window', error);
+      logger.error(`Failed to move window to ${preset}`, error);
     }
   }, []);
+
+  const handleRevealFromTray = useCallback(async () => {
+    try {
+      await Promise.allSettled([showWindow(), unminimizeWindow()]);
+
+      const result = await positionerApi.moveToPreset(TRAY_REVEAL_PRESET);
+      if (!result.moved) {
+        await centerWindow();
+      }
+
+      await focusWindow();
+    } catch (error) {
+      logger.error('Failed to reveal window from tray activation', error);
+
+      try {
+        await centerWindow();
+        await focusWindow();
+      } catch (fallbackError) {
+        logger.error('Failed to apply tray reveal fallback', fallbackError);
+      }
+    }
+  }, []);
+
+  const handleCenterWindow = useCallback(async () => {
+    await handleMoveWindow('Center');
+  }, [handleMoveWindow]);
+
+  useEffect(() => {
+    if (!isTauriEnv) return;
+
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    const register = async () => {
+      try {
+        const trayReady = await isTrayPositioningReady();
+        if (!disposed) {
+          setIsTrayReady(trayReady);
+        }
+
+        unlisten = await listenForTrayActivation(async () => {
+          await handleRevealFromTray();
+        });
+      } catch (error) {
+        logger.error('Failed to register tray activation listener', error);
+      }
+    };
+
+    void register();
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [handleRevealFromTray, isTauriEnv]);
 
   const handleReload = useCallback(async () => {
     try {
@@ -212,6 +288,7 @@ export function useWindowControls(): UseWindowControlsReturn {
     isMaximized,
     isFullscreen,
     isPinned,
+    isTrayReady,
     handleMinimize,
     handleMaximize,
     handleClose,
@@ -223,6 +300,8 @@ export function useWindowControls(): UseWindowControlsReturn {
     handleToggleFullscreen,
     handleTogglePin,
     handleCenterWindow,
+    handleMoveWindow,
+    handleRevealFromTray,
     handleWebReload,
   };
 }

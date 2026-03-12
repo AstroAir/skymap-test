@@ -1,6 +1,11 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { BasePage } from './base.page';
 import { TEST_TIMEOUTS } from '../test-data';
+import {
+  openAboutDialog as openAboutDialogHelper,
+  openSettingsPanel,
+  waitForStarmapReady,
+} from '../test-helpers';
 
 /**
  * Starmap Page Object - Main star map view
@@ -276,81 +281,7 @@ export class StarmapPage extends BasePage {
    * Uses extended timeout for WASM engine initialization
    */
   async waitForReady(options?: { skipWasmWait?: boolean }) {
-    await this.goto();
-    
-    // Skip onboarding and setup wizard by setting localStorage
-    await this.page.evaluate(() => {
-      localStorage.setItem('starmap-onboarding', JSON.stringify({
-        state: {
-          hasCompletedOnboarding: true,
-          hasCompletedSetup: true,
-          completedSteps: ['welcome', 'search', 'navigation', 'zoom', 'settings', 'fov', 'shotlist', 'tonight', 'contextmenu', 'complete'],
-          setupCompletedSteps: ['welcome', 'location', 'equipment', 'preferences', 'complete'],
-          showOnNextVisit: false,
-        },
-        version: 3,
-      }));
-
-      // Backward-compat keys kept for older tests/components.
-      localStorage.setItem('onboarding-storage', JSON.stringify({
-        state: {
-          hasCompletedOnboarding: true,
-          hasSeenWelcome: true,
-          currentStepIndex: -1,
-          isTourActive: false,
-          completedSteps: ['welcome', 'search', 'navigation', 'zoom', 'settings', 'fov', 'shotlist', 'tonight', 'contextmenu', 'complete'],
-          showOnNextVisit: false,
-        },
-        version: 0,
-      }));
-      localStorage.setItem('starmap-setup-wizard', JSON.stringify({
-        state: {
-          hasCompletedSetup: true,
-          showOnNextVisit: false,
-          completedSteps: ['welcome', 'location', 'equipment', 'preferences', 'complete'],
-        },
-        version: 1,
-      }));
-
-      const rawSettings = localStorage.getItem('starmap-settings');
-      try {
-        const parsed = rawSettings
-          ? (JSON.parse(rawSettings) as { state?: { preferences?: Record<string, unknown> }; version?: number })
-          : {};
-        parsed.state = parsed.state ?? {};
-        parsed.state.preferences = {
-          ...(parsed.state.preferences ?? {}),
-          showSplash: false,
-          dailyKnowledgeAutoShow: false,
-        };
-        localStorage.setItem('starmap-settings', JSON.stringify(parsed));
-      } catch {
-        localStorage.setItem('starmap-settings', JSON.stringify({
-          state: { preferences: { showSplash: false, dailyKnowledgeAutoShow: false } },
-          version: 13,
-        }));
-      }
-    });
-    
-    await this.page.reload();
-    await this.waitForSplashToDisappear();
-    await expect(this.canvas).toBeVisible({ timeout: TEST_TIMEOUTS.long });
-    
-    // Wait for WASM loading overlay to disappear (if not skipping)
-    if (!options?.skipWasmWait) {
-      try {
-        const overlayVisible = await this.stellariumLoadingOverlay.isVisible().catch(() => false);
-        if (overlayVisible) {
-          await this.stellariumLoadingOverlay.waitFor({ state: 'hidden', timeout: TEST_TIMEOUTS.wasmInit });
-        }
-      } catch {
-        // If timeout, continue - some tests may work without full WASM init
-        console.warn('WASM loading timeout - continuing with test');
-      }
-    }
-    
-    // Wait a bit for UI to stabilize
-    await this.page.waitForTimeout(1000);
+    await waitForStarmapReady(this.page, options);
   }
 
   /**
@@ -409,39 +340,7 @@ export class StarmapPage extends BasePage {
    * Open settings panel
    */
   async openSettings() {
-    const splash = this.page.locator('[data-testid="splash-screen"]').first();
-    const skipHint = this.page.getByText(/press any key or click to skip|按任意键或点击跳过/i).first();
-    const dialogOverlay = this.page.locator('[data-slot="dialog-overlay"][data-state="open"]').first();
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const splashVisible = await splash.isVisible().catch(() => false);
-      const hintVisible = await skipHint.isVisible().catch(() => false);
-      const overlayVisible = await dialogOverlay.isVisible().catch(() => false);
-
-      if (splashVisible) {
-        await splash.click({ timeout: TEST_TIMEOUTS.short, force: true }).catch(() => {});
-      } else if (hintVisible) {
-        await skipHint.click({ timeout: TEST_TIMEOUTS.short, force: true }).catch(() => {});
-      }
-
-      if (overlayVisible) {
-        await dialogOverlay.click({ force: true }).catch(() => {});
-      }
-
-      await this.page.keyboard.press('Escape').catch(() => {});
-      const hidden = await splash.isHidden().catch(() => false);
-      const overlayHidden = await dialogOverlay.isHidden().catch(() => false);
-      if (hidden && overlayHidden) break;
-      await this.page.waitForTimeout(250);
-    }
-
-    const settingsButton = this.settingsButton.first();
-    if (await settingsButton.count()) {
-      await settingsButton.click({ force: true });
-    } else {
-      await this.page.getByRole('button', { name: /settings/i }).first().click({ force: true });
-    }
-
-    await expect(this.settingsPanel.first()).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+    await openSettingsPanel(this.page);
   }
 
   /**
@@ -728,8 +627,7 @@ export class StarmapPage extends BasePage {
    * Open about dialog
    */
   async openAboutDialog() {
-    await this.aboutButton.click();
-    await expect(this.aboutDialog).toBeVisible();
+    await openAboutDialogHelper(this.page);
   }
 
   /**

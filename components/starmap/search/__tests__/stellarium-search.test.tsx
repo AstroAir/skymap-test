@@ -16,8 +16,12 @@ function createMockSearchHook(overrides: Record<string, unknown> = {}) {
     groupedResults: new Map(),
     isSearching: false,
     isOnlineSearching: false,
+    searchStage: 'idle',
     searchOutcome: 'empty',
     searchMessages: [],
+    refinementHints: [],
+    providerDiagnostics: [],
+    usedCachedOnline: false,
     onlineAvailable: false,
     searchStats: { totalResults: 0, resultsByType: {}, searchTimeMs: 0 },
     filters: {
@@ -414,6 +418,7 @@ describe('StellariumSearch', () => {
       query: 'M31',
       searchOutcome: 'partial_success',
       searchMessages: [{ source: 'online', level: 'warning', message: 'timeout' }],
+      providerDiagnostics: [{ source: 'sesame', status: 'timeout' }],
       results: [{ Name: 'M31', Type: 'DSO' }],
       groupedResults: new Map([['DSO', [{ Name: 'M31', Type: 'DSO' }]]]),
     }));
@@ -434,6 +439,33 @@ describe('StellariumSearch', () => {
 
     render(<StellariumSearch {...defaultProps} />);
     expect(screen.getByText('search.searchFailed')).toBeInTheDocument();
+  });
+
+  it('shows progressive local-ready indicator', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      query: 'M31',
+      searchStage: 'local_ready',
+      isSearching: true,
+      results: [{ Name: 'M31', Type: 'DSO' }],
+      groupedResults: new Map([['DSO', [{ Name: 'M31', Type: 'DSO' }]]]),
+    }));
+
+    render(<StellariumSearch {...defaultProps} />);
+    expect(screen.getByText('search.localResultsReady')).toBeInTheDocument();
+  });
+
+  it('shows refinement warning hint message', () => {
+    const { useObjectSearch } = jest.requireMock('@/lib/hooks');
+    useObjectSearch.mockReturnValue(createMockSearchHook({
+      query: '@bad',
+      refinementHints: [{ code: 'COORDINATE_FORMAT_HINT', level: 'warning', message: 'Invalid coordinate format' }],
+      results: [],
+      groupedResults: new Map(),
+    }));
+
+    render(<StellariumSearch {...defaultProps} />);
+    expect(screen.getByText('Invalid coordinate format')).toBeInTheDocument();
   });
 
   it('exposes focusSearchInput via ref', () => {

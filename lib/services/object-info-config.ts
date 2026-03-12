@@ -5,13 +5,14 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getDefaultObjectInfoDataSourceConfigs } from './online-data-provider-registry';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export type ImageSourceType = 'aladin' | 'skyview' | 'dss' | 'eso' | 'custom';
-export type DataSourceType = 'simbad' | 'vizier' | 'ned' | 'custom';
+export type DataSourceType = 'simbad' | 'vizier' | 'ned' | 'wikipedia' | 'sbdb' | 'custom';
 
 export interface ImageSourceConfig {
   id: string;
@@ -181,47 +182,11 @@ export const DEFAULT_IMAGE_SOURCES: ImageSourceConfig[] = [
   },
 ];
 
-export const DEFAULT_DATA_SOURCES: DataSourceConfig[] = [
-  {
-    id: 'simbad',
-    name: 'SIMBAD',
-    type: 'simbad',
-    enabled: true,
-    priority: 1,
-    baseUrl: 'https://simbad.u-strasbg.fr',
-    apiEndpoint: '/simbad/sim-tap/sync',
-    timeout: 5000,
-    description: 'SIMBAD Astronomical Database - comprehensive object data',
-    status: 'unknown',
-    builtIn: true,
-  },
-  {
-    id: 'vizier',
-    name: 'VizieR',
-    type: 'vizier',
-    enabled: false,
-    priority: 2,
-    baseUrl: 'https://vizier.cds.unistra.fr',
-    apiEndpoint: '/viz-bin/votable',
-    timeout: 5000,
-    description: 'VizieR catalog service - extensive catalog data',
-    status: 'unknown',
-    builtIn: true,
-  },
-  {
-    id: 'ned',
-    name: 'NASA/IPAC NED',
-    type: 'ned',
-    enabled: false,
-    priority: 3,
-    baseUrl: 'https://ned.ipac.caltech.edu',
-    apiEndpoint: '/srs/ObjectLookup',
-    timeout: 5000,
-    description: 'NASA Extragalactic Database - galaxy and extragalactic data',
-    status: 'unknown',
-    builtIn: true,
-  },
-];
+export const DEFAULT_DATA_SOURCES: DataSourceConfig[] = getDefaultObjectInfoDataSourceConfigs().map((source) => ({
+  ...source,
+  status: 'unknown' as const,
+  builtIn: true,
+}));
 
 export const DEFAULT_SETTINGS: ObjectInfoConfig['settings'] = {
   maxConcurrentRequests: 3,
@@ -442,6 +407,12 @@ export async function checkDataSourceHealth(
     switch (source.type) {
       case 'simbad':
         testUrl = `${source.baseUrl}/simbad/sim-tap/sync?request=doQuery&lang=adql&format=json&query=${encodeURIComponent('SELECT TOP 1 main_id FROM basic LIMIT 1')}`;
+        break;
+      case 'wikipedia':
+        testUrl = `${source.baseUrl}${source.apiEndpoint}/M31`;
+        break;
+      case 'sbdb':
+        testUrl = `${source.baseUrl}${source.apiEndpoint}?sstr=1P&phys-par=1`;
         break;
       case 'vizier':
         testUrl = `${source.baseUrl}/viz-bin/votable?-source=I/239/hip_main&-c=M31&-c.rs=1`;

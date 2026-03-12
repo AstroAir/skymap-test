@@ -13,6 +13,12 @@ const mockSetAnimationsEnabled = jest.fn();
 const mockSetActivePreset = jest.fn();
 const mockSetCustomColor = jest.fn();
 const mockClearCustomColor = jest.fn();
+const mockResetCustomization = jest.fn();
+const mockSaveCurrentAsPreset = jest.fn();
+const mockDuplicatePreset = jest.fn();
+const mockRenameUserPreset = jest.fn();
+const mockSaveCurrentToUserPreset = jest.fn();
+const mockDeleteUserPreset = jest.fn();
 
 jest.mock('next-themes', () => ({
   useTheme: () => ({
@@ -29,12 +35,22 @@ jest.mock('@/lib/stores/theme-store', () => ({
       fontFamily: 'default',
       fontSize: 'default',
       animationsEnabled: true,
-      activePreset: 'default',
+      activePreset: 'custom-night',
       customColors: {
         light: { primary: '#fafafa' },
         dark: { primary: '#101010' },
       },
     },
+    userPresets: [
+      {
+        id: 'custom-night',
+        name: 'Custom Night',
+        colors: {
+          light: { primary: '#123456', background: '#f8f8f8' },
+          dark: { primary: '#abcdef', background: '#050505' },
+        },
+      },
+    ],
     setRadius: mockSetRadius,
     setFontFamily: mockSetFontFamily,
     setFontSize: mockSetFontSize,
@@ -42,6 +58,12 @@ jest.mock('@/lib/stores/theme-store', () => ({
     setActivePreset: mockSetActivePreset,
     setCustomColor: mockSetCustomColor,
     clearCustomColor: mockClearCustomColor,
+    resetCustomization: mockResetCustomization,
+    saveCurrentAsPreset: mockSaveCurrentAsPreset,
+    duplicatePreset: mockDuplicatePreset,
+    renameUserPreset: mockRenameUserPreset,
+    saveCurrentToUserPreset: mockSaveCurrentToUserPreset,
+    deleteUserPreset: mockDeleteUserPreset,
   }),
   customizableThemeColorKeys: [
     'primary',
@@ -54,6 +76,65 @@ jest.mock('@/lib/stores/theme-store', () => ({
     'border',
     'destructive',
   ],
+  getPresetThemeColors: (customization: { activePreset: string | null }, mode: 'light' | 'dark') => {
+    const preset = [
+      {
+        id: 'default',
+        colors: {
+          light: { primary: '#eeeeee', secondary: '#cccccc', accent: '#bbbbbb' },
+          dark: { primary: '#222222', secondary: '#444444', accent: '#666666' },
+        },
+      },
+    ].find((item) => item.id === customization.activePreset);
+
+    return preset ? preset.colors[mode] : {};
+  },
+  isValidThemeColorValue: (value: string) => value !== 'not-a-valid-color',
+  getAvailableThemePresets: (userPresets: Array<{ id: string; name: string; colors: { light: Record<string, string>; dark: Record<string, string> } }> = []) => ([
+    {
+      id: 'default',
+      name: 'Default',
+      colors: {
+        light: { primary: '#eeeeee', secondary: '#cccccc', accent: '#bbbbbb' },
+        dark: { primary: '#222222', secondary: '#444444', accent: '#666666' },
+      },
+    },
+    ...userPresets,
+  ]),
+  getThemePreviewData: (_customization: unknown, mode: 'light' | 'dark') => ({
+    mode,
+    tokens: {
+      primary: mode === 'light' ? '#123456' : '#abcdef',
+      secondary: mode === 'light' ? '#ddeeff' : '#334455',
+      accent: mode === 'light' ? '#8899aa' : '#556677',
+      background: mode === 'light' ? '#ffffff' : '#050505',
+      foreground: mode === 'light' ? '#121212' : '#f5f5f5',
+      muted: mode === 'light' ? '#eeeeee' : '#222222',
+      card: mode === 'light' ? '#f6f6f6' : '#111111',
+      border: mode === 'light' ? '#cccccc' : '#333333',
+      destructive: '#cc0000',
+    },
+  }),
+  getThemeContrastWarnings: (_customization: unknown, mode: 'light' | 'dark') => mode === 'dark'
+    ? [{
+      pairId: 'foreground/background',
+      mode,
+      foregroundToken: 'foreground',
+      backgroundToken: 'background',
+      ratio: 2.4,
+      threshold: 4.5,
+    }]
+    : [],
+  getFontPreview: (font: string) => {
+    const map: Record<string, string> = {
+      default: 'Libre Baskerville, serif',
+      serif: 'ui-serif, Georgia, serif',
+      mono: 'ui-monospace, monospace',
+      system: 'system-ui, sans-serif',
+    };
+
+    return map[font] || 'Libre Baskerville, serif';
+  },
   themePresets: [
     {
       id: 'default',
@@ -212,5 +293,22 @@ describe('AppearanceSettings', () => {
 
     fireEvent.click(screen.getByRole('switch'));
     expect(mockSetAnimationsEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it('renders preview workspace and accessibility warnings in the appearance settings flow', () => {
+    render(<AppearanceSettings />);
+
+    expect(screen.getAllByText('theme.previewWorkspace').length).toBeGreaterThan(0);
+    expect(screen.getByText('theme.accessibilityWarnings')).toBeInTheDocument();
+    expect(screen.getByText('theme.warningPairForegroundBackground')).toBeInTheDocument();
+  });
+
+  it('exposes custom preset save controls from settings', () => {
+    render(<AppearanceSettings />);
+
+    fireEvent.change(screen.getByPlaceholderText('theme.presetNamePlaceholder'), { target: { value: 'Nebula' } });
+    fireEvent.click(screen.getByText('theme.savePreset'));
+
+    expect(mockSaveCurrentAsPreset).toHaveBeenCalledWith('Nebula');
   });
 });

@@ -6,6 +6,8 @@ interface OnboardingBridgeState {
   settingsDrawerTab: string | null;
   settingsDrawerOpen: boolean;
   openSearchRequestId: number;
+  toggleSearchRequestId: number;
+  toggleSessionPanelRequestId: number;
   openMobileDrawerRequestId: number;
   openDailyKnowledgeRequestId: number;
   mobileDrawerSection: string | null;
@@ -15,6 +17,8 @@ interface OnboardingBridgeState {
   openSettingsDrawer: (tab?: string) => void;
   setSettingsDrawerOpen: (open: boolean) => void;
   openSearch: () => void;
+  toggleSearch: () => void;
+  toggleSessionPanel: () => void;
   openMobileDrawer: (section?: string) => void;
   openDailyKnowledge: () => void;
   closeTransientPanels: () => void;
@@ -27,6 +31,8 @@ export const useOnboardingBridgeStore = create<OnboardingBridgeState>()(
     settingsDrawerTab: null,
     settingsDrawerOpen: false,
     openSearchRequestId: 0,
+    toggleSearchRequestId: 0,
+    toggleSessionPanelRequestId: 0,
     openMobileDrawerRequestId: 0,
     openDailyKnowledgeRequestId: 0,
     mobileDrawerSection: null,
@@ -49,6 +55,16 @@ export const useOnboardingBridgeStore = create<OnboardingBridgeState>()(
     openSearch: () =>
       set((state) => ({
         openSearchRequestId: state.openSearchRequestId + 1,
+      })),
+
+    toggleSearch: () =>
+      set((state) => ({
+        toggleSearchRequestId: state.toggleSearchRequestId + 1,
+      })),
+
+    toggleSessionPanel: () =>
+      set((state) => ({
+        toggleSessionPanelRequestId: state.toggleSessionPanelRequestId + 1,
       })),
 
     openMobileDrawer: (section) =>

@@ -32,10 +32,12 @@ async function initializeTauriCache(): Promise<void> {
     'starmap-markers',
     'starmap-settings',
     'starmap-equipment',
+    'starmap-event-sources',
     'starmap-feedback',
     'theme-customization',
     'starmap-onboarding',
     'starmap-daily-knowledge',
+    'plate-solver-storage',
     'skymap-offline',
     'skymap-locale',
   ];

@@ -26,6 +26,8 @@ import type { LoadingState } from '@/types/stellarium-canvas';
 
 const logger = createLogger('stellarium-loader');
 const TWO_PI = 2 * Math.PI;
+const STELLARIUM_SCRIPT_SELECTOR =
+  'script[data-stellarium-engine="true"], script[src*="stellarium-web-engine.js"]';
 
 function normalizeRadians(angle: number): number {
   return ((angle % TWO_PI) + TWO_PI) % TWO_PI;
@@ -35,6 +37,19 @@ function angularErrorArcsec(targetRad: number, actualRad: number): number {
   const delta = Math.abs(targetRad - actualRad);
   const wrapped = Math.min(delta, TWO_PI - delta);
   return wrapped * (180 / Math.PI) * 3600;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError';
+}
+
+function clearStellariumScriptTags(): void {
+  if (typeof document === 'undefined') return;
+  document
+    .querySelectorAll<HTMLScriptElement>(STELLARIUM_SCRIPT_SELECTOR)
+    .forEach((script) => script.remove());
 }
 
 type AssetPathMode = 'absolute' | 'dot' | 'dotdot';
@@ -110,6 +125,8 @@ export function useStellariumLoader({
   const abortControllerRef = useRef<AbortController | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<number | null>(null);
+  const retryObserverRef = useRef<ResizeObserver | null>(null);
+  const overallTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const overallDeadlineRef = useRef<number>(0);
   const assetPathModeRef = useRef<AssetPathMode>('absolute');
@@ -142,15 +159,26 @@ export function useStellariumLoader({
   useEffect(() => () => {
     mountedRef.current = false;
     abortControllerRef.current?.abort();
+    retryObserverRef.current?.disconnect();
+    retryObserverRef.current = null;
     if (retryTimeoutRef.current !== null) {
       window.clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
     }
+    if (overallTimeoutRef.current !== null) {
+      window.clearTimeout(overallTimeoutRef.current);
+      overallTimeoutRef.current = null;
+    }
+    overallDeadlineRef.current = 0;
     initializingRef.current = false;
   }, []);
   
   // Initialize Stellarium engine with all data sources
   const initStellarium = useCallback((stel: StellariumEngine) => {
+    if (!mountedRef.current) {
+      return;
+    }
+
     logger.info('Stellarium is ready!');
     (stelRef as React.MutableRefObject<StellariumEngine | null>).current = stel;
     setStel(stel);
@@ -285,6 +313,7 @@ export function useStellariumLoader({
     const currentSettings = useSettingsStore.getState().stellarium;
     // Delay initial settings application to ensure engine is fully ready
     setTimeout(() => {
+      if (!mountedRef.current || stelRef.current !== stel) return;
       updateStellariumCore(currentSettings);
       setEngineReady(true);
     }, ENGINE_SETTINGS_INIT_DELAY);
@@ -333,61 +362,115 @@ export function useStellariumLoader({
     setHelpers,
   ]);
 
-  // Load the Stellarium engine script with timeout
-  const loadScript = useCallback((): Promise<void> => {
+  // Load the Stellarium engine script with timeout and cancellation support.
+  const loadScript = useCallback((signal: AbortSignal): Promise<void> => {
     return new Promise((resolve, reject) => {
-      // Check if already loaded
+      if (signal.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'));
+        return;
+      }
+
       if (window.StelWebEngine) {
         resolve();
         return;
       }
 
-      // Check if script tag already exists
-      const existingScript = document.querySelector<HTMLScriptElement>(
-        'script[data-stellarium-engine="true"], script[src*="stellarium-web-engine.js"]'
-      );
-      if (existingScript) {
-        // Script tag exists but StelWebEngine is not set (checked above).
-        // The script may have already loaded/errored — event listeners won't re-fire.
-        // Remove the stale tag and fall through to create a fresh one.
-        logger.warn('Removing stale script tag — StelWebEngine not available');
-        existingScript.remove();
-      }
+      clearStellariumScriptTags();
 
       const candidates = getAssetPathCandidates(SCRIPT_PATH);
-      const perAttemptTimeout = Math.max(3000, Math.floor(SCRIPT_LOAD_TIMEOUT / candidates.length));
+      const perAttemptTimeout = Math.max(
+        3000,
+        Math.floor(SCRIPT_LOAD_TIMEOUT / Math.max(candidates.length, 1))
+      );
+
       let tryIndex = 0;
+      let settled = false;
+      let activeScript: HTMLScriptElement | null = null;
+      let activeTimeout: number | null = null;
       let lastError: Error | null = null;
 
+      const cleanupActiveAttempt = () => {
+        if (activeTimeout !== null) {
+          window.clearTimeout(activeTimeout);
+          activeTimeout = null;
+        }
+        if (activeScript) {
+          activeScript.onload = null;
+          activeScript.onerror = null;
+          activeScript.remove();
+          activeScript = null;
+        }
+      };
+
+      const finalize = (finish: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanupActiveAttempt();
+        signal.removeEventListener('abort', onAbort);
+        finish();
+      };
+
+      const onAbort = () => {
+        finalize(() => reject(new DOMException('Aborted', 'AbortError')));
+      };
+
       const tryNext = () => {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+
+        if (window.StelWebEngine) {
+          finalize(resolve);
+          return;
+        }
+
         if (tryIndex >= candidates.length) {
-          reject(lastError ?? new Error(t('scriptLoadFailed')));
+          finalize(() => reject(lastError ?? new Error(t('scriptLoadFailed'))));
           return;
         }
 
         const current = candidates[tryIndex++];
         const script = document.createElement('script');
+        activeScript = script;
         script.src = current.value;
         script.async = true;
         script.dataset.stellariumEngine = 'true';
         logger.debug('Trying Stellarium script path', { path: current.value, mode: current.mode });
 
-        const timeoutId = setTimeout(() => {
-          script.remove();
+        activeTimeout = window.setTimeout(() => {
           lastError = new Error(t('scriptLoadTimedOut'));
+          cleanupActiveAttempt();
           tryNext();
         }, perAttemptTimeout);
 
         script.onload = () => {
-          clearTimeout(timeoutId);
+          if (activeTimeout !== null) {
+            window.clearTimeout(activeTimeout);
+            activeTimeout = null;
+          }
+
+          if (!window.StelWebEngine) {
+            script.remove();
+            activeScript = null;
+            lastError = new Error(t('engineScriptNotLoaded'));
+            tryNext();
+            return;
+          }
+
           assetPathModeRef.current = current.mode;
           logger.info('Stellarium script loaded', { path: current.value, mode: current.mode });
-          resolve();
+          activeScript = null;
+          finalize(resolve);
         };
 
         script.onerror = () => {
-          clearTimeout(timeoutId);
+          if (activeTimeout !== null) {
+            window.clearTimeout(activeTimeout);
+            activeTimeout = null;
+          }
           script.remove();
+          activeScript = null;
           lastError = new Error(t('scriptLoadFailed'));
           tryNext();
         };
@@ -395,12 +478,17 @@ export function useStellariumLoader({
         document.head.appendChild(script);
       };
 
+      signal.addEventListener('abort', onAbort, { once: true });
       tryNext();
     });
   }, [t]);
 
   // Initialize the Stellarium engine with WASM
-  const initializeEngine = useCallback(async (): Promise<void> => {
+  const initializeEngine = useCallback(async (signal: AbortSignal): Promise<void> => {
+    if (signal.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
     if (!canvasRef.current) {
       throw new Error(t('canvasNotAvailable'));
     }
@@ -419,21 +507,30 @@ export function useStellariumLoader({
 
     return new Promise<void>((resolve, reject) => {
       let resolved = false;
+      const onAbort = () => {
+        if (resolved) return;
+        resolved = true;
+        reject(new DOMException('Aborted', 'AbortError'));
+      };
 
       try {
+        signal.addEventListener('abort', onAbort, { once: true });
+
         // StelWebEngine expects: wasmFile, canvasElement, translateFn, onReady
         const engineResult = StelWebEngine({
           wasmFile: wasmPath,
           canvasElement: canvasRef.current!,
           translateFn,
           onReady: (stel: StellariumEngine) => {
-            if (resolved) return;
+            if (resolved || signal.aborted || !mountedRef.current) return;
             try {
               initStellarium(stel);
               resolved = true;
+              signal.removeEventListener('abort', onAbort);
               resolve();
             } catch (err) {
               resolved = true;
+              signal.removeEventListener('abort', onAbort);
               reject(err);
             }
           },
@@ -444,6 +541,7 @@ export function useStellariumLoader({
           (engineResult as Promise<unknown>).catch((err: unknown) => {
             if (!resolved) {
               resolved = true;
+              signal.removeEventListener('abort', onAbort);
               reject(err);
             }
           });
@@ -451,6 +549,7 @@ export function useStellariumLoader({
       } catch (err) {
         if (!resolved) {
           resolved = true;
+          signal.removeEventListener('abort', onAbort);
           reject(err);
         }
       }
@@ -472,6 +571,8 @@ export function useStellariumLoader({
     if (initializingRef.current) return;
     initializingRef.current = true;
 
+    retryObserverRef.current?.disconnect();
+    retryObserverRef.current = null;
     if (retryTimeoutRef.current !== null) {
       window.clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -484,8 +585,22 @@ export function useStellariumLoader({
 
     // Set loading session window once. Keep the same deadline across retries.
     if (overallDeadlineRef.current === 0) {
-      overallDeadlineRef.current = Date.now() + OVERALL_LOADING_TIMEOUT;
-      setLoadingStartTime(Date.now());
+      const startedAt = Date.now();
+      overallDeadlineRef.current = startedAt + OVERALL_LOADING_TIMEOUT;
+      setLoadingStartTime(startedAt);
+
+      if (overallTimeoutRef.current !== null) {
+        window.clearTimeout(overallTimeoutRef.current);
+      }
+      overallTimeoutRef.current = window.setTimeout(() => {
+        if (!mountedRef.current) return;
+        abortControllerRef.current?.abort();
+        initializingRef.current = false;
+        setErrorMessage(t('overallTimeout'));
+        setIsLoading(false);
+        setLoadingPhase('timed_out');
+        setLoadingErrorCode('overall_timeout');
+      }, OVERALL_LOADING_TIMEOUT);
     }
 
     if (mountedRef.current) {
@@ -541,8 +656,9 @@ export function useStellariumLoader({
           setLoadingProgress(20);
           setLoadingPhase('loading_script');
           try {
-            await withTimeout(loadScript(), SCRIPT_LOAD_TIMEOUT, t('engineScriptTimedOut'));
+            await loadScript(loadAbortController.signal);
           } catch (error) {
+            if (isAbortError(error)) throw error;
             throw createStageError('script', error);
           }
 
@@ -556,8 +672,13 @@ export function useStellariumLoader({
           setLoadingProgress(40);
           setLoadingPhase('initializing_engine');
           try {
-            await withTimeout(initializeEngine(), WASM_INIT_TIMEOUT, t('starmapInitTimedOut'));
+            await withTimeout(
+              initializeEngine(loadAbortController.signal),
+              WASM_INIT_TIMEOUT,
+              t('starmapInitTimedOut')
+            );
           } catch (error) {
+            if (isAbortError(error)) throw error;
             throw createStageError('engine', error);
           }
 
@@ -575,6 +696,11 @@ export function useStellariumLoader({
             setLoadingPhase('ready');
           }
           retryCountRef.current = 0;
+          overallDeadlineRef.current = 0;
+          if (overallTimeoutRef.current !== null) {
+            window.clearTimeout(overallTimeoutRef.current);
+            overallTimeoutRef.current = null;
+          }
         }
       }
 
@@ -582,6 +708,9 @@ export function useStellariumLoader({
       const stage = err instanceof Error && 'stage' in err
         ? (err as LoaderStageError).stage
         : null;
+      if (isAbortError(err)) {
+        return;
+      }
       if (stage === 'script' || stage === 'engine') {
         logger.error('Error loading star map', err);
       } else {
@@ -623,6 +752,11 @@ export function useStellariumLoader({
                   : 'unknown'
           );
         }
+        overallDeadlineRef.current = 0;
+        if (overallTimeoutRef.current !== null) {
+          window.clearTimeout(overallTimeoutRef.current);
+          overallTimeoutRef.current = null;
+        }
       }
     } finally {
       initializingRef.current = false;
@@ -637,22 +771,38 @@ export function useStellariumLoader({
           setLoadingPhase('timed_out');
           setLoadingErrorCode('overall_timeout');
         }
+        overallDeadlineRef.current = 0;
+        if (overallTimeoutRef.current !== null) {
+          window.clearTimeout(overallTimeoutRef.current);
+          overallTimeoutRef.current = null;
+        }
       } else if (containerRef.current) {
         // Use ResizeObserver to retry as soon as the container has a non-zero size,
         // instead of a fixed 1s poll delay.
         const obs = new ResizeObserver((entries) => {
           const entry = entries[0];
           if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+            if (retryTimeoutRef.current !== null) {
+              window.clearTimeout(retryTimeoutRef.current);
+              retryTimeoutRef.current = null;
+            }
             obs.disconnect();
+            if (retryObserverRef.current === obs) {
+              retryObserverRef.current = null;
+            }
             if (mountedRef.current && !loadAbortController.signal.aborted) {
               void startLoading();
             }
           }
         });
+        retryObserverRef.current = obs;
         obs.observe(containerRef.current);
         // Safety fallback: if observer doesn't fire within RETRY_DELAY_MS, use timeout
         retryTimeoutRef.current = window.setTimeout(() => {
           obs.disconnect();
+          if (retryObserverRef.current === obs) {
+            retryObserverRef.current = null;
+          }
           retryTimeoutRef.current = null;
           if (mountedRef.current && !loadAbortController.signal.aborted) {
             void startLoading();
@@ -671,11 +821,23 @@ export function useStellariumLoader({
 
   // Retry loading (user-triggered)
   const handleRetry = useCallback(() => {
+    abortControllerRef.current?.abort();
+    retryObserverRef.current?.disconnect();
+    retryObserverRef.current = null;
+    if (retryTimeoutRef.current !== null) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    if (overallTimeoutRef.current !== null) {
+      window.clearTimeout(overallTimeoutRef.current);
+      overallTimeoutRef.current = null;
+    }
+    clearStellariumScriptTags();
     retryCountRef.current = 0;
     overallDeadlineRef.current = 0;
     initializingRef.current = false;
     assetPathModeRef.current = 'absolute';
-    startLoading();
+    void startLoading();
   }, [startLoading]);
 
   // Debug: Force reload the engine (clears current engine and restarts)
@@ -684,6 +846,16 @@ export function useStellariumLoader({
     
     // Abort any ongoing loading
     abortControllerRef.current?.abort();
+    retryObserverRef.current?.disconnect();
+    retryObserverRef.current = null;
+    if (retryTimeoutRef.current !== null) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    if (overallTimeoutRef.current !== null) {
+      window.clearTimeout(overallTimeoutRef.current);
+      overallTimeoutRef.current = null;
+    }
     
     // Clear current engine
     if (stelRef.current) {
@@ -692,12 +864,7 @@ export function useStellariumLoader({
     }
     
     // Remove existing script to force reload
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[data-stellarium-engine="true"], script[src*="stellarium-web-engine.js"]'
-    );
-    if (existingScript) {
-      existingScript.remove();
-    }
+    clearStellariumScriptTags();
     
     // Clear StelWebEngine from window
     delete (window as { StelWebEngine?: unknown }).StelWebEngine;
@@ -710,7 +877,7 @@ export function useStellariumLoader({
     assetPathModeRef.current = 'absolute';
     
     // Start fresh loading
-    startLoading();
+    void startLoading();
   }, [stelRef, startLoading, setStel]);
 
   return {

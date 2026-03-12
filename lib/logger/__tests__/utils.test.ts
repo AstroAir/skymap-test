@@ -8,11 +8,15 @@ import {
   formatFullTimestamp,
   formatLogLevel,
   serializeData,
+  redactSensitiveString,
+  sanitizeUnknownData,
+  sanitizeLogEntry,
   extractErrorInfo,
   filterLogs,
   getUniqueModules,
   getLogStats,
   groupConsecutiveLogs,
+  buildLogDiagnosticsBundle,
 } from '../utils';
 import { LogLevel, LogEntry } from '../types';
 
@@ -25,6 +29,10 @@ function makeEntry(overrides: Partial<LogEntry> = {}): LogEntry {
     message: overrides.message ?? 'test message',
     data: overrides.data,
     stack: overrides.stack,
+    occurrenceCount: overrides.occurrenceCount,
+    firstTimestamp: overrides.firstTimestamp,
+    lastTimestamp: overrides.lastTimestamp,
+    eventCode: overrides.eventCode,
   };
 }
 
@@ -100,6 +108,46 @@ describe('serializeData', () => {
   it('handles arrays', () => {
     const result = serializeData([1, 2, 3]);
     expect(JSON.parse(result)).toEqual([1, 2, 3]);
+  });
+
+  it('redacts sensitive keys by default', () => {
+    const result = serializeData({ token: 'abc123', nested: { password: 'secret' } });
+    expect(result).toContain('[REDACTED]');
+    expect(result).not.toContain('abc123');
+    expect(result).not.toContain('secret');
+  });
+});
+
+describe('redaction helpers', () => {
+  it('redacts sensitive string patterns', () => {
+    const output = redactSensitiveString('authorization: Bearer abc123 token=xyz user@example.com');
+    expect(output).toContain('[REDACTED]');
+    expect(output).toContain('[REDACTED_EMAIL]');
+    expect(output).not.toContain('abc123');
+    expect(output).not.toContain('xyz');
+  });
+
+  it('sanitizes nested objects', () => {
+    const sanitized = sanitizeUnknownData({
+      authToken: 'abc',
+      profile: { password: 'secret', city: 'Shanghai' },
+    }) as Record<string, unknown>;
+
+    expect(sanitized.authToken).toBe('[REDACTED]');
+    expect((sanitized.profile as Record<string, unknown>).password).toBe('[REDACTED]');
+    expect((sanitized.profile as Record<string, unknown>).city).toBe('Shanghai');
+  });
+
+  it('sanitizes log entries', () => {
+    const entry = sanitizeLogEntry(makeEntry({
+      message: 'token=abc',
+      data: { authorization: 'Bearer x' },
+      stack: 'password=secret',
+    }));
+
+    expect(entry.message).toContain('[REDACTED]');
+    expect(JSON.stringify(entry.data)).toContain('[REDACTED]');
+    expect(entry.stack).toContain('[REDACTED]');
   });
 });
 
@@ -218,6 +266,17 @@ describe('getLogStats', () => {
     expect(stats.byModule['a']).toBe(2);
     expect(stats.byModule['b']).toBe(1);
   });
+
+  it('includes occurrenceCount in totals', () => {
+    const logs = [
+      makeEntry({ module: 'a', occurrenceCount: 3 }),
+      makeEntry({ module: 'b', occurrenceCount: 2 }),
+    ];
+    const stats = getLogStats(logs);
+    expect(stats.total).toBe(5);
+    expect(stats.byModule['a']).toBe(3);
+    expect(stats.byModule['b']).toBe(2);
+  });
 });
 
 describe('groupConsecutiveLogs', () => {
@@ -248,6 +307,16 @@ describe('groupConsecutiveLogs', () => {
     expect(groups[0].timestamps).toHaveLength(3);
   });
 
+  it('accumulates embedded occurrenceCount when grouping', () => {
+    const logs = [
+      makeEntry({ module: 'test', message: 'repeat', occurrenceCount: 3 }),
+      makeEntry({ module: 'test', message: 'repeat', occurrenceCount: 2 }),
+    ];
+    const groups = groupConsecutiveLogs(logs);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].count).toBe(5);
+  });
+
   it('does not group non-consecutive duplicates', () => {
     const logs = [
       makeEntry({ module: 'test', message: 'a' }),
@@ -265,5 +334,22 @@ describe('groupConsecutiveLogs', () => {
     ];
     const groups = groupConsecutiveLogs(logs);
     expect(groups).toHaveLength(2);
+  });
+});
+
+describe('buildLogDiagnosticsBundle', () => {
+  it('creates versioned bundle with runtime and summary', () => {
+    const logs = [
+      makeEntry({ level: LogLevel.INFO, module: 'app', occurrenceCount: 3 }),
+      makeEntry({ level: LogLevel.ERROR, module: 'api' }),
+    ];
+    const bundle = buildLogDiagnosticsBundle(logs, { filters: { level: 'info' } });
+
+    expect(bundle.bundleVersion).toBe('2.0');
+    expect(bundle.generatedAt).toBeDefined();
+    expect(bundle.summary.totalEntries).toBe(2);
+    expect(bundle.summary.suppressedDuplicates).toBe(2);
+    expect(bundle.filters).toEqual({ level: 'info' });
+    expect(bundle.logs).toHaveLength(2);
   });
 });

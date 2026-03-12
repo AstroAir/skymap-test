@@ -142,6 +142,31 @@ export interface Observation {
   execution_target_id?: string;
 }
 
+export interface ObservationQueryFilters {
+  text?: string;
+  startDate?: string;
+  endDate?: string;
+  objectType?: string;
+  minRating?: number;
+  maxRating?: number;
+}
+
+export interface ObservationSearchPayload {
+  query?: string;
+  filters?: ObservationQueryFilters;
+}
+
+export interface ObservationSearchHit extends Observation {
+  session_id: string;
+  session_date: string;
+  session_location_name?: string;
+}
+
+export interface ObservationExportPayload {
+  format: 'csv' | 'json';
+  filters?: ObservationQueryFilters;
+}
+
 export type ObservationExecutionStatus =
   | 'draft'
   | 'ready'
@@ -324,6 +349,13 @@ export interface SystemInfo {
   arch: string;
   app_version: string;
   tauri_version: string;
+  platform?: string;
+  family?: string;
+  os_type?: string;
+  os_version?: string;
+  locale?: string;
+  exe_extension?: string;
+  host_id?: string;
 }
 
 // ============================================================================

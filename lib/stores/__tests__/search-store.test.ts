@@ -19,6 +19,7 @@ describe('search-store', () => {
       expect(settings.defaultLimit).toBe(30);
       expect(settings.timeout).toBe(15000);
       expect(settings.cacheResults).toBe(true);
+      expect(settings.cacheFallbackMaxAgeMinutes).toBe(30);
     });
 
     it('should update settings', () => {
@@ -296,6 +297,24 @@ describe('search-store', () => {
       expect(cached).toBeNull();
     });
 
+    it('should respect maxAge when reading cache', () => {
+      const { cacheSearchResults, getCachedResults } = useSearchStore.getState();
+
+      jest.spyOn(Date, 'now')
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(1000)
+        .mockReturnValueOnce(1000 + 10 * 60 * 1000);
+
+      act(() => {
+        cacheSearchResults('m31', mockResults, 'online');
+      });
+
+      const cached = getCachedResults('m31', { maxAgeMs: 5 * 60 * 1000 });
+      expect(cached).toBeNull();
+
+      jest.restoreAllMocks();
+    });
+
     it('should clear cache', () => {
       const { cacheSearchResults, clearCache } = useSearchStore.getState();
 
@@ -336,6 +355,7 @@ describe('search-store', () => {
         updateAllOnlineStatus({
           simbad: false,
           sesame: false,
+          sbdb: true,
           vizier: true,
           ned: true,
           mpc: true,
@@ -356,6 +376,7 @@ describe('search-store', () => {
         updateAllOnlineStatus({
           simbad: true,
           sesame: true,
+          sbdb: true,
           vizier: false,
           ned: false,
           mpc: true,

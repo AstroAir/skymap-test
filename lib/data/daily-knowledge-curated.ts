@@ -1,5 +1,6 @@
 import type {
   DailyKnowledgeCategory,
+  DailyKnowledgeDifficulty,
   DailyKnowledgeFactSource,
 } from '@/lib/services/daily-knowledge/types';
 
@@ -12,6 +13,12 @@ export interface CuratedLocalizedContent {
 export interface CuratedKnowledgeEntry {
   id: string;
   categories: DailyKnowledgeCategory[];
+  difficulty: DailyKnowledgeDifficulty;
+  bestViewingMonths: number[];
+  observationTips: {
+    en: string[];
+    zh: string[];
+  };
   tags: string[];
   externalUrl?: string;
   imageUrl?: string;
@@ -50,6 +57,13 @@ function localized(
   };
 }
 
+function tips(enTips: string[], zhTips: string[]): CuratedKnowledgeEntry['observationTips'] {
+  return {
+    en: enTips,
+    zh: zhTips,
+  };
+}
+
 export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
   {
     id: 'curated-ceres-discovery',
@@ -60,6 +74,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Ceres' }],
     factSources: [fact('NASA Ceres', 'https://science.nasa.gov/dwarf-planets/ceres/', 'NASA')],
     attribution: { sourceName: 'NASA Solar System Exploration', sourceUrl: 'https://science.nasa.gov/dwarf-planets/ceres/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [1],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('January 1, 1801: Ceres Discovery', 'Ceres was first found in the asteroid belt.', 'Ceres moved from planet to dwarf-planet classification and remains key for water-rich early solar-system studies.', '1801年1月1日：谷神星被发现', '谷神星是小行星带首个被发现天体。', '谷神星从“行星”到“矮行星”的分类变化，体现了观测证据如何推动认知更新。'),
   },
   {
@@ -71,6 +88,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Jupiter' }],
     factSources: [fact('NASA Jupiter Moons', 'https://science.nasa.gov/jupiter/moons/', 'NASA')],
     attribution: { sourceName: 'NASA Jupiter Program', sourceUrl: 'https://science.nasa.gov/jupiter/moons/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [1],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('January 7, 1610: Galileo and Jupiter Moons', 'Galileo observed moons orbiting Jupiter.', 'These observations showed not all celestial bodies orbit Earth and became a turning point in modern astronomy.', '1610年1月7日：伽利略观测木卫', '伽利略记录到卫星绕木星运行。', '木卫观测为“并非万物绕地球转”提供直接证据，是现代天文学的重要转折。'),
   },
   {
@@ -82,6 +102,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Earth' }],
     factSources: [fact('NASA Voyager 1', 'https://science.nasa.gov/mission/voyager/voyager-1/', 'NASA')],
     attribution: { sourceName: 'NASA Voyager', sourceUrl: 'https://science.nasa.gov/mission/voyager/voyager-1/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [2],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('February 14, 1990: Pale Blue Dot', 'Voyager 1 captured Earth as a tiny pixel.', 'The image is both a scientific record and a cultural reminder of Earth’s small place in cosmic scale.', '1990年2月14日：暗淡蓝点', '旅行者1号把地球拍成微小像素。', '这张照片既是科学观测记录，也让我们直观感受地球在宇宙尺度中的渺小。'),
   },
   {
@@ -93,6 +116,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Uranus' }],
     factSources: [fact('NASA Uranus', 'https://science.nasa.gov/uranus/', 'NASA')],
     attribution: { sourceName: 'NASA Planetary Science', sourceUrl: 'https://science.nasa.gov/uranus/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [3],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('March 13, 1781: Uranus Identified', 'Uranus expanded the known solar system.', 'Uranus was first mistaken for a comet, then confirmed as a planet through orbital analysis.', '1781年3月13日：天王星被确认', '天王星确认扩展了太阳系认知边界。', '它最初被误判为彗星，后通过轨道分析确认为行星，体现了科学分类会随数据更新。'),
   },
   {
@@ -104,6 +130,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Sun' }],
     factSources: [fact('NASA Sun Portal', 'https://science.nasa.gov/sun/', 'NASA')],
     attribution: { sourceName: 'NASA Heliophysics', sourceUrl: 'https://science.nasa.gov/sun/' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [3],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('March Equinox Planning', 'Day and night are nearly equal around this date.', 'Twilight windows change quickly after equinox, so update nightly schedules and target order.', '春分观测规划', '春分前后昼夜时长接近。', '春分后暮光时段变化较快，建议及时调整夜间任务编排与目标优先级。'),
   },
   {
@@ -115,6 +144,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Earth' }],
     factSources: [fact('ESA Human Spaceflight History', 'https://www.esa.int/About_Us/ESA_history/50_years_of_human_spaceflight', 'ESA')],
     attribution: { sourceName: 'ESA', sourceUrl: 'https://www.esa.int/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [4],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('April 12, 1961: First Human Orbital Flight', 'Yuri Gagarin completed one Earth orbit.', 'Vostok 1 validated crewed orbital flight and accelerated future mission engineering.', '1961年4月12日：首次载人轨道飞行', '加加林完成绕地一周飞行。', '东方一号验证了载人轨道飞行可行性，为后续航天工程发展打下基础。'),
   },
   {
@@ -126,6 +158,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Hubble Space Telescope' }],
     factSources: [fact('NASA Hubble Mission', 'https://science.nasa.gov/mission/hubble/', 'NASA')],
     attribution: { sourceName: 'NASA Hubble', sourceUrl: 'https://science.nasa.gov/mission/hubble/' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [4],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('April 24, 1990: Hubble Launch', 'Hubble changed high-resolution astronomy.', 'Hubble’s long mission highlighted the value of calibration, servicing, and stable processing pipelines.', '1990年4月24日：哈勃发射', '哈勃改变了高分辨率天文观测。', '哈勃长期任务证明了校准、维护与流程稳定性对科学产出的重要性。'),
   },
   {
@@ -137,6 +172,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Moon' }],
     factSources: [fact('NASA Apollo 11', 'https://www.nasa.gov/mission/apollo-11/', 'NASA')],
     attribution: { sourceName: 'NASA Apollo', sourceUrl: 'https://www.nasa.gov/mission/apollo-11/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [7],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('July 20, 1969: Apollo 11 Landing', 'Apollo 11 achieved first crewed lunar landing.', 'Apollo 11 remains a benchmark for navigation, mission operations, and systems engineering at scale.', '1969年7月20日：阿波罗11号登月', '人类首次载人着陆月球。', '阿波罗11号仍是任务导航、系统工程与地面协同的经典标杆。'),
   },
   {
@@ -148,6 +186,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Neptune' }],
     factSources: [fact('NASA Voyager 2', 'https://science.nasa.gov/mission/voyager/voyager-2/', 'NASA')],
     attribution: { sourceName: 'NASA Voyager', sourceUrl: 'https://science.nasa.gov/mission/voyager/voyager-2/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [8],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('August 25, 1989: Voyager 2 at Neptune', 'Voyager 2 is the only close flyby of Neptune.', 'The flyby revealed atmospheric dynamics and Triton activity still used in outer-planet mission studies.', '1989年8月25日：旅行者2号飞掠海王星', '这是唯一一次海王星近距离飞掠。', '该任务揭示了海王星大气与海卫一活动，对外行星任务论证影响深远。'),
   },
   {
@@ -159,6 +200,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Sun' }],
     factSources: [fact('Seasons Explained', 'https://www.timeanddate.com/astronomy/seasons-explained.html', 'timeanddate.com')],
     attribution: { sourceName: 'timeanddate.com', sourceUrl: 'https://www.timeanddate.com/' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [9],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('September Equinox Night Shift', 'Nights lengthen in many northern locations.', 'Earlier darkness improves long-session flexibility. Recheck meridian-flip and dew-control timing.', '秋分后夜间窗口增加', '北半球多数地区入夜更早。', '夜长增加有利于长时段拍摄，建议复核翻转与防露计划。'),
   },
   {
@@ -170,6 +214,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Earth' }],
     factSources: [fact('NASA Sputnik History', 'https://www.nasa.gov/history/55-years-ago-sputnik-launched/', 'NASA')],
     attribution: { sourceName: 'NASA History Office', sourceUrl: 'https://www.nasa.gov/history/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [10],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('October 4, 1957: Sputnik 1', 'Sputnik 1 marked the start of the space age.', 'Sputnik proved practical orbital launch capability and accelerated global satellite tracking.', '1957年10月4日：斯普特尼克1号', '通常被视为航天时代开端。', '该任务证明了轨道发射能力，并推动了全球卫星跟踪体系建设。'),
   },
   {
@@ -181,6 +228,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Leo' }],
     factSources: [fact('IMO Leonids', 'https://www.imo.net/members/imo_live_shower?shower=LEO', 'IMO')],
     attribution: { sourceName: 'International Meteor Organization', sourceUrl: 'https://www.imo.net/' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [11],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Leonids Active Window', 'Leonids can produce fast meteors and bursts.', 'Use wide lenses, dark skies, and continuous capture for better meteor yield.', '狮子座流星雨活跃窗口', '狮子座流星速度快且偶有增强。', '建议广角连拍并选择暗空地，提高整夜有效流星轨迹捕获概率。'),
   },
   {
@@ -192,6 +242,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Gemini' }],
     factSources: [fact('IMO Geminids', 'https://www.imo.net/members/imo_live_shower?shower=GEM', 'IMO')],
     attribution: { sourceName: 'International Meteor Organization', sourceUrl: 'https://www.imo.net/' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Geminids Reliable Peak', 'Geminids are often one of the strongest annual showers.', 'Stable tripods and wide-field continuous capture improve result consistency.', '双子座流星雨高可靠峰值', '双子座常是全年高流量流星雨。', '使用稳定脚架和广角连拍可提高流星素材的获取稳定性。'),
   },
   {
@@ -210,6 +263,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
       licenseName: 'CC BY-SA 3.0',
       licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
     },
+    difficulty: 'beginner',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Andromeda Is A Time Machine', 'M31 light left about 2.5 million years ago.', 'Andromeda is a cornerstone deep-sky target for long integrations that reveal dust lanes and star-forming regions.', '仙女座星系是一台时间机器', 'M31 的光约在 250 万年前发出。', 'M31 是深空摄影经典目标，长曝光可呈现尘埃带和恒星形成区细节。'),
   },
   {
@@ -227,6 +283,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg',
       licenseName: 'Public domain',
     },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Why Orion Nebula Is Bright In Narrowband', 'M42 has strong hydrogen and oxygen emission lines.', 'Use mixed short and long exposures to retain bright core detail and faint outer wings.', '为什么 M42 在窄带下表现突出', 'M42 的氢氧发射线都很明显。', '建议短曝与长曝结合，以兼顾核心细节和外围暗弱结构。'),
   },
   {
@@ -244,6 +303,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:Jupiter.jpg',
       licenseName: 'Public domain',
     },
+    difficulty: 'beginner',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Jupiter Great Red Spot Is Long-Lived', 'The Great Red Spot has been tracked for centuries.', 'Short video capture plus stacking is the common path for stable planetary detail extraction.', '木星大红斑是长期风暴系统', '大红斑已被持续观测数百年。', '行星摄影通常采用短视频叠加，在稳定视宁度下更容易提取细节。'),
   },
   {
@@ -262,6 +324,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
       licenseName: 'CC BY 4.0',
       licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
     },
+    difficulty: 'beginner',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Pleiades Dust Is Reflection', 'M45 blue glow is reflected starlight.', 'Broadband imaging works well, but flats and gradient control are essential for faint dust structure.', '昴星团蓝色辉光属于反射星云', 'M45 蓝色外观主要来自恒星光反射。', '宽带拍摄效果好，但要保留暗弱尘埃需要高质量平场和梯度处理。'),
   },
   {
@@ -271,6 +336,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Polaris' }],
     factSources: [fact('Air Mass (astronomy)', 'https://en.wikipedia.org/wiki/Air_mass_(astronomy)', 'Wikipedia')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Air_mass_(astronomy)' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Plan Around Transit', 'Targets near transit often provide cleaner data.', 'At transit, airmass is low. Place key exposures near this window and move support tasks elsewhere.', '围绕中天安排拍摄', '目标接近中天时通常信号质量更好。', '中天时大气路径更短，建议将关键曝光集中在此窗口。'),
   },
   {
@@ -280,6 +348,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Moon' }],
     factSources: [fact('Night Vision Basics', 'https://skyandtelescope.org/astronomy-resources/the-easy-way-to-night-vision/', 'Sky & Telescope')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://skyandtelescope.org/astronomy-resources/the-easy-way-to-night-vision/' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Dark Adaptation Takes Time', 'Night vision usually improves after 20–30 minutes.', 'Bright white screens can reset adaptation quickly. Red-light mode helps maintain low-light sensitivity.', '暗适应需要时间建立', '夜视能力通常需要约20-30分钟建立。', '白光屏幕会快速破坏暗适应，建议启用红光模式保持低照度敏感性。'),
   },
   {
@@ -290,6 +361,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'M13', ra: 250.4218, dec: 36.4613 }],
     factSources: [fact('SEDS M13', 'https://messier.seds.org/m/m013.html', 'SEDS')],
     attribution: { sourceName: 'SEDS', sourceUrl: 'https://messier.seds.org/m/m013.html' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('M13 Rewards Stable Focus', 'Globular core detail drops quickly with slight defocus.', 'Check focus frequently when seeing changes. Cleaner short subs can outperform fewer long frames.', 'M13 对对焦稳定性要求高', '轻微失焦就会损失核心细节。', '视宁度波动时应提高对焦频率，多拍稳定短帧通常更可靠。'),
   },
   {
@@ -300,6 +374,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Moon' }],
     factSources: [fact('NASA Moon', 'https://science.nasa.gov/moon/', 'NASA')],
     attribution: { sourceName: 'NASA Moon Science', sourceUrl: 'https://science.nasa.gov/moon/' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Lunar Relief Peaks Near the Terminator', 'Low-angle sunlight boosts crater and ridge contrast.', 'Prioritize regions near the terminator to maximize perceived topographic structure.', '月面地形层次在晨昏线附近最明显', '低角度光照会增强陨坑和山脊阴影。', '拍摄月面时优先晨昏线附近区域，可在相同设备下获得更强地形层次。'),
   },
   {
@@ -309,6 +386,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Polaris' }],
     factSources: [fact('Drift Alignment Guide', 'https://www.astrobin.com/blog/2018/09/03/how-to-do-a-drift-alignment/', 'AstroBin')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://www.astrobin.com/blog/2018/09/03/how-to-do-a-drift-alignment/' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Drift Tests Catch Polar Error Early', 'Small polar-axis errors compound over long runs.', 'Run a quick drift check before major sessions to reduce guiding load and rejected frames.', '漂移检查可提前发现极轴误差', '小误差会在长拍中逐步放大。', '开拍前做短时漂移检查，能降低导星压力并减少后续废片。'),
   },
   {
@@ -318,6 +398,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'M31' }],
     factSources: [fact('PixInsight Tutorials', 'https://pixinsight.com/tutorials/', 'PixInsight')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://pixinsight.com/tutorials/' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Dithering Helps Remove Pattern Noise', 'Random subframe offsets improve stacking rejection.', 'Without dithering, fixed-pattern noise can survive calibration. Gentle offsets improve robustness.', '抖动拍摄有助于压制固定图样噪声', '子帧随机偏移可提升统计剔除效果。', '无抖动时固定噪声更易残留，适度偏移可提升后期伪影清理效果。'),
   },
   {
@@ -327,6 +410,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Milky Way' }],
     factSources: [fact('Bortle Scale', 'https://en.wikipedia.org/wiki/Bortle_scale', 'Wikipedia')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Bortle_scale' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Match Targets to Bortle Class', 'Sky brightness sets practical target difficulty.', 'Bright skies favor compact bright targets and narrowband objects. Save dim structures for dark sites.', '目标应匹配 Bortle 等级', '天空亮度会限制可行目标难度。', '光害环境下优先亮目标和窄带目标，暗弱结构尽量留到暗空地拍摄。'),
   },
   {
@@ -336,6 +422,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Jupiter' }],
     factSources: [fact('Astronomical Seeing', 'https://en.wikipedia.org/wiki/Astronomical_seeing', 'Wikipedia')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Astronomical_seeing' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Seeing Often Matters More Than Aperture', 'Atmospheric stability can dominate planetary detail.', 'In unstable seeing, many short captures plus strict frame selection usually beat long clips.', '行星细节常由视宁度主导', '大气稳定度有时比口径更关键。', '视宁度不稳时应增加短视频采样并严格筛帧，以提升最终细节质量。'),
   },
   {
@@ -346,6 +435,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'M8', ra: 270.925, dec: -24.375 }],
     factSources: [fact('SEDS M8', 'https://messier.seds.org/m/m008.html', 'SEDS')],
     attribution: { sourceName: 'SEDS', sourceUrl: 'https://messier.seds.org/m/m008.html' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Lagoon Nebula Works Well with Dual-Band', 'M8 has strong signal in hydrogen and oxygen bands.', 'Dual-band capture improves contrast under light pollution; keep calibration consistent in warm nights.', '礁湖星云适合双窄带流程', 'M8 在氢氧波段通常都有良好信号。', '双窄带有助于光害环境提升对比度，夏季应重视温漂对校准的一致性影响。'),
   },
   {
@@ -356,6 +448,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'NGC 7000', ra: 312.5, dec: 44.5 }],
     factSources: [fact('North America Nebula', 'https://en.wikipedia.org/wiki/North_America_Nebula', 'Wikipedia')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/North_America_Nebula' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('NGC 7000 Prefers Wide-Field Framing', 'North America Nebula is easier with shorter focal lengths.', 'Cygnus star density can hide nebulosity gradients, so background extraction is often the key processing step.', '北美星云更适合广角构图', 'NGC 7000 通常更适合短焦完整取景。', '天鹅座星场密集，后期常需重点处理背景梯度，才能稳定呈现暗弱星云结构。'),
   },
   {
@@ -366,6 +461,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'Saturn' }],
     factSources: [fact('NASA Saturn', 'https://science.nasa.gov/saturn/', 'NASA')],
     attribution: { sourceName: 'NASA Saturn Science', sourceUrl: 'https://science.nasa.gov/saturn/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Saturn Ring Tilt Changes Over Time', 'Ring opening angle evolves with orbital geometry.', 'Comparing seasonal Saturn images is easier when focal scale and processing strategy stay consistent.', '土星环开合角会随时间变化', '环倾角受轨道几何关系持续影响。', '跨季节对比土星时，建议保持采样尺度和处理流程一致，便于可靠比较。'),
   },
   {
@@ -375,6 +473,9 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'M31' }],
     factSources: [fact('Calibration Workflow', 'https://pixinsight.com/tutorials/', 'PixInsight')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://pixinsight.com/tutorials/' },
+    difficulty: 'advanced',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Calibration Frames Protect Data Quality', 'Bias, dark, and flat frames remove systematic artifacts.', 'Consistent calibration improves integration reliability and reduces aggressive corrective processing later.', '校准帧是稳定画质的基础', '偏置、暗场、平场可减少系统性伪影。', '稳定校准流程能提高叠加可靠性，并减少后期对画面缺陷的补救成本。'),
   },
   {
@@ -384,6 +485,50 @@ export const DAILY_KNOWLEDGE_CURATED: CuratedKnowledgeEntry[] = [
     relatedObjects: [{ name: 'M42' }],
     factSources: [fact('Equatorial Mount Basics', 'https://en.wikipedia.org/wiki/Equatorial_mount', 'Wikipedia')],
     attribution: { sourceName: 'SkyMap Curated', sourceUrl: 'https://en.wikipedia.org/wiki/Equatorial_mount' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: tips(['Prioritize stable transparency and seeing for better signal consistency.', 'Log key setup changes so future sessions remain comparable.'], ['优先保证通透度和视宁度，提高数据稳定性。', '记录关键设备与参数变化，便于后续夜晚对比复盘。']),
     localeContent: localized('Meridian Flip Planning Prevents Failures', 'Crossing meridian can require mount-side change.', 'Reserve time for flip and post-flip checks. Verify guiding and focus recovery before resuming long runs.', '中天翻转预案可减少整夜故障', '目标过中天后常需赤道仪翻转。', '建议预留翻转与复位时间，并在翻转后复核导星和对焦状态再继续拍摄。'),
+  },
+  {
+    id: 'curated-skylab-launch',
+    categories: ['history', 'mission', 'event'],
+    tags: ['Skylab', 'space station'],
+    eventMonthDay: '05-14',
+    externalUrl: 'https://www.nasa.gov/mission/skylab/',
+    relatedObjects: [{ name: 'Earth' }],
+    factSources: [fact('NASA Skylab Mission', 'https://www.nasa.gov/mission/skylab/', 'NASA')],
+    attribution: { sourceName: 'NASA Human Spaceflight', sourceUrl: 'https://www.nasa.gov/mission/skylab/' },
+    difficulty: 'beginner',
+    bestViewingMonths: [5],
+    observationTips: tips(['Prioritize mission timeline context before comparing archival imagery.', 'Cross-check major milestones with primary mission pages for factual consistency.'], ['阅读任务时间线后再对照历史影像，能更快建立背景。', '涉及关键节点时优先核对任务官方页面，确保事实一致。']),
+    localeContent: localized('May 14, 1973: Skylab Launch', 'Skylab became the first U.S. space station in orbit.', 'Skylab validated long-duration orbital operations and laid groundwork for later station engineering workflows.', '1973年5月14日：天空实验室发射', '天空实验室成为美国首个在轨空间站。', '该任务验证了长期在轨运行能力，并为后续空间站工程积累了关键经验。'),
+  },
+  {
+    id: 'curated-venus-transit-2004',
+    categories: ['history', 'event', 'technique'],
+    tags: ['Venus transit', 'solar observation'],
+    eventMonthDay: '06-08',
+    externalUrl: 'https://science.nasa.gov/solar-system/skywatching/transit-of-venus/',
+    relatedObjects: [{ name: 'Venus' }, { name: 'Sun' }],
+    factSources: [fact('NASA Transit of Venus', 'https://science.nasa.gov/solar-system/skywatching/transit-of-venus/', 'NASA')],
+    attribution: { sourceName: 'NASA Skywatching', sourceUrl: 'https://science.nasa.gov/solar-system/skywatching/transit-of-venus/' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [6],
+    observationTips: tips(['Solar observing requires certified filters before any optical alignment.', 'Plan exposure bracketing to preserve both solar limb and transit silhouette detail.'], ['进行太阳观测前必须先安装合规滤镜再对准。', '建议做曝光包围，兼顾太阳边缘层次和凌日轮廓细节。']),
+    localeContent: localized('June 8, 2004: Venus Transit Returns', 'A Venus transit was observed globally after more than a century.', 'Transit observations are rare alignment events that connect historical orbital measurement methods with modern outreach and imaging.', '2004年6月8日：金星凌日再现', '相隔一个多世纪后，全球再次观测到金星凌日。', '凌日是稀有的几何对齐事件，也连接了历史轨道测量方法与现代公众观测实践。'),
+  },
+  {
+    id: 'curated-jwst-first-images-workflow',
+    categories: ['mission', 'culture', 'technique'],
+    tags: ['JWST', 'data processing', 'deep field'],
+    externalUrl: 'https://science.nasa.gov/mission/webb/first-images/',
+    relatedObjects: [{ name: 'SMACS 0723' }],
+    factSources: [fact('NASA Webb First Images', 'https://science.nasa.gov/mission/webb/first-images/', 'NASA')],
+    attribution: { sourceName: 'NASA Webb', sourceUrl: 'https://science.nasa.gov/mission/webb/first-images/' },
+    difficulty: 'intermediate',
+    bestViewingMonths: [1, 2, 3, 10, 11, 12],
+    observationTips: tips(['Document calibration and stretch steps to keep visual comparisons reproducible.', 'Use neutral background references before judging weak structure visibility.'], ['记录校准与拉伸流程，便于后续图像比较可复现。', '判断暗弱结构前先建立中性背景参考，避免主观偏差。']),
+    localeContent: localized('Webb First Images and Processing Discipline', 'JWST early releases highlighted the value of transparent processing workflows.', 'Publishing calibrated, traceable processing steps improves scientific trust and makes deep-field interpretation easier to reproduce.', '韦布首批图像与处理流程规范', 'JWST 首批图像展示了透明处理流程的重要性。', '公开可追溯的处理步骤能提升结果可信度，也让深场图像解读更易复现。'),
   },
 ];

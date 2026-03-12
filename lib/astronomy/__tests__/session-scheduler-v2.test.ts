@@ -83,6 +83,7 @@ describe('optimizeScheduleV2', () => {
     expect(scheduled.startTime.getDate()).toBe(twilight.astronomicalDawn?.getDate());
     expect(scheduled.startTime.getHours()).toBe(1);
     expect(Math.round(scheduled.duration * 60)).toBe(60);
+    expect(scheduled.calculationMetadata?.source).toBe('calculation');
   });
 
   it('treats locked items as hard constraints (auto targets never overlap locked windows)', () => {
@@ -246,6 +247,8 @@ describe('optimizeScheduleV2', () => {
 
     expect(plan.conflicts.some((conflict) => conflict.type === 'weather')).toBe(true);
     expect(plan.warnings.some((warning) => warning.key === 'planRec.weatherNotIdeal')).toBe(true);
+    expect(plan.conflicts.every((conflict) => conflict.calculationMetadata?.source === 'calculation')).toBe(true);
+    expect(plan.calculationMetadata?.source).toBe('calculation');
   });
 
   it('returns stable reason code for invalid session window values', () => {

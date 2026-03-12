@@ -1,5 +1,6 @@
 import { DAILY_KNOWLEDGE_CURATED } from '@/lib/data/daily-knowledge-curated';
 import { buildItem } from './normalizers';
+import { DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS } from './constants';
 import type { DailyKnowledgeItem } from './types';
 
 function hashDate(dateKey: string): number {
@@ -21,6 +22,7 @@ function toCuratedItem(
   index: number
 ): DailyKnowledgeItem {
   const localized = entry.localeContent[locale] ?? entry.localeContent.en;
+  const localizedTips = entry.observationTips[locale] ?? entry.observationTips.en;
   return buildItem({
     id: entry.id,
     dateKey,
@@ -46,6 +48,9 @@ function toCuratedItem(
       licenseName: entry.attribution.licenseName,
       licenseUrl: entry.attribution.licenseUrl,
     },
+    difficulty: entry.difficulty,
+    bestViewingMonths: entry.bestViewingMonths,
+    observationTips: localizedTips,
     isDateEvent: Boolean(entry.eventMonthDay),
     eventMonthDay: entry.eventMonthDay,
     factSources: entry.factSources,
@@ -76,19 +81,48 @@ export function getCuratedDateEventItems(
   );
 }
 
+interface CuratedDailySelectionOptions {
+  recentItemIds?: string[];
+  repeatWindowDays?: number;
+}
+
+function selectDeterministicCandidate(
+  dateKey: string,
+  locale: 'en' | 'zh',
+  scope: string,
+  candidates: DailyKnowledgeItem[],
+  recentItemIds: string[]
+): DailyKnowledgeItem {
+  if (candidates.length === 0) {
+    throw new Error('Cannot select curated candidate from an empty list');
+  }
+
+  const recentSet = new Set(recentItemIds);
+  const withoutRecent = recentSet.size
+    ? candidates.filter((item) => !recentSet.has(item.id))
+    : candidates;
+  const activePool = withoutRecent.length > 0 ? withoutRecent : candidates;
+  const recentSignature = recentItemIds.join('|') || 'none';
+  const index = getStableIndex(`${dateKey}:${locale}:${scope}:${recentSignature}`, activePool.length);
+  return activePool[index];
+}
+
 export function getCuratedDailyItem(
   dateKey: string,
-  locale: 'en' | 'zh'
+  locale: 'en' | 'zh',
+  options: CuratedDailySelectionOptions = {}
 ): DailyKnowledgeItem {
+  const repeatWindowDays = options.repeatWindowDays ?? DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS;
+  const recentItemIds = (options.recentItemIds ?? []).slice(0, Math.max(0, repeatWindowDays) * 4);
   const dateEvents = getCuratedDateEventItems(dateKey, locale);
   if (dateEvents.length > 0) {
-    return dateEvents[getStableIndex(`${dateKey}:${locale}:event`, dateEvents.length)];
+    return selectDeterministicCandidate(dateKey, locale, 'event', dateEvents, recentItemIds);
   }
 
   const items = getCuratedItems(dateKey, locale).filter((item) => !item.isDateEvent);
   if (items.length === 0) {
     const all = getCuratedItems(dateKey, locale);
-    return all[getStableIndex(`${dateKey}:${locale}:all`, all.length)];
+    return selectDeterministicCandidate(dateKey, locale, 'all', all, recentItemIds);
   }
-  return items[getStableIndex(`${dateKey}:${locale}:regular`, items.length)];
+  return selectDeterministicCandidate(dateKey, locale, 'regular', items, recentItemIds);
 }

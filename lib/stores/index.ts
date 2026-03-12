@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Zustand Stores - Centralized state management
  * 
  * Usage:
@@ -16,6 +16,8 @@ export {
   type MobileFeaturePreferences,
 } from './settings-store';
 export { useSettingsSessionStore } from './settings-session-store';
+export { useSettingsImportRestoreStore } from './settings-import-restore-store';
+export { useAutostartStore } from './autostart-store';
 export { useFramingStore } from './framing-store';
 export { useMountStore } from './mount-store';
 
@@ -73,9 +75,21 @@ export {
   type TrackingType,
   type TargetType,
   type FOVDisplaySettings,
+  type FOVSetup,
+  type FOVSimulatorTab,
   type OcularDisplaySettings,
   type ExposureDefaults,
 } from './equipment-store';
+
+// Device orchestration store
+export {
+  useDeviceStore,
+  PRIMARY_MOUNT_DEVICE_PROFILE_ID,
+  type DeviceStoreState,
+  type DeviceProfileDraftInput,
+  type DeviceEquipmentSnapshot,
+  type DeviceMountSnapshot,
+} from './device-store';
 
 // Onboarding store (unified: setup wizard + feature tour)
 export {
@@ -88,6 +102,9 @@ export {
 
 // Onboarding bridge store (cross-component guide actions)
 export { useOnboardingBridgeStore } from './onboarding-bridge-store';
+
+// CLI bridge store (cross-component desktop CLI actions)
+export { useCliBridgeStore } from './cli-bridge-store';
 
 // @deprecated - Use useOnboardingStore instead
 export {
@@ -130,6 +147,23 @@ export {
   type KeyBinding,
   type ShortcutActionId,
 } from './keybinding-store';
+
+// Global shortcut store (desktop)
+export {
+  useGlobalShortcutStore,
+  DEFAULT_GLOBAL_SHORTCUT_ENABLED,
+  DEFAULT_GLOBAL_SHORTCUT_BINDINGS,
+  validateGlobalShortcutAccelerator,
+  normalizeGlobalShortcutAccelerator,
+  acceleratorsEqual,
+  keyBindingToAccelerator,
+  eventToGlobalShortcutAccelerator,
+  formatGlobalShortcutAccelerator,
+  findConflictWithLocalKeybindings,
+  type GlobalShortcutActionId,
+  type GlobalShortcutValidationResult,
+  type GlobalShortcutBindingUpdateResult,
+} from './global-shortcut-store';
 
 // Search store (online/offline, favorites, cache)
 export {
@@ -191,3 +225,16 @@ export {
 
 // Daily knowledge store
 export { useDailyKnowledgeStore, getLocalDateKey } from './daily-knowledge-store';
+
+
+// Plate solver store
+export {
+  usePlateSolverStore,
+  selectActiveSolver,
+  selectIsLocalSolverAvailable,
+  selectCanSolve,
+  selectOnlineSession,
+  type PlateSolverState,
+  type SolveStatus,
+} from './plate-solver-store';
+

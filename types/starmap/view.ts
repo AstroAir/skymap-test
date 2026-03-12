@@ -77,6 +77,7 @@ export interface RightControlPanelProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFovSliderChange: (fov: number) => void;
+  onGoToCoordinates: (ra: number, dec: number) => void;
   onLocationChange: (lat: number, lon: number, alt: number) => void;
 }
 

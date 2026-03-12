@@ -18,6 +18,7 @@ jest.mock('../api', () => ({
       load: jest.fn(),
       getCurrent: jest.fn(),
       setCurrent: jest.fn(),
+      setDefault: jest.fn(),
     },
     observationLog: {
       load: jest.fn(),
@@ -157,6 +158,12 @@ const _createMockSystemInfo = (overrides?: Partial<SystemInfo>): SystemInfo => (
   arch: 'x64',
   app_version: '1.0.0',
   tauri_version: '2.0.0',
+  platform: 'windows',
+  family: 'windows',
+  os_type: 'Windows_NT',
+  os_version: '11',
+  locale: 'en-US',
+  host_id: 'host-1234abcd',
   ...overrides,
 });
 
@@ -348,7 +355,7 @@ describe('useAppSettings', () => {
 
   it('should load settings and system info on mount', async () => {
     const mockSettings: AppSettings = { theme: 'dark', language: 'en', window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false }, recent_files: [], auto_save_interval: 300, check_updates: true, telemetry_enabled: false, sidebar_collapsed: false, show_welcome: true };
-    const mockSystemInfo: SystemInfo = { os: 'windows', arch: 'x64', app_version: '1.0.0', tauri_version: '2.0.0' };
+    const mockSystemInfo: SystemInfo = _createMockSystemInfo();
     
     mockAppSettingsApi.load.mockResolvedValue(mockSettings);
     mockAppSettingsApi.getSystemInfo.mockResolvedValue(mockSystemInfo);
@@ -366,7 +373,7 @@ describe('useAppSettings', () => {
   it('should update settings', async () => {
     const mockSettings: AppSettings = { theme: 'dark', language: 'en', window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false }, recent_files: [], auto_save_interval: 300, check_updates: true, telemetry_enabled: false, sidebar_collapsed: false, show_welcome: true };
     mockAppSettingsApi.load.mockResolvedValue(mockSettings);
-    mockAppSettingsApi.getSystemInfo.mockResolvedValue({ os: 'windows', arch: 'x64', app_version: '1.0.0', tauri_version: '2.0.0' });
+    mockAppSettingsApi.getSystemInfo.mockResolvedValue(_createMockSystemInfo());
     mockAppSettingsApi.save.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAppSettings());
@@ -386,7 +393,7 @@ describe('useAppSettings', () => {
   it('should handle update error', async () => {
     const mockSettings: AppSettings = { theme: 'dark', language: 'en', window_state: { width: 1200, height: 800, x: 100, y: 100, maximized: false, fullscreen: false }, recent_files: [], auto_save_interval: 300, check_updates: true, telemetry_enabled: false, sidebar_collapsed: false, show_welcome: true };
     mockAppSettingsApi.load.mockResolvedValue(mockSettings);
-    mockAppSettingsApi.getSystemInfo.mockResolvedValue({ os: 'windows', arch: 'x64', app_version: '1.0.0', tauri_version: '2.0.0' });
+    mockAppSettingsApi.getSystemInfo.mockResolvedValue(_createMockSystemInfo());
     mockAppSettingsApi.save.mockRejectedValue(new Error('Save failed'));
 
     const { result } = renderHook(() => useAppSettings());

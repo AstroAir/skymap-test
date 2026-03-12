@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
-import { waitForStarmapReady } from '../fixtures/test-helpers';
+import { openAboutDialog, waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('About Dialog', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,21 +12,12 @@ test.describe('About Dialog', () => {
 
   test.describe('Dialog Access', () => {
     test('should have about button', async ({ page }) => {
-      const aboutButton = page.getByRole('button', { name: /about|关于/i })
-        .or(page.locator('[data-testid="about-button"]'));
-      expect(await aboutButton.count()).toBeGreaterThanOrEqual(0);
+      await expect(page.locator('[data-testid="about-button"]').first()).toBeVisible();
     });
 
     test('should open about dialog when clicking about button', async ({ page }) => {
-      const aboutButton = page.getByRole('button', { name: /about|关于/i }).first();
-      
-      if (await aboutButton.isVisible().catch(() => false)) {
-        await aboutButton.click();
-        await page.waitForTimeout(500);
-        
-        const dialog = page.locator('[role="dialog"]');
-        await expect(dialog.first()).toBeVisible({ timeout: 3000 }).catch(() => {});
-      }
+      await openAboutDialog(page);
+      await expect(page.locator('[data-testid="about-dialog"]').first()).toBeVisible();
     });
 
     test('should close about dialog with Escape', async ({ page }) => {
@@ -285,6 +276,70 @@ test.describe('About Dialog', () => {
         const webglStatus = page.locator('text=/webgl|graphics|图形/i');
         expect(await webglStatus.count()).toBeGreaterThanOrEqual(0);
       }
+    });
+  });
+
+  test.describe('Critical Regression Coverage', () => {
+    test('@smoke @regression should open about dialog and expose issue-report entrypoint', async ({ page }) => {
+      await openAboutDialog(page);
+      await expect(page.locator('[data-testid="about-dialog"]').first()).toBeVisible();
+      await expect(page.locator('[data-testid="report-issue-button"]').first()).toBeVisible();
+    });
+
+    test('@regression should open feedback flow from about dialog and allow returning to about dialog', async ({ page }) => {
+      await openAboutDialog(page);
+      await page.locator('[data-testid="report-issue-button"]').first().click();
+      await expect(page.locator('[data-testid="feedback-title-input"]').first()).toBeVisible();
+
+      await page.keyboard.press('Escape');
+      await openAboutDialog(page);
+      await expect(page.locator('[data-testid="about-dialog"]').first()).toBeVisible();
+    });
+
+    test('@mobile @regression should keep about dialog within narrow viewport bounds', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await openAboutDialog(page);
+
+      const dialog = page.locator('[data-testid="about-dialog"]').first();
+      await expect(dialog).toBeVisible();
+
+      const box = await dialog.boundingBox();
+      expect(box).not.toBeNull();
+      if (!box) return;
+
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(392);
+      expect(box.y + box.height).toBeLessThanOrEqual(846);
+
+      const hasHorizontalOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth + 1
+      );
+      expect(hasHorizontalOverflow).toBe(false);
+    });
+
+    test('@mobile @regression should keep feedback primary action reachable after rotation', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await openAboutDialog(page);
+      await page.locator('[data-testid="report-issue-button"]').first().click();
+
+      const submitButton = page.locator('[data-testid="feedback-submit-button"]').first();
+      await expect(submitButton).toBeVisible();
+      await submitButton.scrollIntoViewIfNeeded();
+
+      const beforeRotate = await submitButton.boundingBox();
+      expect(beforeRotate).not.toBeNull();
+      if (!beforeRotate) return;
+      expect(beforeRotate.y + beforeRotate.height).toBeLessThanOrEqual(846);
+
+      await page.setViewportSize({ width: 844, height: 390 });
+      await expect(submitButton).toBeVisible();
+      await submitButton.scrollIntoViewIfNeeded();
+
+      const afterRotate = await submitButton.boundingBox();
+      expect(afterRotate).not.toBeNull();
+      if (!afterRotate) return;
+      expect(afterRotate.y + afterRotate.height).toBeLessThanOrEqual(392);
     });
   });
 });

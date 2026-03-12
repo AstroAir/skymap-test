@@ -1,19 +1,7 @@
 import { parseRACoordinate, parseDecCoordinate } from '@/lib/astronomy/coordinates/conversions';
 import { parseQuery as parseResolverQuery } from '@/lib/astronomy/object-resolver/parser/parse-query';
+import { refineSearchQuery } from './query-refinement';
 import { isCatalogPrefix, type CatalogPrefix, type ParsedCoordinate, type ParsedSearchQuery } from './search-intent';
-
-function normalizePunctuation(input: string): string {
-  return input
-    .replace(/，/g, ',')
-    .replace(/：/g, ':')
-    .replace(/；/g, ';')
-    .replace(/（/g, '(')
-    .replace(/）/g, ')')
-    .replace(/【/g, '[')
-    .replace(/】/g, ']')
-    .replace(/\u3000/g, ' ')
-    .trim();
-}
 
 function parseCoordinate(value: string): ParsedCoordinate | undefined {
   const trimmed = value.trim();
@@ -69,19 +57,24 @@ function parseBatchQueries(normalized: string): string[] {
 }
 
 export function parseSearchQuery(query: string): ParsedSearchQuery {
-  const normalized = normalizePunctuation(query);
+  const refinement = refineSearchQuery(query);
+  const normalized = refinement.normalized;
+  const executionQuery = refinement.executionQuery;
   const parsed: ParsedSearchQuery = {
     raw: query,
     normalized,
     intent: 'name',
     explicitMinor: false,
+    refinedQuery: executionQuery,
+    normalizationSteps: refinement.normalizationSteps,
+    refinementHints: refinement.refinementHints,
   };
 
-  if (!normalized) {
+  if (!executionQuery) {
     return parsed;
   }
 
-  const batchQueries = parseBatchQueries(normalized);
+  const batchQueries = parseBatchQueries(executionQuery);
   if (batchQueries.length > 1) {
     return {
       ...parsed,
@@ -90,7 +83,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
     };
   }
 
-  const commandMatch = normalized.match(/^([a-zA-Z@]+)\s*:\s*(.+)$/);
+  const commandMatch = executionQuery.match(/^([a-zA-Z@]+)\s*:\s*(.+)$/);
   if (commandMatch) {
     const rawPrefix = commandMatch[1].toLowerCase();
     const payload = commandMatch[2].trim();
@@ -103,6 +96,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
         commandPrefix: '@',
         coordinates,
         normalized: payload,
+        refinedQuery: payload,
         explicitMinor: false,
       };
     }
@@ -116,27 +110,29 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
           commandPrefix: rawPrefix,
           catalogQuery,
           normalized: catalogQuery,
+          refinedQuery: catalogQuery,
           explicitMinor: false,
         };
       }
     }
   }
 
-  if (normalized.startsWith('@')) {
-    const coordinates = parseCoordinate(normalized.slice(1));
+  if (executionQuery.startsWith('@')) {
+    const coordinates = parseCoordinate(executionQuery.slice(1));
     if (coordinates) {
       return {
         ...parsed,
         intent: 'coordinates',
         commandPrefix: '@',
         coordinates,
-        normalized: normalized.slice(1).trim(),
+        normalized: executionQuery.slice(1).trim(),
+        refinedQuery: executionQuery.slice(1).trim(),
         explicitMinor: false,
       };
     }
   }
 
-  const resolver = parseResolverQuery(normalized);
+  const resolver = parseResolverQuery(executionQuery);
   if (resolver.kind === 'coordinate' && resolver.coordinate) {
     return {
       ...parsed,
@@ -156,7 +152,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
     };
   }
 
-  const coordinates = parseCoordinate(normalized);
+  const coordinates = parseCoordinate(executionQuery);
   if (coordinates) {
     return {
       ...parsed,

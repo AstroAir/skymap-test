@@ -9,6 +9,7 @@ import { getZustandStorage } from '@/lib/storage';
 import { LRUCache } from '@/lib/services/lru-cache';
 import { CACHE_CONFIG } from '@/lib/cache/config';
 import type { OnlineSearchSource, OnlineSearchResult, ObjectCategory } from '@/lib/services/online-search-service';
+import { getDefaultSearchOnlineStatus, getDefaultSearchSourceConfigs } from '@/lib/services/online-data-provider-registry';
 
 // ============================================================================
 // Types
@@ -58,6 +59,7 @@ export interface SearchSettings {
   timeout: number;
   cacheResults: boolean;
   cacheDuration: number; // hours
+  cacheFallbackMaxAgeMinutes: number;
   showSourceBadges: boolean;
   groupBySource: boolean;
 }
@@ -119,7 +121,7 @@ interface SearchActions {
   
   // Cache
   cacheSearchResults: (query: string, results: OnlineSearchResult[], source: SearchMode) => void;
-  getCachedResults: (query: string) => SearchCache | null;
+  getCachedResults: (query: string, options?: { maxAgeMs?: number }) => SearchCache | null;
   clearCache: () => void;
   
   // Online status
@@ -142,30 +144,17 @@ type SearchStore = SearchState & SearchActions;
 const DEFAULT_SETTINGS: SearchSettings = {
   mode: 'hybrid',
   autoSwitchToOnline: true,
-  onlineSources: [
-    { id: 'sesame', enabled: true, priority: 0 },
-    { id: 'simbad', enabled: true, priority: 1 },
-    { id: 'mpc', enabled: true, priority: 2 },
-    { id: 'vizier', enabled: false, priority: 3 },
-    { id: 'ned', enabled: false, priority: 4 },
-    { id: 'local', enabled: true, priority: -1 },
-  ],
+  onlineSources: getDefaultSearchSourceConfigs(),
   defaultLimit: 30,
   timeout: 15000,
   cacheResults: true,
   cacheDuration: 24,
+  cacheFallbackMaxAgeMinutes: 30,
   showSourceBadges: true,
   groupBySource: false,
 };
 
-const DEFAULT_ONLINE_STATUS: Record<OnlineSearchSource, boolean> = {
-  simbad: true,
-  sesame: true,
-  vizier: true,
-  ned: true,
-  mpc: true,
-  local: true,
-};
+const DEFAULT_ONLINE_STATUS: Record<OnlineSearchSource, boolean> = getDefaultSearchOnlineStatus();
 
 function cloneDefaultSettings(): SearchSettings {
   return {
@@ -343,13 +332,23 @@ export const useSearchStore = create<SearchStore>()(
         searchResultsCache.set(normalizedQuery, cache);
       },
       
-      getCachedResults: (query) => {
+      getCachedResults: (query, options) => {
         const state = get();
         if (!state.settings.cacheResults) return null;
         
         const normalizedQuery = query.toLowerCase().trim();
         // LRUCache.get() automatically handles TTL expiration
-        return searchResultsCache.get(normalizedQuery) ?? null;
+        const cached = searchResultsCache.get(normalizedQuery) ?? null;
+        if (!cached) return null;
+
+        if (options?.maxAgeMs !== undefined) {
+          const ageMs = Date.now() - cached.timestamp;
+          if (ageMs > options.maxAgeMs) {
+            return null;
+          }
+        }
+
+        return cached;
       },
       
       clearCache: () => {

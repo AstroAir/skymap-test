@@ -21,6 +21,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { SolveResultCardProps } from '@/types/starmap/plate-solving';
+import { clipboardService } from '@/lib/services/clipboard-service';
 
 // Re-export types for backward compatibility
 export type { SolveResultCardProps } from '@/types/starmap/plate-solving';
@@ -48,7 +49,7 @@ export function SolveResultCard({ result, onGoTo }: SolveResultCardProps) {
     if (!result.success || !result.coordinates) return;
     const text = `RA: ${result.coordinates.raHMS}  Dec: ${result.coordinates.decDMS}  PA: ${result.positionAngle.toFixed(2)}°  Scale: ${result.pixelScale.toFixed(2)}"/px  FOV: ${result.fov.width.toFixed(2)}° × ${result.fov.height.toFixed(2)}°`;
     try {
-      await navigator.clipboard.writeText(text);
+      await clipboardService.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

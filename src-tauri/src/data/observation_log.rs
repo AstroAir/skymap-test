@@ -96,6 +96,36 @@ pub struct Observation {
     pub execution_target_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ObservationQueryFilters {
+    pub text: Option<String>,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub object_type: Option<String>,
+    pub min_rating: Option<u8>,
+    pub max_rating: Option<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservationSearchHit {
+    #[serde(flatten)]
+    pub observation: Observation,
+    pub session_id: String,
+    pub session_date: NaiveDate,
+    pub session_location_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ParsedObservationFilters {
+    text: Option<String>,
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
+    object_type: Option<String>,
+    min_rating: Option<u8>,
+    max_rating: Option<u8>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePlannedSessionTarget {
@@ -200,6 +230,236 @@ fn map_planned_target(target: CreatePlannedSessionTarget) -> Result<ExecutionTar
         completion_summary: target.completion_summary,
         unplanned: target.unplanned,
     })
+}
+
+fn normalize_optional_text(value: Option<String>) -> Option<String> {
+    value
+        .and_then(|raw| {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_lowercase())
+            }
+        })
+}
+
+fn normalize_observation_filters(
+    query: Option<String>,
+    filters: Option<ObservationQueryFilters>,
+) -> Result<ParsedObservationFilters, StorageError> {
+    let mut merged = filters.unwrap_or_default();
+    if merged.text.is_none() {
+        merged.text = query;
+    }
+
+    let mut min_rating = merged.min_rating.filter(|value| (1..=5).contains(value));
+    let mut max_rating = merged.max_rating.filter(|value| (1..=5).contains(value));
+    if let (Some(min), Some(max)) = (min_rating, max_rating) {
+        if min > max {
+            min_rating = Some(max);
+            max_rating = Some(min);
+        }
+    }
+
+    Ok(ParsedObservationFilters {
+        text: normalize_optional_text(merged.text),
+        start_date: merged.start_date
+            .as_deref()
+            .map(parse_session_date)
+            .transpose()?,
+        end_date: merged.end_date
+            .as_deref()
+            .map(parse_session_date)
+            .transpose()?,
+        object_type: normalize_optional_text(merged.object_type),
+        min_rating,
+        max_rating,
+    })
+}
+
+fn has_active_filters(filters: &ParsedObservationFilters) -> bool {
+    filters.text.is_some()
+        || filters.start_date.is_some()
+        || filters.end_date.is_some()
+        || filters.object_type.is_some()
+        || filters.min_rating.is_some()
+        || filters.max_rating.is_some()
+}
+
+fn observation_matches_filters(
+    session: &ObservationSession,
+    observation: &Observation,
+    filters: &ParsedObservationFilters,
+) -> bool {
+    if let Some(start_date) = filters.start_date {
+        if session.date < start_date {
+            return false;
+        }
+    }
+    if let Some(end_date) = filters.end_date {
+        if session.date > end_date {
+            return false;
+        }
+    }
+
+    if let Some(expected_type) = &filters.object_type {
+        let Some(actual_type) = observation.object_type.as_ref() else {
+            return false;
+        };
+        if actual_type.to_lowercase() != *expected_type {
+            return false;
+        }
+    }
+
+    if filters.min_rating.is_some() || filters.max_rating.is_some() {
+        let Some(rating) = observation.rating else {
+            return false;
+        };
+        if let Some(min_rating) = filters.min_rating {
+            if rating < min_rating {
+                return false;
+            }
+        }
+        if let Some(max_rating) = filters.max_rating {
+            if rating > max_rating {
+                return false;
+            }
+        }
+    }
+
+    if let Some(text) = &filters.text {
+        let matches_text = observation.object_name.to_lowercase().contains(text)
+            || observation.object_type
+                .as_ref()
+                .map(|value| value.to_lowercase().contains(text))
+                .unwrap_or(false)
+            || observation.constellation
+                .as_ref()
+                .map(|value| value.to_lowercase().contains(text))
+                .unwrap_or(false)
+            || observation.notes
+                .as_ref()
+                .map(|value| value.to_lowercase().contains(text))
+                .unwrap_or(false)
+            || session.location_name
+                .as_ref()
+                .map(|value| value.to_lowercase().contains(text))
+                .unwrap_or(false)
+            || session.notes
+                .as_ref()
+                .map(|value| value.to_lowercase().contains(text))
+                .unwrap_or(false);
+        if !matches_text {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn collect_search_hits(
+    log: &ObservationLogData,
+    filters: &ParsedObservationFilters,
+) -> Vec<ObservationSearchHit> {
+    let mut results = Vec::new();
+    for session in &log.sessions {
+        for observation in &session.observations {
+            if !observation_matches_filters(session, observation, filters) {
+                continue;
+            }
+            results.push(ObservationSearchHit {
+                observation: observation.clone(),
+                session_id: session.id.clone(),
+                session_date: session.date,
+                session_location_name: session.location_name.clone(),
+            });
+        }
+    }
+    results.sort_by(|left, right| {
+        right
+            .observation
+            .observed_at
+            .cmp(&left.observation.observed_at)
+    });
+    results
+}
+
+fn build_filtered_log_data(
+    log: &ObservationLogData,
+    filters: &ParsedObservationFilters,
+) -> ObservationLogData {
+    let mut sessions = Vec::new();
+    for session in &log.sessions {
+        let mut observations = session
+            .observations
+            .iter()
+            .filter(|observation| observation_matches_filters(session, observation, filters))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if observations.is_empty() {
+            continue;
+        }
+
+        observations.sort_by(|left, right| right.observed_at.cmp(&left.observed_at));
+        let mut next_session = session.clone();
+        next_session.observations = observations;
+        sessions.push(next_session);
+    }
+
+    sessions.sort_by(|left, right| right.date.cmp(&left.date));
+    ObservationLogData { sessions }
+}
+
+fn escape_csv_value(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+fn export_observation_log_csv(
+    log: &ObservationLogData,
+    filters: &ParsedObservationFilters,
+) -> String {
+    let filtered = build_filtered_log_data(log, filters);
+    let mut csv = String::from(
+        "Session Id,Session Date,Location,Object Id,Object,Type,Observed At,RA,Dec,Constellation,Rating,Difficulty,Telescope Id,Camera Id,Execution Target Id,Seeing,Transparency,Bortle,Session Notes,Observation Notes\n",
+    );
+
+    for session in &filtered.sessions {
+        for observation in &session.observations {
+            let row = [
+                escape_csv_value(&session.id),
+                escape_csv_value(&session.date.to_string()),
+                escape_csv_value(session.location_name.as_deref().unwrap_or("")),
+                escape_csv_value(&observation.id),
+                escape_csv_value(&observation.object_name),
+                escape_csv_value(observation.object_type.as_deref().unwrap_or("")),
+                escape_csv_value(&observation.observed_at.to_rfc3339()),
+                escape_csv_value(&observation.ra.map(|value| value.to_string()).unwrap_or_default()),
+                escape_csv_value(&observation.dec.map(|value| value.to_string()).unwrap_or_default()),
+                escape_csv_value(observation.constellation.as_deref().unwrap_or("")),
+                escape_csv_value(&observation.rating.map(|value| value.to_string()).unwrap_or_default()),
+                escape_csv_value(&observation.difficulty.map(|value| value.to_string()).unwrap_or_default()),
+                escape_csv_value(observation.telescope_id.as_deref().unwrap_or("")),
+                escape_csv_value(observation.camera_id.as_deref().unwrap_or("")),
+                escape_csv_value(observation.execution_target_id.as_deref().unwrap_or("")),
+                escape_csv_value(&session.seeing.map(|value| value.to_string()).unwrap_or_default()),
+                escape_csv_value(&session.transparency.map(|value| value.to_string()).unwrap_or_default()),
+                escape_csv_value(&session.bortle_class.map(|value| value.to_string()).unwrap_or_default()),
+                escape_csv_value(session.notes.as_deref().unwrap_or("")),
+                escape_csv_value(observation.notes.as_deref().unwrap_or("")),
+            ]
+            .join(",");
+            csv.push_str(&row);
+            csv.push('\n');
+        }
+    }
+
+    csv
 }
 
 #[tauri::command]
@@ -366,6 +626,7 @@ pub async fn update_observation(app: AppHandle, session_id: String, observation:
         existing.notes = observation.notes;
         existing.sketch_path = observation.sketch_path;
         existing.image_paths = observation.image_paths;
+        existing.execution_target_id = observation.execution_target_id;
     } else {
         return Err(StorageError::StoreNotFound(observation.id));
     }
@@ -433,53 +694,35 @@ pub async fn get_observation_stats(app: AppHandle) -> Result<ObservationStats, S
 }
 
 #[tauri::command]
-pub async fn search_observations(app: AppHandle, query: String) -> Result<Vec<Observation>, StorageError> {
+pub async fn search_observations(
+    app: AppHandle,
+    query: Option<String>,
+    filters: Option<ObservationQueryFilters>,
+) -> Result<Vec<ObservationSearchHit>, StorageError> {
     let log = load_observation_log(app).await?;
-    let query_lower = query.to_lowercase();
-    let mut results = Vec::new();
-    for session in log.sessions {
-        for obs in session.observations {
-            if obs.object_name.to_lowercase().contains(&query_lower)
-                || obs.constellation.as_ref().map(|c| c.to_lowercase().contains(&query_lower)).unwrap_or(false)
-                || obs.notes.as_ref().map(|n| n.to_lowercase().contains(&query_lower)).unwrap_or(false)
-            {
-                results.push(obs);
-            }
-        }
-    }
-    Ok(results)
+    let normalized = normalize_observation_filters(query, filters)?;
+    Ok(collect_search_hits(&log, &normalized))
 }
 
 #[tauri::command]
-pub async fn export_observation_log(app: AppHandle, format: String) -> Result<String, StorageError> {
+pub async fn export_observation_log(
+    app: AppHandle,
+    format: String,
+    filters: Option<ObservationQueryFilters>,
+) -> Result<String, StorageError> {
     let log = load_observation_log(app).await?;
+    let normalized = normalize_observation_filters(None, filters)?;
     match format.as_str() {
-        "json" => serde_json::to_string_pretty(&log)
-            .map_err(|e| StorageError::Other(e.to_string())),
-        "csv" => {
-            let mut csv = String::from("Session Date,Location,Object,Type,RA,Dec,Constellation,Rating,Difficulty,Seeing,Transparency,Bortle,Notes\n");
-            for session in &log.sessions {
-                for obs in &session.observations {
-                    csv.push_str(&format!(
-                        "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
-                        session.date,
-                        session.location_name.as_deref().unwrap_or(""),
-                        obs.object_name,
-                        obs.object_type.as_deref().unwrap_or(""),
-                        obs.ra.map(|v| v.to_string()).unwrap_or_default(),
-                        obs.dec.map(|v| v.to_string()).unwrap_or_default(),
-                        obs.constellation.as_deref().unwrap_or(""),
-                        obs.rating.map(|v| v.to_string()).unwrap_or_default(),
-                        obs.difficulty.map(|v| v.to_string()).unwrap_or_default(),
-                        session.seeing.map(|v| v.to_string()).unwrap_or_default(),
-                        session.transparency.map(|v| v.to_string()).unwrap_or_default(),
-                        session.bortle_class.map(|v| v.to_string()).unwrap_or_default(),
-                        obs.notes.as_deref().unwrap_or("").replace(',', ";"),
-                    ));
-                }
-            }
-            Ok(csv)
+        "json" => {
+            let payload = if has_active_filters(&normalized) {
+                build_filtered_log_data(&log, &normalized)
+            } else {
+                log
+            };
+            serde_json::to_string_pretty(&payload)
+                .map_err(|e| StorageError::Other(e.to_string()))
         }
+        "csv" => Ok(export_observation_log_csv(&log, &normalized)),
         _ => Err(StorageError::Other(format!("Unsupported format: {}", format))),
     }
 }
@@ -776,6 +1019,195 @@ mod tests {
         assert_eq!(stats.total_sessions, 5);
         assert_eq!(stats.total_hours, 12.5);
         assert_eq!(stats.objects_by_type.len(), 1);
+    }
+
+    fn build_test_log_data() -> ObservationLogData {
+        let make_time = |value: &str| {
+            chrono::DateTime::parse_from_rfc3339(value)
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+
+        ObservationLogData {
+            sessions: vec![
+                ObservationSession {
+                    id: "session-older".to_string(),
+                    date: NaiveDate::from_ymd_opt(2025, 1, 10).unwrap(),
+                    location_id: None,
+                    location_name: Some("Old Site".to_string()),
+                    start_time: None,
+                    end_time: None,
+                    weather: None,
+                    seeing: Some(3),
+                    transparency: Some(3),
+                    equipment_ids: vec![],
+                    bortle_class: Some(5),
+                    notes: Some("older session".to_string()),
+                    observations: vec![Observation {
+                        id: "obs-m31".to_string(),
+                        object_name: "M31".to_string(),
+                        object_type: Some("galaxy".to_string()),
+                        ra: Some(10.68),
+                        dec: Some(41.27),
+                        constellation: Some("Andromeda".to_string()),
+                        observed_at: make_time("2025-01-10T20:30:00Z"),
+                        telescope_id: None,
+                        eyepiece_id: None,
+                        camera_id: None,
+                        filter_id: None,
+                        magnification: None,
+                        rating: Some(5),
+                        difficulty: Some(2),
+                        notes: Some("bright core".to_string()),
+                        sketch_path: None,
+                        image_paths: vec![],
+                        execution_target_id: None,
+                    }],
+                    source_plan_id: None,
+                    source_plan_name: None,
+                    execution_status: None,
+                    execution_targets: None,
+                    weather_snapshot: None,
+                    execution_summary: None,
+                    created_at: make_time("2025-01-10T19:00:00Z"),
+                    updated_at: make_time("2025-01-10T21:00:00Z"),
+                },
+                ObservationSession {
+                    id: "session-newer".to_string(),
+                    date: NaiveDate::from_ymd_opt(2025, 1, 12).unwrap(),
+                    location_id: None,
+                    location_name: Some("New Site".to_string()),
+                    start_time: None,
+                    end_time: None,
+                    weather: None,
+                    seeing: Some(4),
+                    transparency: Some(4),
+                    equipment_ids: vec![],
+                    bortle_class: Some(4),
+                    notes: Some("newer session".to_string()),
+                    observations: vec![
+                        Observation {
+                            id: "obs-m42".to_string(),
+                            object_name: "M42".to_string(),
+                            object_type: Some("nebula".to_string()),
+                            ra: Some(83.82),
+                            dec: Some(-5.39),
+                            constellation: Some("Orion".to_string()),
+                            observed_at: make_time("2025-01-12T21:00:00Z"),
+                            telescope_id: None,
+                            eyepiece_id: None,
+                            camera_id: None,
+                            filter_id: None,
+                            magnification: None,
+                            rating: Some(3),
+                            difficulty: Some(2),
+                            notes: Some("core detail".to_string()),
+                            sketch_path: None,
+                            image_paths: vec![],
+                            execution_target_id: None,
+                        },
+                        Observation {
+                            id: "obs-ngc7000".to_string(),
+                            object_name: "NGC 7000".to_string(),
+                            object_type: Some("galaxy".to_string()),
+                            ra: Some(312.5),
+                            dec: Some(44.3),
+                            constellation: Some("Cygnus".to_string()),
+                            observed_at: make_time("2025-01-12T22:00:00Z"),
+                            telescope_id: None,
+                            eyepiece_id: None,
+                            camera_id: None,
+                            filter_id: None,
+                            magnification: None,
+                            rating: Some(4),
+                            difficulty: Some(3),
+                            notes: Some("faint detail".to_string()),
+                            sketch_path: None,
+                            image_paths: vec![],
+                            execution_target_id: None,
+                        },
+                    ],
+                    source_plan_id: None,
+                    source_plan_name: None,
+                    execution_status: None,
+                    execution_targets: None,
+                    weather_snapshot: None,
+                    execution_summary: None,
+                    created_at: make_time("2025-01-12T19:00:00Z"),
+                    updated_at: make_time("2025-01-12T22:30:00Z"),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_observation_query_filter_defaults() {
+        let filters: ObservationQueryFilters = serde_json::from_str("{}").unwrap();
+        assert!(filters.text.is_none());
+        assert!(filters.start_date.is_none());
+        assert!(filters.object_type.is_none());
+    }
+
+    #[test]
+    fn test_collect_search_hits_with_filters_and_context() {
+        let log = build_test_log_data();
+        let filters = normalize_observation_filters(
+            None,
+            Some(ObservationQueryFilters {
+                text: Some("ngc".to_string()),
+                start_date: Some("2025-01-11".to_string()),
+                end_date: Some("2025-01-31".to_string()),
+                object_type: Some("Galaxy".to_string()),
+                min_rating: Some(4),
+                max_rating: None,
+            }),
+        )
+        .unwrap();
+
+        let hits = collect_search_hits(&log, &filters);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].observation.id, "obs-ngc7000");
+        assert_eq!(hits[0].session_id, "session-newer");
+        assert_eq!(hits[0].session_date, NaiveDate::from_ymd_opt(2025, 1, 12).unwrap());
+    }
+
+    #[test]
+    fn test_legacy_query_and_filtered_export_contracts() {
+        let log = build_test_log_data();
+
+        let legacy_filters = normalize_observation_filters(Some("m31".to_string()), None).unwrap();
+        let legacy_hits = collect_search_hits(&log, &legacy_filters);
+        assert_eq!(legacy_hits.len(), 1);
+        assert_eq!(legacy_hits[0].observation.id, "obs-m31");
+
+        let no_filters = normalize_observation_filters(None, None).unwrap();
+        assert!(!has_active_filters(&no_filters));
+        let unfiltered = build_filtered_log_data(&log, &no_filters);
+        let total_observations: usize = unfiltered
+            .sessions
+            .iter()
+            .map(|session| session.observations.len())
+            .sum();
+        assert_eq!(total_observations, 3);
+
+        let galaxy_filters = normalize_observation_filters(
+            None,
+            Some(ObservationQueryFilters {
+                object_type: Some("galaxy".to_string()),
+                ..ObservationQueryFilters::default()
+            }),
+        )
+        .unwrap();
+        let csv = export_observation_log_csv(&log, &galaxy_filters);
+        assert!(csv.starts_with("Session Id,Session Date,Location,Object Id"));
+        assert!(csv.contains("obs-m31"));
+        assert!(csv.contains("obs-ngc7000"));
+        assert!(!csv.contains("obs-m42"));
+
+        let filtered_json = serde_json::to_string(&build_filtered_log_data(&log, &galaxy_filters)).unwrap();
+        assert!(filtered_json.contains("obs-m31"));
+        assert!(filtered_json.contains("obs-ngc7000"));
+        assert!(!filtered_json.contains("obs-m42"));
     }
 
     // ------------------------------------------------------------------------

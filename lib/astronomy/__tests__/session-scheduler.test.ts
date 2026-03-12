@@ -58,6 +58,8 @@ describe('optimizeSchedule', () => {
     expect(plan.gaps).toBeDefined();
     expect(plan.recommendations).toBeDefined();
     expect(plan.warnings).toBeDefined();
+    expect(plan.calculationMetadata).toBeDefined();
+    expect(plan.calculationMetadata?.source).toBe('calculation');
   });
 
   it('schedules a single visible target', () => {
@@ -138,6 +140,7 @@ describe('optimizeSchedule', () => {
       expect(st).toHaveProperty('moonDistance');
       expect(st).toHaveProperty('feasibility');
       expect(st).toHaveProperty('order');
+      expect(st).toHaveProperty('calculationMetadata');
       expect(st.startTime.getTime()).toBeLessThanOrEqual(st.endTime.getTime());
       expect(st.duration).toBeGreaterThanOrEqual(0);
     }

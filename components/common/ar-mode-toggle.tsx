@@ -34,12 +34,14 @@ export function ARModeToggle({ className }: ARModeToggleProps) {
   const stellarium = useSettingsStore((s) => s.stellarium);
   const setStellariumSetting = useSettingsStore((s) => s.setStellariumSetting);
   const setSensorRuntime = useARRuntimeStore((state) => state.setSensorRuntime);
+  const openLaunchAssistant = useARRuntimeStore((state) => state.openLaunchAssistant);
+  const closeLaunchAssistant = useARRuntimeStore((state) => state.closeLaunchAssistant);
 
   const savedSettingsRef = useRef<SavedSettings | null>(null);
 
   const arMode = stellarium.arMode;
   const arSession = useARSessionStatus({ enabled: arMode });
-  const { isSupported, isPermissionGranted, requestPermission } = useDeviceOrientation({
+  const { isSupported, isPermissionGranted } = useDeviceOrientation({
     enabled: false,
     calibration: {
       azimuthOffsetDeg: stellarium.sensorCalibrationAzimuthOffsetDeg,
@@ -66,6 +68,7 @@ export function ARModeToggle({ className }: ARModeToggleProps) {
       setStellariumSetting('landscapesVisible', false);
       setStellariumSetting('fogVisible', false);
       setStellariumSetting('milkyWayVisible', false);
+      openLaunchAssistant('enter-ar');
 
       // Keep AR camera usable even when sensors are unavailable/denied.
       if (!isSupported) {
@@ -83,12 +86,7 @@ export function ARModeToggle({ className }: ARModeToggleProps) {
         return;
       }
 
-      let granted = isPermissionGranted;
-      if (!granted) {
-        granted = await requestPermission();
-      }
-
-      if (granted) {
+      if (isPermissionGranted) {
         setStellariumSetting('sensorControl', true);
         setSensorRuntime({
           isSupported: true,
@@ -105,17 +103,18 @@ export function ARModeToggle({ className }: ARModeToggleProps) {
         setSensorRuntime({
           isSupported: true,
           isPermissionGranted: false,
-          status: 'permission-denied',
+          status: 'permission-required',
           calibrationRequired: stellarium.sensorCalibrationRequired,
           degradedReason: null,
           source: 'none',
           accuracyDeg: null,
-          error: 'Permission denied',
+          error: null,
         });
       }
     } else {
       // Exit AR mode
       setStellariumSetting('arMode', false);
+      closeLaunchAssistant();
 
       // Restore previous settings
       const saved = savedSettingsRef.current;
@@ -124,10 +123,7 @@ export function ARModeToggle({ className }: ARModeToggleProps) {
         setStellariumSetting('landscapesVisible', saved.landscapesVisible);
         setStellariumSetting('fogVisible', saved.fogVisible);
         setStellariumSetting('milkyWayVisible', saved.milkyWayVisible);
-        // Only restore sensorControl if it was off before AR
-        if (!saved.sensorControl) {
-          setStellariumSetting('sensorControl', false);
-        }
+        setStellariumSetting('sensorControl', saved.sensorControl);
         savedSettingsRef.current = null;
       }
     }
@@ -135,7 +131,8 @@ export function ARModeToggle({ className }: ARModeToggleProps) {
     arMode,
     isPermissionGranted,
     isSupported,
-    requestPermission,
+    openLaunchAssistant,
+    closeLaunchAssistant,
     setSensorRuntime,
     setStellariumSetting,
     stellarium,

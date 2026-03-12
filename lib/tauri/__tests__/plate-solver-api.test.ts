@@ -8,6 +8,8 @@ import {
   isLocalSolver,
   convertToLegacyResult,
   DEFAULT_SOLVER_CONFIG,
+  detectPlateSolvers,
+  getSolverInfo,
   getAstapDatabases,
   recommendAstapDatabase,
   analyseImage,
@@ -385,6 +387,53 @@ describe('plate-solver-api', () => {
         expect(mockInvoke).toHaveBeenCalledWith('cancel_online_solve', { operationId: null });
         expect(result).toBe(false);
       });
+    });
+  });
+
+  describe('solver info normalization', () => {
+    const mockInvoke = jest.requireMock('@tauri-apps/api/core').invoke;
+
+    it('should normalize legacy backend detect payloads', async () => {
+      mockInvoke.mockResolvedValueOnce([
+        {
+          solver_type: 'astrometry_net',
+          name: 'Astrometry.net (Local)',
+          version: '0.97',
+          path: '/custom/solve-field',
+          available: false,
+          index_path: '/data/astrometry',
+        },
+      ]);
+
+      await expect(detectPlateSolvers()).resolves.toEqual([
+        expect.objectContaining({
+          solver_type: 'astrometry_net',
+          executable_path: '/custom/solve-field',
+          is_available: false,
+          installed_indexes: [],
+          profile_id: null,
+          availability_reason: null,
+        }),
+      ]);
+    });
+
+    it('should normalize legacy backend solver info payloads', async () => {
+      mockInvoke.mockResolvedValueOnce({
+        solver_type: 'astap',
+        name: 'ASTAP',
+        version: '2026.03.05',
+        path: '/usr/bin/astap_cli',
+        available: true,
+        index_path: '/usr/share/astap/data',
+      });
+
+      await expect(getSolverInfo('astap')).resolves.toEqual(
+        expect.objectContaining({
+          executable_path: '/usr/bin/astap_cli',
+          is_available: true,
+          installed_indexes: [],
+        })
+      );
     });
   });
 

@@ -163,6 +163,7 @@ describe('Settings Components', () => {
         skipCloseConfirmation: false,
         rightPanelCollapsed: false,
         startupView: 'last',
+        launchOnStartup: false,
         showSplash: true,
         autoConnectBackend: true,
         dailyKnowledgeEnabled: true,

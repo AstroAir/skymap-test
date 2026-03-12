@@ -64,6 +64,7 @@ import { EventSourcesSettings } from './event-sources-settings';
 import { SettingsExportImport } from './settings-export-import';
 import { StoragePathSettings } from './storage-path-settings';
 import { UpdateSettings } from '../management/updater/update-settings';
+import { DeviceWorkspace } from '../management/device-workspace';
 import { isTauri } from '@/lib/tauri/app-control-api';
 import {
   useSettingsDraftLifecycle,
@@ -85,6 +86,8 @@ export function UnifiedSettings() {
   const handledCloseRequestRef = useRef(0);
 
   const startTourById = useOnboardingStore((state) => state.startTourById);
+  const restartTourModule = useOnboardingStore((state) => state.restartTourModule);
+  const resumeTour = useOnboardingStore((state) => state.resumeTour);
   const getTourProgress = useOnboardingStore((state) => state.getTourProgress);
   const completedTours = useOnboardingStore((state) => state.completedTours);
 
@@ -256,6 +259,7 @@ export function UnifiedSettings() {
             </DrawerTitle>
             <div className="flex items-center gap-1">
               <Button
+                data-testid="settings-cancel-button"
                 variant="ghost"
                 size="sm"
                 disabled={!(hasDirty || pendingGlobalReset)}
@@ -266,6 +270,7 @@ export function UnifiedSettings() {
                 {t('common.cancel')}
               </Button>
               <Button
+                data-testid="settings-save-button"
                 variant="ghost"
                 size="sm"
                 disabled={!(canApply || pendingGlobalReset)}
@@ -392,6 +397,8 @@ export function UnifiedSettings() {
           <TabsContent value="equipment" className="flex-1 mt-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4 space-y-4">
+                <DeviceWorkspace />
+                <Separator />
                 <EquipmentSettings />
                 <Separator />
                 <FOVSettings />
@@ -452,11 +459,17 @@ export function UnifiedSettings() {
                   </p>
                 </div>
                 <OnboardingRestartButton variant="outline" className="w-full" />
+                <p className="text-[11px] text-muted-foreground">
+                  {t('onboarding.restartAllDescription')}
+                </p>
                 <Separator className="my-4" />
                 <div className="space-y-2" data-tour-id="onboarding-tour-center">
                   <h3 className="text-sm font-medium">{t('onboarding.hub.title')}</h3>
                   <p className="text-xs text-muted-foreground">
                     {t('onboarding.hub.description')}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('onboarding.moduleRestartDescription')}
                   </p>
                   <div className="space-y-2">
                     {moduleTours.map((tour) => {
@@ -480,10 +493,22 @@ export function UnifiedSettings() {
                             className="mt-2 h-7 text-xs"
                             onClick={() => {
                               setOpen(false);
+                              if (done) {
+                                restartTourModule(tour.id);
+                                return;
+                              }
+                              if (progress.currentStepIndex > 0 && !progress.completed) {
+                                resumeTour(tour.id);
+                                return;
+                              }
                               startTourById(tour.id);
                             }}
                           >
-                            {done ? t('onboarding.hub.restart') : t('onboarding.hub.start')}
+                            {done
+                              ? t('onboarding.hub.restart')
+                              : progress.currentStepIndex > 0 && !progress.completed
+                                ? t('onboarding.hub.resume')
+                                : t('onboarding.hub.start')}
                           </Button>
                         </div>
                       );

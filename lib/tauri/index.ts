@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tauri module exports
  * Provides TypeScript types and API wrappers for Rust backend
  */
@@ -11,6 +11,7 @@ export * from './cache-api';
 export * from './events-api';
 export * from './target-list-api';
 export * from './markers-api';
+export * from './cli-api';
 export { storageApi } from './storage-api';
 export { unifiedCacheApi } from './unified-cache-api';
 export { tauriApi as default } from './api';
@@ -23,6 +24,7 @@ export { targetListApi } from './target-list-api';
 export { markersApi } from './markers-api';
 export { TauriSyncProvider } from './TauriSyncProvider';
 export { mapKeysApi } from './map-keys-api';
+export { secretVaultApi } from './secret-vault-api';
 export type {
   MapApiKeyMeta,
   MapApiKeySecureRecord,
@@ -30,6 +32,14 @@ export type {
   MapApiKeyRestrictions,
   MapKeyProvider,
 } from './map-keys-api';
+export { clipboardApi } from './clipboard-api';
+export type { TauriClipboardImageData, TauriClipboardImageInput } from './clipboard-api';
+export { positionerApi } from './positioner-api';
+export type {
+  WindowPositionPreset,
+  MoveWindowOptions,
+  MoveWindowResult,
+} from './positioner-api';
 
 // HTTP Client API
 export { httpApi } from './http-api';
@@ -63,6 +73,13 @@ export type {
   PermissionStatus, 
   WatchId 
 } from './geolocation-api';
+
+// Global shortcut API (desktop only)
+export { globalShortcutApi } from './global-shortcut-api';
+export type {
+  GlobalShortcutEvent,
+  GlobalShortcutHandler,
+} from './global-shortcut-api';
 
 // Updater API (desktop only)
 export * from './updater-api';
@@ -157,3 +174,4 @@ export type {
   LegacyAstrometryIndex,
   LegacyDownloadableIndex,
 } from './plate-solver-api';
+

@@ -25,6 +25,7 @@ export function getTypeIcon(type?: string) {
     case 'local': return <CircleDot className="h-4 w-4 text-gray-400" />;
     case 'sesame':
     case 'simbad':
+    case 'sbdb':
     case 'vizier':
     case 'ned':
     case 'mpc':

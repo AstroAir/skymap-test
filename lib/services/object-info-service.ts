@@ -1,6 +1,9 @@
 /**
  * Object Information Service
- * Fetches detailed information about celestial objects from multiple sources
+ * Fetches detailed information about celestial objects from multiple sources.
+ *
+ * Supports: SIMBAD (TAP/ADQL), Wikipedia REST, JPL SBDB, VizieR (HyperLEDA),
+ * NED (extragalactic), plus a local famous-objects database.
  */
 
 import { smartFetch } from './http-fetch';
@@ -11,6 +14,7 @@ import {
   generateImageUrl,
 } from './object-info-config';
 import { createLogger } from '@/lib/logger';
+import { getConstellationFromCoords } from '@/lib/astronomy/constellation-boundaries';
 
 const logger = createLogger('object-info-service');
 
@@ -32,42 +36,51 @@ export interface ObjectDetailedInfo {
   // Basic info
   names: string[];
   type: string;
-  typeCategory: 'galaxy' | 'nebula' | 'cluster' | 'star' | 'planet' | 'comet' | 'other';
+  typeCategory:
+    | 'galaxy' | 'nebula' | 'cluster' | 'star'
+    | 'planet' | 'moon' | 'comet' | 'asteroid'
+    | 'artificial' | 'other';
   constellation?: string;
-  
+
   // Astrometric data
   ra: number;
   dec: number;
   raString: string;
   decString: string;
-  
+
   // Physical properties
   magnitude?: number;
   surfaceBrightness?: number;
-  angularSize?: string; // e.g., "10.0' x 8.5'"
+  angularSize?: string; // e.g., "10.0' × 8.5'"
   angularSizeArcmin?: { width: number; height: number };
   distance?: string; // e.g., "2.5 Mly"
   distanceLy?: number;
-  
+  redshift?: number;
+
   // Additional info
   description?: string;
   morphologicalType?: string; // For galaxies: Sb, E0, etc.
-  spectralType?: string; // For stars: G2V, etc.
-  
+  spectralType?: string;      // For stars: G2V, etc.
+  discoverer?: string;
+  discoveryYear?: number;
+  radialVelocity?: number;    // km/s
+
   // External references
   simbadUrl?: string;
   wikipediaUrl?: string;
-  
+
   // Images from various sources
   images: ObjectImage[];
-  
+
   // Data sources used
   sources: string[];
-  
+
   // Loading/error state
   isLoading?: boolean;
   error?: string;
 }
+
+type ExternalDataSourceType = 'simbad' | 'wikipedia' | 'sbdb' | 'vizier' | 'ned';
 
 // Common DSO types mapping
 const DSO_TYPE_MAP: Record<string, { type: string; category: ObjectDetailedInfo['typeCategory'] }> = {
@@ -97,6 +110,142 @@ const DSO_TYPE_MAP: Record<string, { type: string; category: ObjectDetailedInfo[
   'V*': { type: 'Variable Star', category: 'star' },
   'QSO': { type: 'Quasar', category: 'galaxy' },
 };
+
+// ============================================================================
+// Famous Objects Database
+// ============================================================================
+
+interface FamousObjectEntry {
+  names: string[];
+  description?: string;
+  discoverer?: string;
+  discoveryYear?: number;
+  imageUrl?: string;
+}
+
+/** Curated famous objects with known metadata and Wikipedia images. */
+const FAMOUS_OBJECTS_DB: FamousObjectEntry[] = [
+  {
+    names: ['M31', 'NGC 224', 'Andromeda Galaxy'],
+    description: 'The Andromeda Galaxy is a barred spiral galaxy and the nearest large galaxy to the Milky Way. It is approximately 2.5 million light-years away and is the most distant object visible to the naked eye.',
+    discoverer: 'Simon Marius',
+    discoveryYear: 1612,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Andromeda_Galaxy_%28with_h-alpha%29.jpg/1280px-Andromeda_Galaxy_%28with_h-alpha%29.jpg',
+  },
+  {
+    names: ['M42', 'NGC 1976', 'Orion Nebula', 'Great Orion Nebula'],
+    description: 'The Orion Nebula is a diffuse emission nebula in the constellation Orion. At roughly 1,344 light-years away, it is one of the brightest nebulae and is visible to the naked eye.',
+    discoverer: 'Nicolas-Claude Fabri de Peiresc',
+    discoveryYear: 1610,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg/1280px-Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg',
+  },
+  {
+    names: ['M45', 'Pleiades', 'Seven Sisters', 'Subaru'],
+    description: 'The Pleiades is an open star cluster in the constellation of Taurus. It is among the star clusters nearest to Earth and is the cluster most obvious to the naked eye in the night sky.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Pleiades_large.jpg/1280px-Pleiades_large.jpg',
+  },
+  {
+    names: ['M51', 'NGC 5194', 'Whirlpool Galaxy'],
+    description: 'The Whirlpool Galaxy is an interacting grand-design spiral galaxy in the constellation Canes Venatici. It was the first galaxy to be classified as a spiral galaxy.',
+    discoverer: 'Charles Messier',
+    discoveryYear: 1773,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Messier51_sRGB.jpg/1280px-Messier51_sRGB.jpg',
+  },
+  {
+    names: ['M57', 'NGC 6720', 'Ring Nebula'],
+    description: 'The Ring Nebula is a planetary nebula in the constellation Lyra. It is one of the most prominent examples of a planetary nebula and a popular target for amateur astronomers.',
+    discoverer: 'Antoine Darquier de Pellepoix',
+    discoveryYear: 1779,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/M57_The_Ring_Nebula.JPG/1280px-M57_The_Ring_Nebula.JPG',
+  },
+  {
+    names: ['M104', 'NGC 4594', 'Sombrero Galaxy'],
+    description: 'The Sombrero Galaxy is a peculiar galaxy in the constellation Virgo. It has a bright nucleus, an unusually large central bulge, and a prominent dust lane in its outer disk.',
+    discoverer: 'Pierre Méchain',
+    discoveryYear: 1781,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/M104_ngc4594_sombrero_galaxy_hi-res.jpg/1280px-M104_ngc4594_sombrero_galaxy_hi-res.jpg',
+  },
+  {
+    names: ['NGC 7000', 'North America Nebula', 'Caldwell 20'],
+    description: 'The North America Nebula is a large emission nebula in the constellation Cygnus, close to Deneb. Its shape resembles the continent of North America.',
+    discoverer: 'William Herschel',
+    discoveryYear: 1786,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/North_America_nebula_4X.jpg/1280px-North_America_nebula_4X.jpg',
+  },
+  {
+    names: ['NGC 7293', 'Helix Nebula', 'Caldwell 63'],
+    description: 'The Helix Nebula is the nearest planetary nebula to Earth at approximately 650 light-years away in the constellation Aquarius. It is sometimes called the "Eye of God".',
+    discoverer: 'Karl Ludwig Harding',
+    discoveryYear: 1824,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/NGC7293_%282004%29.jpg/1280px-NGC7293_%282004%29.jpg',
+  },
+  {
+    names: ['M1', 'NGC 1952', 'Crab Nebula', 'Taurus A'],
+    description: 'The Crab Nebula is a supernova remnant in the constellation Taurus, corresponding to a bright supernova recorded by Chinese astronomers in 1054. It is powered by the Crab Pulsar at its center.',
+    discoverer: 'John Bevis',
+    discoveryYear: 1731,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Crab_Nebula.jpg/1280px-Crab_Nebula.jpg',
+  },
+  {
+    names: ['M13', 'NGC 6205', 'Hercules Cluster', 'Great Globular Cluster in Hercules'],
+    description: 'M13 is a globular cluster in the constellation Hercules, one of the brightest and best-known globular clusters in the northern sky. It contains several hundred thousand stars.',
+    discoverer: 'Edmond Halley',
+    discoveryYear: 1714,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Messier_13_%28Hubble%29.jpg/1280px-Messier_13_%28Hubble%29.jpg',
+  },
+  {
+    names: ['M81', 'NGC 3031', "Bode's Galaxy"],
+    description: "Bode's Galaxy is a grand design spiral galaxy in the constellation Ursa Major, approximately 12 million light-years away. It contains an active galactic nucleus.",
+    discoverer: 'Johann Elert Bode',
+    discoveryYear: 1774,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Messier_81_HST.jpg/1280px-Messier_81_HST.jpg',
+  },
+  {
+    names: ['M101', 'NGC 5457', 'Pinwheel Galaxy'],
+    description: 'The Pinwheel Galaxy is a face-on spiral galaxy in the constellation Ursa Major, approximately 21 million light-years away. It is roughly 70% larger than the Milky Way.',
+    discoverer: 'Pierre Méchain',
+    discoveryYear: 1781,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/M101_hires_STScI-PRC2006-10a.jpg/1280px-M101_hires_STScI-PRC2006-10a.jpg',
+  },
+  {
+    names: ['M27', 'NGC 6853', 'Dumbbell Nebula'],
+    description: 'The Dumbbell Nebula is a planetary nebula in the constellation Vulpecula. It was the first planetary nebula to be discovered, by Charles Messier in 1764.',
+    discoverer: 'Charles Messier',
+    discoveryYear: 1764,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/M27_-_Dumbbell_Nebula.jpg/1280px-M27_-_Dumbbell_Nebula.jpg',
+  },
+  {
+    names: ['M8', 'NGC 6523', 'Lagoon Nebula'],
+    description: 'The Lagoon Nebula is a giant interstellar cloud and emission nebula in the constellation Sagittarius. It is one of only two star-forming nebulae visible to the naked eye from mid-northern latitudes.',
+    discoverer: 'Giovanni Battista Hodierna',
+    discoveryYear: 1654,
+  },
+  {
+    names: ['M20', 'NGC 6514', 'Trifid Nebula'],
+    description: 'The Trifid Nebula is an H II region in the constellation Sagittarius. The name means "divided into three lobes", referring to the dark lanes that trisect the bright core.',
+    discoverer: 'Charles Messier',
+    discoveryYear: 1764,
+  },
+  {
+    names: ['M33', 'NGC 598', 'Triangulum Galaxy'],
+    description: 'The Triangulum Galaxy is the third-largest member of the Local Group of galaxies, after the Milky Way and Andromeda. It is approximately 2.73 million light-years away.',
+    discoverer: 'Giovanni Battista Hodierna',
+    discoveryYear: 1654,
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Messier33_-_NRAO-VLA.jpg/1280px-Messier33_-_NRAO-VLA.jpg',
+  },
+];
+
+/** Look up a famous object by any of its names (case-insensitive). */
+function findFamousObjectEntry(names: string[]): FamousObjectEntry | undefined {
+  for (const name of names) {
+    const lower = name.toLowerCase().trim();
+    const match = FAMOUS_OBJECTS_DB.find(obj =>
+      obj.names.some(n => n.toLowerCase() === lower)
+    );
+    if (match) return match;
+  }
+  return undefined;
+}
 
 // ============================================================================
 // Image URL Generators
@@ -194,17 +343,12 @@ export function parseObjectType(typeStr?: string): { type: string; category: Obj
 }
 
 /**
- * Get constellation from RA/Dec (simplified)
- * @param ra - Right ascension in degrees (reserved for boundary lookup)
- * @param dec - Declination in degrees (reserved for boundary lookup)
+ * Get constellation from RA/Dec using IAU boundary lookup
+ * @param ra - Right ascension in degrees
+ * @param dec - Declination in degrees
  */
-export function getConstellation(ra: number, dec: number): string | undefined {
-  // This is a simplified approximation - for accurate results, 
-  // use a proper constellation boundary database
-  // Parameters reserved for future implementation
-  void ra;
-  void dec;
-  return undefined;
+export function getConstellation(ra: number, dec: number): string {
+  return getConstellationFromCoords(ra, dec);
 }
 
 /**
@@ -276,7 +420,10 @@ export function generateObjectImages(
 /**
  * Fetch object info from SIMBAD via TAP
  */
-export async function fetchSimbadInfo(objectName: string): Promise<Partial<ObjectDetailedInfo> | null> {
+export async function fetchSimbadInfo(
+  objectName: string,
+  signal?: AbortSignal,
+): Promise<Partial<ObjectDetailedInfo> | null> {
   // Check if SIMBAD is enabled in config
   const dataSources = getActiveDataSources();
   const simbadSource = dataSources.find(s => s.type === 'simbad');
@@ -289,7 +436,7 @@ export async function fetchSimbadInfo(objectName: string): Promise<Partial<Objec
     const query = `
       SELECT TOP 1 
         main_id, ra, dec, otype_txt, sp_type, flux_v as mag_v,
-        galdim_majaxis, galdim_minaxis, morph_type
+        galdim_majaxis, galdim_minaxis, morph_type, rvz_radvel
       FROM basic
       WHERE main_id = '${objectName.replace(/'/g, "''")}'
          OR ident.id = '${objectName.replace(/'/g, "''")}'
@@ -299,7 +446,8 @@ export async function fetchSimbadInfo(objectName: string): Promise<Partial<Objec
       `${simbadSource.baseUrl}${simbadSource.apiEndpoint}?request=doQuery&lang=adql&format=json&query=${encodeURIComponent(query)}`,
       { 
         timeout: simbadSource.timeout,
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        signal,
       }
     );
     
@@ -325,6 +473,7 @@ export async function fetchSimbadInfo(objectName: string): Promise<Partial<Objec
           ? { width: row[6] as number, height: row[6] as number }
           : undefined,
       morphologicalType: row[8] as string | undefined,
+      radialVelocity: typeof row[9] === 'number' ? row[9] : undefined,
       sources: ['SIMBAD'],
     };
   } catch (error) {
@@ -335,30 +484,384 @@ export async function fetchSimbadInfo(objectName: string): Promise<Partial<Objec
   }
 }
 
+async function fetchWikipediaInfo(
+  objectName: string,
+  signal?: AbortSignal,
+): Promise<Partial<ObjectDetailedInfo> | null> {
+  const dataSources = getActiveDataSources();
+  const wikipediaSource = dataSources.find(s => s.type === 'wikipedia');
+
+  if (!wikipediaSource) {
+    return null;
+  }
+
+  try {
+    const response = await smartFetch(
+      `${wikipediaSource.baseUrl}${wikipediaSource.apiEndpoint}/${encodeURIComponent(objectName)}`,
+      {
+        timeout: wikipediaSource.timeout,
+        headers: { Accept: 'application/json' },
+        signal,
+      }
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json<{ extract?: string; thumbnail?: { source?: string } }>();
+    if (!data.extract && !data.thumbnail?.source) return null;
+
+    return {
+      description: data.extract,
+      sources: ['Wikipedia'],
+      images: data.thumbnail?.source
+        ? [{
+            url: data.thumbnail.source,
+            thumbnailUrl: data.thumbnail.source,
+            source: 'Wikipedia',
+            credit: 'Wikipedia',
+            title: `${objectName} - Wikipedia`,
+          }]
+        : undefined,
+    };
+  } catch (error) {
+    logger.warn('Failed to fetch Wikipedia info', error);
+    useObjectInfoConfigStore.getState().setDataSourceStatus(wikipediaSource.id, 'error');
+    return null;
+  }
+}
+
+async function fetchSbdbInfo(
+  objectName: string,
+  signal?: AbortSignal,
+): Promise<Partial<ObjectDetailedInfo> | null> {
+  const dataSources = getActiveDataSources();
+  const sbdbSource = dataSources.find(s => s.type === 'sbdb');
+
+  if (!sbdbSource) {
+    return null;
+  }
+
+  try {
+    const response = await smartFetch(
+      `${sbdbSource.baseUrl}${sbdbSource.apiEndpoint}?sstr=${encodeURIComponent(objectName)}&phys-par=1`,
+      {
+        timeout: sbdbSource.timeout,
+        headers: { Accept: 'application/json' },
+        signal,
+      }
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json<Record<string, unknown>>();
+    const object = (data.object as Record<string, unknown> | undefined) ?? {};
+    const phys = (data.phys_par as Record<string, unknown> | undefined) ?? {};
+    const orbitClass = (object.orbit_class as Record<string, unknown> | undefined)?.name;
+    const diameterRaw = phys.diameter ?? phys.dia;
+    const diameter = typeof diameterRaw === 'number'
+      ? diameterRaw
+      : typeof diameterRaw === 'string'
+        ? Number.parseFloat(diameterRaw)
+        : undefined;
+
+    const names = [
+      object.fullname,
+      object.shortname,
+      object.pdes,
+      object.des,
+    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+    if (names.length === 0 && !orbitClass && !Number.isFinite(diameter)) {
+      return null;
+    }
+
+    const category = /comet/i.test(String(orbitClass ?? objectName)) ? 'comet' : 'asteroid';
+    return {
+      names: names.length > 0 ? names : undefined,
+      type: category === 'comet' ? 'Comet' : 'Asteroid',
+      typeCategory: category,
+      angularSize: Number.isFinite(diameter) ? `${diameter!.toFixed(1)} km` : undefined,
+      description: typeof orbitClass === 'string' ? orbitClass : undefined,
+      sources: ['SBDB'],
+    };
+  } catch (error) {
+    logger.warn('Failed to fetch SBDB info', error);
+    useObjectInfoConfigStore.getState().setDataSourceStatus(sbdbSource.id, 'error');
+    return null;
+  }
+}
+
+function mergeEnhancedInfo(
+  base: ObjectDetailedInfo,
+  patch: Partial<ObjectDetailedInfo>
+): ObjectDetailedInfo {
+  const mergedImages = patch.images && patch.images.length > 0
+    ? [...base.images, ...patch.images.filter((image) => !base.images.some((existing) => existing.url === image.url))]
+    : base.images;
+
+  const mergedSources = [...new Set([...(base.sources ?? []), ...(patch.sources ?? [])])];
+  const patchAngularSize = patch.angularSizeArcmin
+    ? formatAngularSize(patch.angularSizeArcmin.width, patch.angularSizeArcmin.height)
+    : patch.angularSize;
+
+  return {
+    ...base,
+    names: patch.names && patch.names.length > 0 ? [...new Set([...patch.names, ...base.names])] : base.names,
+    type: patch.type || base.type,
+    typeCategory: patch.typeCategory || base.typeCategory,
+    magnitude: patch.magnitude ?? base.magnitude,
+    surfaceBrightness: patch.surfaceBrightness ?? base.surfaceBrightness,
+    angularSizeArcmin: patch.angularSizeArcmin || base.angularSizeArcmin,
+    angularSize: patchAngularSize || base.angularSize,
+    distance: patch.distance || base.distance,
+    distanceLy: patch.distanceLy ?? base.distanceLy,
+    redshift: patch.redshift ?? base.redshift,
+    radialVelocity: patch.radialVelocity ?? base.radialVelocity,
+    description: base.description || patch.description,
+    morphologicalType: patch.morphologicalType || base.morphologicalType,
+    spectralType: patch.spectralType || base.spectralType,
+    discoverer: patch.discoverer || base.discoverer,
+    discoveryYear: patch.discoveryYear ?? base.discoveryYear,
+    constellation: patch.constellation || base.constellation,
+    simbadUrl: patch.simbadUrl || base.simbadUrl,
+    wikipediaUrl: patch.wikipediaUrl || base.wikipediaUrl,
+    images: mergedImages,
+    sources: mergedSources,
+  };
+}
+
+// ============================================================================
+// VizieR Fetcher (HyperLEDA / VII/237)
+// ============================================================================
+
 /**
- * Get a brief description based on object type
+ * Fetch galaxy/cluster physical data from VizieR HyperLEDA catalog.
+ * Returns redshift, radial velocity, morphological type, and distance.
+ */
+async function fetchVizierInfo(
+  objectName: string,
+  signal?: AbortSignal,
+): Promise<Partial<ObjectDetailedInfo> | null> {
+  const dataSources = getActiveDataSources();
+  const vizierSource = dataSources.find(s => s.type === 'vizier');
+
+  if (!vizierSource) return null;
+
+  try {
+    // Query HyperLEDA via VizieR TAP
+    const response = await smartFetch(
+      `${vizierSource.baseUrl}/viz-bin/votable?-source=VII/237/pgc&-c=${encodeURIComponent(objectName)}&-c.rs=5&-out=objname,type,v,vdis,modz,logd25,logr25,bt,it,m21&-out.max=1`,
+      {
+        timeout: vizierSource.timeout,
+        headers: { Accept: 'application/json' },
+        signal,
+      }
+    );
+
+    if (!response.ok) return null;
+
+    // VizieR returns VOTable; try to parse as text and extract values
+    const text = await response.text();
+    if (!text || text.length < 50) return null;
+
+    // Try to parse VOTable XML for field values
+    const result: Partial<ObjectDetailedInfo> = { sources: ['VizieR/HyperLEDA'] };
+
+    // Extract radial velocity (v field, km/s)
+    const vMatch = text.match(/<TD[^>]*>([\d.+-]+)<\/TD>/g);
+    if (vMatch && vMatch.length >= 3) {
+      // Parse velocity from the third field (index 2)
+      const velStr = vMatch[2]?.match(/>([^<]+)</)?.[1];
+      if (velStr && !isNaN(Number(velStr))) {
+        result.radialVelocity = Number(velStr);
+        // Estimate redshift from velocity
+        const c = 299792.458; // km/s
+        result.redshift = Number(velStr) / c;
+      }
+    }
+
+    // Extract morphological type if available
+    const typeMatch = text.match(/type[^<]*<TD[^>]*>([^<]+)<\/TD>/i);
+    if (typeMatch?.[1]?.trim()) {
+      result.morphologicalType = typeMatch[1].trim();
+    }
+
+    // Extract distance modulus → distance in Mly
+    const modzMatch = text.match(/modz[^<]*<TD[^>]*>([\d.]+)<\/TD>/i);
+    if (modzMatch?.[1]) {
+      const modz = Number(modzMatch[1]);
+      if (!isNaN(modz) && modz > 0) {
+        const distPc = Math.pow(10, (modz + 5) / 5);
+        const distLy = distPc * 3.26156;
+        result.distanceLy = distLy;
+        if (distLy > 1e6) {
+          result.distance = `${(distLy / 1e6).toFixed(1)} Mly`;
+        } else if (distLy > 1000) {
+          result.distance = `${(distLy / 1000).toFixed(1)} kly`;
+        } else {
+          result.distance = `${distLy.toFixed(0)} ly`;
+        }
+      }
+    }
+
+    // Only return if we got meaningful data
+    if (result.radialVelocity != null || result.morphologicalType || result.distance) {
+      return result;
+    }
+    return null;
+  } catch (error) {
+    if (signal?.aborted) return null;
+    logger.warn('Failed to fetch VizieR info', error);
+    useObjectInfoConfigStore.getState().setDataSourceStatus(vizierSource.id, 'error');
+    return null;
+  }
+}
+
+// ============================================================================
+// NED Fetcher (Extragalactic Database)
+// ============================================================================
+
+/**
+ * Fetch extragalactic data from NASA/IPAC NED.
+ * Returns redshift, distance, radial velocity, and classification.
+ */
+async function fetchNedInfo(
+  objectName: string,
+  signal?: AbortSignal,
+): Promise<Partial<ObjectDetailedInfo> | null> {
+  const dataSources = getActiveDataSources();
+  const nedSource = dataSources.find(s => s.type === 'ned');
+
+  if (!nedSource) return null;
+
+  try {
+    // NED object search — request JSON output via of=json_basic
+    const url = `${nedSource.baseUrl}/cgi-bin/objsearch?objname=${encodeURIComponent(objectName)}&extend=no&hconst=67.8&omegam=0.308&omegav=0.692&corr_z=1&out_csys=Equatorial&out_equinox=J2000.0&obj_sort=RA+or+Longitude&of=xml_main&zv_breaker=30000.0&list_limit=1&img_stamp=NO`;
+
+    const response = await smartFetch(url, {
+      timeout: nedSource.timeout,
+      headers: { Accept: 'text/xml, application/xml' },
+      signal,
+    });
+
+    if (!response.ok) return null;
+
+    const text = await response.text();
+    if (!text || text.length < 100) return null;
+
+    const result: Partial<ObjectDetailedInfo> = { sources: ['NED'] };
+
+    // Extract redshift from NED XML
+    const zMatch = text.match(/<Velocity[^>]*>([\d.eE+-]+)<\/Velocity>/i)
+      || text.match(/<Redshift[^>]*>([\d.eE+-]+)<\/Redshift>/i);
+    if (zMatch?.[1]) {
+      const val = Number(zMatch[1]);
+      if (!isNaN(val)) {
+        // If value > 100 it's velocity in km/s, else redshift
+        if (val > 100) {
+          result.radialVelocity = val;
+          result.redshift = val / 299792.458;
+        } else {
+          result.redshift = val;
+          result.radialVelocity = val * 299792.458;
+        }
+      }
+    }
+
+    // Extract object type
+    const typeMatch = text.match(/<ObjType[^>]*>([^<]+)<\/ObjType>/i);
+    if (typeMatch?.[1]?.trim()) {
+      const parsed = parseObjectType(typeMatch[1].trim());
+      if (parsed.category !== 'other') {
+        result.type = parsed.type;
+        result.typeCategory = parsed.category;
+      }
+    }
+
+    // Only return if we got meaningful data
+    if (result.redshift != null || result.type) {
+      return result;
+    }
+    return null;
+  } catch (error) {
+    if (signal?.aborted) return null;
+    logger.warn('Failed to fetch NED info', error);
+    useObjectInfoConfigStore.getState().setDataSourceStatus(nedSource.id, 'error');
+    return null;
+  }
+}
+
+/**
+ * Get a brief description based on object type and metadata
  */
 export function getObjectDescription(
   type: string, 
   category: ObjectDetailedInfo['typeCategory'],
   names: string[],
-  magnitude?: number,
-  distance?: string,
-  morphologicalType?: string
+  opts?: {
+    magnitude?: number;
+    distance?: string;
+    morphologicalType?: string;
+    redshift?: number;
+    discoverer?: string;
+    discoveryYear?: number;
+  },
 ): string {
   const primaryName = names[0] || 'This object';
+  const mag = opts?.magnitude;
+  const dist = opts?.distance;
+  const morph = opts?.morphologicalType;
+  const z = opts?.redshift;
+  const disc = opts?.discoverer;
+  const year = opts?.discoveryYear;
   
-  const descriptions: Record<string, string> = {
-    'galaxy': `${primaryName} is a ${morphologicalType ? morphologicalType + ' type ' : ''}galaxy${distance ? ` located approximately ${distance} away` : ''}.${magnitude ? ` It has an apparent magnitude of ${magnitude.toFixed(1)}.` : ''}`,
-    'nebula': `${primaryName} is a ${type.toLowerCase()}${distance ? ` located approximately ${distance} away` : ''}.${magnitude ? ` It has an apparent magnitude of ${magnitude.toFixed(1)}.` : ''}`,
-    'cluster': `${primaryName} is a ${type.toLowerCase()}${distance ? ` located approximately ${distance} away` : ''}.${magnitude ? ` It has an apparent magnitude of ${magnitude.toFixed(1)}.` : ''}`,
-    'star': `${primaryName} is a star${magnitude ? ` with an apparent magnitude of ${magnitude.toFixed(1)}` : ''}.`,
-    'planet': `${primaryName} is a planet in our solar system.`,
-    'comet': `${primaryName} is a comet.`,
-    'other': `${primaryName}${magnitude ? ` has an apparent magnitude of ${magnitude.toFixed(1)}` : ''}.`,
-  };
+  let base: string;
+  switch (category) {
+    case 'galaxy':
+      base = `${primaryName} is a ${morph ? morph + ' type ' : ''}galaxy${dist ? ` located approximately ${dist} away` : ''}.`;
+      if (z != null && z > 0.001) base += ` Redshift z = ${z.toFixed(4)}.`;
+      break;
+    case 'nebula':
+      base = `${primaryName} is a ${type.toLowerCase()}${dist ? ` located approximately ${dist} away` : ''}.`;
+      break;
+    case 'cluster':
+      base = `${primaryName} is a ${type.toLowerCase()}${dist ? ` located approximately ${dist} away` : ''}.`;
+      break;
+    case 'star':
+      base = `${primaryName} is a star${mag != null ? ` with an apparent magnitude of ${mag.toFixed(1)}` : ''}.`;
+      break;
+    case 'planet':
+      base = `${primaryName} is a planet in our solar system.`;
+      break;
+    case 'moon':
+      base = `${primaryName} is a natural satellite.`;
+      break;
+    case 'comet':
+      base = `${primaryName} is a comet.`;
+      break;
+    case 'asteroid':
+      base = `${primaryName} is a minor planet or asteroid.`;
+      break;
+    case 'artificial':
+      base = `${primaryName} is an artificial satellite.`;
+      break;
+    default:
+      base = `${primaryName}.`;
+      break;
+  }
+
+  if (mag != null && category !== 'star') {
+    base += ` It has an apparent magnitude of ${mag.toFixed(1)}.`;
+  }
+
+  if (disc || year) {
+    const parts: string[] = [];
+    if (disc) parts.push(`by ${disc}`);
+    if (year) parts.push(`in ${year}`);
+    base += ` Discovered ${parts.join(' ')}.`;
+  }
   
-  return descriptions[category] || descriptions['other'];
+  return base;
 }
 
 // ============================================================================
@@ -378,6 +881,7 @@ export async function getObjectDetailedInfo(
     type?: string;
     magnitude?: number;
     size?: string;
+    constellation?: string;
   }
 ): Promise<ObjectDetailedInfo> {
   const primaryName = names[0] || 'Unknown Object';
@@ -392,7 +896,6 @@ export async function getObjectDetailedInfo(
     if (sizeMatch) {
       const w = parseFloat(sizeMatch[1]);
       const h = sizeMatch[2] ? parseFloat(sizeMatch[2]) : w;
-      // Assume arcminutes unless very small
       angularSizeArcmin = { width: w, height: h };
     }
   }
@@ -404,12 +907,32 @@ export async function getObjectDetailedInfo(
     names,
     angularSizeArcmin?.width
   );
+
+  // Resolve constellation: prefer Stellarium-provided, then compute from coords
+  const constellation = existingData?.constellation || getConstellation(ra, dec);
+
+  // Famous objects enrichment
+  const famous = findFamousObjectEntry(names);
+  if (famous?.imageUrl) {
+    const exists = images.some(img => img.url === famous.imageUrl);
+    if (!exists) {
+      images.unshift({
+        url: famous.imageUrl!,
+        source: 'Wikipedia',
+        credit: 'Wikimedia Commons',
+        title: `${primaryName} - Featured Image`,
+      });
+    }
+  }
   
   // Build base info
   const info: ObjectDetailedInfo = {
-    names,
+    names: famous
+      ? [...new Set([...names, ...famous.names])]
+      : names,
     type: typeInfo.type,
     typeCategory: typeInfo.category,
+    constellation,
     ra,
     dec,
     raString,
@@ -417,56 +940,96 @@ export async function getObjectDetailedInfo(
     magnitude: existingData?.magnitude,
     angularSize: existingData?.size || formatAngularSize(angularSizeArcmin?.width, angularSizeArcmin?.height),
     angularSizeArcmin,
+    discoverer: famous?.discoverer,
+    discoveryYear: famous?.discoveryYear,
     images,
     simbadUrl: getSimbadUrl(primaryName),
     wikipediaUrl: getWikipediaUrl(primaryName),
     sources: ['Local'],
   };
-  
-  // Generate description
-  info.description = getObjectDescription(
+
+  // Use famous description when available, otherwise generate
+  info.description = famous?.description || getObjectDescription(
     info.type,
     info.typeCategory,
     names,
-    info.magnitude,
-    info.distance,
-    info.morphologicalType
+    {
+      magnitude: info.magnitude,
+      distance: info.distance,
+      morphologicalType: info.morphologicalType,
+      discoverer: info.discoverer,
+      discoveryYear: info.discoveryYear,
+    },
   );
   
   return info;
 }
 
 /**
- * Fetch additional info from external sources (async enhancement)
+ * Fetch additional info from external sources (async enhancement).
+ * Supports AbortSignal for cancellation.
  */
-export async function enhanceObjectInfo(info: ObjectDetailedInfo): Promise<ObjectDetailedInfo> {
+export async function enhanceObjectInfo(
+  info: ObjectDetailedInfo,
+  signal?: AbortSignal,
+): Promise<ObjectDetailedInfo> {
   try {
-    const simbadInfo = await fetchSimbadInfo(info.names[0]);
-    
-    if (simbadInfo) {
-      return {
-        ...info,
-        type: simbadInfo.type || info.type,
-        typeCategory: simbadInfo.typeCategory || info.typeCategory,
-        magnitude: simbadInfo.magnitude ?? info.magnitude,
-        spectralType: simbadInfo.spectralType || info.spectralType,
-        morphologicalType: simbadInfo.morphologicalType || info.morphologicalType,
-        angularSizeArcmin: simbadInfo.angularSizeArcmin || info.angularSizeArcmin,
-        angularSize: simbadInfo.angularSizeArcmin 
-          ? formatAngularSize(simbadInfo.angularSizeArcmin.width, simbadInfo.angularSizeArcmin.height)
-          : info.angularSize,
-        sources: [...new Set([...info.sources, ...simbadInfo.sources || []])],
-        description: getObjectDescription(
-          simbadInfo.type || info.type,
-          simbadInfo.typeCategory || info.typeCategory,
-          info.names,
-          simbadInfo.magnitude ?? info.magnitude,
-          info.distance,
-          simbadInfo.morphologicalType || info.morphologicalType
-        ),
-      };
+    const dataSources = getActiveDataSources();
+    let enhanced = { ...info };
+
+    for (const source of dataSources) {
+      if (signal?.aborted) break;
+
+      let patch: Partial<ObjectDetailedInfo> | null = null;
+
+      switch (source.type as ExternalDataSourceType) {
+        case 'simbad':
+          patch = await fetchSimbadInfo(info.names[0], signal);
+          break;
+        case 'wikipedia':
+          patch = await fetchWikipediaInfo(info.names[0], signal);
+          break;
+        case 'sbdb':
+          if (info.typeCategory === 'comet' || info.typeCategory === 'asteroid' || info.typeCategory === 'other') {
+            patch = await fetchSbdbInfo(info.names[0], signal);
+          }
+          break;
+        case 'vizier':
+          if (info.typeCategory === 'galaxy' || info.typeCategory === 'cluster' || info.typeCategory === 'other') {
+            patch = await fetchVizierInfo(info.names[0], signal);
+          }
+          break;
+        case 'ned':
+          if (info.typeCategory === 'galaxy' || info.typeCategory === 'other') {
+            patch = await fetchNedInfo(info.names[0], signal);
+          }
+          break;
+      }
+
+      if (patch) {
+        enhanced = mergeEnhancedInfo(enhanced, patch);
+      }
     }
+
+    if (!enhanced.description) {
+      enhanced.description = getObjectDescription(
+        enhanced.type,
+        enhanced.typeCategory,
+        enhanced.names,
+        {
+          magnitude: enhanced.magnitude,
+          distance: enhanced.distance,
+          morphologicalType: enhanced.morphologicalType,
+          redshift: enhanced.redshift,
+          discoverer: enhanced.discoverer,
+          discoveryYear: enhanced.discoveryYear,
+        },
+      );
+    }
+
+    return enhanced;
   } catch (error) {
+    if (signal?.aborted) return info;
     logger.warn('Failed to enhance object info', error);
   }
   
@@ -474,10 +1037,41 @@ export async function enhanceObjectInfo(info: ObjectDetailedInfo): Promise<Objec
 }
 
 // ============================================================================
-// Cache
+// LRU Cache with TTL
 // ============================================================================
 
-const objectInfoCache = new Map<string, ObjectDetailedInfo>();
+const CACHE_MAX_SIZE = 200;
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+interface CacheEntry {
+  info: ObjectDetailedInfo;
+  timestamp: number;
+}
+
+/** Simple LRU cache backed by a Map (insertion-order iteration). */
+const objectInfoCache = new Map<string, CacheEntry>();
+
+function cacheGet(key: string): ObjectDetailedInfo | undefined {
+  const entry = objectInfoCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    objectInfoCache.delete(key);
+    return undefined;
+  }
+  // Move to end (most recently used)
+  objectInfoCache.delete(key);
+  objectInfoCache.set(key, entry);
+  return entry.info;
+}
+
+function cacheSet(key: string, info: ObjectDetailedInfo): void {
+  // Evict oldest if at capacity
+  if (objectInfoCache.size >= CACHE_MAX_SIZE) {
+    const oldest = objectInfoCache.keys().next().value;
+    if (oldest != null) objectInfoCache.delete(oldest);
+  }
+  objectInfoCache.set(key, { info, timestamp: Date.now() });
+}
 
 /**
  * Get cached or fetch object info
@@ -492,18 +1086,26 @@ export async function getCachedObjectInfo(
     type?: string;
     magnitude?: number;
     size?: string;
+    constellation?: string;
   }
 ): Promise<ObjectDetailedInfo> {
   const cacheKey = names[0] || `${ra.toFixed(4)}_${dec.toFixed(4)}`;
   
-  if (objectInfoCache.has(cacheKey)) {
-    return objectInfoCache.get(cacheKey)!;
-  }
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
   
   const info = await getObjectDetailedInfo(names, ra, dec, raString, decString, existingData);
-  objectInfoCache.set(cacheKey, info);
+  cacheSet(cacheKey, info);
   
   return info;
+}
+
+/**
+ * Update a cache entry after enhancement
+ */
+export function updateCachedObjectInfo(info: ObjectDetailedInfo): void {
+  const cacheKey = info.names[0] || `${info.ra.toFixed(4)}_${info.dec.toFixed(4)}`;
+  cacheSet(cacheKey, info);
 }
 
 /**

@@ -15,11 +15,14 @@ jest.mock('@/lib/logger', () => ({
   createLogger: () => ({ warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 
-const mockFetchGlobal = jest.fn();
+const mockSmartFetch = jest.fn();
+
+jest.mock('@/lib/services/http-fetch', () => ({
+  smartFetch: (...args: unknown[]) => mockSmartFetch(...args),
+}));
 
 beforeEach(() => {
   jest.clearAllMocks();
-  global.fetch = mockFetchGlobal as unknown as typeof fetch;
   __resetRegistryCacheForTests();
 });
 
@@ -135,7 +138,7 @@ describe('hips/service', () => {
 
   describe('fetchRegistry', () => {
     it('fetches and parses registry entries', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });
@@ -147,7 +150,7 @@ describe('hips/service', () => {
     });
 
     it('parses category from obs_regime', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });
@@ -163,7 +166,7 @@ describe('hips/service', () => {
     });
 
     it('parses tile format from hips_tile_format', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });
@@ -177,21 +180,21 @@ describe('hips/service', () => {
     });
 
     it('falls back to DEFAULT_SURVEYS on HTTP error', async () => {
-      mockFetchGlobal.mockResolvedValue({ ok: false, status: 500 });
+      mockSmartFetch.mockResolvedValue({ ok: false, status: 500 });
 
       const registry = await fetchRegistry();
       expect(registry.surveys).toEqual(DEFAULT_SURVEYS);
     });
 
     it('falls back to DEFAULT_SURVEYS on network error', async () => {
-      mockFetchGlobal.mockRejectedValue(new Error('Network error'));
+      mockSmartFetch.mockRejectedValue(new Error('Network error'));
 
       const registry = await fetchRegistry();
       expect(registry.surveys).toEqual(DEFAULT_SURVEYS);
     });
 
     it('normalizes ID by replacing slashes with dashes', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });
@@ -203,7 +206,7 @@ describe('hips/service', () => {
     });
 
     it('returns cached registry on subsequent calls', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });
@@ -211,13 +214,13 @@ describe('hips/service', () => {
       const first = await fetchRegistry();
       const second = await fetchRegistry();
       expect(first).toBe(second);
-      expect(mockFetchGlobal).toHaveBeenCalledTimes(1);
+      expect(mockSmartFetch).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('getSurveysByCategory', () => {
     it('filters surveys by category', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });
@@ -228,7 +231,7 @@ describe('hips/service', () => {
     });
 
     it('returns empty array for non-matching category', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => [
           {
@@ -247,7 +250,7 @@ describe('hips/service', () => {
 
   describe('getSurveyById', () => {
     it('returns survey when found', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });
@@ -258,7 +261,7 @@ describe('hips/service', () => {
     });
 
     it('returns null when not found', async () => {
-      mockFetchGlobal.mockResolvedValue({
+      mockSmartFetch.mockResolvedValue({
         ok: true,
         json: async () => makeRegistryEntries(),
       });

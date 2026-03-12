@@ -50,6 +50,9 @@ function makeItem(partial: Partial<DailyKnowledgeItem> & Pick<DailyKnowledgeItem
     isDateEvent: partial.isDateEvent ?? false,
     eventMonthDay: partial.eventMonthDay,
     factSources: partial.factSources ?? [{ title: 'source', url: 'https://example.com', publisher: 'test' }],
+    difficulty: partial.difficulty ?? 'intermediate',
+    bestViewingMonths: partial.bestViewingMonths ?? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    observationTips: partial.observationTips ?? ['Tip 1', 'Tip 2'],
     languageStatus: partial.languageStatus ?? 'native',
     fetchedAt: partial.fetchedAt ?? Date.now(),
   };
@@ -201,6 +204,23 @@ describe('daily-knowledge/service', () => {
       '2026-02-20',
       expect.any(String),
       expect.objectContaining({ signal, locale: 'en' })
+    );
+  });
+
+  it('passes recent history options to curated daily selector', async () => {
+    await getDailyKnowledge('2026-02-20', 'en', {
+      onlineEnhancement: false,
+      recentHistoryItemIds: ['curated-2'],
+      repeatWindowDays: 7,
+    });
+
+    expect(mockGetCuratedDailyItem).toHaveBeenCalledWith(
+      '2026-02-20',
+      'en',
+      expect.objectContaining({
+        recentItemIds: ['curated-2'],
+        repeatWindowDays: 7,
+      })
     );
   });
 

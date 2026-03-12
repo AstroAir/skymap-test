@@ -46,6 +46,73 @@
     }
   },
   "plugins": {
+    "cli": {
+      "description": "SkyMap desktop command line interface.",
+      "args": [
+        { "name": "focus", "description": "Focus the main window before executing the CLI workflow." },
+        { "name": "settings", "description": "Open settings after launch." },
+        { "name": "search", "description": "Open search after launch." }
+      ],
+      "subcommands": {
+        "open": {
+          "description": "Open a SkyMap destination.",
+          "subcommands": {
+            "object": {
+              "description": "Open the search experience with a query.",
+              "args": [
+                { "name": "query", "description": "Object name or search query.", "takesValue": true, "required": true, "index": 1 }
+              ]
+            },
+            "route": {
+              "description": "Open a named application surface.",
+              "args": [
+                {
+                  "name": "route",
+                  "description": "Destination to open.",
+                  "takesValue": true,
+                  "required": true,
+                  "index": 1,
+                  "possibleValues": ["starmap", "search", "settings", "session-planner", "plate-solver"]
+                }
+              ]
+            }
+          }
+        },
+        "import": {
+          "description": "Import supported files into SkyMap.",
+          "subcommands": {
+            "targets": {
+              "description": "Import a target list file.",
+              "args": [
+                { "name": "path", "description": "Path to a CSV, JSON, or TXT target file.", "takesValue": true, "required": true, "index": 1 }
+              ]
+            },
+            "session-plan": {
+              "description": "Import a session plan file.",
+              "args": [
+                { "name": "path", "description": "Path to a TXT, MD, JSON, XML, or CSV session plan file.", "takesValue": true, "required": true, "index": 1 }
+              ]
+            }
+          }
+        },
+        "solve": {
+          "description": "Open plate solving workflows.",
+          "subcommands": {
+            "image": {
+              "description": "Open plate solving with a preselected image.",
+              "args": [
+                { "name": "path", "description": "Path to the image file.", "takesValue": true, "required": true, "index": 1 },
+                { "name": "solver", "description": "Preferred solver to select before opening the workflow.", "takesValue": true, "possibleValues": ["astap", "astrometry_net", "astrometry_net_online"] },
+                { "name": "ra-hint", "description": "Right ascension hint in degrees.", "takesValue": true },
+                { "name": "dec-hint", "description": "Declination hint in degrees.", "takesValue": true },
+                { "name": "fov-hint", "description": "Field-of-view hint in degrees.", "takesValue": true }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "stronghold": {},
     "updater": {
       "pubkey": ""
     }

@@ -5,6 +5,13 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const mockSetPreference = jest.fn();
+const autostartState = {
+  supported: false,
+  loading: false,
+  actualEnabled: false,
+  error: null,
+};
+
 const settingsDraftModel = {
   preferences: {
     locale: 'en' as const,
@@ -14,6 +21,7 @@ const settingsDraftModel = {
     distanceUnit: 'metric' as const,
     temperatureUnit: 'celsius' as const,
     startupView: 'last' as const,
+    launchOnStartup: false,
     showSplash: true,
     autoConnectBackend: true,
     dailyKnowledgeEnabled: true,
@@ -31,6 +39,7 @@ jest.mock('next-intl', () => ({
 jest.mock('@/lib/stores', () => ({
   useDailyKnowledgeStore: (selector: (state: { openDialog: jest.Mock }) => unknown) =>
     selector({ openDialog: jest.fn() }),
+  useAutostartStore: (selector: (state: typeof autostartState) => unknown) => selector(autostartState),
 }));
 
 jest.mock('@/lib/hooks/use-settings-draft', () => ({

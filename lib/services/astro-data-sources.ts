@@ -3,7 +3,7 @@
  * Supports multiple data sources for astronomical events and satellite tracking
  */
 
-import { smartFetch } from './http-fetch';
+import { smartFetch } from '@/lib/services/http-fetch';
 import { createLogger } from '@/lib/logger';
 import type { EventSourceConfig } from '@/lib/stores/event-sources-store';
 import {
@@ -415,7 +415,11 @@ async function fetchGsfcDecadeCatalog(
     return cached.events;
   }
 
-  const response = await smartFetch(url, { timeout: 30000 });
+  const response = await smartFetch(url, {
+    timeout: 30000,
+    cachePolicy: 'astro-gsfc-catalog',
+    cacheTtl: GSFC_PAGE_CACHE_TTL_MS,
+  });
   if (!response.ok) {
     throw new Error(`NASA GSFC catalog fetch failed: ${url}`);
   }
@@ -453,7 +457,10 @@ export async function fetchLunarPhases(year: number, month: number): Promise<Ast
     // USNO Moon Phases API
     const response = await smartFetch(
       `https://aa.usno.navy.mil/api/moon/phases/year?year=${year}`,
-      { timeout: 30000 }
+      {
+        timeout: 30000,
+        cachePolicy: 'astro-usno-phases',
+      }
     );
     
     if (!response.ok) throw new Error('USNO API error');
@@ -620,7 +627,10 @@ export async function fetchComets(year?: number, month?: number): Promise<AstroE
     // MPC Observable Comets
     const response = await smartFetch(
       'https://www.minorplanetcenter.net/iau/Ephemerides/Comets/Soft03Cmt.txt',
-      { timeout: 30000 }
+      {
+        timeout: 30000,
+        cachePolicy: 'astro-mpc-comets',
+      }
     );
     
     if (!response.ok) throw new Error('MPC API error');
@@ -678,7 +688,10 @@ export async function fetchSatelliteTLE(category: string = 'stations'): Promise<
   try {
     const response = await smartFetch(
       `https://celestrak.org/NORAD/elements/gp.php?GROUP=${category}&FORMAT=json`,
-      { timeout: 30000 }
+      {
+        timeout: 30000,
+        cachePolicy: 'satellite-tle',
+      }
     );
     
     if (!response.ok) throw new Error('CelesTrak API error');
@@ -747,7 +760,10 @@ export async function fetchSatellitePasses(
   try {
     const response = await smartFetch(
       `https://api.n2yo.com/rest/v1/satellite/visualpasses/${noradId}/${lat}/${lng}/${alt}/${days}/${minVisibility}/&apiKey=${apiKey}`,
-      { timeout: 30000 }
+      {
+        timeout: 30000,
+        cachePolicy: 'astro-satellite-passes',
+      }
     );
     
     if (!response.ok) throw new Error('N2YO API error');
@@ -815,7 +831,11 @@ export async function fetchISSPosition(): Promise<{ lat: number; lng: number; al
   try {
     const response = await smartFetch(
       'http://api.open-notify.org/iss-now.json',
-      { timeout: 10000, allowHttp: true }
+      {
+        timeout: 10000,
+        allowHttp: true,
+        cachePolicy: 'astro-iss-position',
+      }
     );
     
     if (!response.ok) throw new Error('Open Notify API error');
@@ -965,6 +985,7 @@ export async function fetchPlanetaryEvents(
         `${apiUrl}/bodies/events/${body}?${query.toString()}`,
         {
           timeout: 30000,
+          cachePolicy: 'astro-body-events',
           headers: {
             Authorization: `Basic ${authToken}`,
           },

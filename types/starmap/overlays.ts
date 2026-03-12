@@ -40,11 +40,18 @@ export interface FOVSimulatorProps {
   focalLength: number;
   pixelSize?: number;
   rotationAngle?: number;
+  selectedTarget?: {
+    name: string;
+    raDeg: number;
+    decDeg: number;
+    size?: string;
+  } | null;
   onSensorWidthChange: (width: number) => void;
   onSensorHeightChange: (height: number) => void;
   onFocalLengthChange: (length: number) => void;
   onPixelSizeChange?: (size: number) => void;
   onRotationAngleChange?: (angle: number) => void;
+  onCenterTarget?: (ra: number, dec: number) => void;
   mosaic: MosaicSettings;
   onMosaicChange: (mosaic: MosaicSettings) => void;
   gridType: GridType;

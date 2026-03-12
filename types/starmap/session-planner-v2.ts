@@ -1,5 +1,5 @@
 import type { ImagingFeasibility } from '@/lib/core/types/astronomy';
-import type { ScheduledTarget, SessionPlan } from './planning';
+import type { CalculationSourceMetadata, ScheduledTarget, SessionPlan } from './planning';
 
 export type SessionExportFormat =
   | 'text'
@@ -68,6 +68,7 @@ export interface SessionConflict {
   targetId: string;
   reasonCode?: string;
   message: string;
+  calculationMetadata?: CalculationSourceMetadata;
 }
 
 export interface SessionDraftV2 {

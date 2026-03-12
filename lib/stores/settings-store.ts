@@ -32,6 +32,7 @@ export interface AppPreferences {
   skipCloseConfirmation: boolean;
   rightPanelCollapsed: boolean;
   startupView: StartupView;
+  launchOnStartup: boolean;
   showSplash: boolean;
   autoConnectBackend: boolean;
   dailyKnowledgeEnabled: boolean;
@@ -188,6 +189,7 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   skipCloseConfirmation: false,
   rightPanelCollapsed: false,
   startupView: 'last',
+  launchOnStartup: false,
   showSplash: true,
   autoConnectBackend: true,
   dailyKnowledgeEnabled: true,
@@ -400,7 +402,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'starmap-settings',
       storage: getZustandStorage(),
-      version: 15, // v15: AR mode fields (arMode, arOpacity, arShowCompass)
+      version: 18, // v18: desktop autostart preference field
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState>;
         
@@ -575,6 +577,40 @@ export const useSettingsStore = create<SettingsState>()(
             },
           };
         }
+
+        // Migration from v15 to v16: add AR camera profile and adaptive/network optimization fields
+        if (version < 16) {
+          return {
+            ...state,
+            stellarium: {
+              ...DEFAULT_STELLARIUM,
+              ...state.stellarium,
+            },
+          };
+        }
+
+
+        // Migration from v16 to v17: add AR camera device preference and last-known-good acquisition fields
+        if (version < 17) {
+          return {
+            ...state,
+            stellarium: {
+              ...DEFAULT_STELLARIUM,
+              ...state.stellarium,
+            },
+          };
+        }
+
+        if (version < 18) {
+          return {
+            ...state,
+            preferences: {
+              ...DEFAULT_PREFERENCES,
+              ...state.preferences,
+            },
+          };
+        }
+        
         
         return state;
       },
@@ -647,3 +683,4 @@ export const useSettingsStore = create<SettingsState>()(
     }
   )
 );
+

@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Eye,
@@ -29,12 +30,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useSatelliteStore, useSettingsStore } from '@/lib/stores';
+import { useARRuntimeStore } from '@/lib/stores/ar-runtime-store';
 import type { SkyCultureLanguage, StellariumProjection, SkyEngineType, AladinCooFrameSetting, AladinColormap } from '@/lib/core/types';
 import { cn } from '@/lib/utils';
 import { StellariumSurveySelector } from './stellarium-survey-selector';
 import { ObjectInfoSourcesConfig } from '../objects/object-info-sources-config';
 import { SettingsSection, ToggleItem } from './settings-shared';
 import { DISPLAY_SETTINGS, GRID_SETTINGS } from './settings-constants';
+import { DEFAULT_AR_CAMERA_PROFILE_BY_PRESET } from '@/lib/core/ar-camera-profile';
+import {
+  applyARAdaptiveLearnerEvent,
+  buildARAdaptiveRecommendationSummary,
+  deriveARAdaptiveAdjustments,
+} from '@/lib/core/ar-adaptive-learner';
 import { AladinCatalogSettings } from './aladin-catalog-settings';
 import { AladinOverlaySettings } from './aladin-overlay-settings';
 import { AladinMocSettings } from './aladin-moc-settings';
@@ -86,6 +94,102 @@ export function DisplaySettings() {
   const setShowSatellites = useSatelliteStore((state) => state.setShowSatellites);
   const setShowSatelliteLabels = useSatelliteStore((state) => state.setShowLabels);
   const setShowSatelliteOrbits = useSatelliteStore((state) => state.setShowOrbits);
+  const arCameraRuntime = useARRuntimeStore((state) => state.camera);
+  const openLaunchAssistant = useARRuntimeStore((state) => state.openLaunchAssistant);
+
+  const adaptiveRecommendation = useMemo(
+    () => deriveARAdaptiveAdjustments(stellarium.arAdaptiveLearnerState, {
+      enabled: Boolean(stellarium.arAdaptiveLearningEnabled),
+    }),
+    [stellarium.arAdaptiveLearnerState, stellarium.arAdaptiveLearningEnabled],
+  );
+
+  const recommendationSummary = useMemo(
+    () => buildARAdaptiveRecommendationSummary(adaptiveRecommendation),
+    [adaptiveRecommendation],
+  );
+
+  const hasAdaptiveRecommendation = Object.keys(adaptiveRecommendation).length > 0;
+  const capabilityMap = arCameraRuntime.capabilityMap;
+  const availableDevices = arCameraRuntime.availableDevices ?? [];
+  const activeDeviceLabel = arCameraRuntime.acquisitionDiagnostics.activeDevice?.label ?? null;
+  const resolutionTierOptions = capabilityMap?.resolutionTiers ?? ['auto', '720p', '1080p', '4k'];
+  const fpsMin = capabilityMap?.fpsRange.min ?? 10;
+  const fpsMax = capabilityMap?.fpsRange.max ?? 60;
+  const zoomMin = capabilityMap?.zoom?.min ?? 1;
+  const zoomMax = capabilityMap?.zoom?.max ?? 4;
+
+  const recordManualOverride = useCallback((overrides: {
+    resolutionTier?: 'auto' | '720p' | '1080p' | '4k';
+    targetFps?: number;
+    stabilizationStrength?: number;
+    sensorSmoothingFactor?: number;
+    calibrationSensitivity?: number;
+  }) => {
+    if (!stellarium.arAdaptiveLearningEnabled) return;
+
+    const nextState = applyARAdaptiveLearnerEvent(stellarium.arAdaptiveLearnerState, {
+      type: 'manual_profile_override',
+      overrides,
+    });
+    setStellariumSetting('arAdaptiveLearnerState', nextState);
+  }, [
+    setStellariumSetting,
+    stellarium.arAdaptiveLearnerState,
+    stellarium.arAdaptiveLearningEnabled,
+  ]);
+
+  const applyAdaptiveRecommendation = useCallback(() => {
+    if (!hasAdaptiveRecommendation) return;
+
+    if (adaptiveRecommendation.resolutionTier) {
+      setStellariumSetting('arCameraResolutionTier', adaptiveRecommendation.resolutionTier);
+    }
+    if (typeof adaptiveRecommendation.targetFps === 'number') {
+      setStellariumSetting('arCameraTargetFps', adaptiveRecommendation.targetFps);
+    }
+    if (typeof adaptiveRecommendation.stabilizationStrength === 'number') {
+      setStellariumSetting('arCameraStabilizationStrength', adaptiveRecommendation.stabilizationStrength);
+    }
+    if (typeof adaptiveRecommendation.sensorSmoothingFactor === 'number') {
+      setStellariumSetting('sensorSmoothingFactor', adaptiveRecommendation.sensorSmoothingFactor);
+    }
+    if (typeof adaptiveRecommendation.calibrationSensitivity === 'number') {
+      setStellariumSetting('arCameraCalibrationSensitivity', adaptiveRecommendation.calibrationSensitivity);
+    }
+
+    const nextState = applyARAdaptiveLearnerEvent(stellarium.arAdaptiveLearnerState, {
+      type: 'recommendation_accepted',
+      applied: adaptiveRecommendation,
+    });
+    setStellariumSetting('arAdaptiveLearnerState', nextState);
+  }, [
+    adaptiveRecommendation,
+    hasAdaptiveRecommendation,
+    setStellariumSetting,
+    stellarium.arAdaptiveLearnerState,
+  ]);
+
+  const rejectAdaptiveRecommendation = useCallback(() => {
+    const nextState = applyARAdaptiveLearnerEvent(stellarium.arAdaptiveLearnerState, {
+      type: 'recommendation_rejected',
+    });
+    setStellariumSetting('arAdaptiveLearnerState', nextState);
+  }, [setStellariumSetting, stellarium.arAdaptiveLearnerState]);
+
+  const resetToRecommendedARProfile = useCallback(() => {
+    const preset = stellarium.arCameraPreset ?? 'balanced';
+    const recommended = DEFAULT_AR_CAMERA_PROFILE_BY_PRESET[preset];
+    setStellariumSetting('arCameraFacingMode', recommended.facingMode);
+    setStellariumSetting('arCameraResolutionTier', recommended.resolutionTier);
+    setStellariumSetting('arCameraTargetFps', recommended.targetFps);
+    setStellariumSetting('arCameraStabilizationStrength', recommended.stabilizationStrength);
+    setStellariumSetting('arCameraCalibrationSensitivity', recommended.calibrationSensitivity);
+    setStellariumSetting('arCameraZoomLevel', recommended.zoomLevel);
+    setStellariumSetting('arCameraTorchPreferred', recommended.torchPreferred);
+    setStellariumSetting('arOpacity', recommended.overlayOpacity);
+    setStellariumSetting('sensorSmoothingFactor', recommended.sensorSmoothingFactor);
+  }, [setStellariumSetting, stellarium.arCameraPreset]);
 
   return (
     <div className="p-4 space-y-4">
@@ -405,7 +509,10 @@ export function DisplaySettings() {
                 min={0.05}
                 max={0.9}
                 step={0.05}
-                onValueChange={([value]) => setStellariumSetting('sensorSmoothingFactor', value)}
+                onValueChange={([value]) => {
+                  setStellariumSetting('sensorSmoothingFactor', value);
+                  recordManualOverride({ sensorSmoothingFactor: value });
+                }}
               />
             </div>
             <div className="space-y-1 py-1 px-3">
@@ -470,6 +577,275 @@ export function DisplaySettings() {
               checked={stellarium.arShowCompass}
               onCheckedChange={() => toggleStellariumSetting('arShowCompass')}
             />
+
+            <Separator />
+
+            <div className="space-y-3 rounded-lg bg-muted/30 px-3 py-3">
+              <Label className="text-sm">{t('settings.arCameraPreset')}</Label>
+              <Select
+                value={stellarium.arCameraPreset ?? 'balanced'}
+                onValueChange={(value: 'balanced' | 'performance' | 'quality') => {
+                  setStellariumSetting('arCameraPreset', value);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="balanced">{t('settings.arCameraPresetBalanced')}</SelectItem>
+                  <SelectItem value="performance">{t('settings.arCameraPresetPerformance')}</SelectItem>
+                  <SelectItem value="quality">{t('settings.arCameraPresetQuality')}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={resetToRecommendedARProfile}
+                >
+                  {t('settings.arCameraResetRecommended')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setStellariumSetting('arAdaptiveAutoApply', !(stellarium.arAdaptiveAutoApply ?? false))}
+                >
+                  {(stellarium.arAdaptiveAutoApply ?? false)
+                    ? t('settings.arAdaptiveAutoApplyOn')
+                    : t('settings.arAdaptiveAutoApplyOff')}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg bg-muted/30 px-3 py-3">
+              <Label className="text-sm">{t('settings.arCameraAdvanced')}</Label>
+
+              <Select
+                value={stellarium.arCameraFacingMode ?? 'environment'}
+                onValueChange={(value: 'environment' | 'user') => {
+                  setStellariumSetting('arCameraFacingMode', value);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="environment">{t('settings.arCameraFacingEnvironment')}</SelectItem>
+                  <SelectItem value="user">{t('settings.arCameraFacingUser')}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={stellarium.arCameraResolutionTier ?? '1080p'}
+                onValueChange={(value: 'auto' | '720p' | '1080p' | '4k') => {
+                  setStellariumSetting('arCameraResolutionTier', value);
+                  recordManualOverride({ resolutionTier: value });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {resolutionTierOptions.map((tier) => (
+                    <SelectItem key={tier} value={tier}>
+                      {tier.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="space-y-1 py-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">{t('settings.arCameraTargetFps')}</Label>
+                  <span className="text-xs text-muted-foreground">{Math.round(stellarium.arCameraTargetFps ?? 30)} fps</span>
+                </div>
+                <Slider
+                  value={[stellarium.arCameraTargetFps ?? 30]}
+                  min={fpsMin}
+                  max={fpsMax}
+                  step={1}
+                  onValueChange={([value]) => {
+                    setStellariumSetting('arCameraTargetFps', value);
+                    recordManualOverride({ targetFps: value });
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1 py-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">{t('settings.arCameraStabilization')}</Label>
+                  <span className="text-xs text-muted-foreground">{(stellarium.arCameraStabilizationStrength ?? 0.6).toFixed(2)}</span>
+                </div>
+                <Slider
+                  value={[stellarium.arCameraStabilizationStrength ?? 0.6]}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onValueChange={([value]) => {
+                    setStellariumSetting('arCameraStabilizationStrength', value);
+                    recordManualOverride({ stabilizationStrength: value });
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1 py-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">{t('settings.arCameraCalibrationSensitivity')}</Label>
+                  <span className="text-xs text-muted-foreground">{(stellarium.arCameraCalibrationSensitivity ?? 0.5).toFixed(2)}</span>
+                </div>
+                <Slider
+                  value={[stellarium.arCameraCalibrationSensitivity ?? 0.5]}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onValueChange={([value]) => {
+                    setStellariumSetting('arCameraCalibrationSensitivity', value);
+                    recordManualOverride({ calibrationSensitivity: value });
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1 py-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">{t('settings.arCameraZoomLevel')}</Label>
+                  <span className="text-xs text-muted-foreground">{(stellarium.arCameraZoomLevel ?? 1).toFixed(2)}x</span>
+                </div>
+                <Slider
+                  value={[stellarium.arCameraZoomLevel ?? 1]}
+                  min={zoomMin}
+                  max={zoomMax}
+                  step={0.05}
+                  disabled={!capabilityMap?.zoom}
+                  onValueChange={([value]) => {
+                    setStellariumSetting('arCameraZoomLevel', value);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1 py-1">
+                <Label className="text-xs text-muted-foreground">{t('settings.arCameraDevicePreference')}</Label>
+                <Select
+                  value={stellarium.arCameraPreferredDevice?.deviceId ?? 'system-default'}
+                  onValueChange={(value) => {
+                    if (value === 'system-default') {
+                      setStellariumSetting('arCameraPreferredDevice', { deviceId: null, label: null, groupId: null });
+                      return;
+                    }
+
+                    const selectedDevice = availableDevices.find((device) => device.deviceId === value);
+                    setStellariumSetting('arCameraPreferredDevice', {
+                      deviceId: selectedDevice?.deviceId ?? value,
+                      label: selectedDevice?.label ?? null,
+                      groupId: selectedDevice?.groupId ?? null,
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system-default">{t('settings.arCameraDeviceSystemDefault')}</SelectItem>
+                    {availableDevices.map((device) => (
+                      <SelectItem key={device.deviceId} value={device.deviceId}>{device.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(activeDeviceLabel || arCameraRuntime.acquisitionDiagnostics.lastFailureStage) && (
+                <p className="text-[11px] text-muted-foreground">
+                  {[
+                    activeDeviceLabel,
+                    arCameraRuntime.acquisitionDiagnostics.lastFailureStage ? t('settings.arCameraLastFailureStage') : null,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 justify-start text-xs"
+                onClick={() => openLaunchAssistant('settings')}
+                data-testid="ar-launch-assistant-settings-entry"
+              >
+                {t('settings.arLaunchOpenAssistant')}
+              </Button>
+
+              <ToggleItem
+                id="ar-camera-torch-preferred"
+                label={t('settings.arCameraTorchPreferred')}
+                checked={Boolean(stellarium.arCameraTorchPreferred)}
+                onCheckedChange={() =>
+                  setStellariumSetting('arCameraTorchPreferred', !stellarium.arCameraTorchPreferred)
+                }
+              />
+
+              {capabilityMap ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('settings.arCameraCapabilitiesDetected')}
+                </p>
+              ) : (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  {t('settings.arCameraCapabilitiesPending')}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-lg bg-muted/30 px-3 py-3">
+              <Label className="text-sm">{t('settings.arAdaptiveTitle')}</Label>
+
+              <ToggleItem
+                id="ar-adaptive-learning-enabled"
+                label={t('settings.arAdaptiveLearningEnabled')}
+                checked={Boolean(stellarium.arAdaptiveLearningEnabled)}
+                onCheckedChange={() =>
+                  setStellariumSetting('arAdaptiveLearningEnabled', !stellarium.arAdaptiveLearningEnabled)
+                }
+              />
+              <ToggleItem
+                id="ar-network-optimization-enabled"
+                label={t('settings.arNetworkOptimizationEnabled')}
+                checked={Boolean(stellarium.arNetworkOptimizationEnabled)}
+                onCheckedChange={() =>
+                  setStellariumSetting('arNetworkOptimizationEnabled', !stellarium.arNetworkOptimizationEnabled)
+                }
+              />
+              <ToggleItem
+                id="ar-telemetry-opt-in"
+                label={t('settings.arTelemetryOptIn')}
+                checked={Boolean(stellarium.arTelemetryOptIn)}
+                onCheckedChange={() => setStellariumSetting('arTelemetryOptIn', !stellarium.arTelemetryOptIn)}
+              />
+
+              {hasAdaptiveRecommendation && (
+                <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('settings.arAdaptiveRecommendation')} {recommendationSummary}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={applyAdaptiveRecommendation}
+                    >
+                      {t('settings.arAdaptiveApply')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={rejectAdaptiveRecommendation}
+                    >
+                      {t('settings.arAdaptiveDismiss')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </SettingsSection>
         </>
       )}

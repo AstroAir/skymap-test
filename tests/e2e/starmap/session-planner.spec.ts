@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForStarmapReady } from '../fixtures/test-helpers';
+import { openSessionPlannerDialog, waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Session Planner', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,23 +8,12 @@ test.describe('Session Planner', () => {
 
   test.describe('Dialog Access', () => {
     test('should have session planner button', async ({ page }) => {
-      const plannerButton = page.getByRole('button', { name: /session.*plan|观测.*计划/i })
-        .or(page.locator('button').filter({ has: page.locator('svg.lucide-calendar-clock') }));
-
-      expect(await plannerButton.count()).toBeGreaterThanOrEqual(0);
+      await expect(page.locator('[data-testid="session-planner-button"]').first()).toBeVisible();
     });
 
     test('should open session planner dialog on click', async ({ page }) => {
-      const plannerButton = page.getByRole('button', { name: /session.*plan|观测.*计划/i }).first()
-        .or(page.locator('button').filter({ has: page.locator('svg.lucide-calendar-clock') }).first());
-
-      if (await plannerButton.isVisible().catch(() => false)) {
-        await plannerButton.click();
-        await page.waitForTimeout(500);
-
-        const dialog = page.locator('[role="dialog"]');
-        await expect(dialog.first()).toBeVisible({ timeout: 3000 }).catch(() => {});
-      }
+      await openSessionPlannerDialog(page);
+      await expect(page.locator('[data-testid="session-planner-dialog"]').first()).toBeVisible();
     });
 
     test('should close session planner dialog with Escape', async ({ page }) => {
@@ -189,6 +178,33 @@ test.describe('Session Planner', () => {
         }
         await page.keyboard.press('Escape');
       }
+    });
+  });
+
+  test.describe('Critical Regression Coverage', () => {
+    test('@smoke @regression should show planner action entrypoints with stable selectors', async ({ page }) => {
+      await openSessionPlannerDialog(page);
+      await expect(page.locator('[data-testid="session-planner-save-button"]').first()).toBeVisible();
+      await expect(page.locator('[data-testid="session-planner-import-button"]').first()).toBeVisible();
+      await expect(page.locator('[data-testid="session-planner-close-button"]').first()).toBeVisible();
+    });
+
+    test('@regression should preserve planner notes after planner interactions within session', async ({ page }) => {
+      await openSessionPlannerDialog(page);
+      const notes = page.locator('[data-testid="session-notes"]').first();
+      await expect(notes).toBeVisible();
+
+      const marker = 'E2E planner persistence marker';
+      await notes.fill(marker);
+      const plannerSwitch = page
+        .locator('[data-testid="session-planner-dialog"]')
+        .first()
+        .getByRole('switch')
+        .first();
+      if (await plannerSwitch.isVisible().catch(() => false)) {
+        await plannerSwitch.click();
+      }
+      await expect(page.locator('[data-testid="session-notes"]').first()).toHaveValue(marker);
     });
   });
 });

@@ -41,6 +41,7 @@ import type { StorageStats, ImportResult } from '@/lib/storage';
 import { createLogger } from '@/lib/logger';
 import { formatBytes } from '@/lib/offline';
 import type { DataManagerProps } from '@/types/starmap/management';
+import { copyTextWithFeedback } from '@/lib/utils/clipboard-feedback';
 
 const logger = createLogger('data-manager');
 
@@ -367,13 +368,13 @@ export function DataManager({ trigger }: DataManagerProps) {
               onClick={async () => {
                 const dir = await storage.getDataDirectory();
                 // Copy to clipboard and show toast
-                try {
-                  await navigator.clipboard.writeText(dir);
-                  toast.success(
-                    t('dataManager.directoryCopied') || 'Directory path copied',
-                    { description: dir }
-                  );
-                } catch {
+                const copied = await copyTextWithFeedback({
+                  text: dir,
+                  successMessage: t('dataManager.directoryCopied') || 'Directory path copied',
+                  errorMessage: 'Failed to copy directory path',
+                  successDescription: dir,
+                });
+                if (!copied) {
                   toast.info(t('dataManager.directoryPath') || 'Data directory', {
                     description: dir,
                   });

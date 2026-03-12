@@ -65,6 +65,8 @@ import { createLogger } from '@/lib/logger';
 import type { MapProviderType } from '@/types/starmap/map';
 import { PROVIDER_STATIC_INFO } from '@/lib/constants/map';
 import { maskApiKey, getQuotaUsagePercent } from '@/lib/utils/map-utils';
+import { copyTextWithFeedback } from '@/lib/utils/clipboard-feedback';
+import { secretVaultApi } from '@/lib/tauri/secret-vault-api';
 
 const logger = createLogger('map-api-key-manager');
 
@@ -95,8 +97,10 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
   const [open, setOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [loadedSecrets, setLoadedSecrets] = useState<Record<string, string>>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [apiKeys, setApiKeys] = useState(() => mapConfig.getApiKeys());
+  const [vaultMessage, setVaultMessage] = useState<string | null>(null);
   
   // Form state for adding new key
   const [newKey, setNewKey] = useState({
@@ -114,7 +118,36 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
     return typeof unsubscribe === 'function' ? unsubscribe : undefined;
   }, []);
 
-  const handleToggleVisibility = useCallback((keyId: string) => {
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    void secretVaultApi.getStatus().then((status) => {
+      if (!cancelled) {
+        setVaultMessage(status.message ?? null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const handleToggleVisibility = useCallback(async (keyId: string) => {
+    const key = apiKeys.find((item) => item.id === keyId);
+    if (!key) return;
+
+    if (!visibleKeys.has(keyId)) {
+      try {
+        const secureValue = await secretVaultApi.getMapApiKey(key.provider, key.id);
+        if (secureValue) {
+          setLoadedSecrets((prev) => ({ ...prev, [keyId]: secureValue }));
+        }
+      } catch (error) {
+        logger.warn(`Failed to reveal secure map key ${keyId}`, error);
+      }
+    }
+
     setVisibleKeys(prev => {
       const newSet = new Set(prev);
       if (newSet.has(keyId)) {
@@ -124,18 +157,24 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
       }
       return newSet;
     });
-  }, []);
+  }, [apiKeys, visibleKeys]);
 
-  const handleCopyKey = useCallback(async (keyId: string, apiKey: string) => {
-    try {
-      await navigator.clipboard.writeText(apiKey);
-      setCopiedKey(keyId);
-      setTimeout(() => setCopiedKey(null), 2000);
-      toast.success(t('map.keyCopied') || 'API key copied to clipboard');
-    } catch {
-      toast.error(t('map.copyFailed') || 'Failed to copy');
-    }
-  }, [t]);
+  const handleCopyKey = useCallback(async (keyId: string) => {
+    const key = apiKeys.find((item) => item.id === keyId);
+    const apiKey = key
+      ? (await secretVaultApi.getMapApiKey(key.provider, key.id).catch(() => key.apiKey)) || key.apiKey
+      : '';
+
+    await copyTextWithFeedback({
+      text: apiKey,
+      successMessage: t('map.keyCopied') || 'API key copied to clipboard',
+      errorMessage: t('map.copyFailed') || 'Failed to copy',
+      onSuccess: () => {
+        setCopiedKey(keyId);
+        setTimeout(() => setCopiedKey(null), 2000);
+      },
+    });
+  }, [apiKeys, t]);
 
   const handleAddKey = useCallback(() => {
     if (!newKey.apiKey.trim()) {
@@ -210,7 +249,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
             {t('map.apiKeyManager') || 'API Key Manager'}
           </DialogTitle>
           <DialogDescription>
-            {t('map.apiKeyManagerDescription') || 'Manage API keys for map providers. Keys are stored securely in local storage.'}
+            {t('map.apiKeyManagerDescription') || 'Manage API keys for map providers. Desktop secrets are stored in the secure vault; web secrets stay in the current session only.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -222,9 +261,16 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
               {t('map.securityNotice') || 'Security Notice'}
             </AlertTitle>
             <AlertDescription>
-              {t('map.securityNoticeDescription') || 'API keys are stored locally. Never share your API keys publicly.'}
+              {t('map.securityNoticeDescription') || 'Never share your API keys publicly. Desktop builds keep them in secure storage.'}
             </AlertDescription>
           </Alert>
+
+          {vaultMessage && (
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription>{vaultMessage}</AlertDescription>
+            </Alert>
+          )}
 
           {/* API Keys Table */}
           <Table>
@@ -266,13 +312,15 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <code className="text-xs bg-muted px-2 py-1 rounded">
-                          {visibleKeys.has(key.id) ? key.apiKey : maskApiKey(key.apiKey)}
+                          {visibleKeys.has(key.id)
+                            ? (loadedSecrets[key.id] ?? key.apiKey)
+                            : maskApiKey(loadedSecrets[key.id] ?? key.apiKey)}
                         </code>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => handleToggleVisibility(key.id)}
+                          onClick={() => void handleToggleVisibility(key.id)}
                         >
                           {visibleKeys.has(key.id) ? (
                             <EyeOff className="h-3 w-3" />
@@ -284,7 +332,7 @@ export function MapApiKeyManager({ trigger, onKeysChange }: MapApiKeyManagerProp
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => handleCopyKey(key.id, key.apiKey)}
+                          onClick={() => void handleCopyKey(key.id)}
                         >
                           {copiedKey === key.id ? (
                             <Check className="h-3 w-3 text-green-500" />

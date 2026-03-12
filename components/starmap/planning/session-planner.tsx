@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useState, useMemo, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Dialog,
@@ -68,6 +68,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMountStore, useStellariumStore, useEquipmentStore, useSessionPlanStore, usePlanningUiStore } from '@/lib/stores';
+import { useCliBridgeStore } from '@/lib/stores/cli-bridge-store';
+import { useDeviceStore } from '@/lib/stores/device-store';
 import { useTargetListStore, type TargetItem } from '@/lib/stores/target-list-store';
 import { degreesToHMS, degreesToDMS } from '@/lib/astronomy/starmap-utils';
 import {
@@ -81,6 +83,7 @@ import {
   type TwilightTimes,
 } from '@/lib/astronomy/astro-utils';
 import { optimizeScheduleV2 } from '@/lib/astronomy/session-scheduler-v2';
+import { invalidateAstronomyCache } from '@/lib/astronomy/engine';
 import { exportSessionPlan } from '@/lib/astronomy/plan-exporter';
 import {
   normalizeSessionDraft,
@@ -105,6 +108,8 @@ import { isTauri } from '@/lib/storage/platform';
 import { tauriApi, mountApi } from '@/lib/tauri';
 import type { SavedSessionPlan, SavedSessionTemplate } from '@/lib/stores';
 import type { ObservingConditions, SafetyState } from '@/lib/tauri/mount-api';
+import type { DeviceType } from '@/lib/core/types/device';
+import { copyTextWithFeedback } from '@/lib/utils/clipboard-feedback';
 
 // ============================================================================
 // Timeline Component
@@ -256,7 +261,7 @@ function SessionTimeline({ plan, twilight, onTargetClick, showGaps }: TimelinePr
                   {formatTimeShort(scheduled.startTime)} - {formatTimeShort(scheduled.endTime)}
                 </div>
                 <div className="text-muted-foreground">
-                  {formatDuration(scheduled.duration)} • {t('sessionPlanner.maxAlt', { value: scheduled.maxAltitude.toFixed(0) })}
+                  {formatDuration(scheduled.duration)} 鈥?{t('sessionPlanner.maxAlt', { value: scheduled.maxAltitude.toFixed(0) })}
                 </div>
               </div>
             </TooltipContent>
@@ -492,6 +497,7 @@ export function SessionPlannerButton({ className }: SessionPlannerButtonProps) {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          data-testid="session-planner-button"
           type="button"
           variant="ghost"
           size="icon"
@@ -547,6 +553,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
   
   const profileInfo = useMountStore((state) => state.profileInfo);
   const mountConnected = useMountStore((state) => state.mountInfo.Connected ?? false);
+  const mountConnectionConfig = useMountStore((state) => state.connectionConfig);
   const mountSafetyConfig = useMountStore((state) => state.safetyConfig);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const targets = useTargetListStore((state) => state.targets);
@@ -560,6 +567,9 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
   const saveTemplate = useSessionPlanStore((state) => state.saveTemplate);
   const loadTemplate = useSessionPlanStore((state) => state.loadTemplate);
   const importPlanV2 = useSessionPlanStore((state) => state.importPlanV2);
+  const cliImportRequestId = useCliBridgeStore((state) => state.sessionPlanImportRequestId);
+  const cliImportContent = useCliBridgeStore((state) => state.sessionPlanImportContent);
+  const cliImportSourcePath = useCliBridgeStore((state) => state.sessionPlanImportSourcePath);
   const deleteSavedPlan = useSessionPlanStore((state) => state.deletePlan);
   const executions = useSessionPlanStore((state) => state.executions);
   const activeExecutionId = useSessionPlanStore((state) => state.activeExecutionId);
@@ -574,9 +584,62 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
   const aperture = useEquipmentStore((state) => state.aperture);
   const sensorWidth = useEquipmentStore((state) => state.sensorWidth);
   const sensorHeight = useEquipmentStore((state) => state.sensorHeight);
+  const pixelSize = useEquipmentStore((state) => state.pixelSize);
+  const activeCameraId = useEquipmentStore((state) => state.activeCameraId);
+  const activeTelescopeId = useEquipmentStore((state) => state.activeTelescopeId);
+  const customCameras = useEquipmentStore((state) => state.customCameras);
+  const customTelescopes = useEquipmentStore((state) => state.customTelescopes);
+
+  const syncFromEquipmentStore = useDeviceStore((state) => state.syncFromEquipmentStore);
+  const syncFromMountStore = useDeviceStore((state) => state.syncFromMountStore);
+  const getSessionReadiness = useDeviceStore((state) => state.getSessionReadiness);
+  const setActiveSessionProfileIds = useDeviceStore((state) => state.setActiveSessionProfileIds);
   
   const latitude = profileInfo.AstrometrySettings.Latitude || 0;
   const longitude = profileInfo.AstrometrySettings.Longitude || 0;
+
+  useEffect(() => {
+    if (!open) return;
+    syncFromEquipmentStore({
+      activeCameraId,
+      activeTelescopeId,
+      sensorWidth,
+      sensorHeight,
+      pixelSize,
+      focalLength,
+      aperture,
+      customCameras,
+      customTelescopes,
+    });
+    syncFromMountStore({
+      connected: mountConnected,
+      protocol: mountConnectionConfig.protocol,
+      host: mountConnectionConfig.host,
+      port: mountConnectionConfig.port,
+      deviceId: mountConnectionConfig.deviceId,
+    });
+  }, [
+    activeCameraId,
+    activeTelescopeId,
+    aperture,
+    customCameras,
+    customTelescopes,
+    focalLength,
+    mountConnected,
+    mountConnectionConfig,
+    open,
+    pixelSize,
+    sensorHeight,
+    sensorWidth,
+    syncFromEquipmentStore,
+    syncFromMountStore,
+  ]);
+
+  useEffect(() => {
+    if (!activeExecutionId) {
+      setActiveSessionProfileIds([]);
+    }
+  }, [activeExecutionId, setActiveSessionProfileIds]);
   
   // Calculate FOV
   const fovWidth = sensorWidth && focalLength ? (sensorWidth / focalLength) * 57.3 : 0;
@@ -702,6 +765,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
   }, []);
 
   const refreshWeatherAndSafety = useCallback(async () => {
+    invalidateAstronomyCache('planner_refresh');
     if (!isTauri() || !mountConnected) {
       setDeviceWeather(null);
       setSafetyState(null);
@@ -1012,6 +1076,14 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
   }, [activeTargets, addTargetsBatch, constraints, planDate]);
 
   useEffect(() => {
+    invalidateAstronomyCache('observer_change');
+  }, [latitude, longitude]);
+
+  useEffect(() => {
+    invalidateAstronomyCache('time_window_change');
+  }, [planDate]);
+
+  useEffect(() => {
     if (!open) return;
     void refreshWeatherAndSafety();
     void loadTauriTemplates();
@@ -1268,8 +1340,58 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
   const handleStartExecution = useCallback(async () => {
     if (displayedPlan.targets.length === 0) return;
 
+    syncFromEquipmentStore({
+      activeCameraId,
+      activeTelescopeId,
+      sensorWidth,
+      sensorHeight,
+      pixelSize,
+      focalLength,
+      aperture,
+      customCameras,
+      customTelescopes,
+    });
+    syncFromMountStore({
+      connected: mountConnected,
+      protocol: mountConnectionConfig.protocol,
+      host: mountConnectionConfig.host,
+      port: mountConnectionConfig.port,
+      deviceId: mountConnectionConfig.deviceId,
+    });
+
+    const requiredTypes: DeviceType[] = enforceMountSafety
+      ? ['camera', 'telescope', 'mount']
+      : ['camera', 'telescope'];
+    const readiness = getSessionReadiness({
+      requiredTypes: [...requiredTypes],
+      connectionRequiredTypes: enforceMountSafety ? ['mount'] : [],
+    });
+
+    if (readiness.state === 'blocked') {
+      const messages = readiness.issues
+        .filter((issue) => issue.level === 'blocked')
+        .map((issue) => issue.message)
+        .join('; ');
+      toast.error('Session blocked by device readiness checks.', {
+        description: messages || 'Resolve required device issues and retry.',
+      });
+      return;
+    }
+
+    if (readiness.state === 'warning') {
+      const warning = readiness.issues.find((issue) => issue.level === 'warning');
+      if (warning) {
+        toast.warning(warning.message);
+      }
+    }
+
     const savedPlanId = handleSavePlan();
     if (!savedPlanId) return;
+
+    const profileBindings = useDeviceStore.getState().profiles
+      .filter((profile) => profile.enabled && requiredTypes.includes(profile.type))
+      .map((profile) => profile.id);
+    setActiveSessionProfileIds(profileBindings);
 
     const normalizedDraft = normalizeSessionDraft({
       planDate: planDate.toISOString(),
@@ -1353,18 +1475,34 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
       toast.error(t('sessionPlanner.executionStartFailed'));
     }
   }, [
+    activeCameraId,
+    activeTelescopeId,
+    aperture,
     constraints,
+    customCameras,
+    customTelescopes,
     createExecutionFromPlan,
     displayedPlan,
+    enforceMountSafety,
     excludedIds,
+    focalLength,
+    getSessionReadiness,
     handleSavePlan,
     latitude,
     longitude,
     manualEdits,
+    mountConnected,
+    mountConnectionConfig,
     planDate,
+    pixelSize,
     planningMode,
     knownTargetIds,
+    sensorHeight,
+    sensorWidth,
     sessionNotes,
+    setActiveSessionProfileIds,
+    syncFromEquipmentStore,
+    syncFromMountStore,
     strategy,
     syncExecutionFromObservationSession,
     t,
@@ -1379,6 +1517,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
 
   const handleReplanRemaining = useCallback(() => {
     if (!relatedExecution) return;
+    invalidateAstronomyCache('planner_refresh');
 
     const preserved = new Map<string, ManualScheduleItem>();
     for (const target of relatedExecution.targets) {
@@ -1566,9 +1705,14 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
       }
     }
 
-    await navigator.clipboard.writeText(exported);
-    toast.success(t('sessionPlanner.planCopied'));
+    await copyTextWithFeedback({
+      text: exported,
+      successMessage: t('sessionPlanner.planCopied'),
+      errorMessage: 'Failed to copy plan',
+    });
   }, [displayedPlan, planDate, latitude, longitude, relatedSavedPlan, t]);
+
+  const handledCliImportRef = useRef(0);
 
   const handleImportPlan = useCallback(async () => {
     if (!isTauri()) {
@@ -1607,6 +1751,41 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
     }
   }, [applyDraft, importPlanV2, parseImportedDraft, t]);
 
+  useEffect(() => {
+    if (
+      cliImportRequestId <= 0 ||
+      cliImportRequestId === handledCliImportRef.current ||
+      !cliImportContent
+    ) {
+      return;
+    }
+
+    handledCliImportRef.current = cliImportRequestId;
+    const parsed = parseImportedDraft(cliImportContent);
+
+    if (!parsed) {
+      toast.error(t('cli.notifications.importSessionPlanFailed'), {
+        description: cliImportSourcePath ?? undefined,
+      });
+      return;
+    }
+
+    importPlanV2(parsed.draft);
+    applyDraft(parsed.draft);
+
+    setOpen(true);
+    toast.success(t('cli.notifications.importSessionPlanReady'));
+  }, [
+    applyDraft,
+    cliImportContent,
+    cliImportRequestId,
+    cliImportSourcePath,
+    importPlanV2,
+    parseImportedDraft,
+    setOpen,
+    t,
+  ]);
+
   const weatherSourceLabel = weatherSnapshot
     ? weatherSnapshot.source === 'device'
       ? t('sessionPlanner.weatherSourceDevice')
@@ -1630,7 +1809,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
         </Tooltip>
       )}
       
-      <DialogContent className="max-w-3xl max-h-[90vh] max-h-[90dvh] overflow-hidden flex flex-col">
+      <DialogContent data-testid="session-planner-dialog" className="max-w-3xl max-h-[90vh] max-h-[90dvh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-primary" />
@@ -1742,7 +1921,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
               </div>
                
               <div className="space-y-2">
-                <Label className="text-xs">{t('sessionPlanner.minAltitude')}: {minAltitude}°</Label>
+                <Label className="text-xs">{t('sessionPlanner.minAltitude')}: {minAltitude}掳</Label>
                 <Slider
                   value={[minAltitude]}
                   onValueChange={([v]) => setMinAltitude(v)}
@@ -1764,7 +1943,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs">{t('sessionPlanner.minMoonDistance')}: {minMoonDistance}°</Label>
+                <Label className="text-xs">{t('sessionPlanner.minMoonDistance')}: {minMoonDistance}掳</Label>
                 <Slider
                   value={[minMoonDistance]}
                   onValueChange={([v]) => setMinMoonDistance(v)}
@@ -2200,6 +2379,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  data-testid="session-planner-save-button"
                   variant="outline"
                   size="sm"
                   onClick={handleSavePlan}
@@ -2224,6 +2404,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
               </>
             ) : (
               <Button
+                data-testid="session-planner-start-button"
                 variant="secondary"
                 size="sm"
                 onClick={() => void handleStartExecution()}
@@ -2256,7 +2437,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
                           >
                             <div className="text-sm font-medium truncate">{saved.name}</div>
                             <div className="text-[10px] text-muted-foreground">
-                              {new Date(saved.planDate).toLocaleDateString()} · {saved.targets.length} {t('sessionPlanner.targets').toLowerCase()}
+                              {new Date(saved.planDate).toLocaleDateString()} 路 {saved.targets.length} {t('sessionPlanner.targets').toLowerCase()}
                             </div>
                           </button>
                           <Button
@@ -2274,7 +2455,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
                 </PopoverContent>
               </Popover>
             )}
-            <Button variant="outline" size="sm" onClick={() => void handleImportPlan()}>
+            <Button data-testid="session-planner-import-button" variant="outline" size="sm" onClick={() => void handleImportPlan()}>
               {t('sessionPlanner.importPlan')}
             </Button>
             <Popover open={showTemplates} onOpenChange={setShowTemplates}>
@@ -2331,7 +2512,7 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
               </PopoverContent>
             </Popover>
           </div>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button data-testid="session-planner-close-button" variant="outline" onClick={() => setOpen(false)}>
             {t('common.close')}
           </Button>
         </DialogFooter>
@@ -2339,3 +2520,8 @@ export function SessionPlanner({ showTrigger = true }: SessionPlannerProps) {
     </Dialog>
   );
 }
+
+
+
+
+

@@ -57,6 +57,9 @@ export interface TargetAstroData {
   dataFreshness: EopFreshness;
   epochJd: number;
   updatedAt: string;
+  calculationSource: 'calculation' | 'engine';
+  calculationDegraded: boolean;
+  calculationTimestamp: string;
   riskHints: string[];
 }
 
@@ -168,6 +171,9 @@ export function useTargetAstroData(
       dataFreshness: transformed.metadata.dataFreshness,
       epochJd: transformed.metadata.epochJd,
       updatedAt: transformed.metadata.generatedAt,
+      calculationSource: transformed.metadata.source,
+      calculationDegraded: transformed.metadata.qualityFlag === 'fallback' || transformed.metadata.dataFreshness === 'fallback',
+      calculationTimestamp: transformed.metadata.generatedAt,
       riskHints,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

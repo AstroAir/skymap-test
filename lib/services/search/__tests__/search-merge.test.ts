@@ -1,5 +1,6 @@
 import { mergeSearchItems } from '../search-merge';
 import type { SearchResultItem } from '@/lib/core/types';
+import { getResultId } from '@/lib/core/search-utils';
 
 describe('mergeSearchItems', () => {
   it('deduplicates by close coordinates', () => {
@@ -66,5 +67,41 @@ describe('mergeSearchItems', () => {
     expect(merged).toHaveLength(2);
     expect(merged[0]._stableId).toBeDefined();
     expect(merged[1]._stableId).toBeDefined();
+  });
+
+  it('ranks canonical exact match ahead of fuzzy match', () => {
+    const local: SearchResultItem[] = [
+      { Name: 'M31', Type: 'DSO', CanonicalId: 'M31', RA: 10.6847, Dec: 41.2689, _fuzzyScore: 0.4 },
+      { Name: 'Andromeda', Type: 'DSO', RA: 10.6849, Dec: 41.2690, _fuzzyScore: 0.95 },
+    ];
+
+    const merged = mergeSearchItems(local, [], { maxResults: 20 });
+    expect(merged[0].CanonicalId).toBe('M31');
+  });
+
+  it('marks merge score for deterministic ordering', () => {
+    const local: SearchResultItem[] = [{ Name: 'M31', Type: 'DSO', RA: 10.6847, Dec: 41.2689 }];
+    const merged = mergeSearchItems(local, [], { maxResults: 20 });
+    expect(typeof merged[0]._mergeScore).toBe('number');
+  });
+
+  it('preserves stable id when progressive merge upgrades local result with online metadata', () => {
+    const local: SearchResultItem[] = [{ Name: 'M31', Type: 'DSO', RA: 10.6847, Dec: 41.2689 }];
+    const online: SearchResultItem[] = [
+      {
+        Name: 'Andromeda Galaxy',
+        Type: 'DSO',
+        CanonicalId: 'M31',
+        Identifiers: ['M31'],
+        RA: 10.68472,
+        Dec: 41.26891,
+        _onlineSource: 'sesame',
+      },
+    ];
+
+    const merged = mergeSearchItems(local, online, { maxResults: 20 });
+    const initialId = getResultId(local[0]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]._stableId).toBe(initialId);
   });
 });

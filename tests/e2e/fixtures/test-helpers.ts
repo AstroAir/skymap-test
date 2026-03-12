@@ -6,6 +6,14 @@ import { TEST_TIMEOUTS } from './test-data';
  */
 const LOADING_OVERLAY_SELECTOR = 'div.absolute.inset-0.flex.flex-col.items-center.justify-center.bg-black\\/90.z-10';
 const SPLASH_SELECTOR = '[data-testid="splash-screen"]';
+const SEARCH_TOGGLE_SELECTOR = '[data-testid="search-toggle-button"]';
+const SEARCH_INPUT_SELECTOR = '[data-testid="starmap-search-input"]';
+const SETTINGS_BUTTON_SELECTOR = '[data-testid="settings-button"]';
+const SETTINGS_PANEL_SELECTOR = '[data-testid="settings-panel"]';
+const SESSION_PLANNER_BUTTON_SELECTOR = '[data-testid="session-planner-button"]';
+const SESSION_PLANNER_DIALOG_SELECTOR = '[data-testid="session-planner-dialog"]';
+const ABOUT_BUTTON_SELECTOR = '[data-testid="about-button"]';
+const ABOUT_DIALOG_SELECTOR = '[data-testid="about-dialog"]';
 
 async function dismissSplashIfVisible(page: Page) {
   const splash = page.locator(SPLASH_SELECTOR).first();
@@ -149,6 +157,94 @@ export async function waitForStarmapReady(page: Page, options?: { skipWasmWait?:
   
   // Wait a bit for UI to stabilize
   await page.waitForTimeout(1000);
+}
+
+export async function ensureSearchPanelOpen(page: Page): Promise<Locator> {
+  const searchInput = page.locator(SEARCH_INPUT_SELECTOR).first();
+  const isInputVisible = await searchInput.isVisible().catch(() => false);
+  if (isInputVisible) {
+    return searchInput;
+  }
+
+  const searchToggleByTestId = page.locator(SEARCH_TOGGLE_SELECTOR).first();
+  const hasTestIdToggle = await searchToggleByTestId.count();
+  if (hasTestIdToggle > 0) {
+    await expect(searchToggleByTestId).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+    await searchToggleByTestId.click();
+  } else {
+    const searchToggleFallback = page.getByRole('button', { name: /search objects|search|搜索/i }).first();
+    await expect(searchToggleFallback).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+    await searchToggleFallback.click();
+  }
+
+  const testIdInputVisible = await searchInput.isVisible().catch(() => false);
+  if (testIdInputVisible) {
+    return searchInput;
+  }
+
+  const comboboxInput = page.locator('input[role="combobox"]').first();
+  const hasComboboxInput = await comboboxInput.count();
+  if (hasComboboxInput > 0) {
+    await expect(comboboxInput).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+    return comboboxInput;
+  }
+
+  const placeholderInput = page.getByPlaceholder(/search|搜索/i).first();
+  await expect(placeholderInput).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+  return placeholderInput;
+}
+
+export async function waitForSearchResults(page: Page, minOptions = 1): Promise<Locator> {
+  const options = page.locator('[role="option"]');
+  await expect
+    .poll(async () => options.count(), { timeout: TEST_TIMEOUTS.long })
+    .toBeGreaterThanOrEqual(minOptions);
+  return options;
+}
+
+export async function openSettingsPanel(page: Page): Promise<Locator> {
+  const panel = page.locator(SETTINGS_PANEL_SELECTOR).first();
+  const panelVisible = await panel.isVisible().catch(() => false);
+  if (panelVisible) {
+    return panel;
+  }
+
+  const settingsButton = page.locator(SETTINGS_BUTTON_SELECTOR).first()
+    .or(page.getByRole('button', { name: /settings|设置/i }).first());
+  await expect(settingsButton).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+  await settingsButton.click();
+  await expect(panel).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+  return panel;
+}
+
+export async function openSessionPlannerDialog(page: Page): Promise<Locator> {
+  const dialog = page.locator(SESSION_PLANNER_DIALOG_SELECTOR).first();
+  const alreadyOpen = await dialog.isVisible().catch(() => false);
+  if (alreadyOpen) {
+    return dialog;
+  }
+
+  const plannerButton = page.locator(SESSION_PLANNER_BUTTON_SELECTOR).first()
+    .or(page.getByRole('button', { name: /session.*plan|观测.*计划/i }).first());
+  await expect(plannerButton).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+  await plannerButton.click();
+  await expect(dialog).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+  return dialog;
+}
+
+export async function openAboutDialog(page: Page): Promise<Locator> {
+  const dialog = page.locator(ABOUT_DIALOG_SELECTOR).first();
+  const alreadyOpen = await dialog.isVisible().catch(() => false);
+  if (alreadyOpen) {
+    return dialog;
+  }
+
+  const aboutButton = page.locator(ABOUT_BUTTON_SELECTOR).first()
+    .or(page.getByRole('button', { name: /about|关于/i }).first());
+  await expect(aboutButton).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+  await aboutButton.click();
+  await expect(dialog).toBeVisible({ timeout: TEST_TIMEOUTS.medium });
+  return dialog;
 }
 
 /**

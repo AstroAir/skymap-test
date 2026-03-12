@@ -2,14 +2,12 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
-// Mock zustand persist
 jest.mock('zustand/middleware', () => ({
   persist: (config: unknown) => config,
 }));
 
-// Mock storage
 jest.mock('@/lib/storage', () => ({
   getZustandStorage: () => ({
     getItem: jest.fn(),
@@ -18,176 +16,152 @@ jest.mock('@/lib/storage', () => ({
   }),
 }));
 
-// Mock theme store
-const mockSetCustomization = jest.fn();
+const mockSetTheme = jest.fn();
+const mockBuildSettingsProfile = jest.fn(({ domains }) => ({
+  version: 6,
+  exportedAt: '2026-01-01T00:00:00.000Z',
+  metadata: { schemaVersion: 6, domains },
+})) as jest.Mock<{ version: number; exportedAt: string; metadata: { schemaVersion: number; domains: unknown } }, [unknown]>;
+const mockSaveSettingsProfileFile = jest.fn<Promise<void>, [unknown]>(() => Promise.resolve());
+const mockOpenSettingsProfileFile = jest.fn<Promise<string | null>, []>();
+const mockParseSettingsProfile = jest.fn<unknown, [unknown]>();
+const mockApplySettingsProfileImport = jest.fn<{ success: boolean }, [unknown, unknown]>(() => ({ success: true }));
+const mockRestoreLastSettingsImport = jest.fn<{ success: boolean }, [unknown]>(() => ({ success: true }));
 
-jest.mock('@/lib/stores/theme-store', () => ({
-  useThemeStore: Object.assign(
-    (selector: (state: unknown) => unknown) => {
-      const state = {
-        customization: { radius: 0.5, fontFamily: 'default', fontSize: 'default', animationsEnabled: true, activePreset: null },
-        setCustomization: mockSetCustomization,
-      };
-      return selector ? selector(state) : state;
-    },
-    {
-      getState: () => ({
-        customization: { radius: 0.5, fontFamily: 'default', fontSize: 'default', animationsEnabled: true, activePreset: null },
-        setCustomization: mockSetCustomization,
-      }),
-    }
-  ),
-}));
-
-// Mock next-themes
 jest.mock('next-themes', () => ({
   useTheme: () => ({
     theme: 'dark',
-    setTheme: jest.fn(),
+    setTheme: mockSetTheme,
   }),
 }));
 
-// Mock keybinding store
-jest.mock('@/lib/stores/keybinding-store', () => ({
-  useKeybindingStore: Object.assign(
-    (selector: (state: unknown) => unknown) => {
-      const state = { customBindings: {} };
-      return selector ? selector(state) : state;
-    },
-    {
-      getState: () => ({ customBindings: {} }),
-    }
-  ),
+const tauriFlag = { current: false };
+jest.mock('@/lib/storage/platform', () => ({
+  isTauri: jest.fn(() => tauriFlag.current),
 }));
 
-// Mock AlertDialog to render inline
+jest.mock('@/lib/settings/settings-profile', () => ({
+  SETTINGS_PROFILE_DOMAINS: [
+    'settings',
+    'theme',
+    'keybindings',
+    'globalShortcuts',
+    'equipment',
+    'location',
+    'eventSources',
+    'dailyKnowledge',
+  ],
+  buildSettingsProfile: (options: unknown) => mockBuildSettingsProfile(options),
+  parseSettingsProfile: (value: unknown) => mockParseSettingsProfile(value),
+}));
+
+jest.mock('@/lib/settings/settings-profile-io', () => ({
+  saveSettingsProfileFile: (profile: unknown) => mockSaveSettingsProfileFile(profile),
+  openSettingsProfileFile: () => mockOpenSettingsProfileFile(),
+}));
+
+jest.mock('@/lib/settings/settings-profile-transaction', () => ({
+  applySettingsProfileImport: (profile: unknown, options: unknown) => mockApplySettingsProfileImport(profile, options),
+  restoreLastSettingsImport: (options: unknown) => mockRestoreLastSettingsImport(options),
+}));
+
 jest.mock('@/components/ui/alert-dialog', () => ({
-  AlertDialog: ({ children }: { children: React.ReactNode }) => <div data-testid="alert-dialog">{children}</div>,
-  AlertDialogTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => (
-    asChild ? <>{children}</> : <div>{children}</div>
-  ),
-  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div data-testid="alert-dialog-content">{children}</div>,
+  AlertDialog: ({ children, open }: { children: React.ReactNode; open?: boolean }) => open ? <div data-testid="alert-dialog">{children}</div> : null,
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDialogCancel: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
-  AlertDialogAction: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button onClick={onClick}>{children}</button>
+  AlertDialogAction: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => (
+    <button onClick={onClick} disabled={disabled}>{children}</button>
   ),
 }));
 
+import { useSettingsImportRestoreStore } from '@/lib/stores/settings-import-restore-store';
 import { SettingsExportImport } from '../settings-export-import';
-import { useDailyKnowledgeStore, useSettingsStore } from '@/lib/stores';
 
 describe('SettingsExportImport', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useSettingsStore.setState({
-      preferences: {
-        locale: 'en',
-        timeFormat: '24h',
-        dateFormat: 'iso',
-        coordinateFormat: 'dms',
-        distanceUnit: 'metric',
-        temperatureUnit: 'celsius',
-        skipCloseConfirmation: false,
-        rightPanelCollapsed: false,
-        startupView: 'last' as const,
-        showSplash: true,
-        autoConnectBackend: true,
-        dailyKnowledgeEnabled: true,
-        dailyKnowledgeAutoShow: true,
-        dailyKnowledgeOnlineEnhancement: true,
-      },
-    });
-    useDailyKnowledgeStore.setState({
-      favorites: [{ itemId: 'curated-andromeda-distance', createdAt: Date.now() }],
-      history: [],
-      lastShownDate: null,
-      snoozedDate: null,
-      lastSeenItemId: null,
-    });
-  });
-
-  it('renders without crashing', () => {
-    const { container } = render(<SettingsExportImport />);
-    expect(container).toBeInTheDocument();
-  });
-
-  it('renders export and import buttons', () => {
-    render(<SettingsExportImport />);
-    const buttons = screen.getAllByRole('button');
-    expect(buttons.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('renders collapsible section', () => {
-    render(<SettingsExportImport />);
-    const buttons = screen.getAllByRole('button');
-    expect(buttons.length).toBeGreaterThan(0);
-  });
-
-  it('handles export click', async () => {
-    // Mock URL.createObjectURL and URL.revokeObjectURL
-    const mockCreateObjectURL = jest.fn(() => 'blob:mock-url');
-    const mockRevokeObjectURL = jest.fn();
-    global.URL.createObjectURL = mockCreateObjectURL;
-    global.URL.revokeObjectURL = mockRevokeObjectURL;
-    const stringifySpy = jest.spyOn(JSON, 'stringify');
-
-    // Mock document.createElement to capture the download link
-    const mockClick = jest.fn();
-    const originalCreateElement = document.createElement.bind(document);
-    jest.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-      const element = originalCreateElement(tag);
-      if (tag === 'a') {
-        Object.defineProperty(element, 'click', { value: mockClick });
-      }
-      return element;
-    });
-
-    render(<SettingsExportImport />);
-    const buttons = screen.getAllByRole('button');
-    // Find the export button (contains export text from i18n key)
-    const exportButton = buttons.find(b =>
-      b.textContent?.includes('settingsNew.exportImport.export')
-    );
-
-    if (exportButton) {
-      fireEvent.click(exportButton);
-      expect(mockCreateObjectURL).toHaveBeenCalled();
-      expect(mockClick).toHaveBeenCalled();
-      const exportCall = stringifySpy.mock.calls.find(([, , space]) => space === 2);
-      expect(exportCall?.[0]).toEqual(expect.objectContaining({
-        version: 5,
+    tauriFlag.current = false;
+    useSettingsImportRestoreStore.getState().clearRestorePoint();
+    mockParseSettingsProfile.mockReturnValue({
+      ok: true,
+      data: {
+        version: 6,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        metadata: { schemaVersion: 6, domains: ['theme', 'keybindings'] },
         themeMode: 'dark',
+        theme: { radius: 0.8 },
+        keybindings: { TOGGLE_GRID: { key: 'g' } },
+      },
+      importableDomains: ['theme', 'keybindings'],
+      skippedDomains: [{ domain: 'equipment', reason: 'invalidDomainPayload' }],
+      warnings: [{ domain: 'eventSources', code: 'secretsNotIncluded' }],
+    });
+  });
+
+  it('exports only the selected domains', async () => {
+    render(<SettingsExportImport />);
+
+    fireEvent.click(screen.getByLabelText('settingsNew.exportImport.domains.settings'));
+    fireEvent.click(screen.getByText('settingsNew.exportImport.export'));
+
+    await waitFor(() => {
+      expect(mockBuildSettingsProfile).toHaveBeenCalledWith(expect.objectContaining({
+        domains: expect.not.arrayContaining(['settings']),
+        themeMode: 'dark',
+      }));
+      expect(mockSaveSettingsProfileFile).toHaveBeenCalledWith(expect.objectContaining({
         metadata: expect.objectContaining({
-          schemaVersion: 5,
-          domains: expect.any(Array),
-        }),
-        settings: expect.objectContaining({
-          skyEngine: expect.any(String),
-          aladinDisplay: expect.any(Object),
-        }),
-        dailyKnowledge: expect.objectContaining({
-          favorites: expect.any(Array),
-          history: expect.any(Array),
-          startupState: expect.any(Object),
+          domains: expect.not.arrayContaining(['settings']),
         }),
       }));
-    }
-
-    stringifySpy.mockRestore();
-    jest.restoreAllMocks();
+    });
   });
 
-  it('renders file input for import', () => {
+  it('shows an import preview and applies only checked domains', async () => {
+    tauriFlag.current = true;
+    mockOpenSettingsProfileFile.mockResolvedValue('{"version":6}');
+
     render(<SettingsExportImport />);
-    // The import button triggers a hidden file input
-    const buttons = screen.getAllByRole('button');
-    const importButton = buttons.find(b =>
-      b.textContent?.includes('settingsNew.exportImport.import')
-    );
-    expect(importButton).toBeDefined();
+    fireEvent.click(screen.getByText('settingsNew.exportImport.import'));
+
+    expect(await screen.findByText('settingsNew.exportImport.previewTitle')).toBeInTheDocument();
+    expect(screen.getByText('settingsNew.exportImport.skippedDomains')).toBeInTheDocument();
+    expect(screen.getByText('settingsNew.exportImport.warnings')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByTestId('alert-dialog')).getByLabelText('settingsNew.exportImport.domains.theme'));
+    fireEvent.click(screen.getByText('settingsNew.exportImport.confirmImport'));
+
+    await waitFor(() => {
+      expect(mockApplySettingsProfileImport).toHaveBeenCalledWith(
+        expect.objectContaining({ metadata: expect.any(Object) }),
+        expect.objectContaining({
+          domains: ['keybindings'],
+          applyThemeMode: mockSetTheme,
+        })
+      );
+    });
+  });
+
+  it('shows and triggers restore for the last import snapshot', () => {
+    useSettingsImportRestoreStore.getState().setRestorePoint({
+      createdAt: '2026-01-01T00:00:00.000Z',
+      domains: ['theme'],
+      profile: {
+        version: 6,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        metadata: { schemaVersion: 6, domains: ['theme'] },
+        theme: { radius: 0.5 },
+        themeMode: 'dark',
+      },
+    });
+
+    render(<SettingsExportImport />);
+
+    fireEvent.click(screen.getByText('settingsNew.exportImport.restoreLastImport'));
+    expect(mockRestoreLastSettingsImport).toHaveBeenCalledWith({ applyThemeMode: mockSetTheme });
   });
 });

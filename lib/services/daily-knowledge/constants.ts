@@ -10,6 +10,14 @@ export const APOD_TTL_MS = 24 * 60 * 60 * 1000;
 export const WIKIMEDIA_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const DAILY_KNOWLEDGE_AGGREGATED_TTL_FALLBACK_MS = 24 * 60 * 60 * 1000;
 export const HISTORY_LIMIT = 120;
+export const DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS = 7;
+export const DAILY_KNOWLEDGE_MIN_EVENT_MONTH_COVERAGE = 12;
+export const DAILY_KNOWLEDGE_ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+export const DAILY_KNOWLEDGE_DIFFICULTY_LEVELS = [
+  'beginner',
+  'intermediate',
+  'advanced',
+] as const;
 
 export const RETRY_DELAYS_MS = [1000, 2000, 4000] as const;
 export const WIKIMEDIA_MIN_REQUEST_INTERVAL_MS = 250;

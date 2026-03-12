@@ -621,5 +621,90 @@ describe('useOnboardingStore', () => {
       });
       expect(result.current.canSetupProceed()).toBe(true);
     });
+
+    it('should resolve welcome as onboarding entry for a new user', () => {
+      const { result } = renderHook(() => useOnboardingStore());
+      expect(result.current.resolveEntrySurface()).toBe('welcome');
+    });
+
+    it('should persist setup checkpoint and resolve setup entry after interruption', () => {
+      const { result } = renderHook(() => useOnboardingStore());
+
+      act(() => {
+        result.current.openSetup();
+        result.current.goToSetupStep('equipment');
+        result.current.closeSetup();
+      });
+
+      expect(result.current.resumeCheckpoint?.phase).toBe('setup');
+      expect(result.current.resumeCheckpoint?.setupStep).toBe('equipment');
+      expect(result.current.resolveEntrySurface()).toBe('setup');
+    });
+
+    it('should persist tour checkpoint on endTour and resume from it', () => {
+      const { result } = renderHook(() => useOnboardingStore());
+
+      act(() => {
+        result.current.startTourById('module-discovery');
+        result.current.goToStep(2);
+        result.current.endTour();
+      });
+
+      expect(result.current.resumeCheckpoint?.phase).toBe('tour');
+      expect(result.current.resumeCheckpoint?.activeTourId).toBe('module-discovery');
+      expect(result.current.resumeCheckpoint?.currentStepIndex).toBe(2);
+      expect(result.current.resolveEntrySurface()).toBe('resume-tour');
+
+      act(() => {
+        result.current.resumeTour('module-discovery');
+      });
+
+      expect(result.current.isTourActive).toBe(true);
+      expect(result.current.currentStepIndex).toBe(2);
+    });
+
+    it('should restart all onboarding with full reset semantics', () => {
+      const { result } = renderHook(() => useOnboardingStore());
+
+      act(() => {
+        result.current.finishSetupAndStartTour();
+        result.current.nextStep();
+        result.current.setTourHubOpen(true);
+        result.current.restartAllOnboarding();
+      });
+
+      expect(result.current.hasCompletedOnboarding).toBe(false);
+      expect(result.current.hasCompletedSetup).toBe(false);
+      expect(result.current.completedTours).toEqual([]);
+      expect(result.current.tourHubOpen).toBe(false);
+      expect(result.current.hasSeenWelcome).toBe(false);
+      expect(result.current.resolveEntrySurface()).toBe('welcome');
+    });
+
+    it('should restart only selected module tour progress', () => {
+      const { result } = renderHook(() => useOnboardingStore());
+
+      act(() => {
+        result.current.startTourById('module-discovery');
+        result.current.nextStep();
+        result.current.endTour();
+        result.current.startTourById('module-planning');
+        result.current.goToStep(1);
+        result.current.nextStep();
+        result.current.endTour();
+      });
+
+      const before = result.current.getTourProgress('module-planning');
+      expect(before.currentStepIndex).toBeGreaterThan(0);
+
+      act(() => {
+        result.current.restartTourModule('module-planning');
+      });
+
+      const after = result.current.getTourProgress('module-planning');
+      expect(after.currentStepIndex).toBe(0);
+      expect(result.current.getTourProgress('module-discovery').currentStepIndex).toBeGreaterThan(0);
+      expect(result.current.hasCompletedSetup).toBe(false);
+    });
   });
 });

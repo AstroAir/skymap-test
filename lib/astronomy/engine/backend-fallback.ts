@@ -39,6 +39,7 @@ import type {
   RiseTransitSetRequest,
   RiseTransitSetResponse,
 } from './types';
+import { createCalculationMeta } from './meta';
 
 const STAR_DISTANCE_LIGHTYEARS = 1000;
 
@@ -158,10 +159,7 @@ function computeCoordinateInternal(input: CoordinateComputationInput): Coordinat
       lst,
       hourAngle: normalizeSignedDegrees(lst - ra),
     },
-    meta: {
-      backend: 'fallback',
-      model: 'astronomy-engine-2.1.19',
-    },
+    meta: createCalculationMeta('fallback', 'astronomy-engine-2.1.19'),
   };
 }
 
@@ -299,10 +297,7 @@ function computeRiseTransitSetInternal(request: RiseTransitSetRequest): RiseTran
     darkImagingStart,
     darkImagingEnd,
     darkImagingHours,
-    meta: {
-      backend: 'fallback',
-      model: 'astronomy-engine-2.1.19',
-    },
+    meta: createCalculationMeta('fallback', 'astronomy-engine-2.1.19'),
   };
 }
 
@@ -443,10 +438,7 @@ function computeAlmanacInternal(request: AlmanacRequest): AlmanacResponse {
       riseTime: toDate(moonRise?.date ?? null),
       setTime: toDate(moonSet?.date ?? null),
     },
-    meta: {
-      backend: 'fallback',
-      model: 'astronomy-engine-2.1.19',
-    },
+    meta: createCalculationMeta('fallback', 'astronomy-engine-2.1.19'),
   };
 }
 
@@ -459,10 +451,7 @@ export const fallbackAstronomyBackend: AstronomyEngineBackend = {
     return {
       body: request.body,
       points: computeEphemerisPoints(request),
-      meta: {
-        backend: 'fallback',
-        model: 'astronomy-engine-2.1.19',
-      },
+      meta: createCalculationMeta('fallback', 'astronomy-engine-2.1.19'),
     };
   },
 
@@ -473,10 +462,7 @@ export const fallbackAstronomyBackend: AstronomyEngineBackend = {
   async searchPhenomena(request: PhenomenaRequest): Promise<PhenomenaResponse> {
     return {
       events: buildPhenomenaEvents(request),
-      meta: {
-        backend: 'fallback',
-        model: 'astronomy-engine-2.1.19',
-      },
+      meta: createCalculationMeta('fallback', 'astronomy-engine-2.1.19'),
     };
   },
 

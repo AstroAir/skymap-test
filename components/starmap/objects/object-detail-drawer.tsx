@@ -45,6 +45,7 @@ import { useCelestialName, useAstroEnvironment, useTargetAstroData, useObjectAct
 import {
   getCachedObjectInfo,
   enhanceObjectInfo,
+  updateCachedObjectInfo,
   type ObjectDetailedInfo,
 } from '@/lib/services/object-info-service';
 import { cn } from '@/lib/utils';
@@ -56,6 +57,7 @@ import {
 } from '@/lib/astronomy/target-display-model';
 import { createLogger } from '@/lib/logger';
 import type { ObjectDetailDrawerProps } from '@/types/starmap/objects';
+import { clipboardService } from '@/lib/services/clipboard-service';
 
 const logger = createLogger('object-detail-drawer');
 
@@ -107,7 +109,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
       return;
     }
     
-    let cancelled = false;
+    const controller = new AbortController();
     
     async function loadInfo() {
       setIsLoading(true);
@@ -117,34 +119,40 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
           selectedObject!.raDeg,
           selectedObject!.decDeg,
           selectedObject!.ra,
-          selectedObject!.dec
+          selectedObject!.dec,
+          {
+            type: selectedObject!.type,
+            magnitude: selectedObject!.magnitude,
+            size: selectedObject!.size,
+            constellation: selectedObject!.constellation,
+          }
         );
         
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setObjectInfo(info);
           setIsLoading(false);
           
           // Try to enhance with external data
           setIsEnhancing(true);
-          const enhanced = await enhanceObjectInfo(info);
-          if (!cancelled) {
+          const enhanced = await enhanceObjectInfo(info, controller.signal);
+          if (!controller.signal.aborted) {
             setObjectInfo(enhanced);
+            updateCachedObjectInfo(enhanced);
             setIsEnhancing(false);
           }
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         logger.error('Failed to load object info', error);
-        if (!cancelled) {
-          setIsLoading(false);
-          setIsEnhancing(false);
-        }
+        setIsLoading(false);
+        setIsEnhancing(false);
       }
     }
     
     loadInfo();
     
     return () => {
-      cancelled = true;
+      controller.abort();
       // Reset state when effect cleans up (drawer closes or object changes)
       setObjectInfo(null);
       setIsLoading(false);
@@ -173,7 +181,7 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
     if (!selectedObject) return;
     const coords = `RA: ${selectedObject.ra}\nDec: ${selectedObject.dec}`;
     try {
-      await navigator.clipboard.writeText(coords);
+      await clipboardService.writeText(coords);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -368,6 +376,11 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                       <Badge variant="outline" className={cn('text-xs', getMoonInterferenceTextClass(liveStatusSection.moonInterferenceLevel))}>
                         {t(`objectDetail.moonInterference.${liveStatusSection.moonInterferenceLevel}`)}
                       </Badge>
+                      {liveStatusSection.calculationState === 'degraded' && (
+                        <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-300">
+                          degraded
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 )}
@@ -407,14 +420,18 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                       <span className="font-mono">{advancedMetadataSection.qualityFlag} / {advancedMetadataSection.dataFreshness}</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Calc</span>
+                      <span className="font-mono">{advancedMetadataSection.calculationSource} / {advancedMetadataSection.calculationState}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {t('objectDetail.timestamp')}</span>
-                      <span className="font-mono">{advancedMetadataSection.updatedAt}</span>
+                      <span className="font-mono">{advancedMetadataSection.calculationTimestamp ?? advancedMetadataSection.updatedAt}</span>
                     </div>
                   </div>
                 )}
 
                 {/* Physical Properties */}
-                {objectInfo && (objectInfo.distance || objectInfo.morphologicalType || objectInfo.spectralType) && (
+                {objectInfo && (objectInfo.distance || objectInfo.morphologicalType || objectInfo.spectralType || objectInfo.redshift != null || objectInfo.discoverer || objectInfo.discoveryYear) && (
                   <>
                     <Separator className="my-3" />
                     <div className="space-y-2">
@@ -439,6 +456,26 @@ export const ObjectDetailDrawer = memo(function ObjectDetailDrawer({
                           <div className="flex justify-between col-span-2">
                             <span className="text-muted-foreground">{t('objectDetail.distance')}</span>
                             <span>{objectInfo.distance}</span>
+                          </div>
+                        )}
+                        {objectInfo.redshift != null && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">{t('objectDetail.redshift')}</span>
+                            <span>z = {objectInfo.redshift.toFixed(4)}</span>
+                          </div>
+                        )}
+                        {objectInfo.radialVelocity != null && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">{t('objectDetail.radialVelocity')}</span>
+                            <span>{objectInfo.radialVelocity.toFixed(0)} km/s</span>
+                          </div>
+                        )}
+                        {(objectInfo.discoverer || objectInfo.discoveryYear) && (
+                          <div className="flex justify-between col-span-2">
+                            <span className="text-muted-foreground">{t('objectDetail.discovery')}</span>
+                            <span>
+                              {objectInfo.discoverer}{objectInfo.discoverer && objectInfo.discoveryYear ? ', ' : ''}{objectInfo.discoveryYear}
+                            </span>
                           </div>
                         )}
                       </div>

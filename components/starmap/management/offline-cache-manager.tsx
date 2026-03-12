@@ -42,6 +42,7 @@ import { useCache } from '@/lib/tauri/hooks';
 import { isTauri } from '@/lib/storage/platform';
 import { createLogger } from '@/lib/logger';
 import { useIsClient } from '@/lib/hooks/use-is-client';
+import { getCacheDiagnosticsSummary, getCacheProviderDiagnostics } from '@/lib/cache';
 
 import { CacheLayersTab } from './cache-layers-tab';
 import { CacheSurveysTab } from './cache-surveys-tab';
@@ -122,6 +123,8 @@ export function OfflineCacheManager() {
   const cachedLayers = layerStatuses.filter((s) => s.cached).length;
   const totalLayers = STELLARIUM_LAYERS.length;
   const overallProgress = totalSize > 0 ? (cachedSize / totalSize) * 100 : 0;
+  const providerDiagnostics = getCacheProviderDiagnostics();
+  const diagnosticsSummary = getCacheDiagnosticsSummary();
 
   return (
       <Card className="bg-card/95 backdrop-blur-sm border-border">
@@ -185,6 +188,27 @@ export function OfflineCacheManager() {
               </div>
             </div>
           )}
+
+          <div className="space-y-1 p-2 bg-muted/30 rounded-lg text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('cache.provider')}</span>
+              <span className="font-medium">
+                {providerDiagnostics.providerId === 'tauri-unified-cache'
+                  ? t('cache.providerDesktop')
+                  : providerDiagnostics.providerId === 'browser-cache-api'
+                    ? t('cache.providerBrowser')
+                    : t('cache.providerUnavailable')}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('cache.integrationAudit')}</span>
+              <span className="font-mono">{diagnosticsSummary.total}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('cache.persistentShared')}</span>
+              <span>{diagnosticsSummary.persistentShared}</span>
+            </div>
+          </div>
           
           {/* Tauri Desktop Cache Stats */}
           {isTauri() && tauriCache.stats && (

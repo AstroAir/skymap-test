@@ -22,6 +22,8 @@ jest.mock('../constants', () => ({
   DAILY_KNOWLEDGE_APOD_URL: 'https://api.nasa.gov/planetary/apod',
   RETRY_DELAYS_MS: [10, 20, 40] as const,
   WIKIMEDIA_MIN_REQUEST_INTERVAL_MS: 10,
+  DAILY_KNOWLEDGE_ALL_MONTHS: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const,
+  DAILY_KNOWLEDGE_DIFFICULTY_LEVELS: ['beginner', 'intermediate', 'advanced'] as const,
 }));
 
 function makeApodResponse(overrides: Record<string, unknown> = {}) {

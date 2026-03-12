@@ -8,17 +8,30 @@ use tauri::AppHandle;
 use super::types::{PlateSolverError, SolverConfig};
 
 fn get_config_path(app: &AppHandle) -> Result<PathBuf, PlateSolverError> {
-    let dir = super::super::path_config::resolve_data_dir(app)
-        .map_err(|e| PlateSolverError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string())))?;
-    if !dir.exists() { fs::create_dir_all(&dir)?; }
+    let dir = super::super::path_config::resolve_data_dir(app).map_err(|e| {
+        PlateSolverError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            e.to_string(),
+        ))
+    })?;
+    if !dir.exists() {
+        fs::create_dir_all(&dir)?;
+    }
     Ok(dir.join("solver_config.json"))
 }
 
 #[tauri::command]
-pub async fn save_solver_config(app: AppHandle, config: SolverConfig) -> Result<(), PlateSolverError> {
+pub async fn save_solver_config(
+    app: AppHandle,
+    config: SolverConfig,
+) -> Result<(), PlateSolverError> {
     let path = get_config_path(&app)?;
-    let json = serde_json::to_string_pretty(&config)
-        .map_err(|e| PlateSolverError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())))?;
+    let json = serde_json::to_string_pretty(&config).map_err(|e| {
+        PlateSolverError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            e.to_string(),
+        ))
+    })?;
     fs::write(&path, json)?;
     Ok(())
 }
@@ -30,8 +43,12 @@ pub async fn load_solver_config(app: AppHandle) -> Result<SolverConfig, PlateSol
         return Ok(SolverConfig::default());
     }
     let json = fs::read_to_string(&path)?;
-    serde_json::from_str(&json)
-        .map_err(|e| PlateSolverError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())))
+    serde_json::from_str(&json).map_err(|e| {
+        PlateSolverError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            e.to_string(),
+        ))
+    })
 }
 
 // ============================================================================
@@ -75,7 +92,10 @@ mod tests {
         let deserialized: SolverConfig = serde_json::from_str(&json).unwrap();
 
         assert_eq!(deserialized.solver_type, "astap");
-        assert_eq!(deserialized.executable_path, Some("/usr/bin/astap".to_string()));
+        assert_eq!(
+            deserialized.executable_path,
+            Some("/usr/bin/astap".to_string())
+        );
         assert_eq!(deserialized.timeout_seconds, 60);
         assert_eq!(deserialized.downsample, 2);
         assert!(!deserialized.use_sip);

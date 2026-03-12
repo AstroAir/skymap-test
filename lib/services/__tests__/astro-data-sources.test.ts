@@ -15,7 +15,10 @@ import {
 
 // Mock fetch
 const mockFetch = jest.fn();
-global.fetch = mockFetch;
+
+jest.mock('@/lib/services/http-fetch', () => ({
+  smartFetch: (...args: unknown[]) => mockFetch(...args),
+}));
 
 describe('astro-data-sources', () => {
   beforeEach(() => {

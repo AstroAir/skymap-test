@@ -29,7 +29,7 @@ export interface LogPanelProps {
 export function LogPanel({ shortcut = 'ctrl+shift+l' }: LogPanelProps) {
   const t = useTranslations('logViewer');
   const { isOpen, close, toggle } = useLogPanel();
-  const { stats } = useLogStore();
+  const { stats, suppression } = useLogStore();
   
   // Register keyboard shortcut
   useEffect(() => {
@@ -66,6 +66,11 @@ export function LogPanel({ shortcut = 'ctrl+shift+l' }: LogPanelProps) {
               {stats.byLevel.error > 0 && (
                 <span className="px-1.5 py-0.5 text-xs font-medium bg-red-500/10 text-red-500 rounded">
                   {stats.byLevel.error} {t('errors')}
+                </span>
+              )}
+              {suppression.suppressedDuplicates > 0 && (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-500/10 text-blue-500 rounded">
+                  {t('suppressed')}: {suppression.suppressedDuplicates}
                 </span>
               )}
             </div>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
@@ -94,6 +94,7 @@ import {
   DEFAULT_SOLVER_CONFIG,
   type OnlineSolveResult as TauriOnlineSolveResult,
 } from '@/lib/tauri/plate-solver-api';
+import { secretVaultApi } from '@/lib/tauri/secret-vault-api';
 
 // Re-export types for backward compatibility
 export type { PlateSolverUnifiedProps, SolveMode } from '@/types/starmap/plate-solving';
@@ -200,6 +201,7 @@ export function PlateSolverUnified({
   onGoToCoordinates,
   trigger, 
   className,
+  autoOpenRequestId,
   defaultImagePath,
   raHint,
   decHint,
@@ -234,6 +236,7 @@ export function PlateSolverUnified({
 
   // Ref to hold latest handleImageCapture for use in effects without stale closures
   const handleImageCaptureRef = useRef<((file: File, metadata?: ImageMetadata) => Promise<void>) | undefined>(undefined);
+  const handledAutoOpenRef = useRef(0);
 
   // Local state
   const [open, setOpen] = useState(false);
@@ -286,6 +289,15 @@ export function PlateSolverUnified({
     }
   }, [open, defaultImagePath, isDesktop, solving]);
 
+  useEffect(() => {
+    if (!autoOpenRequestId || autoOpenRequestId === handledAutoOpenRef.current) {
+      return;
+    }
+
+    handledAutoOpenRef.current = autoOpenRequestId;
+    setOpen(true);
+  }, [autoOpenRequestId]);
+
   // Handle local solve
   const handleLocalSolve = useCallback(async (file: File, effectiveRaHint?: number, effectiveDecHint?: number) => {
     if (!isDesktop) return;
@@ -318,7 +330,7 @@ export function PlateSolverUnified({
         }
       );
     } catch {
-      // listen not available (web mode) — continue with static progress
+      // listen not available (web mode) 鈥?continue with static progress
     }
 
     let cleanup: undefined | (() => Promise<void>);
@@ -433,6 +445,18 @@ export function PlateSolverUnified({
         t('plateSolving.offlineCannotSolve') || 'Network is offline. Online solving unavailable.'
       );
       return;
+    }
+
+    if (isDesktop) {
+      try {
+        await secretVaultApi.setPlateSolverApiKey(onlineApiKey);
+      } catch (error) {
+        failImmediately(
+          'auth_failed',
+          error instanceof Error ? error.message : (t('plateSolving.needApiKey') || 'API key required for online solving')
+        );
+        return;
+      }
     }
 
     setSolving(true);
@@ -887,7 +911,7 @@ export function PlateSolverUnified({
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="radius" className="text-xs">
-                    {t('plateSolving.searchRadius') || 'Search Radius (°)'}
+                    {t('plateSolving.searchRadius') || 'Search Radius (掳)'}
                   </Label>
                   <Input
                     id="radius"
@@ -989,24 +1013,24 @@ export function PlateSolverUnified({
                           <div className="min-w-0">
                             <div className="truncate font-medium">{entry.imageName}</div>
                             <div className="text-muted-foreground">
-                              {new Date(entry.timestamp).toLocaleString()} · {entry.solveMode}
+                              {new Date(entry.timestamp).toLocaleString()} 路 {entry.solveMode}
                               {entry.result.success && entry.result.coordinates && (
                                 <span className="ml-1">
-                                  · {entry.result.coordinates.raHMS}
+                                  路 {entry.result.coordinates.raHMS}
                                 </span>
                               )}
                             </div>
                             {entry.diagnostics && (
                               <div className="text-muted-foreground">
-                                {entry.diagnostics.runtime} · {entry.diagnostics.attemptCount}/{entry.diagnostics.maxAttempts}
+                                {entry.diagnostics.runtime} 路 {entry.diagnostics.attemptCount}/{entry.diagnostics.maxAttempts}
                                 {entry.diagnostics.terminalErrorCode && (
-                                  <span className="ml-1">· {entry.diagnostics.terminalErrorCode}</span>
+                                  <span className="ml-1">路 {entry.diagnostics.terminalErrorCode}</span>
                                 )}
                                 {entry.diagnostics.cancelled && (
-                                  <span className="ml-1">· {t('plateSolving.cancelled') || 'cancelled'}</span>
+                                  <span className="ml-1">路 {t('plateSolving.cancelled') || 'cancelled'}</span>
                                 )}
                                 {entry.diagnostics.jobId !== null && entry.diagnostics.jobId !== undefined && (
-                                  <span className="ml-1">· job:{entry.diagnostics.jobId}</span>
+                                  <span className="ml-1">路 job:{entry.diagnostics.jobId}</span>
                                 )}
                               </div>
                             )}
@@ -1071,3 +1095,5 @@ export function PlateSolverUnified({
 }
 
 export default PlateSolverUnified;
+
+

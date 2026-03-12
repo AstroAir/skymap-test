@@ -145,12 +145,14 @@ describe('online-search-service', () => {
 
       expect(result).toHaveProperty('sesame');
       expect(result).toHaveProperty('simbad');
+      expect(result).toHaveProperty('sbdb');
       expect(result).toHaveProperty('mpc');
       expect(result.local).toBe(true);
     });
 
     it('should handle offline sources', async () => {
       mockSmartFetch
+        .mockImplementationOnce(async () => { throw new Error('Network error'); })
         .mockImplementationOnce(async () => { throw new Error('Network error'); })
         .mockImplementationOnce(async () => { throw new Error('Network error'); })
         .mockImplementationOnce(async () => { throw new Error('Network error'); })
@@ -248,13 +250,14 @@ describe('online-search-service', () => {
   });
 
   describe('availability checks', () => {
-    it('should check all four sources', async () => {
+    it('should check all configured online providers', async () => {
       mockSmartFetch.mockResolvedValue({ ok: true } as FetchResponse);
 
       const result = await checkOnlineSearchAvailability();
 
       expect(result).toHaveProperty('sesame');
       expect(result).toHaveProperty('simbad');
+      expect(result).toHaveProperty('sbdb');
       expect(result).toHaveProperty('vizier');
       expect(result).toHaveProperty('ned');
       expect(result).toHaveProperty('mpc');

@@ -35,6 +35,23 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
     downsample: 0,
     search_radius: 30.0,
     use_sip: true,
+    astap_database: null,
+    astap_max_stars: 500,
+    astap_tolerance: 0.007,
+    astap_speed_mode: 'auto',
+    astap_min_star_size: 1.5,
+    astap_equalise_background: false,
+    astrometry_scale_low: null,
+    astrometry_scale_high: null,
+    astrometry_scale_units: 'deg_width',
+    astrometry_depth: null,
+    astrometry_no_plots: true,
+    astrometry_no_verify: false,
+    astrometry_crpix_center: true,
+    keep_wcs_file: true,
+    auto_hints: true,
+    retry_on_failure: false,
+    max_retries: 2,
   },
 }));
 
@@ -484,5 +501,31 @@ describe('SolverSettings', () => {
       const state = usePlateSolverStore.getState();
       expect(state.config.executable_path).toBe('/valid/astap');
     });
+  });
+
+  it('should show solver profile and availability reason for local solvers', () => {
+    usePlateSolverStore.setState({
+      ...usePlateSolverStore.getState(),
+      detectedSolvers: [
+        {
+          solver_type: 'astap',
+          name: 'ASTAP',
+          version: '2026.03.05',
+          executable_path: '/custom/astap_cli',
+          is_available: false,
+          index_path: null,
+          installed_indexes: [],
+          profile_id: 'astap_cli',
+          profile_name: 'ASTAP CLI',
+          availability_reason: 'No ASTAP database found',
+          uses_custom_executable: true,
+        } as never,
+      ],
+    });
+
+    render(<SolverSettings />);
+
+    expect(screen.getByText('ASTAP CLI')).toBeInTheDocument();
+    expect(screen.getByText('No ASTAP database found')).toBeInTheDocument();
   });
 });

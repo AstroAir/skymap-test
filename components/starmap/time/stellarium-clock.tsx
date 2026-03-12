@@ -85,6 +85,8 @@ export const StellariumClock = memo(function StellariumClock() {
   const savedSpeedRef = useRef(1);
   
   const stel = useStellariumStore((state) => state.stel);
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
+  const isAladin = skyEngine === 'aladin';
   const timeFormat = useSettingsStore((state) => state.preferences.timeFormat);
   const dateFormat = useSettingsStore((state) => state.preferences.dateFormat);
   const longitude = useMountStore((state) => state.profileInfo.AstrometrySettings.Longitude) || 0;
@@ -134,39 +136,47 @@ export const StellariumClock = memo(function StellariumClock() {
 
   // Update time display using setInterval (efficient: 1s for real-time, faster when accelerated)
   useEffect(() => {
-    if (!stel) return;
+    if (!stel && !isAladin) return;
 
     const updateTime = () => {
-      const mjd = stel.core.observer.utc;
-      const date = mjdToUTC(mjd);
+      let date: Date;
+      if (stel) {
+        const mjd = stel.core.observer.utc;
+        date = mjdToUTC(mjd);
+        const currentSpeed = stel.core.time_speed;
+        setEngineSpeed(currentSpeed);
+      } else {
+        // Aladin mode: use system time, real-time speed only
+        date = new Date();
+        setEngineSpeed(1);
+      }
       formatDateTime(date);
-      
-      // Sync engine speed to local state
-      const currentSpeed = stel.core.time_speed;
-      setEngineSpeed(currentSpeed);
-      
+
       // Calculate LST
       try {
-        setLstTime(calculateLST(mjd, longitude));
+        if (stel) {
+          setLstTime(calculateLST(stel.core.observer.utc, longitude));
+        } else {
+          // Aladin mode: derive MJD from system time for LST
+          const now = new Date();
+          const mjdNow = utcToMJD(now);
+          setLstTime(calculateLST(mjdNow, longitude));
+        }
       } catch {
         // Ignore LST calculation errors
       }
     };
 
     updateTime();
-    
-    // Dynamic interval: faster when time is accelerated, slower when paused
-    const getInterval = () => {
+    const interval = setInterval(updateTime, stel ? (() => {
       const speed = Math.abs(stel.core.time_speed);
-      if (speed === 0) return 2000; // Paused: slow poll to detect resume
-      if (speed <= 1) return 1000;  // Real-time or slower
-      if (speed <= 64) return 250;  // Moderate acceleration
-      return 100;                    // Fast acceleration
-    };
-    
-    const intervalId = setInterval(updateTime, getInterval());
-    return () => clearInterval(intervalId);
-  }, [stel, formatDateTime, longitude]);
+      if (speed === 0) return 2000;
+      if (speed <= 1) return 1000;
+      if (speed <= 64) return 250;
+      return 100;
+    })() : 1000);
+    return () => clearInterval(interval);
+  }, [stel, isAladin, formatDateTime, longitude]);
 
   // Sync popover inputs when opening
   const handleOpenChange = useCallback((isOpen: boolean) => {
@@ -256,7 +266,7 @@ export const StellariumClock = memo(function StellariumClock() {
     return t('time.realTime');
   })();
 
-  if (!stel) return null;
+  if (!stel && !isAladin) return null;
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -321,6 +331,7 @@ export const StellariumClock = memo(function StellariumClock() {
                 onBlur={applyDateTime}
                 className="h-8 text-sm"
                 aria-label={t('time.date')}
+                disabled={isAladin}
               />
             </div>
             <div className="space-y-1">
@@ -333,6 +344,7 @@ export const StellariumClock = memo(function StellariumClock() {
                 onBlur={applyDateTime}
                 className="h-8 text-sm"
                 aria-label={t('time.time')}
+                disabled={isAladin}
               />
             </div>
           </div>
@@ -353,10 +365,14 @@ export const StellariumClock = memo(function StellariumClock() {
                 step={1}
                 className="flex-1"
                 aria-label={t('time.timeSpeed')}
+                disabled={isAladin}
               />
               <FastForward className="h-3 w-3 text-muted-foreground" />
             </div>
             <p className="text-xs text-muted-foreground text-center">{timeSpeedDescription}</p>
+            {isAladin && (
+              <p className="text-xs text-amber-500 text-center">{t('time.aladinSystemTimeNote')}</p>
+            )}
           </div>
 
           {/* Time Jump Buttons */}
@@ -370,6 +386,7 @@ export const StellariumClock = memo(function StellariumClock() {
                   size="sm"
                   className="text-xs px-1.5"
                   onClick={() => jumpTime(offset)}
+                  disabled={isAladin}
                 >
                   {offset < 0 && <Icon className="h-3 w-3 mr-0.5 shrink-0" />}
                   {t(`time.${key}`)}
@@ -395,6 +412,7 @@ export const StellariumClock = memo(function StellariumClock() {
               size="sm"
               onClick={togglePause}
               aria-label={isPaused ? t('time.play') : t('time.pause')}
+              disabled={isAladin}
             >
               {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
             </Button>

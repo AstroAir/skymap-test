@@ -77,13 +77,13 @@ export const MobileLayout = memo(function MobileLayout({
     sensorWidth, setSensorWidth,
     sensorHeight, setSensorHeight,
     focalLength, setFocalLength,
+    pixelSize, rotationAngle,
     mosaic, setMosaic,
-    gridType, setGridType,
+    gridType, setGridType, setRotationAngle, setPixelSize,
   } = useEquipmentFOVProps();
 
   // Additional equipment props for ExposureCalculator
   const aperture = useEquipmentStore((s) => s.aperture);
-  const pixelSize = useEquipmentStore((s) => s.pixelSize);
   const compactBottomBar = useSettingsStore((s) => s.mobileFeaturePreferences.compactBottomBar);
   const oneHandMode = useSettingsStore((s) => s.mobileFeaturePreferences.oneHandMode);
   const prioritizedTools = useSettingsStore(
@@ -125,9 +125,20 @@ export const MobileLayout = memo(function MobileLayout({
             sensorWidth={sensorWidth}
             sensorHeight={sensorHeight}
             focalLength={focalLength}
+            pixelSize={pixelSize}
+            rotationAngle={rotationAngle}
+            selectedTarget={selectedObject ? {
+              name: selectedObject.names[0] || t('common.unknown'),
+              raDeg: selectedObject.raDeg,
+              decDeg: selectedObject.decDeg,
+              size: selectedObject.size,
+            } : null}
             onSensorWidthChange={setSensorWidth}
             onSensorHeightChange={setSensorHeight}
             onFocalLengthChange={setFocalLength}
+            onPixelSizeChange={setPixelSize}
+            onRotationAngleChange={setRotationAngle}
+            onCenterTarget={onGoToCoordinates}
             mosaic={mosaic}
             onMosaicChange={setMosaic}
             gridType={gridType}
@@ -165,14 +176,19 @@ export const MobileLayout = memo(function MobileLayout({
     onLocationChange,
     prioritizedTools,
     pixelSize,
+    rotationAngle,
+    selectedObject,
     sensorHeight,
     sensorWidth,
     setFovSimEnabled,
     setFocalLength,
     setGridType,
     setMosaic,
+    setPixelSize,
+    setRotationAngle,
     setSensorHeight,
     setSensorWidth,
+    t,
   ]);
 
   const compactPriorityIds = useMemo(() => {

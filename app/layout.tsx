@@ -1,10 +1,13 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ThemeCustomizationSyncProvider } from "@/components/providers/theme-customization-sync";
 import { SettingsSyncProvider } from "@/components/providers/settings-sync-provider";
 import { SettingsToaster } from "@/components/providers/settings-toaster";
+import { CliLaunchProvider } from "@/components/providers/cli-launch-provider";
+import { GlobalShortcutProvider } from "@/components/providers/global-shortcut-provider";
+import { AutostartProvider } from "@/components/providers/autostart-provider";
 import { TauriSyncProvider } from "@/lib/tauri/TauriSyncProvider";
 import "./globals.css";
 
@@ -83,7 +86,11 @@ export default function RootLayout({
             <SettingsSyncProvider>
               <I18nProvider>
                 <TauriSyncProvider>
-                  {children}
+                  <CliLaunchProvider>
+                    <GlobalShortcutProvider />
+                    <AutostartProvider />
+                    {children}
+                  </CliLaunchProvider>
                 </TauriSyncProvider>
                 <SettingsToaster />
               </I18nProvider>

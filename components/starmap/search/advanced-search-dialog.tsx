@@ -20,12 +20,12 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import {
   Select,
   SelectContent,
@@ -204,14 +204,14 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
   const firstSearchMessage = searchMessages[0]?.message;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] max-h-[85dvh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="complex-editor">
+      <ResponsiveDialogContent className="max-w-3xl max-h-[100vh] max-h-[100dvh] flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             <SlidersHorizontal className="h-5 w-5" />
             {t('search.advancedSearch')}
-          </DialogTitle>
-        </DialogHeader>
+          </ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="grid w-full grid-cols-2">
@@ -576,13 +576,13 @@ export function AdvancedSearchDialog({ open, onOpenChange, onSelect, searchHook 
           </TabsContent>
         </Tabs>
 
-        <DialogFooter>
+        <ResponsiveDialogFooter stickyOnMobile>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.close')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 

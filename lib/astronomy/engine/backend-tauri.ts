@@ -19,6 +19,7 @@ import type {
   RiseTransitSetRequest,
   RiseTransitSetResponse,
 } from './types';
+import { createCalculationMeta } from './meta';
 
 function normalizeDegrees(value: number): number {
   return ((value % 360) + 360) % 360;
@@ -177,10 +178,7 @@ async function computeCoordinates(input: CoordinateComputationInput): Promise<Co
       lst,
       hourAngle: normalizeSignedDegrees(lst - ra),
     },
-    meta: {
-      backend: 'tauri',
-      model: 'tauri-rust',
-    },
+    meta: createCalculationMeta('tauri', 'tauri-rust'),
   };
 }
 
@@ -244,10 +242,7 @@ async function computeRiseTransitSet(request: RiseTransitSetRequest): Promise<Ri
     darkImagingStart,
     darkImagingEnd,
     darkImagingHours,
-    meta: {
-      backend: 'tauri',
-      model: 'tauri-rust',
-    },
+    meta: createCalculationMeta('tauri', 'tauri-rust'),
   };
 }
 
@@ -296,10 +291,7 @@ async function computeEphemeris(request: EphemerisRequest): Promise<EphemerisRes
   return {
     body: request.body,
     points,
-    meta: {
-      backend: 'tauri',
-      model: 'tauri-rust',
-    },
+    meta: createCalculationMeta('tauri', 'tauri-rust'),
   };
 }
 
@@ -344,10 +336,7 @@ async function computeAlmanac(request: AlmanacRequest): Promise<AlmanacResponse>
       riseTime: fromTimestampSeconds(moonVisibility.rise_time),
       setTime: fromTimestampSeconds(moonVisibility.set_time),
     },
-    meta: {
-      backend: 'tauri',
-      model: 'tauri-rust',
-    },
+    meta: createCalculationMeta('tauri', 'tauri-rust'),
   };
 }
 
@@ -370,10 +359,7 @@ async function searchPhenomena(request: PhenomenaRequest): Promise<PhenomenaResp
 
   return {
     events: mapped.sort((left, right) => left.date.getTime() - right.date.getTime()),
-    meta: {
-      backend: 'tauri',
-      model: 'tauri-events',
-    },
+    meta: createCalculationMeta('tauri', 'tauri-events'),
   };
 }
 

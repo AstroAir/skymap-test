@@ -55,6 +55,192 @@ export interface MosaicCoverage {
   totalPanels: number;
 }
 
+export type FOVFitStatus = 'too_large' | 'tight' | 'good' | 'roomy';
+
+export interface ParsedAngularSizeArcmin {
+  widthArcmin: number;
+  heightArcmin: number;
+  majorArcmin: number;
+  minorArcmin: number;
+}
+
+export interface TargetFitEvaluation {
+  status: FOVFitStatus;
+  fitRatio: number;
+  targetMajorArcmin: number;
+  frameMinArcmin: number;
+}
+
+export type MosaicValidationIssueCode =
+  | 'rows_clamped'
+  | 'cols_clamped'
+  | 'overlap_clamped'
+  | 'panel_count_high'
+  | 'panel_count_extreme'
+  | 'overlap_high';
+
+export interface MosaicValidationIssue {
+  code: MosaicValidationIssueCode;
+  severity: 'error' | 'warning';
+  actual?: number;
+  min?: number;
+  max?: number;
+}
+
+export interface MosaicValidationResult {
+  sanitized: MosaicSettings;
+  issues: MosaicValidationIssue[];
+}
+
+const MOSAIC_ROWS_MIN = 1;
+const MOSAIC_ROWS_MAX = 10;
+const MOSAIC_COLS_MIN = 1;
+const MOSAIC_COLS_MAX = 10;
+const MOSAIC_OVERLAP_PERCENT_MAX = 50;
+const MOSAIC_OVERLAP_PIXELS_MAX = 500;
+const MOSAIC_PANEL_COUNT_WARN = 16;
+const MOSAIC_PANEL_COUNT_EXTREME = 36;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function toArcmin(value: number, rawUnit: string | undefined, fallbackUnit: string): number {
+  const unit = (rawUnit || fallbackUnit).toLowerCase();
+  if (unit.includes('"') || unit.includes('arcsec') || unit.includes('″')) {
+    return value / 60;
+  }
+  if (unit.includes('°') || unit.includes('deg') || unit === 'd') {
+    return value * 60;
+  }
+  return value;
+}
+
+/**
+ * Parse angular-size strings like `120' x 90'`, `2.0° × 1.5°`, `30" x 20"`.
+ * Returns arcminutes or `null` if no numeric size can be extracted.
+ */
+export function parseAngularSizeArcmin(sizeText?: string | null): ParsedAngularSizeArcmin | null {
+  if (!sizeText || typeof sizeText !== 'string') return null;
+
+  const normalized = sizeText
+    .replaceAll('×', 'x')
+    .replaceAll('′', "'")
+    .replaceAll('″', '"')
+    .trim();
+
+  const matches = [...normalized.matchAll(/(\d+(?:\.\d+)?)\s*(°|deg|d|arcmin|arcsec|'|")?/gi)];
+  if (matches.length === 0) return null;
+
+  const firstValue = Number.parseFloat(matches[0][1] ?? '');
+  if (!Number.isFinite(firstValue) || firstValue <= 0) return null;
+
+  const firstUnit = matches[0][2] ?? "'";
+  const secondValue = Number.parseFloat(matches[1]?.[1] ?? `${firstValue}`);
+  const secondUnit = matches[1]?.[2] ?? firstUnit;
+
+  const widthArcmin = toArcmin(firstValue, firstUnit, "'");
+  const heightArcmin = toArcmin(secondValue, secondUnit, firstUnit);
+  if (!(widthArcmin > 0) || !(heightArcmin > 0)) return null;
+
+  return {
+    widthArcmin,
+    heightArcmin,
+    majorArcmin: Math.max(widthArcmin, heightArcmin),
+    minorArcmin: Math.min(widthArcmin, heightArcmin),
+  };
+}
+
+/**
+ * Evaluate selected-target fit status against the active frame footprint.
+ */
+export function evaluateTargetFit(
+  targetMajorArcmin: number,
+  fovWidthDeg: number,
+  fovHeightDeg: number
+): TargetFitEvaluation | null {
+  if (!Number.isFinite(targetMajorArcmin) || targetMajorArcmin <= 0) return null;
+  if (!Number.isFinite(fovWidthDeg) || !Number.isFinite(fovHeightDeg)) return null;
+  if (fovWidthDeg <= 0 || fovHeightDeg <= 0) return null;
+
+  const frameMinArcmin = Math.min(fovWidthDeg, fovHeightDeg) * 60;
+  if (frameMinArcmin <= 0) return null;
+
+  const fitRatio = targetMajorArcmin / frameMinArcmin;
+  let status: FOVFitStatus = 'roomy';
+
+  if (fitRatio >= 0.98) status = 'too_large';
+  else if (fitRatio >= 0.72) status = 'tight';
+  else if (fitRatio >= 0.38) status = 'good';
+
+  return {
+    status,
+    fitRatio,
+    targetMajorArcmin,
+    frameMinArcmin,
+  };
+}
+
+/**
+ * Parse a target size string and evaluate fit in one step.
+ */
+export function evaluateTargetFitFromSize(
+  sizeText: string | undefined,
+  fovWidthDeg: number,
+  fovHeightDeg: number
+): TargetFitEvaluation | null {
+  const parsed = parseAngularSizeArcmin(sizeText);
+  if (!parsed) return null;
+  return evaluateTargetFit(parsed.majorArcmin, fovWidthDeg, fovHeightDeg);
+}
+
+/**
+ * Validate mosaic inputs, clamp invalid values, and return warning/error issues.
+ */
+export function validateMosaicSettings(mosaic: MosaicSettings): MosaicValidationResult {
+  const issues: MosaicValidationIssue[] = [];
+
+  const rows = clamp(Math.round(mosaic.rows), MOSAIC_ROWS_MIN, MOSAIC_ROWS_MAX);
+  const cols = clamp(Math.round(mosaic.cols), MOSAIC_COLS_MIN, MOSAIC_COLS_MAX);
+
+  if (rows !== mosaic.rows) {
+    issues.push({ code: 'rows_clamped', severity: 'error', actual: mosaic.rows, min: MOSAIC_ROWS_MIN, max: MOSAIC_ROWS_MAX });
+  }
+  if (cols !== mosaic.cols) {
+    issues.push({ code: 'cols_clamped', severity: 'error', actual: mosaic.cols, min: MOSAIC_COLS_MIN, max: MOSAIC_COLS_MAX });
+  }
+
+  const overlapMax = mosaic.overlapUnit === 'percent'
+    ? MOSAIC_OVERLAP_PERCENT_MAX
+    : MOSAIC_OVERLAP_PIXELS_MAX;
+  const overlap = clamp(mosaic.overlap, 0, overlapMax);
+  if (overlap !== mosaic.overlap) {
+    issues.push({ code: 'overlap_clamped', severity: 'error', actual: mosaic.overlap, min: 0, max: overlapMax });
+  }
+
+  const totalPanels = rows * cols;
+  if (totalPanels > MOSAIC_PANEL_COUNT_EXTREME) {
+    issues.push({ code: 'panel_count_extreme', severity: 'warning', actual: totalPanels, max: MOSAIC_PANEL_COUNT_EXTREME });
+  } else if (totalPanels > MOSAIC_PANEL_COUNT_WARN) {
+    issues.push({ code: 'panel_count_high', severity: 'warning', actual: totalPanels, max: MOSAIC_PANEL_COUNT_WARN });
+  }
+
+  const highOverlapThreshold = mosaic.overlapUnit === 'percent' ? 40 : 400;
+  if (overlap > highOverlapThreshold) {
+    issues.push({ code: 'overlap_high', severity: 'warning', actual: overlap, max: highOverlapThreshold });
+  }
+
+  return {
+    sanitized: {
+      ...mosaic,
+      rows,
+      cols,
+      overlap,
+    },
+    issues,
+  };
+}
+
 /**
  * Calculate total mosaic coverage in degrees
  */
@@ -65,13 +251,14 @@ export function calculateMosaicCoverage(
   resolution: { width: number; height: number }
 ): MosaicCoverage | null {
   if (!mosaic.enabled) return null;
-  const overlapFactor = mosaic.overlapUnit === 'percent'
-    ? (1 - mosaic.overlap / 100)
-    : (1 - mosaic.overlap / (resolution.width / mosaic.cols));
+  const validated = validateMosaicSettings(mosaic).sanitized;
+  const overlapFactor = validated.overlapUnit === 'percent'
+    ? (1 - validated.overlap / 100)
+    : (1 - validated.overlap / (resolution.width / validated.cols));
   return {
-    width: fovWidth * mosaic.cols * overlapFactor + fovWidth * (1 - overlapFactor),
-    height: fovHeight * mosaic.rows * overlapFactor + fovHeight * (1 - overlapFactor),
-    totalPanels: mosaic.rows * mosaic.cols,
+    width: fovWidth * validated.cols * overlapFactor + fovWidth * (1 - overlapFactor),
+    height: fovHeight * validated.rows * overlapFactor + fovHeight * (1 - overlapFactor),
+    totalPanels: validated.rows * validated.cols,
   };
 }
 
@@ -124,6 +311,8 @@ export function calculateOverlayDimensions(
   mosaic: MosaicSettings,
   pixelSize?: number
 ): OverlayDimensions {
+  const validatedMosaic = validateMosaicSettings(mosaic).sanitized;
+
   // Calculate camera FOV in degrees
   const { width: cameraFovWidth, height: cameraFovHeight } =
     calculateCameraFov(sensorWidth, sensorHeight, focalLength);
@@ -143,14 +332,14 @@ export function calculateOverlayDimensions(
   const overlayHeightPx = safeHeight * (cameraFovHeight / viewFovVerticalDeg);
 
   // Calculate mosaic dimensions
-  const mosaicCols = mosaic.enabled ? mosaic.cols : 1;
-  const mosaicRows = mosaic.enabled ? mosaic.rows : 1;
+  const mosaicCols = validatedMosaic.enabled ? validatedMosaic.cols : 1;
+  const mosaicRows = validatedMosaic.enabled ? validatedMosaic.rows : 1;
   let overlapFactor: number;
-  if (mosaic.overlapUnit === 'pixels' && pixelSize && pixelSize > 0) {
+  if (validatedMosaic.overlapUnit === 'pixels' && pixelSize && pixelSize > 0) {
     const resolutionWidth = Math.round((sensorWidth * 1000) / pixelSize);
-    overlapFactor = 1 - mosaic.overlap / (resolutionWidth / mosaicCols);
+    overlapFactor = 1 - validatedMosaic.overlap / (resolutionWidth / mosaicCols);
   } else {
-    overlapFactor = 1 - mosaic.overlap / 100;
+    overlapFactor = 1 - validatedMosaic.overlap / 100;
   }
 
   const panelWidthPx = overlayWidthPx;

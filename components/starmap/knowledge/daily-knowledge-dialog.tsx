@@ -17,19 +17,18 @@ import {
   Star,
   Telescope,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -39,10 +38,15 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toggle } from '@/components/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { DailyKnowledgeCategory, DailyKnowledgeSource } from '@/lib/services/daily-knowledge';
+import type {
+  DailyKnowledgeCategory,
+  DailyKnowledgeDifficulty,
+  DailyKnowledgeSource,
+} from '@/lib/services/daily-knowledge';
 import { useDailyKnowledgeStore } from '@/lib/stores';
 import { isMobile } from '@/lib/storage/platform';
 import { cn } from '@/lib/utils';
+import { copyTextWithFeedback } from '@/lib/utils/clipboard-feedback';
 
 const CATEGORY_OPTIONS: Array<{ value: DailyKnowledgeCategory | 'all'; labelKey: string }> = [
   { value: 'all', labelKey: 'dailyKnowledge.categoryAll' },
@@ -88,7 +92,38 @@ export function DailyKnowledgeDialog() {
   const wheelPagingEnabled = useDailyKnowledgeStore((state) => state.wheelPagingEnabled);
   const setWheelPagingEnabled = useDailyKnowledgeStore((state) => state.setWheelPagingEnabled);
   const isMobileDevice = useMemo(() => isMobile(), []);
+  const monthFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+      }),
+    []
+  );
   const lastWheelAtRef = useRef(0);
+
+  function normalizeMonths(months: number[] | undefined): number[] {
+    return Array.from(
+      new Set(
+        (months ?? [])
+          .map((value) => Math.trunc(value))
+          .filter((value) => value >= 1 && value <= 12)
+      )
+    ).sort((a, b) => a - b);
+  }
+
+  function formatBestViewingMonths(months: number[] | undefined): string {
+    const normalized = normalizeMonths(months);
+    if (normalized.length === 0 || normalized.length >= 12) {
+      return t('dailyKnowledge.allYear');
+    }
+    return normalized
+      .map((month) => monthFormatter.format(new Date(Date.UTC(2020, month - 1, 1))))
+      .join(', ');
+  }
+
+  function formatDifficultyLabel(difficulty: DailyKnowledgeDifficulty | undefined): string {
+    return t(`dailyKnowledge.difficultyBadge.${difficulty ?? 'intermediate'}`);
+  }
 
   useEffect(() => {
     if (open && items.length === 0) {
@@ -213,34 +248,36 @@ export function DailyKnowledgeDialog() {
       // fallback to clipboard
     }
 
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(t('dailyKnowledge.copySuccess'));
-    } catch {
-      toast.error(t('dailyKnowledge.shareFailed'));
-    }
+    await copyTextWithFeedback({
+      text,
+      successMessage: t('dailyKnowledge.copySuccess'),
+      errorMessage: t('dailyKnowledge.shareFailed'),
+    });
   }
 
   async function handleCopy(): Promise<void> {
     if (!effectiveItem) return;
     const payload = buildShareText();
-    try {
-      await navigator.clipboard.writeText(payload);
-      toast.success(t('dailyKnowledge.copySuccess'));
-    } catch {
-      toast.error(t('dailyKnowledge.copyFailed'));
-    }
+    await copyTextWithFeedback({
+      text: payload,
+      successMessage: t('dailyKnowledge.copySuccess'),
+      errorMessage: t('dailyKnowledge.copyFailed'),
+    });
   }
 
   const isFavorite = effectiveItem ? favoriteIds.has(effectiveItem.id) : false;
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && closeDialog()}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{t('dailyKnowledge.title')}</DialogTitle>
-          <DialogDescription>{t('dailyKnowledge.subtitle')}</DialogDescription>
-        </DialogHeader>
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={(nextOpen) => !nextOpen && closeDialog()}
+      tier="complex-editor"
+    >
+      <ResponsiveDialogContent className="max-w-4xl max-h-[100vh] max-h-[100dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{t('dailyKnowledge.title')}</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>{t('dailyKnowledge.subtitle')}</ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
         <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto_auto]">
           <SearchInput
@@ -383,6 +420,7 @@ export function DailyKnowledgeDialog() {
 
         <Separator />
 
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
         {loading && (
           <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
             <div className="space-y-3">
@@ -413,6 +451,7 @@ export function DailyKnowledgeDialog() {
             <div className="space-y-3">
               {filteredItems.map((item) => {
                 const isCurrent = currentItem?.id === item.id;
+                const itemTips = (item.observationTips ?? []).slice(0, 2);
                 return (
                   <Card key={item.id} className={cn(isCurrent && 'border-primary')} data-current={isCurrent}>
                     <CardHeader className="pb-2">
@@ -428,11 +467,30 @@ export function DailyKnowledgeDialog() {
                       <p className="text-sm text-muted-foreground">{item.summary}</p>
                       <div className="flex flex-wrap gap-1">
                         <Badge variant="secondary">{t(`dailyKnowledge.sourceBadge.${item.source}`)}</Badge>
+                        <Badge variant="outline">{formatDifficultyLabel(item.difficulty)}</Badge>
+                        <Badge variant="outline">
+                          {t('dailyKnowledge.bestViewingMonthsLabel')}: {formatBestViewingMonths(item.bestViewingMonths)}
+                        </Badge>
                         {item.categories.map((category) => (
                           <Badge key={`${item.id}-${category}`} variant="outline">
                             {t(`dailyKnowledge.categoryBadge.${category}`)}
                           </Badge>
                         ))}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium">{t('dailyKnowledge.observationTips')}</p>
+                        {itemTips.length === 0 && (
+                          <p className="text-xs text-muted-foreground">{t('dailyKnowledge.noObservationTips')}</p>
+                        )}
+                        {itemTips.length > 0 && (
+                          <ul className="space-y-1 text-xs text-muted-foreground">
+                            {itemTips.map((tip, index) => (
+                              <li key={`${item.id}-tip-${index}`} className="leading-5">
+                                {tip}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -464,6 +522,34 @@ export function DailyKnowledgeDialog() {
               {effectiveItem.languageStatus === 'fallback' && (
                 <p className="text-xs text-muted-foreground">{t('dailyKnowledge.fallbackNotice')}</p>
               )}
+              <Card className="py-3 gap-2">
+                <CardHeader className="px-3 py-0">
+                  <CardTitle className="text-sm">{t('dailyKnowledge.practicalInsights')}</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 py-0 text-sm space-y-2">
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="outline">{formatDifficultyLabel(effectiveItem.difficulty)}</Badge>
+                    <Badge variant="outline">
+                      {t('dailyKnowledge.bestViewingMonthsLabel')}: {formatBestViewingMonths(effectiveItem.bestViewingMonths)}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium">{t('dailyKnowledge.observationTips')}</p>
+                    {(effectiveItem.observationTips ?? []).length === 0 && (
+                      <p className="text-xs text-muted-foreground">{t('dailyKnowledge.noObservationTips')}</p>
+                    )}
+                    {(effectiveItem.observationTips ?? []).length > 0 && (
+                      <ul className="space-y-1 text-xs text-muted-foreground">
+                        {(effectiveItem.observationTips ?? []).slice(0, 4).map((tip, index) => (
+                          <li key={`${effectiveItem.id}-observation-tip-${index}`} className="leading-5">
+                            {tip}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
               <ScrollArea className="h-64 rounded-md border p-3">
                 <p className="text-sm leading-6 whitespace-pre-wrap">{effectiveItem.body}</p>
               </ScrollArea>
@@ -573,7 +659,9 @@ export function DailyKnowledgeDialog() {
           </div>
         )}
 
-        <DialogFooter className="justify-between">
+        </div>
+
+        <ResponsiveDialogFooter stickyOnMobile className="justify-between">
           <Button
             variant="ghost"
             onClick={() => {
@@ -586,8 +674,8 @@ export function DailyKnowledgeDialog() {
           <Button variant="outline" onClick={closeDialog}>
             {t('common.close')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

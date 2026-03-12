@@ -12,11 +12,17 @@ export interface MemoryTransportConfig {
   maxLogs: number;
   /** Whether to automatically trim old logs when limit is reached */
   autoTrim: boolean;
+  /** Whether to suppress duplicate log bursts */
+  suppressionEnabled: boolean;
+  /** Suppression time window in ms for duplicate entries */
+  suppressionWindowMs: number;
 }
 
 const DEFAULT_CONFIG: MemoryTransportConfig = {
   maxLogs: 1000,
   autoTrim: true,
+  suppressionEnabled: true,
+  suppressionWindowMs: 2000,
 };
 
 export type LogListener = (entry: LogEntry) => void;
@@ -42,7 +48,46 @@ export class MemoryTransport implements LogTransport {
   }
   
   write(entry: LogEntry): void {
-    this.logs.push(entry);
+    // Suppress noisy duplicates while preserving occurrence counts.
+    if (this.config.suppressionEnabled) {
+      const lastEntry = this.logs[this.logs.length - 1];
+      if (lastEntry && this.isDuplicateWithinWindow(lastEntry, entry)) {
+        const previousCount = Math.max(1, lastEntry.occurrenceCount ?? 1);
+        const incomingCount = Math.max(1, entry.occurrenceCount ?? 1);
+        const newCount = previousCount + incomingCount;
+        const incomingFirst = entry.firstTimestamp ?? entry.timestamp;
+        const incomingLast = entry.lastTimestamp ?? entry.timestamp;
+
+        lastEntry.occurrenceCount = newCount;
+        lastEntry.firstTimestamp = lastEntry.firstTimestamp ?? lastEntry.timestamp;
+        if (incomingFirst < lastEntry.firstTimestamp) {
+          lastEntry.firstTimestamp = incomingFirst;
+        }
+
+        lastEntry.lastTimestamp = lastEntry.lastTimestamp ?? lastEntry.timestamp;
+        if (incomingLast > lastEntry.lastTimestamp) {
+          lastEntry.lastTimestamp = incomingLast;
+        }
+
+        // Preserve the newest context tags if previous entry had none.
+        if ((!lastEntry.tags || lastEntry.tags.length === 0) && entry.tags && entry.tags.length > 0) {
+          lastEntry.tags = [...entry.tags];
+        }
+
+        this.notifyListeners(lastEntry);
+        this.scheduleLogsChanged();
+        return;
+      }
+    }
+
+    const normalizedEntry: LogEntry = {
+      ...entry,
+      occurrenceCount: Math.max(1, entry.occurrenceCount ?? 1),
+      firstTimestamp: entry.firstTimestamp ?? entry.timestamp,
+      lastTimestamp: entry.lastTimestamp ?? entry.timestamp,
+    };
+
+    this.logs.push(normalizedEntry);
     
     // Trim old logs if needed
     if (this.config.autoTrim && this.logs.length > this.config.maxLogs) {
@@ -51,7 +96,7 @@ export class MemoryTransport implements LogTransport {
     }
     
     // Notify per-entry listeners immediately
-    this.notifyListeners(entry);
+    this.notifyListeners(normalizedEntry);
     // Throttle bulk change notifications to reduce GC pressure
     this.scheduleLogsChanged();
   }
@@ -133,6 +178,34 @@ export class MemoryTransport implements LogTransport {
   getConfig(): MemoryTransportConfig {
     return { ...this.config };
   }
+
+  /**
+   * Get suppression snapshot statistics.
+   */
+  getSuppressionStats(): {
+    enabled: boolean;
+    windowMs: number;
+    groupedEntries: number;
+    suppressedDuplicates: number;
+  } {
+    let groupedEntries = 0;
+    let suppressedDuplicates = 0;
+
+    for (const entry of this.logs) {
+      const count = Math.max(1, entry.occurrenceCount ?? 1);
+      if (count > 1) {
+        groupedEntries += 1;
+        suppressedDuplicates += count - 1;
+      }
+    }
+
+    return {
+      enabled: this.config.suppressionEnabled,
+      windowMs: this.config.suppressionWindowMs,
+      groupedEntries,
+      suppressedDuplicates,
+    };
+  }
   
   /**
    * Dispose and clean up
@@ -152,6 +225,20 @@ export class MemoryTransport implements LogTransport {
         // Ignore listener errors
       }
     }
+  }
+
+  private isDuplicateWithinWindow(previous: LogEntry, next: LogEntry): boolean {
+    if (
+      previous.level !== next.level
+      || previous.module !== next.module
+      || previous.message !== next.message
+      || (previous.eventCode ?? '') !== (next.eventCode ?? '')
+    ) {
+      return false;
+    }
+
+    const previousLast = previous.lastTimestamp ?? previous.timestamp;
+    return next.timestamp.getTime() - previousLast.getTime() <= this.config.suppressionWindowMs;
   }
   
   /**

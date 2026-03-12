@@ -9,7 +9,7 @@ import type { UseObjectSearchReturn } from '@/lib/hooks/use-object-search';
 // Helper: create a complete mock return value for useObjectSearch
 // ============================================================================
 function createMockSearchHook(overrides: Partial<UseObjectSearchReturn> = {}): UseObjectSearchReturn {
-  return {
+  const base: UseObjectSearchReturn = {
     query: '',
     setQuery: jest.fn(),
     search: jest.fn(),
@@ -17,8 +17,12 @@ function createMockSearchHook(overrides: Partial<UseObjectSearchReturn> = {}): U
     groupedResults: new Map(),
     isSearching: false,
     isOnlineSearching: false,
+    searchStage: 'idle' as const,
     searchOutcome: 'empty' as const,
     searchMessages: [],
+    refinementHints: [],
+    providerDiagnostics: [],
+    usedCachedOnline: false,
     onlineAvailable: false,
     searchStats: { totalResults: 0, resultsByType: {}, searchTimeMs: 0 },
     filters: {
@@ -44,7 +48,19 @@ function createMockSearchHook(overrides: Partial<UseObjectSearchReturn> = {}): U
     isSelected: jest.fn(() => false),
     popularObjects: [],
     quickCategories: [],
+  };
+
+  return {
+    ...base,
     ...overrides,
+    searchStage: overrides.searchStage ?? base.searchStage,
+    searchOutcome: overrides.searchOutcome ?? base.searchOutcome,
+    searchMessages: overrides.searchMessages ?? base.searchMessages,
+    refinementHints: overrides.refinementHints ?? base.refinementHints,
+    providerDiagnostics: overrides.providerDiagnostics ?? base.providerDiagnostics,
+    usedCachedOnline: overrides.usedCachedOnline ?? base.usedCachedOnline,
+    onlineAvailable: overrides.onlineAvailable ?? base.onlineAvailable,
+    searchStats: overrides.searchStats ?? base.searchStats,
   };
 }
 

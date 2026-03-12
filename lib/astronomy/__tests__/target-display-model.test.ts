@@ -4,6 +4,7 @@ import {
   formatMagnitude,
   formatMoonDistance,
   formatTargetTimestamp,
+  getCalculationQualityState,
   getAltitudeVisibilityState,
   getMoonInterferenceLevel,
   TARGET_DISPLAY_THRESHOLDS,
@@ -102,6 +103,9 @@ describe('target-display-model', () => {
           qualityFlag: 'precise',
           dataFreshness: 'fresh',
           updatedAt: '2026-03-09T20:10:12Z',
+          calculationSource: 'calculation',
+          calculationDegraded: false,
+          calculationTimestamp: '2026-03-09T20:10:12Z',
           riskHints: ['low-feasibility'],
         },
       });
@@ -115,10 +119,25 @@ describe('target-display-model', () => {
       expect(model?.sections.planningMetrics?.moonDistance).toBe('62deg'.replace('deg', '°'));
       expect(model?.sections.planningMetrics?.feasibilityScore).toBe(82);
       expect(model?.sections.advancedMetadata?.frame).toBe('OBSERVED');
+      expect(model?.sections.liveStatus?.calculationState).toBe('normal');
+      expect(model?.sections.advancedMetadata?.calculationSource).toBe('calculation');
+      expect(model?.sections.advancedMetadata?.calculationState).toBe('normal');
     });
 
     it('returns null when no selected object is provided', () => {
       expect(buildTargetDisplayModel({ selectedObject: null })).toBeNull();
+    });
+  });
+
+  describe('calculation quality state', () => {
+    it('marks fallback-quality data as degraded', () => {
+      expect(getCalculationQualityState('fallback', 'fresh')).toBe('degraded');
+      expect(getCalculationQualityState('precise', 'fallback')).toBe('degraded');
+      expect(getCalculationQualityState('precise', 'fresh', true)).toBe('degraded');
+    });
+
+    it('marks non-fallback data as normal', () => {
+      expect(getCalculationQualityState('precise', 'fresh')).toBe('normal');
     });
   });
 });

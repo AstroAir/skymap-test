@@ -7,48 +7,103 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::fits::{parse_fits_header_from_bytes, parse_value};
-use super::helpers::get_default_index_path_internal;
+use super::helpers::{
+    cleanup_local_solve_workspace, command_succeeds, create_local_solve_workspace, excerpt_output,
+    get_default_index_path_internal, resolve_preferred_executable,
+};
 use super::index::parse_index_scale;
 use super::types::{
-    AstrometryIndex, PlateSolveResult, PlateSolverConfig, PlateSolverError, PlateSolverType,
+    AstrometryIndex, IndexInfo, LocalInvocationDiagnostics, LocalSolveWorkspace,
+    LocalSolverProfileId, PlateSolveResult, PlateSolverConfig, PlateSolverError, PlateSolverType,
+    ScaleRange, SolverConfig, SolverInfo,
 };
 
-pub(super) async fn solve_with_local_astrometry(config: &PlateSolverConfig) -> Result<PlateSolveResult, PlateSolverError> {
-    let solvers = super::detect_plate_solvers().await?;
-    let astrometry = solvers.iter().find(|s| matches!(s.solver_type, PlateSolverType::LocalAstrometry))
-        .ok_or(PlateSolverError::SolverNotInstalled("Astrometry.net".to_string()))?;
+pub(super) async fn solve_with_local_astrometry(
+    config: &PlateSolverConfig,
+    solver_config: Option<&SolverConfig>,
+) -> Result<PlateSolveResult, PlateSolverError> {
+    let preferred_executable = solver_config.and_then(|sc| sc.executable_path.as_deref());
+    let preferred_index_path = solver_config.and_then(|sc| sc.index_path.as_deref());
+    let astrometry = detect_astrometry_solver(preferred_executable, preferred_index_path).ok_or(
+        PlateSolverError::SolverNotInstalled("Astrometry.net".to_string()),
+    )?;
+    let workspace = create_local_solve_workspace("astrometry")?;
+    let keep_wcs_file = solver_config.map(|sc| sc.keep_wcs_file).unwrap_or(true);
 
-    let mut cmd = Command::new(&astrometry.path);
-    cmd.arg(&config.image_path).arg("--no-plots");
-
-    if let Some(ra) = config.ra_hint { cmd.arg("--ra").arg(format!("{}", ra)); }
-    if let Some(dec) = config.dec_hint { cmd.arg("--dec").arg(format!("{}", dec)); }
-    if let Some(r) = config.radius_hint { cmd.arg("--radius").arg(format!("{}", r)); }
+    let mut cmd = Command::new(&astrometry.executable_path);
+    if let Some(config_ref) = solver_config {
+        cmd.args(build_astrometry_command_args(
+            config, config_ref, &workspace,
+        ));
+    } else {
+        let fallback = SolverConfig::default();
+        cmd.args(build_astrometry_command_args(config, &fallback, &workspace));
+    }
 
     let timeout_secs = config.timeout_seconds.unwrap_or(120);
-    let image_path = config.image_path.clone();
+    let executable_path = astrometry.executable_path.clone();
+    let workspace_path = workspace.root_dir.to_string_lossy().to_string();
+    let profile_id = astrometry.profile_id;
 
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs as u64),
-        tokio::task::spawn_blocking(move || {
-            cmd.output()
+        tokio::task::spawn_blocking(move || cmd.output()),
+    )
+    .await
+    .map_err(|_| {
+        PlateSolverError::LocalInvocation(LocalInvocationDiagnostics {
+            error_code: "timeout".to_string(),
+            profile_id,
+            executable_path: Some(executable_path.clone()),
+            workspace_path: Some(workspace_path.clone()),
+            exit_code: None,
+            availability_reason: astrometry.availability_reason.clone(),
+            stdout_excerpt: None,
+            stderr_excerpt: None,
         })
-    ).await
-    .map_err(|_| PlateSolverError::SolveFailed(format!("Astrometry.net solve timed out after {}s", timeout_secs)))?
+    })?
     .map_err(|e| PlateSolverError::SolveFailed(format!("Task join error: {}", e)))?
     .map_err(PlateSolverError::Io)?;
 
     if output.status.success() {
-        parse_astrometry_result(&image_path)
+        let mut result = parse_astrometry_result(&workspace.wcs_file)?;
+        result.wcs_file = keep_wcs_file.then(|| workspace.wcs_file.to_string_lossy().to_string());
+        if !keep_wcs_file {
+            cleanup_local_solve_workspace(&workspace);
+        }
+        Ok(result)
     } else {
-        Err(PlateSolverError::SolveFailed(String::from_utf8_lossy(&output.stderr).to_string()))
+        Err(PlateSolverError::LocalInvocation(
+            LocalInvocationDiagnostics {
+                error_code: "nonzero_exit".to_string(),
+                profile_id,
+                executable_path: Some(astrometry.executable_path.clone()),
+                workspace_path: Some(workspace.root_dir.to_string_lossy().to_string()),
+                exit_code: output.status.code(),
+                availability_reason: astrometry.availability_reason.clone(),
+                stdout_excerpt: excerpt_output(&output.stdout),
+                stderr_excerpt: excerpt_output(&output.stderr),
+            },
+        ))
     }
 }
 
-fn parse_astrometry_result(image_path: &str) -> Result<PlateSolveResult, PlateSolverError> {
-    let wcs_path = PathBuf::from(image_path).with_extension("wcs");
+fn parse_astrometry_result(wcs_path: &Path) -> Result<PlateSolveResult, PlateSolverError> {
     if !wcs_path.exists() {
-        return Err(PlateSolverError::SolveFailed("WCS file not found".to_string()));
+        return Err(PlateSolverError::LocalInvocation(
+            LocalInvocationDiagnostics {
+                error_code: "result_missing".to_string(),
+                profile_id: Some(LocalSolverProfileId::AstrometrySolveField),
+                executable_path: None,
+                workspace_path: wcs_path
+                    .parent()
+                    .map(|path| path.to_string_lossy().to_string()),
+                exit_code: None,
+                availability_reason: None,
+                stdout_excerpt: None,
+                stderr_excerpt: None,
+            },
+        ));
     }
 
     // Parse the FITS WCS header from the .wcs file
@@ -58,8 +113,17 @@ fn parse_astrometry_result(image_path: &str) -> Result<PlateSolveResult, PlateSo
     let header_str = parse_fits_header_from_bytes(&data);
 
     let mut result = PlateSolveResult {
-        success: true, ra: None, dec: None, rotation: None, scale: None,
-        width_deg: None, height_deg: None, flipped: None, error_message: None, solve_time_ms: 0,
+        success: true,
+        ra: None,
+        dec: None,
+        rotation: None,
+        scale: None,
+        width_deg: None,
+        height_deg: None,
+        flipped: None,
+        error_message: None,
+        wcs_file: None,
+        solve_time_ms: 0,
     };
 
     let mut cdelt1: Option<f64> = None;
@@ -74,17 +138,29 @@ fn parse_astrometry_result(image_path: &str) -> Result<PlateSolveResult, PlateSo
 
     for line in header_str.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("CRVAL1") { result.ra = parse_value(trimmed); }
-        else if trimmed.starts_with("CRVAL2") { result.dec = parse_value(trimmed); }
-        else if trimmed.starts_with("CROTA2") { crota2 = parse_value(trimmed); }
-        else if trimmed.starts_with("CDELT1") { cdelt1 = parse_value(trimmed); }
-        else if trimmed.starts_with("CDELT2") { cdelt2 = parse_value(trimmed); }
-        else if trimmed.starts_with("NAXIS1") { naxis1 = parse_value(trimmed); }
-        else if trimmed.starts_with("NAXIS2") { naxis2 = parse_value(trimmed); }
-        else if trimmed.starts_with("CD1_1") { cd1_1 = parse_value(trimmed); }
-        else if trimmed.starts_with("CD1_2") { cd1_2 = parse_value(trimmed); }
-        else if trimmed.starts_with("CD2_1") { cd2_1 = parse_value(trimmed); }
-        else if trimmed.starts_with("CD2_2") { cd2_2 = parse_value(trimmed); }
+        if trimmed.starts_with("CRVAL1") {
+            result.ra = parse_value(trimmed);
+        } else if trimmed.starts_with("CRVAL2") {
+            result.dec = parse_value(trimmed);
+        } else if trimmed.starts_with("CROTA2") {
+            crota2 = parse_value(trimmed);
+        } else if trimmed.starts_with("CDELT1") {
+            cdelt1 = parse_value(trimmed);
+        } else if trimmed.starts_with("CDELT2") {
+            cdelt2 = parse_value(trimmed);
+        } else if trimmed.starts_with("NAXIS1") {
+            naxis1 = parse_value(trimmed);
+        } else if trimmed.starts_with("NAXIS2") {
+            naxis2 = parse_value(trimmed);
+        } else if trimmed.starts_with("CD1_1") {
+            cd1_1 = parse_value(trimmed);
+        } else if trimmed.starts_with("CD1_2") {
+            cd1_2 = parse_value(trimmed);
+        } else if trimmed.starts_with("CD2_1") {
+            cd2_1 = parse_value(trimmed);
+        } else if trimmed.starts_with("CD2_2") {
+            cd2_2 = parse_value(trimmed);
+        }
     }
 
     // Calculate rotation and scale from CD matrix or CDELT+CROTA
@@ -122,22 +198,154 @@ fn parse_astrometry_result(image_path: &str) -> Result<PlateSolveResult, PlateSo
 
 pub fn get_astrometry_paths() -> Vec<String> {
     #[cfg(target_os = "windows")]
-    { vec![r"C:\cygwin64\bin\solve-field.exe".to_string()] }
+    {
+        vec![
+            r"C:\cygwin64\bin\solve-field.exe".to_string(),
+            r"C:\cygwin\bin\solve-field.exe".to_string(),
+            "solve-field.exe".to_string(),
+        ]
+    }
     #[cfg(any(target_os = "macos", target_os = "linux"))]
-    { vec!["/usr/bin/solve-field".to_string(), "/usr/local/bin/solve-field".to_string()] }
+    {
+        vec![
+            "/usr/bin/solve-field".to_string(),
+            "/usr/local/bin/solve-field".to_string(),
+            "/opt/homebrew/bin/solve-field".to_string(),
+            "solve-field".to_string(),
+        ]
+    }
 }
 
 pub fn get_astrometry_version(path: &str) -> Option<String> {
-    Command::new(path).arg("--version").output().ok()
+    Command::new(path)
+        .arg("--version")
+        .output()
+        .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.lines().next().unwrap_or("").trim().to_string())
 }
 
 pub fn get_astrometry_index_path() -> Option<String> {
     #[cfg(target_os = "windows")]
-    { Some(r"C:\cygwin64\usr\share\astrometry".to_string()) }
+    {
+        Some(r"C:\cygwin64\usr\share\astrometry".to_string())
+    }
     #[cfg(any(target_os = "macos", target_os = "linux"))]
-    { Some("/usr/share/astrometry".to_string()) }
+    {
+        Some("/usr/share/astrometry".to_string())
+    }
+}
+
+pub fn validate_astrometry_executable(path: &str) -> Option<LocalSolverProfileId> {
+    command_succeeds(path, &["--version"]).then_some(LocalSolverProfileId::AstrometrySolveField)
+}
+
+pub fn detect_astrometry_solver(
+    preferred_executable: Option<&str>,
+    preferred_index_path: Option<&str>,
+) -> Option<SolverInfo> {
+    let executable_path =
+        resolve_preferred_executable(preferred_executable, &get_astrometry_paths())?;
+    let profile_id = validate_astrometry_executable(&executable_path)?;
+    let uses_custom_executable =
+        preferred_executable.is_some_and(|path| !path.trim().is_empty() && path == executable_path);
+    let index_path = preferred_index_path
+        .filter(|path| !path.trim().is_empty())
+        .map(|path| path.to_string())
+        .or_else(get_astrometry_index_path)
+        .or_else(|| get_default_index_path_internal("astrometry_net"));
+    let installed_indexes =
+        to_index_info(&get_local_astrometry_indexes_from_path(index_path.as_deref()).ok()?);
+    let is_available = !installed_indexes.is_empty();
+
+    Some(SolverInfo {
+        solver_type: PlateSolverType::LocalAstrometry,
+        name: "Astrometry.net (Local)".to_string(),
+        version: get_astrometry_version(&executable_path),
+        executable_path,
+        is_available,
+        index_path,
+        installed_indexes,
+        profile_id: Some(profile_id),
+        profile_name: Some(profile_id.display_name().to_string()),
+        availability_reason: (!is_available).then(|| "No Astrometry.net indexes found".to_string()),
+        uses_custom_executable,
+    })
+}
+
+fn build_astrometry_command_args(
+    config: &PlateSolverConfig,
+    solver_config: &SolverConfig,
+    workspace: &LocalSolveWorkspace,
+) -> Vec<String> {
+    let mut args = vec![
+        config.image_path.clone(),
+        "--overwrite".to_string(),
+        "--dir".to_string(),
+        workspace.root_dir.to_string_lossy().to_string(),
+        "--wcs".to_string(),
+        workspace.wcs_file.to_string_lossy().to_string(),
+    ];
+
+    if solver_config.astrometry_no_plots {
+        args.push("--no-plots".to_string());
+    }
+    if let Some(ra) = config.ra_hint {
+        args.push("--ra".to_string());
+        args.push(ra.to_string());
+    }
+    if let Some(dec) = config.dec_hint {
+        args.push("--dec".to_string());
+        args.push(dec.to_string());
+    }
+    if let Some(radius) = config.radius_hint.or(Some(solver_config.search_radius)) {
+        args.push("--radius".to_string());
+        args.push(radius.to_string());
+    }
+    if let Some(scale_low) = solver_config.astrometry_scale_low.or(config.scale_low) {
+        args.push("--scale-low".to_string());
+        args.push(scale_low.to_string());
+    }
+    if let Some(scale_high) = solver_config.astrometry_scale_high.or(config.scale_high) {
+        args.push("--scale-high".to_string());
+        args.push(scale_high.to_string());
+    }
+    args.push("--scale-units".to_string());
+    args.push(normalize_scale_units(&solver_config.astrometry_scale_units).to_string());
+    if let Some(depth) = solver_config
+        .astrometry_depth
+        .as_ref()
+        .filter(|depth| !depth.is_empty())
+    {
+        args.push("--depth".to_string());
+        args.push(depth.clone());
+    }
+    if solver_config.downsample > 0 || config.downsample.unwrap_or_default() > 0 {
+        args.push("--downsample".to_string());
+        args.push(
+            solver_config
+                .downsample
+                .max(config.downsample.unwrap_or_default())
+                .to_string(),
+        );
+    }
+    if solver_config.astrometry_no_verify {
+        args.push("--no-verify".to_string());
+    }
+    if solver_config.astrometry_crpix_center {
+        args.push("--crpix-center".to_string());
+    }
+
+    args
+}
+
+fn normalize_scale_units(value: &str) -> &str {
+    match value {
+        "deg_width" => "degwidth",
+        "arcmin_width" => "arcminwidth",
+        "arcsec_per_pix" => "arcsecperpix",
+        other => other,
+    }
 }
 
 // ============================================================================
@@ -145,12 +353,24 @@ pub fn get_astrometry_index_path() -> Option<String> {
 // ============================================================================
 
 pub fn get_local_astrometry_indexes() -> Result<Vec<AstrometryIndex>, PlateSolverError> {
+    get_local_astrometry_indexes_from_path(None)
+}
+
+pub fn get_local_astrometry_indexes_from_path(
+    index_path: Option<&str>,
+) -> Result<Vec<AstrometryIndex>, PlateSolverError> {
     let mut directories = Vec::new();
 
-    if let Some(env_path) = std::env::var_os("SKYMAP_ASTROMETRY_INDEX_PATH") {
-        for p in std::env::split_paths(&env_path) {
-            if !p.as_os_str().is_empty() {
-                directories.push(p);
+    if let Some(index_path) = index_path.filter(|path| !path.trim().is_empty()) {
+        directories.push(PathBuf::from(index_path));
+    }
+
+    if directories.is_empty() {
+        if let Some(env_path) = std::env::var_os("SKYMAP_ASTROMETRY_INDEX_PATH") {
+            for p in std::env::split_paths(&env_path) {
+                if !p.as_os_str().is_empty() {
+                    directories.push(p);
+                }
             }
         }
     }
@@ -181,6 +401,26 @@ pub fn get_local_astrometry_indexes() -> Result<Vec<AstrometryIndex>, PlateSolve
 
     all_indexes.sort_by(compare_astrometry_indexes);
     Ok(all_indexes)
+}
+
+fn to_index_info(indexes: &[AstrometryIndex]) -> Vec<IndexInfo> {
+    indexes
+        .iter()
+        .map(|index| IndexInfo {
+            name: index.name.clone(),
+            file_name: PathBuf::from(&index.path)
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| index.name.clone()),
+            path: index.path.clone(),
+            size_bytes: index.size_mb * 1024 * 1024,
+            scale_range: Some(ScaleRange {
+                min_arcmin: index.scale_low,
+                max_arcmin: index.scale_high,
+            }),
+            description: None,
+        })
+        .collect()
 }
 
 pub fn scan_astrometry_indexes_in_directory(dir: &Path) -> Vec<AstrometryIndex> {
@@ -280,6 +520,68 @@ mod tests {
         assert!(path.unwrap().to_lowercase().contains("astrometry"));
     }
 
+    #[test]
+    fn test_build_astrometry_command_args_uses_documented_cli_flags() {
+        let config = PlateSolverConfig {
+            solver_type: PlateSolverType::LocalAstrometry,
+            image_path: "/images/m42.fit".to_string(),
+            ra_hint: Some(83.822),
+            dec_hint: Some(-5.391),
+            radius_hint: Some(6.0),
+            scale_low: Some(1.2),
+            scale_high: Some(2.4),
+            downsample: Some(2),
+            timeout_seconds: Some(180),
+        };
+
+        let solver_config = SolverConfig {
+            solver_type: "astrometry_net".to_string(),
+            executable_path: Some("/usr/bin/solve-field".to_string()),
+            index_path: Some("/data/astrometry".to_string()),
+            timeout_seconds: 180,
+            downsample: 2,
+            search_radius: 6.0,
+            use_sip: true,
+            astap_database: None,
+            astap_max_stars: 500,
+            astap_tolerance: 0.007,
+            astap_speed_mode: "auto".to_string(),
+            astap_min_star_size: 1.5,
+            astap_equalise_background: false,
+            astrometry_scale_low: Some(1.2),
+            astrometry_scale_high: Some(2.4),
+            astrometry_scale_units: "degwidth".to_string(),
+            astrometry_depth: Some("1-20".to_string()),
+            astrometry_no_plots: true,
+            astrometry_no_verify: true,
+            astrometry_crpix_center: true,
+            keep_wcs_file: true,
+            auto_hints: true,
+            retry_on_failure: false,
+            max_retries: 2,
+        };
+
+        let workspace = LocalSolveWorkspace {
+            root_dir: PathBuf::from("/tmp/skymap-solve"),
+            output_base: PathBuf::from("/tmp/skymap-solve/result"),
+            wcs_file: PathBuf::from("/tmp/skymap-solve/result.wcs"),
+        };
+
+        let args = build_astrometry_command_args(&config, &solver_config, &workspace);
+        let joined = args.join(" ");
+
+        assert!(joined.contains("--scale-low 1.2"));
+        assert!(joined.contains("--scale-high 2.4"));
+        assert!(joined.contains("--scale-units degwidth"));
+        assert!(joined.contains("--downsample 2"));
+        assert!(joined.contains("--depth 1-20"));
+        assert!(joined.contains("--no-verify"));
+        assert!(joined.contains("--crpix-center"));
+        assert!(joined.contains("--dir /tmp/skymap-solve"));
+        assert!(joined.contains("--wcs /tmp/skymap-solve/result.wcs"));
+        assert!(joined.contains("--overwrite"));
+    }
+
     // ------------------------------------------------------------------------
     // parse_index_number Tests
     // ------------------------------------------------------------------------
@@ -322,31 +624,88 @@ mod tests {
 
     #[test]
     fn test_compare_astrometry_indexes_by_number() {
-        let a = AstrometryIndex { name: "index-4107".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
-        let b = AstrometryIndex { name: "index-4112".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
+        let a = AstrometryIndex {
+            name: "index-4107".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
+        let b = AstrometryIndex {
+            name: "index-4112".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
         assert_eq!(compare_astrometry_indexes(&a, &b), std::cmp::Ordering::Less);
-        assert_eq!(compare_astrometry_indexes(&b, &a), std::cmp::Ordering::Greater);
+        assert_eq!(
+            compare_astrometry_indexes(&b, &a),
+            std::cmp::Ordering::Greater
+        );
     }
 
     #[test]
     fn test_compare_astrometry_indexes_same_number() {
-        let a = AstrometryIndex { name: "index-4107".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
-        let b = AstrometryIndex { name: "index-4107".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
-        assert_eq!(compare_astrometry_indexes(&a, &b), std::cmp::Ordering::Equal);
+        let a = AstrometryIndex {
+            name: "index-4107".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
+        let b = AstrometryIndex {
+            name: "index-4107".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
+        assert_eq!(
+            compare_astrometry_indexes(&a, &b),
+            std::cmp::Ordering::Equal
+        );
     }
 
     #[test]
     fn test_compare_astrometry_indexes_numbered_before_unnumbered() {
-        let a = AstrometryIndex { name: "index-4107".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
-        let b = AstrometryIndex { name: "custom-index".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
+        let a = AstrometryIndex {
+            name: "index-4107".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
+        let b = AstrometryIndex {
+            name: "custom-index".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
         assert_eq!(compare_astrometry_indexes(&a, &b), std::cmp::Ordering::Less);
-        assert_eq!(compare_astrometry_indexes(&b, &a), std::cmp::Ordering::Greater);
+        assert_eq!(
+            compare_astrometry_indexes(&b, &a),
+            std::cmp::Ordering::Greater
+        );
     }
 
     #[test]
     fn test_compare_astrometry_indexes_both_unnumbered() {
-        let a = AstrometryIndex { name: "alpha-index".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
-        let b = AstrometryIndex { name: "beta-index".into(), path: "".into(), scale_low: 0.0, scale_high: 0.0, size_mb: 0 };
+        let a = AstrometryIndex {
+            name: "alpha-index".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
+        let b = AstrometryIndex {
+            name: "beta-index".into(),
+            path: "".into(),
+            scale_low: 0.0,
+            scale_high: 0.0,
+            size_mb: 0,
+        };
         // Falls back to string comparison
         assert_eq!(compare_astrometry_indexes(&a, &b), std::cmp::Ordering::Less);
     }

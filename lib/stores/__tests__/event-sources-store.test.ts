@@ -164,4 +164,31 @@ describe('useEventSourcesStore', () => {
       expect(imo?.apiKey).toBe('');
     });
   });
+
+  describe('persistence hardening', () => {
+    it('should omit raw apiKey values from persisted sources', () => {
+      const partialize = useEventSourcesStore.persist.getOptions().partialize;
+
+      if (!partialize) {
+        throw new Error('persist partialize should be defined');
+      }
+
+      const persisted = partialize({
+        ...useEventSourcesStore.getState(),
+        sources: [
+          {
+            id: 'custom-secret',
+            name: 'Secret Source',
+            apiUrl: 'https://example.com',
+            apiKey: 'persisted-secret',
+            enabled: true,
+            priority: 1,
+            cacheMinutes: 60,
+          },
+        ],
+      }) as { sources: Array<{ apiKey?: string }> };
+
+      expect(persisted.sources[0]?.apiKey).toBe('');
+    });
+  });
 });

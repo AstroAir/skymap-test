@@ -22,11 +22,25 @@ jest.mock('@/lib/services/geocoding-service', () => ({
   },
 }));
 
+jest.mock('@/lib/services/map-config', () => ({
+  mapConfig: {
+    getUiPreferences: jest.fn(() => ({
+      tileLayer: 'openstreetmap',
+      zoom: 10,
+      showLightPollution: false,
+    })),
+    setUiPreferences: jest.fn(),
+  },
+}));
+
 import { geocodingService } from '@/lib/services/geocoding-service';
+import { mapConfig } from '@/lib/services/map-config';
 
 const mockGeocode = geocodingService.geocode as jest.Mock;
 const mockReverseGeocode = geocodingService.reverseGeocode as jest.Mock;
 const mockGetSearchCapabilities = geocodingService.getSearchCapabilities as jest.Mock;
+const mockGetUiPreferences = mapConfig.getUiPreferences as jest.Mock;
+const mockSetUiPreferences = mapConfig.setUiPreferences as jest.Mock;
 
 // Mock toast
 jest.mock('sonner', () => ({
@@ -116,6 +130,11 @@ describe('MapLocationPicker', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetUiPreferences.mockReturnValue({
+      tileLayer: 'openstreetmap',
+      zoom: 10,
+      showLightPollution: false,
+    });
     mockGeocode.mockResolvedValue([]);
     mockReverseGeocode.mockResolvedValue({ displayName: 'Test Location', address: 'Test Address', coordinates: { latitude: 0, longitude: 0 } });
     mockGetSearchCapabilities.mockReturnValue({
@@ -485,6 +504,132 @@ describe('MapLocationPicker', () => {
       await waitFor(() => {
         expect(mockGeocode).toHaveBeenCalledWith('Tokyo', expect.any(Object));
       });
+    });
+  });
+
+  describe('Staged commit mode', () => {
+    it('does not emit onLocationChange until apply is clicked', async () => {
+      render(
+        <MapLocationPicker
+          onLocationChange={mockOnLocationChange}
+          commitMode="staged"
+        />
+      );
+
+      const inputs = screen.getAllByTestId('input');
+      const latInput = inputs.find(input => input.getAttribute('min') === '-90');
+
+      if (latInput) {
+        await act(async () => {
+          fireEvent.change(latInput, { target: { value: '45.123456' } });
+          fireEvent.blur(latInput);
+        });
+      }
+
+      expect(mockOnLocationChange).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('map-apply-selection'));
+
+      expect(mockOnLocationChange).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: 45.123456 })
+      );
+    });
+
+    it('discards staged changes', async () => {
+      render(
+        <MapLocationPicker
+          onLocationChange={mockOnLocationChange}
+          initialLocation={{ latitude: 10, longitude: 20 }}
+          commitMode="staged"
+        />
+      );
+
+      const inputs = screen.getAllByTestId('input');
+      const latInput = inputs.find(input => input.getAttribute('min') === '-90');
+
+      if (latInput) {
+        await act(async () => {
+          fireEvent.change(latInput, { target: { value: '30' } });
+          fireEvent.blur(latInput);
+        });
+      }
+
+      fireEvent.click(screen.getByTestId('map-discard-selection'));
+
+      await waitFor(() => {
+        const refreshedInputs = screen.getAllByTestId('input');
+        const refreshedLatInput = refreshedInputs.find(input => input.getAttribute('min') === '-90');
+        expect(refreshedLatInput).toHaveValue(10);
+      });
+      expect(mockOnLocationChange).not.toHaveBeenCalled();
+    });
+
+    it('defers onLocationSelect from search until apply', async () => {
+      mockGeocode.mockResolvedValue([
+        { displayName: 'Tokyo, Japan', address: 'Tokyo', coordinates: { latitude: 35.6762, longitude: 139.6503 } },
+      ]);
+
+      render(
+        <MapLocationPicker
+          onLocationChange={mockOnLocationChange}
+          onLocationSelect={mockOnLocationSelect}
+          showSearch
+          commitMode="staged"
+        />
+      );
+
+      const inputs = screen.getAllByTestId('input');
+      fireEvent.change(inputs[0], { target: { value: 'Tokyo' } });
+      fireEvent.keyDown(inputs[0], { key: 'Enter' });
+
+      await waitFor(() => {
+        expect(screen.getByText('Tokyo, Japan')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Tokyo, Japan'));
+      expect(mockOnLocationSelect).not.toHaveBeenCalled();
+      expect(mockOnLocationChange).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('map-apply-selection'));
+
+      expect(mockOnLocationSelect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          coordinates: { latitude: 35.6762, longitude: 139.6503 },
+        })
+      );
+      expect(mockOnLocationChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          latitude: 35.6762,
+          longitude: 139.6503,
+        })
+      );
+    });
+  });
+
+  describe('Map preferences', () => {
+    it('restores light-pollution preference from mapConfig', () => {
+      mockGetUiPreferences.mockReturnValue({
+        tileLayer: 'openstreetmap',
+        zoom: 9,
+        showLightPollution: true,
+      });
+
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} />);
+
+      const toggle = screen.getByLabelText(/map\.lightPollution|Light Pollution/);
+      expect(toggle.getAttribute('data-state')).toBe('on');
+    });
+
+    it('persists preference changes via mapConfig', () => {
+      render(<MapLocationPicker onLocationChange={mockOnLocationChange} />);
+      const toggle = screen.getByLabelText(/map\.lightPollution|Light Pollution/);
+      fireEvent.click(toggle);
+
+      expect(mockSetUiPreferences).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          showLightPollution: true,
+        })
+      );
     });
   });
 });

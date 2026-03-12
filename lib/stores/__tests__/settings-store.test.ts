@@ -79,6 +79,7 @@ const DEFAULT_PREFERENCES = {
   skipCloseConfirmation: false,
   rightPanelCollapsed: false,
   startupView: 'last' as const,
+  launchOnStartup: false,
   showSplash: true,
   autoConnectBackend: true,
   dailyKnowledgeEnabled: true,

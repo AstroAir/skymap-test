@@ -35,6 +35,27 @@
     "updater:allow-install",
     "process:allow-restart",
     "process:allow-exit",
-    "opener:default"
+    "positioner:allow-move-window",
+    "positioner:allow-move-window-constrained",
+    "positioner:allow-set-tray-icon-state",
+    "opener:default",
+    "os:default",
+    "cli:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-write-html",
+    "clipboard-manager:allow-read-image",
+    "clipboard-manager:allow-write-image",
+    "clipboard-manager:allow-clear",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-register-all",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
+    "global-shortcut:allow-is-registered",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
+    "stronghold:default",
+    "stronghold:allow-remove-store-record"
   ]
 }

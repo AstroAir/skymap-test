@@ -39,6 +39,7 @@ export function SkyMarkers({
 }: SkyMarkersProps) {
   const t = useTranslations();
   const markers = useMarkerStore((state) => state.markers);
+  const groupVisibility = useMarkerStore((state) => state.groupVisibility);
   const showMarkers = useMarkerStore((state) => state.showMarkers);
   const showLabels = useMarkerStore((state) => state.showLabels);
   const globalMarkerSize = useMarkerStore((state) => state.globalMarkerSize);
@@ -50,8 +51,12 @@ export function SkyMarkers({
   // Compute visible markers with useMemo to avoid creating new array on each render
   const visibleMarkers = useMemo(() => {
     if (!showMarkers) return [];
-    return markers.filter((m) => m.visible);
-  }, [markers, showMarkers]);
+    return markers.filter((m) => {
+      if (!m.visible) return false;
+      const group = m.group?.trim() || 'Default';
+      return groupVisibility[group] ?? true;
+    });
+  }, [markers, showMarkers, groupVisibility]);
 
   // Use unified batch projection hook for coordinate conversion
   // This replaces the duplicated convertToScreen logic and RAF-based update loop
@@ -90,8 +95,9 @@ export function SkyMarkers({
   }, [onMarkerDelete, removeMarker]);
 
   const handleNavigate = useCallback((marker: SkyMarker) => {
+    setActiveMarker(marker.id);
     onMarkerNavigate?.(marker);
-  }, [onMarkerNavigate]);
+  }, [onMarkerNavigate, setActiveMarker]);
 
   const handleToggleVisibility = useCallback((marker: SkyMarker) => {
     toggleMarkerVisibility(marker.id);

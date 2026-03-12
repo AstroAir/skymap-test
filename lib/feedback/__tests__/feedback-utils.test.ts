@@ -88,6 +88,35 @@ describe('feedback-utils', () => {
     expect(body).toContain('Issue body was shortened');
   });
 
+  it('keeps derived host identity and excludes raw hostname in diagnostics summary', () => {
+    const result = buildGitHubIssueUrl(
+      createPayload({
+        diagnostics: {
+          generatedAt: new Date('2026-03-11T00:00:00.000Z').toISOString(),
+          app: {
+            name: 'SkyMap',
+            version: '0.1.0',
+            buildDate: '2026-03-11',
+            environment: 'tauri',
+          },
+          system: {
+            os: 'windows',
+            arch: 'x86_64',
+            appVersion: '0.1.0',
+            tauriVersion: '2.9.0',
+            hostId: 'host-9a2b1c3d',
+            ...( { hostname: 'MY-DESKTOP' } as unknown as Record<string, unknown>),
+          } as unknown as NonNullable<FeedbackSubmissionPayload['diagnostics']>['system'],
+        },
+      })
+    );
+
+    const body = new URL(result.url).searchParams.get('body') ?? '';
+    expect(body).toContain('host-9a2b1c3d');
+    expect(body).not.toContain('MY-DESKTOP');
+    expect(body).not.toContain('hostname');
+  });
+
   it('redacts common sensitive data patterns', () => {
     const input = [
       'authorization: Bearer abc123',

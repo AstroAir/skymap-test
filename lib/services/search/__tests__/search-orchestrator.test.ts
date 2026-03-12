@@ -67,6 +67,7 @@ describe('searchUnified', () => {
     expect(result.intent).toBe('catalog');
     expect(result.results.length).toBeGreaterThan(0);
     expect(result.outcome).toBe('success');
+    expect(result.stage).toBe('finalized');
   });
 
   it('supports coordinate intent', async () => {
@@ -84,9 +85,28 @@ describe('searchUnified', () => {
     expect(result.intent).toBe('coordinates');
     expect(result.results.length).toBeGreaterThan(0);
     expect(result.outcome).toBe('success');
+    expect(result.providerDiagnostics.some(d => d.status === 'success')).toBe(true);
     expect(mockSearchOnlineByCoordinates).toHaveBeenCalledWith(
       expect.objectContaining({ radius: 2 }),
       expect.any(Object)
+    );
+  });
+
+  it('filters enabled providers by coordinate capability before invoking online search', async () => {
+    await searchUnified({
+      query: '@83.822,-5.391',
+      mode: 'online',
+      onlineAvailable: true,
+      enabledSources: ['sesame', 'simbad', 'sbdb'],
+      timeout: 5000,
+      maxResults: 20,
+      searchRadiusDeg: 2,
+      includeMinorObjects: true,
+    });
+
+    expect(mockSearchOnlineByCoordinates).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ sources: ['simbad'] })
     );
   });
 
@@ -106,6 +126,7 @@ describe('searchUnified', () => {
     expect(result.intent).toBe('batch');
     expect(result.batchItems?.length).toBe(2);
     expect(result.outcome).toBe('success');
+    expect(result.providerDiagnostics.length).toBeGreaterThan(0);
   });
 
   it('uses local mode without online requests', async () => {
@@ -148,6 +169,7 @@ describe('searchUnified', () => {
     expect(result.outcome).toBe('partial_success');
     expect(result.issues.length).toBeGreaterThan(0);
     expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.providerDiagnostics.some(d => d.status === 'timeout')).toBe(true);
   });
 
   it('reports error in online mode when online search is unavailable', async () => {
@@ -169,6 +191,7 @@ describe('searchUnified', () => {
     expect(result.results).toHaveLength(0);
     expect(result.outcome).toBe('error');
     expect(result.errors).toContain('Online search is unavailable');
+    expect(result.providerDiagnostics.some(d => d.status === 'unavailable')).toBe(true);
   });
 
   it('filters minor objects when includeMinorObjects is false', async () => {
@@ -243,5 +266,65 @@ describe('searchUnified', () => {
     expect(result.results).toHaveLength(1);
     expect(result.results[0].Type).toBe('Asteroid');
     expect(result.outcome).toBe('success');
+  });
+
+  it('emits local_ready and finalized progress states in hybrid mode', async () => {
+    const onProgress = jest.fn();
+
+    await searchUnified({
+      query: 'M31',
+      mode: 'hybrid',
+      onlineAvailable: true,
+      enabledSources: ['sesame'],
+      timeout: 5000,
+      maxResults: 20,
+      searchRadiusDeg: 5,
+      includeMinorObjects: true,
+      localSearch: () => [{ Name: 'M31', Type: 'DSO' as const, RA: 10.6846, Dec: 41.2688 }],
+      onProgress,
+    });
+
+    expect(onProgress).toHaveBeenCalled();
+    expect(onProgress.mock.calls.some(([progress]) => progress.stage === 'local_ready')).toBe(true);
+    expect(onProgress.mock.calls.some(([progress]) => progress.stage === 'finalized')).toBe(true);
+  });
+
+  it('uses bounded cached fallback when providers fail', async () => {
+    mockSearchOnlineByName.mockRejectedValueOnce(new Error('timeout'));
+
+    const result = await searchUnified({
+      query: 'M31',
+      mode: 'hybrid',
+      onlineAvailable: true,
+      enabledSources: ['sesame'],
+      timeout: 5000,
+      maxResults: 20,
+      searchRadiusDeg: 5,
+      includeMinorObjects: true,
+      localSearch: () => [],
+      cachedOnline: {
+        timestamp: Date.now(),
+        results: [
+          {
+            id: 'cache-m31',
+            name: 'M31',
+            canonicalId: 'M31',
+            identifiers: ['M31'],
+            confidence: 0.9,
+            type: 'Galaxy',
+            category: 'galaxy',
+            ra: 10.6847,
+            dec: 41.2689,
+            source: 'sesame',
+          },
+        ],
+      },
+      cacheMaxAgeMs: 5 * 60 * 1000,
+    });
+
+    expect(result.usedCachedOnline).toBe(true);
+    expect(result.results).toHaveLength(1);
+    expect(result.outcome).toBe('partial_success');
+    expect(result.providerDiagnostics.some(d => d.usedFallbackCache)).toBe(true);
   });
 });

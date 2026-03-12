@@ -1,7 +1,6 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { useTranslations } from 'next-intl';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { SkyMapCanvas } from '../canvas/sky-map-canvas';
@@ -25,13 +24,18 @@ import { useStellariumViewState } from './use-stellarium-view-state';
 import { UpdateBanner } from '../management/updater/update-banner';
 import { UpdateDialog } from '../management/updater/update-dialog';
 import { SessionPlanner } from '../planning/session-planner';
+import { PlateSolverUnified } from '../plate-solving/plate-solver-unified';
 import { isTauri } from '@/lib/tauri/app-control-api';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import { useOnboardingBridgeStore, usePlanningUiStore, useStarmapMobileUiStore } from '@/lib/stores';
+import { useCliBridgeStore } from '@/lib/stores/cli-bridge-store';
 import { ARCameraBackground } from '../overlays/ar-camera-background';
 import { ARCompassOverlay } from '../overlays/ar-compass-overlay';
+import { ARRecoveryPanel } from './ar-recovery-panel';
+import { ARLaunchAssistant } from './ar-launch-assistant';
 import { useMobileShell } from './use-mobile-shell';
 import { useARSessionStatus } from '@/lib/hooks/use-ar-session-status';
+import { useARRuntimeStore } from '@/lib/stores/ar-runtime-store';
 import { cn } from '@/lib/utils';
 
 interface StellariumViewProps {
@@ -39,7 +43,6 @@ interface StellariumViewProps {
 }
 
 export function StellariumView({ showSplash = false }: StellariumViewProps) {
-  const t = useTranslations();
   const {
     // UI state
     isSearchOpen,
@@ -122,13 +125,33 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
   const openSettingsDrawer = useOnboardingBridgeStore((state) => state.openSettingsDrawer);
   const settingsDrawerOpen = useOnboardingBridgeStore((state) => state.settingsDrawerOpen);
   const closeTransientPanels = useOnboardingBridgeStore((state) => state.closeTransientPanels);
+  const cliSearchRequestId = useCliBridgeStore((state) => state.searchRequestId);
+  const cliSearchQuery = useCliBridgeStore((state) => state.pendingSearchQuery);
+  const cliPlateSolverRequestId = useCliBridgeStore((state) => state.plateSolverRequestId);
+  const cliPlateSolverLaunch = useCliBridgeStore((state) => state.plateSolverLaunch);
   const arMode = useSettingsStore((s) => s.stellarium.arMode);
+  const arLaunchAssistantVisible = useARRuntimeStore((state) => state.launchAssistant.visible);
   const arOpacity = useSettingsStore((s) => s.stellarium.arOpacity);
   const arShowCompass = useSettingsStore((s) => s.stellarium.arShowCompass);
   const arSession = useARSessionStatus({ enabled: arMode });
   const useCameraBlend = arMode && arSession.cameraLayerEnabled;
   const wasSessionPlannerOpenRef = useRef(sessionPlannerOpen);
   const wasSettingsDrawerOpenRef = useRef(settingsDrawerOpen);
+  const handledCliSearchRef = useRef(0);
+
+  useEffect(() => {
+    if (cliSearchRequestId <= 0 || cliSearchRequestId === handledCliSearchRef.current) {
+      return;
+    }
+
+    handledCliSearchRef.current = cliSearchRequestId;
+    requestAnimationFrame(() => {
+      if (cliSearchQuery) {
+        searchRef.current?.setQuery?.(cliSearchQuery);
+      }
+      searchRef.current?.focusSearchInput();
+    });
+  }, [cliSearchQuery, cliSearchRequestId, searchRef]);
 
   useEffect(() => {
     setMobileShell(isMobileShell);
@@ -319,6 +342,11 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
     openSettingsDrawer();
   }, [isMobileShell, openMobilePanel, openSettingsDrawer]);
 
+  const handleToggleAr = useCallback(() => {
+    const btn = document.querySelector('[data-testid="ar-mode-toggle"]') as HTMLButtonElement | null;
+    btn?.click();
+  }, []);
+
   const mobileShellContainerStyle: CSSProperties | undefined = isMobileShell
     ? ({
         ['--mobile-shell-height' as string]: `${viewportHeight}px`,
@@ -344,6 +372,7 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
         <KeyboardShortcutsManager
           onToggleSearch={handleSearchToggle}
           onToggleSessionPanel={() => setShowSessionPanel(prev => !prev)}
+          onToggleAr={handleToggleAr}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
@@ -368,7 +397,7 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
         {/* AR Camera Background (behind canvas) */}
         {arMode && <ARCameraBackground enabled={arMode} />}
 
-        {/* Canvas — switches between Stellarium and Aladin based on skyEngine setting */}
+        {/* Canvas 鈥?switches between Stellarium and Aladin based on skyEngine setting */}
         <div
           className="absolute inset-0"
           style={useCameraBlend ? { mixBlendMode: 'screen' as const, opacity: arOpacity } : undefined}
@@ -412,20 +441,25 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
 
         {/* Session Planner Dialog (mounted once; triggered via store) */}
         <SessionPlanner showTrigger={false} />
+        <PlateSolverUnified
+          trigger={<span className="hidden" aria-hidden="true" />}
+          autoOpenRequestId={cliPlateSolverRequestId}
+          defaultImagePath={cliPlateSolverLaunch?.imagePath}
+          raHint={cliPlateSolverLaunch?.raHint}
+          decHint={cliPlateSolverLaunch?.decHint}
+          fovHint={cliPlateSolverLaunch?.fovHint}
+          onGoToCoordinates={handleGoToCoordinates}
+        />
 
-        {arMode && arSession.status !== 'ready' && (
-          <div
-            className="absolute left-1/2 z-30 -translate-x-1/2 rounded-md bg-black/50 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm"
-            style={{ top: 'calc(0.5rem + var(--safe-area-top))' }}
-          >
-            {arSession.status === 'preflight'
-              ? t('settings.arStatusPreflight')
-              : arSession.status === 'degraded-camera-only'
-                ? t('settings.arStatusDegradedCameraOnly')
-                : arSession.status === 'degraded-sensor-only'
-                  ? t('settings.arStatusDegradedSensorOnly')
-                  : t('settings.arStatusBlocked')}
-          </div>
+        {arMode && arLaunchAssistantVisible && <ARLaunchAssistant />}
+
+        {arMode && (
+          <ARRecoveryPanel
+            status={arSession.status}
+            recoveryActions={arSession.recoveryActions}
+            isStabilizing={arSession.isStabilizing}
+            className="top-[calc(0.5rem+var(--safe-area-top))]"
+          />
         )}
 
         {/* AR Compass Overlay */}
@@ -481,6 +515,7 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onFovSliderChange={handleSetFov}
+          onGoToCoordinates={handleGoToCoordinates}
           onLocationChange={handleLocationChange}
         />
 
@@ -561,3 +596,8 @@ export function StellariumView({ showSplash = false }: StellariumViewProps) {
     </TooltipProvider>
   );
 }
+
+
+
+
+

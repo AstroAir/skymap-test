@@ -87,6 +87,11 @@ const defaultFormData: MarkerFormData = {
   decString: '',
 };
 
+const markerGroup = (group?: string | null): string => {
+  const trimmed = group?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : 'Default';
+};
+
 export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManagerProps) {
   const t = useTranslations();
   const [isOpen, setIsOpen] = useState(false);
@@ -103,11 +108,13 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
 
   // Subscribe only to reactive state values (triggers re-render on change)
   const {
-    markers, groups, showMarkers, showLabels, globalMarkerSize, sortBy,
+    markers, groups, groupVisibility, activeMarkerId, showMarkers, showLabels, globalMarkerSize, sortBy,
     pendingCoords, editingMarkerId,
   } = useMarkerStore(useShallow((state) => ({
     markers: state.markers,
     groups: state.groups,
+    groupVisibility: state.groupVisibility,
+    activeMarkerId: state.activeMarkerId,
     showMarkers: state.showMarkers,
     showLabels: state.showLabels,
     globalMarkerSize: state.globalMarkerSize,
@@ -122,6 +129,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     setShowMarkers, setShowLabels, setGlobalMarkerSize, setSortBy,
     clearAllMarkers, setPendingCoords, setEditingMarkerId,
     renameGroup, removeGroup, exportMarkers, importMarkers,
+    setGroupVisibility, selectMarkerForNavigation, setActiveMarker,
   } = useMarkerStore.getState();
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
 
@@ -175,7 +183,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
   // Filter markers by selected group and search query, then sort
   const filteredMarkers = useMemo(() => {
     let result = selectedGroup
-      ? markers.filter((m) => m.group === selectedGroup)
+      ? markers.filter((m) => markerGroup(m.group) === selectedGroup)
       : markers;
     
     if (searchQuery.trim()) {
@@ -221,6 +229,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
 
   // Open edit marker dialog
   const handleEditMarker = useCallback((marker: SkyMarker) => {
+    setActiveMarker(marker.id);
     setFormData({
       name: marker.name,
       description: marker.description || '',
@@ -234,7 +243,7 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     });
     setEditingMarker(marker);
     setEditDialogOpen(true);
-  }, []);
+  }, [setActiveMarker]);
 
   // Save marker (add or update)
   const handleSaveMarker = useCallback(() => {
@@ -283,12 +292,13 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
   // Navigate to marker
   const handleNavigate = useCallback(
     (marker: SkyMarker) => {
+      const selectedMarker = selectMarkerForNavigation(marker.id) ?? marker;
       if (setViewDirection) {
-        setViewDirection(marker.ra, marker.dec);
+        setViewDirection(selectedMarker.ra, selectedMarker.dec);
       }
-      onNavigateToMarker?.(marker);
+      onNavigateToMarker?.(selectedMarker);
     },
-    [setViewDirection, onNavigateToMarker]
+    [setViewDirection, onNavigateToMarker, selectMarkerForNavigation]
   );
 
   // Export markers
@@ -314,10 +324,23 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
     if (!file) return;
     try {
       const json = await readFileAsText(file);
-      const { count } = importMarkers(json);
-      toast.success(t('markers.importSuccess', { count }));
-    } catch {
-      toast.error(t('markers.importError'));
+      const result = importMarkers(json);
+      if (result.count === 0 && result.truncated) {
+        toast.warning(t('markers.importNoCapacity'));
+      } else if (result.truncated) {
+        toast.warning(t('markers.importPartial', { count: result.count, requested: result.requested }));
+      } else {
+        toast.success(t('markers.importSuccess', { count: result.count }));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('Invalid marker import JSON')) {
+        toast.error(t('markers.importInvalid'));
+      } else if (message.includes('No markers found')) {
+        toast.error(t('markers.importNoMarkers'));
+      } else {
+        toast.error(t('markers.importError'));
+      }
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -457,7 +480,8 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
                 {t('markers.allGroups')} ({markers.length})
               </Badge>
               {groups.map((group) => {
-                const count = markers.filter((m) => m.group === group).length;
+                const count = markers.filter((m) => markerGroup(m.group) === group).length;
+                const groupIsVisible = groupVisibility[group] ?? true;
                 if (renamingGroup === group) {
                   return (
                     <Input
@@ -479,13 +503,26 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
                     <PopoverTrigger asChild>
                       <Badge
                         variant={selectedGroup === group ? 'default' : 'outline'}
-                        className="cursor-pointer"
+                        className={cn('cursor-pointer', !groupIsVisible && 'opacity-60')}
                         onClick={() => setSelectedGroup(group)}
                       >
                         {group} ({count})
                       </Badge>
                     </PopoverTrigger>
                     <PopoverContent className="w-36 p-1" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs h-7"
+                        onClick={() => setGroupVisibility(group, !groupIsVisible)}
+                      >
+                        {groupIsVisible ? (
+                          <EyeOff className="h-3 w-3 mr-1.5" />
+                        ) : (
+                          <Eye className="h-3 w-3 mr-1.5" />
+                        )}
+                        {groupIsVisible ? t('markers.hideGroup') : t('markers.showGroup')}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -533,7 +570,9 @@ export function MarkerManager({ initialCoords, onNavigateToMarker }: MarkerManag
                   <MarkerListItem
                     key={marker.id}
                     marker={marker}
+                    isActive={activeMarkerId === marker.id}
                     t={t}
+                    onSelect={() => setActiveMarker(marker.id)}
                     onNavigate={handleNavigate}
                     onToggleVisibility={toggleMarkerVisibility}
                     onEdit={handleEditMarker}

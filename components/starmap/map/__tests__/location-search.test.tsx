@@ -586,6 +586,25 @@ describe('LocationSearch', () => {
   });
 
   describe('Search Modes', () => {
+    it('does not call geocode while typing in submit-search mode', async () => {
+      mockGetSearchCapabilities.mockReturnValue({
+        autocompleteAvailable: false,
+        mode: 'submit-search',
+        providers: ['openstreetmap'],
+      });
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'Berlin' } });
+
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+
+      expect(mockGeocode).not.toHaveBeenCalled();
+    });
+
     it('shows submit-to-search message in submit-search mode', async () => {
       mockGetSearchCapabilities.mockReturnValue({
         autocompleteAvailable: false,
@@ -643,6 +662,23 @@ describe('LocationSearch', () => {
       });
     });
 
+    it('does not trigger geocode on Enter in offline-cache mode', async () => {
+      mockGetSearchCapabilities.mockReturnValue({
+        autocompleteAvailable: false,
+        mode: 'offline-cache',
+        providers: [],
+      });
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'test' } });
+      fireEvent.focus(input);
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(mockGeocode).not.toHaveBeenCalled();
+    });
+
     it('shows disabled message in disabled search mode', async () => {
       mockGetSearchCapabilities.mockReturnValue({
         autocompleteAvailable: false,
@@ -659,6 +695,23 @@ describe('LocationSearch', () => {
       await waitFor(() => {
         expect(screen.getByText(/map\.searchDisabled|Search is disabled/)).toBeInTheDocument();
       });
+    });
+
+    it('does not trigger geocode on Enter in disabled mode', async () => {
+      mockGetSearchCapabilities.mockReturnValue({
+        autocompleteAvailable: false,
+        mode: 'disabled',
+        providers: [],
+      });
+
+      render(<LocationSearch onLocationSelect={mockOnLocationSelect} />);
+
+      const input = screen.getByTestId('search-input');
+      fireEvent.change(input, { target: { value: 'test' } });
+      fireEvent.focus(input);
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(mockGeocode).not.toHaveBeenCalled();
     });
   });
 

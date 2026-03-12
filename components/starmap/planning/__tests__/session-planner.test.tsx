@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @jest-environment jsdom
  */
 import React from 'react';
@@ -15,6 +15,13 @@ jest.mock('../mount-safety-simulator', () => ({
 
 jest.mock('@/lib/storage/platform', () => ({
   isTauri: jest.fn(() => false),
+  isServer: jest.fn(() => false),
+  isWeb: jest.fn(() => true),
+  isMobile: jest.fn(() => false),
+  isDesktop: jest.fn(() => true),
+  getPlatform: jest.fn(() => 'web'),
+  onlyInTauri: jest.fn(),
+  onlyInWeb: jest.fn(),
 }));
 
 jest.mock('@/lib/tauri', () => ({
@@ -131,6 +138,15 @@ const mockMountState = {
   mountInfo: {
     Connected: false,
   },
+  connectionConfig: {
+    protocol: 'alpaca',
+    host: 'localhost',
+    port: 11111,
+    deviceId: 0,
+  },
+  safetyConfig: {
+    enabled: false,
+  },
 };
 
 const mockStellariumState = {
@@ -142,6 +158,11 @@ const mockEquipmentState = {
   aperture: 100,
   sensorWidth: 22.3,
   sensorHeight: 14.9,
+  pixelSize: 3.76,
+  activeCameraId: null,
+  activeTelescopeId: null,
+  customCameras: [],
+  customTelescopes: [],
 };
 
 const mockSessionPlanState = {
@@ -219,6 +240,19 @@ const mockTargetStoreState = {
 jest.mock('@/lib/stores/target-list-store', () => ({
   useTargetListStore: (selector: (state: typeof mockTargetStoreState) => unknown) => selector(mockTargetStoreState),
 }));
+const mockDeviceStoreState = {
+  profiles: [],
+  syncFromEquipmentStore: jest.fn(),
+  syncFromMountStore: jest.fn(),
+  getSessionReadiness: jest.fn(() => ({ isReady: true, required: [], missing: [], warnings: [] })),
+  setActiveSessionProfileIds: jest.fn(),
+};
+
+jest.mock('@/lib/stores/device-store', () => {
+  const useDeviceStore = (selector: (state: typeof mockDeviceStoreState) => unknown) => selector(mockDeviceStoreState);
+  (useDeviceStore as typeof useDeviceStore & { getState: () => typeof mockDeviceStoreState }).getState = () => mockDeviceStoreState;
+  return { useDeviceStore };
+});
 
 describe('SessionPlanner', () => {
   const mockIsTauri = jest.requireMock('@/lib/storage/platform').isTauri as jest.Mock;
@@ -398,3 +432,7 @@ describe('SessionPlanner', () => {
     expect(mockSessionPlanState.savePlan).not.toHaveBeenCalled();
   });
 });
+
+
+
+

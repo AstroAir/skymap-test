@@ -1,5 +1,8 @@
 import { createLogger } from '@/lib/logger';
-import { DAILY_KNOWLEDGE_AGGREGATED_TTL_FALLBACK_MS } from './constants';
+import {
+  DAILY_KNOWLEDGE_AGGREGATED_TTL_FALLBACK_MS,
+  DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS,
+} from './constants';
 import { dedupeItems } from './normalizers';
 import { fetchApodItem } from './source-apod';
 import { getCuratedDailyItem, getCuratedItems } from './source-curated';
@@ -41,11 +44,15 @@ function getCacheKey(
   dateKey: string,
   locale: 'en' | 'zh',
   onlineEnhancement: boolean,
-  onlineAvailable: boolean
+  onlineAvailable: boolean,
+  recentHistoryItemIds: string[],
+  repeatWindowDays: number
 ): string {
+  const recentSignature =
+    recentHistoryItemIds.length > 0 ? recentHistoryItemIds.slice(0, 24).join('|') : 'none';
   return `${dateKey}:${locale}:${onlineEnhancement ? 'enhance' : 'local'}:${
     onlineAvailable ? 'online' : 'offline'
-  }`;
+  }:${repeatWindowDays}:${recentSignature}`;
 }
 
 function enrichItemWithWikimedia(
@@ -109,15 +116,27 @@ export async function getDailyKnowledge(
   options?: Partial<DailyKnowledgeOptions>
 ): Promise<DailyKnowledgeServiceResult> {
   const onlineEnhancement = options?.onlineEnhancement ?? true;
+  const repeatWindowDays = options?.repeatWindowDays ?? DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS;
+  const recentHistoryItemIds = (options?.recentHistoryItemIds ?? []).filter(Boolean);
   const signal = options?.signal;
   const onlineAvailable = isOnline();
-  const cacheKey = getCacheKey(dateKey, locale, onlineEnhancement, onlineAvailable);
+  const cacheKey = getCacheKey(
+    dateKey,
+    locale,
+    onlineEnhancement,
+    onlineAvailable,
+    recentHistoryItemIds,
+    repeatWindowDays
+  );
   const cachedResult = aggregatedResultCache.get(cacheKey);
   if (cachedResult && cachedResult.expiresAt > Date.now()) {
     return cachedResult.result;
   }
 
-  const curatedDaily = getCuratedDailyItem(dateKey, locale);
+  const curatedDaily = getCuratedDailyItem(dateKey, locale, {
+    recentItemIds: recentHistoryItemIds,
+    repeatWindowDays,
+  });
   const curatedItems = getCuratedItems(dateKey, locale);
   const offlineItems = [curatedDaily, ...curatedItems];
 

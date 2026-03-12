@@ -38,6 +38,8 @@ jest.mock('@/lib/stores/onboarding-store', () => ({
   useOnboardingStore: (selector: (state: unknown) => unknown) => {
     const state = {
       startTourById: jest.fn(),
+      restartTourModule: jest.fn(),
+      resumeTour: jest.fn(),
       getTourProgress: () => ({
         currentStepIndex: 0,
         totalSteps: 3,
@@ -377,10 +379,9 @@ describe('UnifiedSettings Store Integration', () => {
 
   it('calls applyDraft when clicking save', () => {
     render(<UnifiedSettings />);
-    const saveButton = screen
-      .getAllByTestId('button')
-      .find((button) => /common\.save|save/i.test(button.textContent ?? ''));
-    expect(saveButton).toBeDefined();
+    const saveLabel = screen.queryAllByText('common.save')[0] ?? screen.queryByText(/save/i);
+    expect(saveLabel).toBeDefined();
+    const saveButton = saveLabel?.closest('button') ?? saveLabel;
     if (!saveButton) return;
     fireEvent.click(saveButton);
     expect(mockApplyDraft).toHaveBeenCalled();
@@ -388,10 +389,9 @@ describe('UnifiedSettings Store Integration', () => {
 
   it('calls cancelSession when clicking cancel', () => {
     render(<UnifiedSettings />);
-    const cancelButton = screen
-      .getAllByTestId('button')
-      .find((button) => /common\.cancel|cancel/i.test(button.textContent ?? ''));
-    expect(cancelButton).toBeDefined();
+    const cancelLabel = screen.queryAllByText('common.cancel')[0] ?? screen.queryByText(/cancel/i);
+    expect(cancelLabel).toBeDefined();
+    const cancelButton = cancelLabel?.closest('button') ?? cancelLabel;
     if (!cancelButton) return;
     fireEvent.click(cancelButton);
     expect(mockCancelSession).toHaveBeenCalled();

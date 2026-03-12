@@ -154,4 +154,18 @@ describe('AstronomyEngineCache', () => {
       expect(cache.get('b')).toBeUndefined();
     });
   });
+
+  describe('deleteByPrefix and size', () => {
+    it('deletes keys by prefix and reports remaining size', () => {
+      const cache = new AstronomyEngineCache();
+      cache.set('coordinates:1', 1);
+      cache.set('coordinates:2', 2);
+      cache.set('almanac:1', 3);
+
+      expect(cache.size()).toBe(3);
+      expect(cache.deleteByPrefix('coordinates:')).toBe(2);
+      expect(cache.size()).toBe(1);
+      expect(cache.get('almanac:1')).toBe(3);
+    });
+  });
 });

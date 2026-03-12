@@ -92,6 +92,22 @@ export interface OcularDisplaySettings {
   appliedFov: number | null;
 }
 
+export type FOVSimulatorTab = 'camera' | 'optics' | 'mosaic' | 'display';
+
+export interface FOVSetup {
+  id: string;
+  name: string;
+  sensorWidth: number;
+  sensorHeight: number;
+  focalLength: number;
+  pixelSize: number;
+  rotationAngle: number;
+  mosaic: MosaicSettings;
+  fovDisplay: FOVDisplaySettings;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ============================================================================
 // Store State
 // ============================================================================
@@ -127,6 +143,11 @@ interface EquipmentState {
   customEyepieces: EyepiecePreset[];
   customBarlows: BarlowPreset[];
   customOcularTelescopes: OcularTelescopePreset[];
+
+  // FOV simulator workflow state
+  fovSetups: FOVSetup[];
+  selectedFovSetupId: string | null;
+  fovSimulatorLastTab: FOVSimulatorTab;
   
   // Actions - Equipment selection
   setActiveCamera: (id: string | null) => void;
@@ -162,6 +183,14 @@ interface EquipmentState {
   setFOVEnabled: (enabled: boolean) => void;
   setGridType: (type: GridType) => void;
   setOcularDisplay: (settings: Partial<OcularDisplaySettings>) => void;
+
+  // Actions - FOV setup workflow
+  saveFovSetup: (name: string) => string | null;
+  applyFovSetup: (id: string) => void;
+  renameFovSetup: (id: string, name: string) => void;
+  removeFovSetup: (id: string) => void;
+  setSelectedFovSetupId: (id: string | null) => void;
+  setFovSimulatorLastTab: (tab: FOVSimulatorTab) => void;
   
   // Actions - Exposure Defaults
   setExposureDefaults: (defaults: Partial<ExposureDefaults>) => void;
@@ -244,6 +273,8 @@ const DEFAULT_OCULAR_DISPLAY: OcularDisplaySettings = {
   appliedFov: null,
 };
 
+const DEFAULT_FOV_SIMULATOR_TAB: FOVSimulatorTab = 'camera';
+
 const DEFAULT_EXPOSURE: ExposureDefaults = {
   exposureTime: 120,
   gain: 100,
@@ -298,6 +329,9 @@ export const useEquipmentStore = create<EquipmentState>()(
       customEyepieces: [],
       customBarlows: [],
       customOcularTelescopes: [],
+      fovSetups: [],
+      selectedFovSetupId: null,
+      fovSimulatorLastTab: DEFAULT_FOV_SIMULATOR_TAB,
       
       // Ocular simulator selection (persisted)
       selectedOcularTelescopeId: 't1',
@@ -362,6 +396,69 @@ export const useEquipmentStore = create<EquipmentState>()(
       setOcularDisplay: (settings) => set((state) => ({
         ocularDisplay: { ...state.ocularDisplay, ...settings },
       })),
+      saveFovSetup: (name) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) return null;
+
+        const now = Date.now();
+        const id = `fov-setup-${now}-${Math.random().toString(36).slice(2, 9)}`;
+
+        set((state) => {
+          const setup: FOVSetup = {
+            id,
+            name: trimmedName,
+            sensorWidth: state.sensorWidth,
+            sensorHeight: state.sensorHeight,
+            focalLength: state.focalLength,
+            pixelSize: state.pixelSize,
+            rotationAngle: state.rotationAngle,
+            mosaic: { ...state.mosaic },
+            fovDisplay: { ...state.fovDisplay },
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          return {
+            fovSetups: [...state.fovSetups, setup],
+            selectedFovSetupId: id,
+          };
+        });
+
+        return id;
+      },
+      applyFovSetup: (id) => set((state) => {
+        const setup = state.fovSetups.find((item) => item.id === id);
+        if (!setup) return {};
+
+        return {
+          selectedFovSetupId: id,
+          sensorWidth: setup.sensorWidth,
+          sensorHeight: setup.sensorHeight,
+          focalLength: setup.focalLength,
+          pixelSize: setup.pixelSize,
+          rotationAngle: setup.rotationAngle,
+          mosaic: { ...setup.mosaic },
+          fovDisplay: { ...setup.fovDisplay },
+        };
+      }),
+      renameFovSetup: (id, name) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) return;
+
+        set((state) => ({
+          fovSetups: state.fovSetups.map((setup) =>
+            setup.id === id
+              ? { ...setup, name: trimmedName, updatedAt: Date.now() }
+              : setup
+          ),
+        }));
+      },
+      removeFovSetup: (id) => set((state) => ({
+        fovSetups: state.fovSetups.filter((setup) => setup.id !== id),
+        selectedFovSetupId: state.selectedFovSetupId === id ? null : state.selectedFovSetupId,
+      })),
+      setSelectedFovSetupId: (id) => set({ selectedFovSetupId: id }),
+      setFovSimulatorLastTab: (fovSimulatorLastTab) => set({ fovSimulatorLastTab }),
       
       // Exposure Defaults
       setExposureDefaults: (defaults) => set((state) => ({
@@ -481,6 +578,8 @@ export const useEquipmentStore = create<EquipmentState>()(
         fovDisplay: DEFAULT_FOV_DISPLAY,
         ocularDisplay: DEFAULT_OCULAR_DISPLAY,
         exposureDefaults: DEFAULT_EXPOSURE,
+        selectedFovSetupId: null,
+        fovSimulatorLastTab: DEFAULT_FOV_SIMULATOR_TAB,
       }),
       
       // Computed values
@@ -534,7 +633,7 @@ export const useEquipmentStore = create<EquipmentState>()(
     {
       name: 'starmap-equipment',
       storage: getZustandStorage(),
-      version: 3,
+      version: 4,
       migrate: (persistedState) => {
         if (!persistedState || typeof persistedState !== 'object') {
           return persistedState;
@@ -543,6 +642,59 @@ export const useEquipmentStore = create<EquipmentState>()(
         const state = persistedState as Record<string, unknown>;
         const persistedExposureDefaults = state.exposureDefaults as Partial<ExposureDefaults> | undefined;
         const persistedOcularDisplay = state.ocularDisplay as Partial<OcularDisplaySettings> | undefined;
+        const persistedFovSetups = Array.isArray(state.fovSetups)
+          ? (state.fovSetups as Array<Record<string, unknown>>)
+          : [];
+        const selectedFovSetupId = typeof state.selectedFovSetupId === 'string'
+          ? state.selectedFovSetupId
+          : null;
+        const fovSimulatorLastTab = (
+          state.fovSimulatorLastTab === 'camera' ||
+          state.fovSimulatorLastTab === 'optics' ||
+          state.fovSimulatorLastTab === 'mosaic' ||
+          state.fovSimulatorLastTab === 'display'
+        )
+          ? state.fovSimulatorLastTab
+          : DEFAULT_FOV_SIMULATOR_TAB;
+
+        const normalizedFovSetups: FOVSetup[] = persistedFovSetups
+          .filter((item): item is Record<string, unknown> =>
+            !!item &&
+            typeof item === 'object' &&
+            typeof item.id === 'string' &&
+            typeof item.name === 'string'
+          )
+          .map((item) => {
+            const mosaic = (item.mosaic && typeof item.mosaic === 'object')
+              ? (item.mosaic as Partial<MosaicSettings>)
+              : {};
+            const fovDisplay = (item.fovDisplay && typeof item.fovDisplay === 'object')
+              ? (item.fovDisplay as Partial<FOVDisplaySettings>)
+              : {};
+            return {
+              id: item.id as string,
+              name: item.name as string,
+              sensorWidth: typeof item.sensorWidth === 'number' ? item.sensorWidth : 23.5,
+              sensorHeight: typeof item.sensorHeight === 'number' ? item.sensorHeight : 15.6,
+              focalLength: typeof item.focalLength === 'number' ? item.focalLength : 400,
+              pixelSize: typeof item.pixelSize === 'number' ? item.pixelSize : 3.76,
+              rotationAngle: typeof item.rotationAngle === 'number' ? item.rotationAngle : 0,
+              mosaic: {
+                ...DEFAULT_MOSAIC,
+                ...mosaic,
+              },
+              fovDisplay: {
+                ...DEFAULT_FOV_DISPLAY,
+                ...fovDisplay,
+              },
+              createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+              updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
+            };
+          });
+
+        const hasSelectedSetup = selectedFovSetupId
+          ? normalizedFovSetups.some((setup) => setup.id === selectedFovSetupId)
+          : false;
 
         return {
           ...state,
@@ -554,6 +706,9 @@ export const useEquipmentStore = create<EquipmentState>()(
             ...DEFAULT_OCULAR_DISPLAY,
             ...(persistedOcularDisplay ?? {}),
           },
+          fovSetups: normalizedFovSetups,
+          selectedFovSetupId: hasSelectedSetup ? selectedFovSetupId : null,
+          fovSimulatorLastTab,
         };
       },
       partialize: (state) => ({
@@ -574,6 +729,9 @@ export const useEquipmentStore = create<EquipmentState>()(
         customEyepieces: state.customEyepieces,
         customBarlows: state.customBarlows,
         customOcularTelescopes: state.customOcularTelescopes,
+        fovSetups: state.fovSetups,
+        selectedFovSetupId: state.selectedFovSetupId,
+        fovSimulatorLastTab: state.fovSimulatorLastTab,
         selectedOcularTelescopeId: state.selectedOcularTelescopeId,
         selectedEyepieceId: state.selectedEyepieceId,
         selectedBarlowId: state.selectedBarlowId,

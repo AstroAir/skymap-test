@@ -77,6 +77,7 @@ import { checkSampling } from '@/lib/astronomy/imaging/exposure';
 import { COMMON_FILTERS, BINNING_OPTIONS, IMAGE_TYPES, FILTER_SEQUENCE_PRESETS } from '@/lib/core/constants/planning';
 import type { ExposurePlan, ExposureCalculatorProps } from '@/types/starmap/planning';
 import { useEquipmentStore } from '@/lib/stores';
+import { clipboardService } from '@/lib/services/clipboard-service';
 
 // ============================================================================
 // Sub Components
@@ -449,11 +450,15 @@ export function ExposureCalculator({
     setShowAdvanced(false);
   }, [propFocalLength, propAperture, propPixelSize, equipmentStore, exposureDefaults]);
 
-  const handleCopy = useCallback(() => {
+  const handleCopy = useCallback(async () => {
     const text = `Exposure: ${exposureTime}s × ${frameCount} = ${formatDuration(totalIntegrationMinutes)}\nFilter: ${filter} | Gain: ${gain} | Binning: ${binning}`;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await clipboardService.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard failures should not interrupt planning flow.
+    }
   }, [exposureTime, frameCount, totalIntegrationMinutes, filter, gain, binning]);
   
   return (
@@ -1075,12 +1080,12 @@ export function ExposureCalculator({
               <CardHeader className="py-3">
                 <CardTitle className="text-sm flex items-center justify-between">
                   <span>{t('exposure.sessionSummary')}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={handleCopy}
-                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => void handleCopy()}
+                    >
                     {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                   </Button>
                 </CardTitle>

@@ -11,6 +11,21 @@ import type { StellariumSettings } from '@/lib/core/types';
 
 export type OnboardingPhase = 'idle' | 'setup' | 'tour';
 
+export type OnboardingEntrySurface =
+  | 'welcome'
+  | 'setup'
+  | 'tour-hub'
+  | 'resume-tour'
+  | 'idle';
+
+export interface OnboardingResumeCheckpoint {
+  phase: OnboardingPhase;
+  setupStep: SetupWizardStep | null;
+  activeTourId: TourId | null;
+  currentStepIndex: number;
+  updatedAt: string | null;
+}
+
 export type TourId =
   | 'first-run-core'
   | 'module-discovery'

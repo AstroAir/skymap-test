@@ -43,6 +43,7 @@ export function useAladinLoader({
   });
   const [engineReady, setEngineReady] = useState(false);
   const loadingRef = useRef(false);
+  const retryCountRef = useRef(0);
 
   const initAladin = useCallback(async () => {
     if (loadingRef.current) return;
@@ -58,7 +59,7 @@ export function useAladinLoader({
         progress: 0,
         phase: 'failed',
         errorCode: 'container_not_ready',
-        retryCount: 0,
+        retryCount: retryCountRef.current,
       });
       loadingRef.current = false;
       return;
@@ -72,7 +73,7 @@ export function useAladinLoader({
       progress: 20,
       phase: 'loading_script',
       errorCode: null,
-      retryCount: 0,
+      retryCount: retryCountRef.current,
     });
     setEngineReady(false);
 
@@ -185,7 +186,7 @@ export function useAladinLoader({
         progress: 100,
         phase: 'ready',
         errorCode: null,
-        retryCount: 0,
+        retryCount: retryCountRef.current,
       });
       setEngineReady(true);
       loadingRef.current = false;
@@ -202,7 +203,7 @@ export function useAladinLoader({
         progress: 0,
         phase: 'failed',
         errorCode: 'unknown',
-        retryCount: 0,
+        retryCount: retryCountRef.current,
       });
       loadingRef.current = false;
     }
@@ -225,6 +226,7 @@ export function useAladinLoader({
   }, [containerRef]);
 
   const handleRetry = useCallback(() => {
+    retryCountRef.current += 1;
     loadingRef.current = false;
     aladinRef.current = null;
     cleanupContainer();
@@ -232,6 +234,7 @@ export function useAladinLoader({
   }, [initAladin, aladinRef, cleanupContainer]);
 
   const reloadEngine = useCallback(() => {
+    retryCountRef.current = 0;
     loadingRef.current = false;
     aladinRef.current = null;
     setEngineReady(false);

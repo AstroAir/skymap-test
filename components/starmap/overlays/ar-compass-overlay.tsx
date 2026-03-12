@@ -47,7 +47,8 @@ export const ARCompassOverlay = memo(function ARCompassOverlay({
   const altDeg = useMemo(() => {
     if (!viewDirection) return 0;
     const alt = rad2deg(viewDirection.alt);
-    return Number.isFinite(alt) ? alt : 0;
+    if (!Number.isFinite(alt)) return 0;
+    return Math.max(-90, Math.min(90, alt));
   }, [viewDirection]);
 
   const compassLabels = useMemo(() => {
@@ -135,7 +136,7 @@ export const ARCompassOverlay = memo(function ARCompassOverlay({
       {/* Compass bar */}
       <div
         className={cn(
-          'relative w-64 sm:w-80 h-8 bg-black/30 backdrop-blur-sm rounded-lg overflow-hidden border border-white/10',
+          'relative w-64 sm:w-80 md:w-96 h-8 bg-black/30 backdrop-blur-sm rounded-lg overflow-hidden border border-white/10',
           !isReliablePointing && 'opacity-75'
         )}
       >

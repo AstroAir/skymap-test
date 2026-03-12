@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { StarmapPage } from '../fixtures/page-objects';
-import { waitForStarmapReady } from '../fixtures/test-helpers';
+import { openSettingsPanel, waitForStarmapReady } from '../fixtures/test-helpers';
 
 test.describe('Settings Panel', () => {
   let starmapPage: StarmapPage;
@@ -13,21 +13,12 @@ test.describe('Settings Panel', () => {
 
   test.describe('Settings Panel Access', () => {
     test('should have settings button', async ({ page }) => {
-      const settingsButton = page.getByRole('button', { name: /settings|设置/i })
-        .or(page.locator('[data-testid="settings-button"]'));
-      await expect(settingsButton.first()).toBeVisible({ timeout: 5000 }).catch(() => {});
+      await expect(page.locator('[data-testid="settings-button"]').first()).toBeVisible();
     });
 
     test('should open settings panel when clicking settings button', async ({ page }) => {
-      const settingsButton = page.getByRole('button', { name: /settings|设置/i }).first();
-      
-      if (await settingsButton.isVisible().catch(() => false)) {
-        await settingsButton.click();
-        await page.waitForTimeout(500);
-        
-        const panel = page.locator('[role="dialog"], [data-state="open"]');
-        await expect(panel.first()).toBeVisible({ timeout: 3000 }).catch(() => {});
-      }
+      await openSettingsPanel(page);
+      await expect(page.locator('[data-testid="settings-panel"]').first()).toBeVisible();
     });
 
     test('should close settings panel with Escape', async ({ page }) => {
@@ -392,6 +383,36 @@ test.describe('Settings Panel', () => {
           await page.waitForTimeout(500);
         }
       }
+    });
+  });
+
+  test.describe('Critical Regression Coverage', () => {
+    test('@smoke @regression should expose deterministic save/cancel controls in settings', async ({ page }) => {
+      await openSettingsPanel(page);
+      await expect(page.locator('[data-testid="settings-save-button"]').first()).toBeVisible();
+      await expect(page.locator('[data-testid="settings-cancel-button"]').first()).toBeVisible();
+    });
+
+    test('@regression should persist a saved switch state after reload', async ({ page }) => {
+      await openSettingsPanel(page);
+      const primarySwitch = page.getByRole('switch').first();
+      await expect(primarySwitch).toBeVisible();
+
+      const initialState = await primarySwitch.getAttribute('data-state');
+      test.skip(initialState !== 'checked' && initialState !== 'unchecked', 'switch state is not exposed as checked/unchecked');
+      const targetState = initialState === 'checked' ? 'unchecked' : 'checked';
+
+      await primarySwitch.click();
+      await expect(primarySwitch).toHaveAttribute('data-state', targetState);
+      const saveButton = page.locator('[data-testid="settings-save-button"]').first();
+      if (await saveButton.isEnabled().catch(() => false)) {
+        await saveButton.click();
+      }
+      await page.keyboard.press('Escape');
+
+      await waitForStarmapReady(page, { skipWasmWait: true });
+      await openSettingsPanel(page);
+      await expect(page.getByRole('switch').first()).toHaveAttribute('data-state', targetState);
     });
   });
 });

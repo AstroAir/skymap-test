@@ -38,6 +38,7 @@ import { useEquipmentFOVRead } from '@/lib/hooks/use-equipment-fov-props';
 import { degreesToHMS, degreesToDMS, rad2deg } from '@/lib/astronomy/starmap-utils';
 import type { ClickCoords, SelectedObjectData } from '@/lib/core/types';
 import type { ContextMenuStellariumSettings } from '@/types/starmap/view';
+import { clipboardService } from '@/lib/services/clipboard-service';
 
 interface CanvasContextMenuProps {
   open: boolean;
@@ -109,7 +110,7 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
       const dec = rad2deg(dir.dec);
       const raStr = degreesToHMS(((ra % 360) + 360) % 360);
       const decStr = degreesToDMS(dec);
-      navigator.clipboard.writeText(`${raStr} ${decStr}`);
+      void clipboardService.writeText(`${raStr} ${decStr}`);
     }
     onOpenChange(false);
   }, [onOpenChange]);
@@ -117,7 +118,7 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
   // Copy click position
   const handleCopyClickPosition = useCallback(() => {
     if (coords) {
-      navigator.clipboard.writeText(`${coords.raStr} ${coords.decStr}`);
+      void clipboardService.writeText(`${coords.raStr} ${coords.decStr}`);
     }
     onOpenChange(false);
   }, [coords, onOpenChange]);
@@ -125,7 +126,7 @@ export const CanvasContextMenu = memo(function CanvasContextMenu({
   // Copy object coordinates
   const handleCopyObjectCoordinates = useCallback(() => {
     if (selectedObject) {
-      navigator.clipboard.writeText(`${selectedObject.ra} ${selectedObject.dec}`);
+      void clipboardService.writeText(`${selectedObject.ra} ${selectedObject.dec}`);
     }
     onOpenChange(false);
   }, [selectedObject, onOpenChange]);

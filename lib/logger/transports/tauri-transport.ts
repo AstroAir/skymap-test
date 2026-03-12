@@ -17,6 +17,10 @@ export interface TauriTransportConfig {
   batching: boolean;
   /** Batch interval in ms */
   batchInterval: number;
+  /** Maximum buffered items before dropping oldest */
+  maxQueueSize: number;
+  /** Warn every N dropped items due to queue pressure */
+  dropWarnInterval: number;
 }
 
 const DEFAULT_CONFIG: TauriTransportConfig = {
@@ -24,6 +28,8 @@ const DEFAULT_CONFIG: TauriTransportConfig = {
   minLevel: LogLevel.INFO,
   batching: true,
   batchInterval: 1000,
+  maxQueueSize: 500,
+  dropWarnInterval: 50,
 };
 
 interface LogBatchItem {
@@ -44,6 +50,7 @@ export class TauriTransport implements LogTransport {
   private batchTimer: ReturnType<typeof setTimeout> | null = null;
   private isTauri: boolean = false;
   private logFns: Record<number, TauriLogFn> | null = null;
+  private droppedCount = 0;
   
   constructor(config: Partial<TauriTransportConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -104,6 +111,12 @@ export class TauriTransport implements LogTransport {
   }
   
   private addToBatch(item: LogBatchItem): void {
+    if (this.batch.length >= this.config.maxQueueSize) {
+      this.batch.shift();
+      this.droppedCount += 1;
+      this.maybeWarnDropped();
+    }
+
     this.batch.push(item);
     
     if (!this.batchTimer) {
@@ -138,6 +151,8 @@ export class TauriTransport implements LogTransport {
         await fn(item.message);
       }
     } catch {
+      this.logFns = null;
+      this.isTauri = false;
       // Silently fail - we don't want logging errors to break the app
     }
   }
@@ -153,6 +168,20 @@ export class TauriTransport implements LogTransport {
   dispose(): void {
     this.flush();
     this.logFns = null;
+  }
+
+  /**
+   * Get number of logs dropped due to queue pressure.
+   */
+  getDroppedCount(): number {
+    return this.droppedCount;
+  }
+
+  /**
+   * Reset dropped counter (used after surfacing stats).
+   */
+  resetDroppedCount(): void {
+    this.droppedCount = 0;
   }
   
   /**
@@ -174,6 +203,17 @@ export class TauriTransport implements LogTransport {
    */
   getConfig(): TauriTransportConfig {
     return { ...this.config };
+  }
+
+  private maybeWarnDropped(): void {
+    if (this.config.dropWarnInterval <= 0) {
+      return;
+    }
+
+    if (this.droppedCount === 1 || this.droppedCount % this.config.dropWarnInterval === 0) {
+      // Console warning only; avoid recursion through logger itself.
+      console.warn(`[logger] Tauri transport queue pressure detected. Dropped ${this.droppedCount} log item(s).`);
+    }
   }
 }
 

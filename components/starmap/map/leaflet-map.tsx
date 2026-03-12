@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo, memo, useCallback } from 'react';
+import { useEffect, useRef, useMemo, memo, useCallback, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -16,11 +16,18 @@ L.Icon.Default.mergeOptions({
   shadowUrl: '/leaflet/marker-shadow.png',
 });
 
+export interface TileLayerFallbackEvent {
+  failedLayer: TileLayerType;
+  fallbackLayer: TileLayerType;
+  errorCount: number;
+}
+
 export interface LeafletMapProps {
   center: Coordinates;
   zoom?: number;
   onLocationChange?: (location: Coordinates) => void;
   onClick?: (location: Coordinates) => void;
+  onZoomChange?: (zoom: number) => void;
   className?: string;
   height?: string | number;
   tileLayer?: TileLayerType;
@@ -30,6 +37,14 @@ export interface LeafletMapProps {
   minZoom?: number;
   maxZoom?: number;
   showLightPollution?: boolean;
+  tileErrorThreshold?: number;
+  fallbackTileLayer?: TileLayerType;
+  onTileLayerFallback?: (event: TileLayerFallbackEvent) => void;
+}
+
+function normalizeTileLayer(tileLayer: TileLayerType | undefined): TileLayerType {
+  if (!tileLayer) return 'openstreetmap';
+  return tileLayer in TILE_LAYER_CONFIGS ? tileLayer : 'openstreetmap';
 }
 
 /**
@@ -41,11 +56,13 @@ function MapController({
   zoom,
   disabled,
   onClick,
+  onZoomChange,
 }: {
   center: Coordinates;
   zoom: number;
   disabled: boolean;
   onClick?: (location: Coordinates) => void;
+  onZoomChange?: (zoom: number) => void;
 }) {
   const map = useMap();
   const prevCenterRef = useRef({ lat: center.latitude, lng: center.longitude });
@@ -88,12 +105,14 @@ function MapController({
     }
   }, [map, disabled]);
 
-  // Handle map click
   useMapEvents({
     click(e) {
       if (!disabled) {
         onClick?.({ latitude: e.latlng.lat, longitude: e.latlng.lng });
       }
+    },
+    zoomend() {
+      onZoomChange?.(map.getZoom());
     },
   });
 
@@ -153,6 +172,7 @@ function LeafletMapComponent({
   zoom = 10,
   onLocationChange,
   onClick,
+  onZoomChange,
   className,
   height = 400,
   tileLayer = 'openstreetmap',
@@ -162,8 +182,45 @@ function LeafletMapComponent({
   minZoom = 2,
   maxZoom = 19,
   showLightPollution = false,
+  tileErrorThreshold = 3,
+  fallbackTileLayer = 'openstreetmap',
+  onTileLayerFallback,
 }: LeafletMapProps) {
-  const tileConfig = TILE_LAYER_CONFIGS[tileLayer] || TILE_LAYER_CONFIGS.openstreetmap;
+  const normalizedFallbackLayer = normalizeTileLayer(fallbackTileLayer);
+  const [unavailableLayers, setUnavailableLayers] = useState<Set<TileLayerType>>(
+    () => new Set<TileLayerType>()
+  );
+  const requestedLayer = normalizeTileLayer(tileLayer);
+  const activeTileLayer =
+    requestedLayer !== normalizedFallbackLayer && unavailableLayers.has(requestedLayer)
+      ? normalizedFallbackLayer
+      : requestedLayer;
+  const tileErrorCountRef = useRef(0);
+  const lastFallbackSignatureRef = useRef<string | null>(null);
+
+  const emitFallback = useCallback((failedLayer: TileLayerType, errorCount: number) => {
+    const signature = `${failedLayer}:${normalizedFallbackLayer}:${errorCount}`;
+    if (lastFallbackSignatureRef.current === signature) {
+      return;
+    }
+    lastFallbackSignatureRef.current = signature;
+    onTileLayerFallback?.({
+      failedLayer,
+      fallbackLayer: normalizedFallbackLayer,
+      errorCount,
+    });
+  }, [normalizedFallbackLayer, onTileLayerFallback]);
+
+  useEffect(() => {
+    tileErrorCountRef.current = 0;
+    lastFallbackSignatureRef.current = null;
+
+    if (requestedLayer !== normalizedFallbackLayer && unavailableLayers.has(requestedLayer)) {
+      emitFallback(requestedLayer, 0);
+    }
+  }, [requestedLayer, normalizedFallbackLayer, unavailableLayers, emitFallback]);
+
+  const tileConfig = TILE_LAYER_CONFIGS[activeTileLayer] || TILE_LAYER_CONFIGS.openstreetmap;
 
   const handleMarkerDragEnd = useCallback(
     (location: Coordinates) => {
@@ -173,6 +230,30 @@ function LeafletMapComponent({
     },
     [disabled, draggableMarker, onLocationChange]
   );
+
+  const handleTileError = useCallback(() => {
+    if (activeTileLayer === normalizedFallbackLayer) {
+      return;
+    }
+
+    tileErrorCountRef.current += 1;
+    if (tileErrorCountRef.current < tileErrorThreshold) {
+      return;
+    }
+
+    const failedLayer = activeTileLayer;
+    const errorCount = tileErrorCountRef.current;
+    tileErrorCountRef.current = 0;
+    setUnavailableLayers((previous) => {
+      if (previous.has(failedLayer)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.add(failedLayer);
+      return next;
+    });
+    emitFallback(failedLayer, errorCount);
+  }, [activeTileLayer, normalizedFallbackLayer, tileErrorThreshold, emitFallback]);
 
   return (
     <div
@@ -199,10 +280,11 @@ function LeafletMapComponent({
         className="h-full w-full"
       >
         <TileLayer
-          key={tileLayer}
+          key={activeTileLayer}
           url={tileConfig.url}
           attribution={tileConfig.attribution}
           maxZoom={tileConfig.maxZoom}
+          eventHandlers={{ tileerror: handleTileError }}
           {...(tileConfig.subdomains ? { subdomains: tileConfig.subdomains } : {})}
         />
         {showLightPollution && (
@@ -219,6 +301,7 @@ function LeafletMapComponent({
           zoom={zoom}
           disabled={disabled}
           onClick={onClick}
+          onZoomChange={onZoomChange}
         />
         {showMarker && (
           <DraggableMarker

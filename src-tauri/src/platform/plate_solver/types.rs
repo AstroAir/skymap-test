@@ -18,21 +18,45 @@ pub enum PlateSolverError {
     Io(#[from] std::io::Error),
     #[error("Download failed: {0}")]
     DownloadFailed(String),
+    #[error("Local invocation failed: {0:?}")]
+    LocalInvocation(LocalInvocationDiagnostics),
 }
 
 impl Serialize for PlateSolverError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer {
+    where
+        S: serde::Serializer,
+    {
         serializer.serialize_str(&self.to_string())
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlateSolverType {
+    #[serde(rename = "astap")]
     Astap,
+    #[serde(rename = "astrometry_net_online")]
     AstrometryNet,
+    #[serde(rename = "astrometry_net")]
     LocalAstrometry,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalSolverProfileId {
+    AstapGui,
+    AstapCli,
+    AstrometrySolveField,
+}
+
+impl LocalSolverProfileId {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::AstapGui => "ASTAP",
+            Self::AstapCli => "ASTAP CLI",
+            Self::AstrometrySolveField => "solve-field",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,9 +64,38 @@ pub struct SolverInfo {
     pub solver_type: PlateSolverType,
     pub name: String,
     pub version: Option<String>,
-    pub path: String,
-    pub available: bool,
+    pub executable_path: String,
+    pub is_available: bool,
     pub index_path: Option<String>,
+    #[serde(default)]
+    pub installed_indexes: Vec<IndexInfo>,
+    #[serde(default)]
+    pub profile_id: Option<LocalSolverProfileId>,
+    #[serde(default)]
+    pub profile_name: Option<String>,
+    #[serde(default)]
+    pub availability_reason: Option<String>,
+    #[serde(default)]
+    pub uses_custom_executable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalInvocationDiagnostics {
+    pub error_code: String,
+    pub profile_id: Option<LocalSolverProfileId>,
+    pub executable_path: Option<String>,
+    pub workspace_path: Option<String>,
+    pub exit_code: Option<i32>,
+    pub availability_reason: Option<String>,
+    pub stdout_excerpt: Option<String>,
+    pub stderr_excerpt: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LocalSolveWorkspace {
+    pub root_dir: std::path::PathBuf,
+    pub output_base: std::path::PathBuf,
+    pub wcs_file: std::path::PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +122,7 @@ pub struct PlateSolveResult {
     pub height_deg: Option<f64>,
     pub flipped: Option<bool>,
     pub error_message: Option<String>,
+    pub wcs_file: Option<String>,
     pub solve_time_ms: u64,
 }
 
@@ -359,6 +413,7 @@ pub struct SolveResult {
     pub solve_time_ms: u64,
     pub error_message: Option<String>,
     pub wcs_file: Option<String>,
+    pub local_diagnostics: Option<LocalInvocationDiagnostics>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -392,13 +447,22 @@ mod tests {
 
         let solver = PlateSolverType::AstrometryNet;
         let json = serde_json::to_string(&solver).unwrap();
-        assert_eq!(json, "\"astrometrynet\"");
+        assert_eq!(json, "\"astrometry_net_online\"");
     }
 
     #[test]
     fn test_plate_solver_type_deserialization() {
         let solver: PlateSolverType = serde_json::from_str("\"astap\"").unwrap();
         assert!(matches!(solver, PlateSolverType::Astap));
+    }
+
+    #[test]
+    fn test_plate_solver_type_frontend_contract_names() {
+        let local = serde_json::to_string(&PlateSolverType::LocalAstrometry).unwrap();
+        assert_eq!(local, "\"astrometry_net\"");
+
+        let online = serde_json::to_string(&PlateSolverType::AstrometryNet).unwrap();
+        assert_eq!(online, "\"astrometry_net_online\"");
     }
 
     // ------------------------------------------------------------------------
@@ -438,9 +502,10 @@ mod tests {
             height_deg: Some(1.5),
             flipped: Some(false),
             error_message: None,
+            wcs_file: None,
             solve_time_ms: 1000,
         };
-        
+
         assert!(result.success);
         assert!(result.ra.is_some());
         assert!(result.error_message.is_none());
@@ -458,9 +523,10 @@ mod tests {
             height_deg: None,
             flipped: None,
             error_message: Some("Solve failed".to_string()),
+            wcs_file: None,
             solve_time_ms: 500,
         };
-        
+
         assert!(!result.success);
         assert!(result.error_message.is_some());
     }
@@ -486,8 +552,9 @@ mod tests {
             solve_time_ms: 1000,
             error_message: None,
             wcs_file: None,
+            local_diagnostics: None,
         };
-        
+
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"success\":true"));
         assert!(json.contains("\"ra\":180"));
@@ -501,7 +568,7 @@ mod tests {
     fn test_plate_solver_error_display() {
         let err = PlateSolverError::NoSolverFound;
         assert_eq!(format!("{}", err), "No solver found");
-        
+
         let err = PlateSolverError::SolveFailed("Test error".to_string());
         assert!(format!("{}", err).contains("Test error"));
     }
@@ -523,14 +590,21 @@ mod tests {
             solver_type: PlateSolverType::Astap,
             name: "ASTAP".to_string(),
             version: Some("0.9.7".to_string()),
-            path: "/usr/bin/astap".to_string(),
-            available: true,
+            executable_path: "/usr/bin/astap".to_string(),
+            is_available: true,
             index_path: Some("/data".to_string()),
+            installed_indexes: vec![],
+            profile_id: Some(LocalSolverProfileId::AstapCli),
+            profile_name: Some("ASTAP CLI".to_string()),
+            availability_reason: None,
+            uses_custom_executable: false,
         };
-        
+
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("ASTAP"));
         assert!(json.contains("0.9.7"));
+        assert!(json.contains("executable_path"));
+        assert!(json.contains("profile_id"));
     }
 
     // ------------------------------------------------------------------------
@@ -544,10 +618,13 @@ mod tests {
             file_name: "index-4107.fits".to_string(),
             path: "/data/index-4107.fits".to_string(),
             size_bytes: 2 * 1024 * 1024,
-            scale_range: Some(ScaleRange { min_arcmin: 22.0, max_arcmin: 30.0 }),
+            scale_range: Some(ScaleRange {
+                min_arcmin: 22.0,
+                max_arcmin: 30.0,
+            }),
             description: Some("Wide field".to_string()),
         };
-        
+
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("index-4107"));
         assert!(json.contains("scale_range"));
@@ -559,7 +636,10 @@ mod tests {
 
     #[test]
     fn test_scale_range_serialization() {
-        let range = ScaleRange { min_arcmin: 120.0, max_arcmin: 170.0 };
+        let range = ScaleRange {
+            min_arcmin: 120.0,
+            max_arcmin: 170.0,
+        };
         let json = serde_json::to_string(&range).unwrap();
         assert!(json.contains("120.0") || json.contains("120"));
         assert!(json.contains("170.0") || json.contains("170"));
@@ -580,7 +660,7 @@ mod tests {
             downsample: Some(2),
             timeout: Some(60),
         };
-        
+
         let json = serde_json::to_string(&params).unwrap();
         assert!(json.contains("image_path"));
         assert!(json.contains("ra_hint"));
@@ -597,11 +677,14 @@ mod tests {
             file_name: "index-4107.fits".to_string(),
             download_url: "http://example.com/index-4107.fits".to_string(),
             size_bytes: 2 * 1024 * 1024,
-            scale_range: ScaleRange { min_arcmin: 22.0, max_arcmin: 30.0 },
+            scale_range: ScaleRange {
+                min_arcmin: 22.0,
+                max_arcmin: 30.0,
+            },
             description: "Wide field".to_string(),
             solver_type: "astap".to_string(),
         };
-        
+
         let json = serde_json::to_string(&idx).unwrap();
         assert!(json.contains("download_url"));
         assert!(json.contains("solver_type"));
@@ -619,7 +702,7 @@ mod tests {
             total: 2 * 1024 * 1024,
             percent: 50.0,
         };
-        
+
         let json = serde_json::to_string(&progress).unwrap();
         assert!(json.contains("index_name"));
         assert!(json.contains("percent"));

@@ -1,4 +1,4 @@
-import { unifiedCache } from '@/lib/offline/unified-cache';
+import { smartFetch } from '@/lib/services/http-fetch';
 import {
   DAILY_KNOWLEDGE_USER_AGENT,
   DAILY_KNOWLEDGE_WIKI_BASE_URLS,
@@ -76,22 +76,20 @@ async function fetchJson<T>(url: string, signal: AbortSignal): Promise<T> {
   return withRetry(
     async () =>
       withWikimediaGate(async () => {
-        const res = await unifiedCache.fetch(
-          url,
-          {
-            ttl: WIKIMEDIA_TTL_MS,
-            signal,
-            headers: {
-              'Api-User-Agent': DAILY_KNOWLEDGE_USER_AGENT,
-              Accept: 'application/json',
-            },
+        const res = await smartFetch(url, {
+          signal,
+          headers: {
+            'Api-User-Agent': DAILY_KNOWLEDGE_USER_AGENT,
+            Accept: 'application/json',
           },
-          'network-first'
-        );
+          cachePolicy: 'daily-knowledge-wikimedia',
+          cacheStrategy: 'network-first',
+          cacheTtl: WIKIMEDIA_TTL_MS,
+        });
         if (!res.ok) {
           throw new WikiHttpStatusError(
             res.status,
-            parseRetryAfterMs(res.headers.get('Retry-After')),
+            parseRetryAfterMs(new Headers(res.headers).get('Retry-After')),
             `Wikimedia request failed with status ${res.status}`
           );
         }

@@ -1,5 +1,6 @@
 import type { TargetItem } from '@/lib/stores/target-list-store';
 import type {
+  CalculationSourceMetadata,
   OptimizationStrategy,
   I18nMessage,
 } from '@/types/starmap/planning';
@@ -24,10 +25,34 @@ import {
 } from './astro-utils';
 import type { TwilightTimes } from '@/lib/core/types/astronomy';
 import { checkTargetSafety, type MountSafetyConfig } from './mount-safety';
+import { buildTimeScaleContext } from './time-scales';
 
 interface TimeInterval {
   start: Date;
   end: Date;
+}
+
+function buildPlannerCalculationMetadata(referenceDate: Date): CalculationSourceMetadata {
+  const context = buildTimeScaleContext(referenceDate);
+  const degraded = context.eop.freshness === 'fallback';
+  return {
+    source: 'calculation',
+    degraded,
+    computedAt: referenceDate.toISOString(),
+    cache: 'miss',
+    warnings: degraded ? ['eop_fallback'] : [],
+  };
+}
+
+function withCalculationParams(message: I18nMessage, metadata: CalculationSourceMetadata): I18nMessage {
+  return {
+    ...message,
+    params: {
+      ...message.params,
+      calculationSource: metadata.source,
+      calculationDegraded: metadata.degraded ? 1 : 0,
+    },
+  };
 }
 
 function minutesBetween(start: Date, end: Date): number {
@@ -141,7 +166,7 @@ function buildScheduledTarget(
   endTime: Date,
   moonDistance: number,
   order: number,
-  extra: Pick<ScheduledTargetWithLock, 'locked' | 'manual' | 'desiredDurationMinutes'>,
+  extra: Pick<ScheduledTargetWithLock, 'locked' | 'manual' | 'desiredDurationMinutes' | 'calculationMetadata'>,
 ): ScheduledTargetWithLock {
   return {
     target,
@@ -271,6 +296,7 @@ export function optimizeScheduleV2(
     mountSafetyConfig?: MountSafetyConfig;
   },
 ): SessionPlanV2 {
+  const calculationMetadata = buildPlannerCalculationMetadata(planDate);
   const accumulatedConflicts: SessionConflict[] = [];
 
   const nightStart = twilight.astronomicalDusk;
@@ -450,7 +476,12 @@ export function optimizeScheduleV2(
       endTime,
       moonDistance,
       lockedTargets.length + 1,
-      { locked: true, manual: true, desiredDurationMinutes: desiredMinutes },
+      {
+        locked: true,
+        manual: true,
+        desiredDurationMinutes: desiredMinutes,
+        calculationMetadata,
+      },
     );
 
     lockedTargets.push(scheduled);
@@ -710,6 +741,7 @@ export function optimizeScheduleV2(
         locked: false,
         manual: Boolean(info.manualEdit && (info.manualEdit.startTime || info.manualEdit.endTime || info.manualEdit.durationMinutes)),
         desiredDurationMinutes: info.desiredMinutes,
+        calculationMetadata,
       },
     );
     scheduledAuto.push(scheduled);
@@ -778,9 +810,9 @@ export function optimizeScheduleV2(
   const moonPhase = getMoonPhase(getJulianDateFromDate(planDate));
   const moonIllum = getMoonIllumination(moonPhase);
 
-  if (nightCoverage < 50) recommendations.push({ key: 'planRec.addMoreTargets' });
-  if (nightCoverage > 120) warnings.push({ key: 'planRec.tooManyForOneNight' });
-  if (moonIllum > 70) warnings.push({ key: 'planRec.brightMoon' });
+  if (nightCoverage < 50) recommendations.push(withCalculationParams({ key: 'planRec.addMoreTargets' }, calculationMetadata));
+  if (nightCoverage > 120) warnings.push(withCalculationParams({ key: 'planRec.tooManyForOneNight' }, calculationMetadata));
+  if (moonIllum > 70) warnings.push(withCalculationParams({ key: 'planRec.brightMoon' }, calculationMetadata));
 
   const excellentTargets = mergedTargets.filter((t) => t.feasibility.recommendation === 'excellent');
   if (excellentTargets.length > 0) {
@@ -788,22 +820,29 @@ export function optimizeScheduleV2(
       key: 'planRec.prioritize',
       params: { names: excellentTargets.map((t) => t.target.name).join(', ') },
     });
+    recommendations[recommendations.length - 1] = withCalculationParams(recommendations[recommendations.length - 1], calculationMetadata);
   }
 
   if (gaps.length > 0) {
     const totalGapTime = gaps.reduce((sum, g) => sum + g.duration, 0);
     if (totalGapTime > 1) {
-      recommendations.push({ key: 'planRec.unusedDarkTime', params: { duration: formatDuration(totalGapTime) } });
+      recommendations.push(withCalculationParams(
+        { key: 'planRec.unusedDarkTime', params: { duration: formatDuration(totalGapTime) } },
+        calculationMetadata,
+      ));
     }
   }
 
   const conflicts = [
     ...detectConflicts(mergedTargets, constraints, weatherSnapshot),
     ...accumulatedConflicts,
-  ];
+  ].map((conflict) => ({
+    ...conflict,
+    calculationMetadata,
+  }));
 
   if (conflicts.some((conflict) => conflict.type === 'weather')) {
-    warnings.push({ key: 'planRec.weatherNotIdeal' });
+    warnings.push(withCalculationParams({ key: 'planRec.weatherNotIdeal' }, calculationMetadata));
   }
 
   return {
@@ -816,6 +855,7 @@ export function optimizeScheduleV2(
     warnings,
     conflicts,
     weatherSnapshot,
+    calculationMetadata,
   };
 }
 

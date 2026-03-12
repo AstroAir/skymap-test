@@ -2,11 +2,11 @@
 
 import { useTranslations } from 'next-intl';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -150,10 +150,10 @@ export function EventDetailDialog({
   const sourcePriority = 'sourcePriority' in event ? event.sourcePriority : undefined;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] max-h-[80vh] max-h-[80dvh] overflow-hidden flex flex-col">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-3">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="standard-form">
+      <ResponsiveDialogContent className="sm:max-w-[480px] max-h-[92vh] max-h-[92dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader className="shrink-0">
+          <ResponsiveDialogTitle className="flex items-center gap-3">
             <div className={cn('p-2.5 rounded-xl', colorClass)}>
               <Icon className="h-5 w-5" />
             </div>
@@ -161,8 +161,8 @@ export function EventDetailDialog({
               <div className="font-semibold text-base truncate">{event.name}</div>
               <div className="text-xs text-muted-foreground font-normal">{typeLabel}</div>
             </div>
-          </DialogTitle>
-        </DialogHeader>
+          </ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
 
         <ScrollArea className="flex-1 min-h-0 overflow-hidden">
           <div className="space-y-4 pr-3 pb-4">
@@ -289,7 +289,7 @@ export function EventDetailDialog({
         {event.ra !== undefined && event.dec !== undefined && onGoTo && (
           <>
             <Separator />
-            <div className="shrink-0 pt-2">
+            <div className="shrink-0 border-t pt-2 pb-[calc(var(--safe-area-bottom)+0.25rem)]">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -308,7 +308,7 @@ export function EventDetailDialog({
             </div>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

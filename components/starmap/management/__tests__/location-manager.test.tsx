@@ -20,7 +20,9 @@ jest.mock('@/lib/tauri', () => {
     tauriApi: {
       locations: {
         add: jest.fn(),
+        update: jest.fn(),
         delete: jest.fn(),
+        setDefault: jest.fn(),
       },
     },
   };
@@ -130,6 +132,23 @@ jest.mock('@/components/ui/input', () => ({
       onChange={onChange}
       placeholder={placeholder}
       type={type}
+      {...props}
+    />
+  ),
+}));
+
+jest.mock('@/components/ui/textarea', () => ({
+  Textarea: ({
+    value,
+    onChange,
+    placeholder,
+    ...props
+  }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+    <textarea
+      data-testid="textarea"
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
       {...props}
     />
   ),
@@ -383,6 +402,100 @@ describe('LocationManager', () => {
       expect(screen.getByText('Simple Site')).toBeInTheDocument();
       expect(screen.queryByText(/Bortle/)).not.toBeInTheDocument();
     });
+
+    it('filters locations by name, timezone and notes', async () => {
+      mockUseLocations.mockReturnValue({
+        locations: {
+          locations: [
+            {
+              id: 'loc-1',
+              name: 'Backyard',
+              latitude: 35,
+              longitude: 120,
+              altitude: 50,
+              timezone: 'Asia/Shanghai',
+              notes: 'Home setup',
+              is_default: false,
+              is_current: false,
+            },
+            {
+              id: 'loc-2',
+              name: 'Dark Site',
+              latitude: 36,
+              longitude: 121,
+              altitude: 70,
+              timezone: 'UTC',
+              notes: 'Bortle 2',
+              is_default: true,
+              is_current: true,
+            },
+          ],
+        },
+        currentLocation: null,
+        loading: false,
+        refresh: jest.fn(),
+        setCurrent: jest.fn(),
+        isAvailable: true,
+      });
+
+      render(<LocationManager />);
+
+      const searchInput = screen.getByPlaceholderText(/locations\.searchPlaceholder|Search locations\.\.\./);
+      await act(async () => {
+        fireEvent.change(searchInput, { target: { value: 'utc' } });
+      });
+
+      expect(screen.getByText('Dark Site')).toBeInTheDocument();
+      expect(screen.queryByText('Backyard')).not.toBeInTheDocument();
+    });
+
+    it('sorts locations with current first and default next', () => {
+      mockUseLocations.mockReturnValue({
+        locations: {
+          locations: [
+            {
+              id: 'loc-c',
+              name: 'Charlie',
+              latitude: 1,
+              longitude: 1,
+              altitude: 1,
+              is_default: false,
+              is_current: false,
+            },
+            {
+              id: 'loc-a',
+              name: 'Alpha',
+              latitude: 2,
+              longitude: 2,
+              altitude: 2,
+              is_default: true,
+              is_current: false,
+            },
+            {
+              id: 'loc-b',
+              name: 'Bravo',
+              latitude: 3,
+              longitude: 3,
+              altitude: 3,
+              is_default: false,
+              is_current: true,
+            },
+          ],
+        },
+        currentLocation: null,
+        loading: false,
+        refresh: jest.fn(),
+        setCurrent: jest.fn(),
+        isAvailable: true,
+      });
+
+      render(<LocationManager />);
+
+      const rows = screen.getAllByTestId(/location-row-/);
+      expect(rows[0]).toHaveAttribute('data-testid', 'location-row-loc-b');
+      expect(rows[1]).toHaveAttribute('data-testid', 'location-row-loc-a');
+      expect(rows[2]).toHaveAttribute('data-testid', 'location-row-loc-c');
+    });
   });
 
   describe('Add Location Form', () => {
@@ -476,12 +589,16 @@ describe('LocationManager', () => {
       const latInput = screen.getByPlaceholderText('39.9042');
       const lonInput = screen.getByPlaceholderText('116.4074');
       const altInput = screen.getByPlaceholderText('100');
+      const timezoneInput = screen.getByPlaceholderText(/locations\.timezonePlaceholder|e\.g\. Asia\/Shanghai/);
+      const notesInput = screen.getByPlaceholderText(/locations\.notesPlaceholder|Optional notes/);
 
       await act(async () => {
         fireEvent.change(nameInput, { target: { value: 'Test Site' } });
         fireEvent.change(latInput, { target: { value: '40.5' } });
         fireEvent.change(lonInput, { target: { value: '-73.5' } });
         fireEvent.change(altInput, { target: { value: '200' } });
+        fireEvent.change(timezoneInput, { target: { value: 'Asia/Shanghai' } });
+        fireEvent.change(notesInput, { target: { value: 'Primary backyard setup' } });
       });
 
       // Change bortle class via select
@@ -497,15 +614,17 @@ describe('LocationManager', () => {
       });
 
       await waitFor(() => {
-        expect(mockTauriApi.locations.add).toHaveBeenCalledWith({
+        expect(mockTauriApi.locations.add).toHaveBeenCalledWith(expect.objectContaining({
           name: 'Test Site',
           latitude: 40.5,
           longitude: -73.5,
           altitude: 200,
+          timezone: 'Asia/Shanghai',
+          notes: 'Primary backyard setup',
           bortle_class: 5,
           is_default: true,
           is_current: true,
-        });
+        }));
         expect(mockToast.success).toHaveBeenCalled();
         expect(mockRefresh).toHaveBeenCalled();
       });
@@ -540,6 +659,65 @@ describe('LocationManager', () => {
         expect(mockToast.error).toHaveBeenCalledWith('API Error');
       });
     });
+
+    it('shows duplicate dialog and updates existing location when confirmed', async () => {
+      const mockRefresh = jest.fn();
+      mockUseLocations.mockReturnValue({
+        locations: {
+          locations: [
+            {
+              id: 'loc-existing',
+              name: 'Backyard',
+              latitude: 40.5,
+              longitude: -73.5,
+              altitude: 100,
+              is_default: true,
+              is_current: true,
+              created_at: '2024-01-01T00:00:00Z',
+              updated_at: '2024-01-01T00:00:00Z',
+            },
+          ],
+        },
+        currentLocation: null,
+        loading: false,
+        refresh: mockRefresh,
+        setCurrent: jest.fn(),
+        isAvailable: true,
+      });
+      (mockTauriApi.locations.update as jest.Mock).mockResolvedValue(undefined);
+
+      render(<LocationManager />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText(/locations\.addLocation/));
+      });
+
+      await act(async () => {
+        fireEvent.change(screen.getByPlaceholderText(/locations\.namePlaceholder|e\.g\. Backyard/), { target: { value: 'Backyard' } });
+        fireEvent.change(screen.getByPlaceholderText('39.9042'), { target: { value: '40.5' } });
+        fireEvent.change(screen.getByPlaceholderText('116.4074'), { target: { value: '-73.5' } });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText(/common\.save/));
+      });
+
+      expect(screen.getByText(/locations\.duplicateTitle|Possible duplicate location/)).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByText(/locations\.updateExisting|Update existing/));
+      });
+
+      await waitFor(() => {
+        expect(mockTauriApi.locations.update).toHaveBeenCalledWith(expect.objectContaining({
+          id: 'loc-existing',
+          name: 'Backyard',
+          latitude: 40.5,
+          longitude: -73.5,
+        }));
+        expect(mockRefresh).toHaveBeenCalled();
+      });
+    });
   });
 
   describe('Delete Location', () => {
@@ -572,15 +750,9 @@ describe('LocationManager', () => {
 
       render(<LocationManager />);
 
-      // Find delete button (ghost variant with Trash2 icon)
-      const deleteButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-      expect(deleteButtons.length).toBeGreaterThan(0);
-
       // Click delete button opens confirmation dialog
       await act(async () => {
-        fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+        fireEvent.click(screen.getByTestId('delete-location-loc-1'));
       });
 
       // Confirm deletion in AlertDialog
@@ -620,13 +792,9 @@ describe('LocationManager', () => {
 
       render(<LocationManager />);
 
-      const deleteButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-
       // Click delete button opens confirmation dialog
       await act(async () => {
-        fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+        fireEvent.click(screen.getByTestId('delete-location-loc-1'));
       });
 
       // Confirm deletion in AlertDialog
@@ -683,12 +851,8 @@ describe('LocationManager', () => {
 
       render(<LocationManager onLocationChange={mockOnLocationChange} />);
 
-      const ghostButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-
       await act(async () => {
-        fireEvent.click(ghostButtons[1]);
+        fireEvent.click(screen.getByTestId('delete-location-loc-a'));
       });
       await act(async () => {
         fireEvent.click(screen.getByTestId('alert-dialog-action'));
@@ -740,12 +904,8 @@ describe('LocationManager', () => {
 
       render(<LocationManager onLocationChange={mockOnLocationChange} />);
 
-      const ghostButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-
       await act(async () => {
-        fireEvent.click(ghostButtons[4]);
+        fireEvent.click(screen.getByTestId('delete-location-loc-b'));
       });
       await act(async () => {
         fireEvent.click(screen.getByTestId('alert-dialog-action'));
@@ -784,13 +944,8 @@ describe('LocationManager', () => {
 
       render(<LocationManager onLocationChange={mockOnLocationChange} />);
 
-      // Find navigation button (first ghost button for non-current location)
-      const navButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-
       await act(async () => {
-        fireEvent.click(navButtons[0]); // First ghost button is set current
+        fireEvent.click(screen.getByTestId('set-current-loc-1'));
       });
 
       await waitFor(() => {
@@ -824,11 +979,7 @@ describe('LocationManager', () => {
 
       render(<LocationManager />);
 
-      // Only delete button should be visible (no navigation button for current)
-      const ghostButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-      expect(ghostButtons.length).toBe(2); // Edit + delete buttons (no navigation button for current)
+      expect(screen.queryByTestId('set-current-loc-1')).not.toBeInTheDocument();
     });
 
     it('shows error toast when set current fails', async () => {
@@ -856,16 +1007,60 @@ describe('LocationManager', () => {
 
       render(<LocationManager />);
 
-      const navButtons = screen.getAllByRole('button').filter(
-        (btn) => btn.getAttribute('data-variant') === 'ghost'
-      );
-
       await act(async () => {
-        fireEvent.click(navButtons[0]);
+        fireEvent.click(screen.getByTestId('set-current-loc-1'));
       });
 
       await waitFor(() => {
         expect(mockToast.error).toHaveBeenCalledWith('Set current failed');
+      });
+    });
+  });
+
+  describe('Set Default Location', () => {
+    it('sets location as default when default action button clicked', async () => {
+      const mockRefresh = jest.fn();
+      (mockTauriApi.locations.setDefault as jest.Mock).mockResolvedValue(undefined);
+      mockUseLocations.mockReturnValue({
+        locations: {
+          locations: [
+            {
+              id: 'loc-1',
+              name: 'Target Site',
+              latitude: 40,
+              longitude: -74,
+              altitude: 100,
+              is_default: false,
+              is_current: false,
+            },
+            {
+              id: 'loc-2',
+              name: 'Default Site',
+              latitude: 41,
+              longitude: -75,
+              altitude: 200,
+              is_default: true,
+              is_current: true,
+            },
+          ],
+        },
+        currentLocation: null,
+        loading: false,
+        refresh: mockRefresh,
+        setCurrent: jest.fn(),
+        isAvailable: true,
+      });
+
+      render(<LocationManager />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('set-default-loc-1'));
+      });
+
+      await waitFor(() => {
+        expect(mockTauriApi.locations.setDefault).toHaveBeenCalledWith('loc-1');
+        expect(mockRefresh).toHaveBeenCalled();
+        expect(mockToast.success).toHaveBeenCalled();
       });
     });
   });
@@ -906,9 +1101,11 @@ describe('LocationManager', () => {
 
       const nameInput = screen.getByPlaceholderText(/locations\.namePlaceholder|e\.g\. Backyard/);
       const altitudeInput = screen.getByPlaceholderText('100');
+      const timezoneInput = screen.getByPlaceholderText(/locations\.timezonePlaceholder|e\.g\. Asia\/Shanghai/);
       await act(async () => {
         fireEvent.change(nameInput, { target: { value: 'Manual Site Name' } });
         fireEvent.change(altitudeInput, { target: { value: '321' } });
+        fireEvent.change(timezoneInput, { target: { value: 'Europe/London' } });
       });
 
       const gpsButton = screen.getByText(/locations\.useGPS/);
@@ -918,6 +1115,7 @@ describe('LocationManager', () => {
 
       expect((nameInput as HTMLInputElement).value).toBe('Manual Site Name');
       expect((altitudeInput as HTMLInputElement).value).toBe('321');
+      expect((timezoneInput as HTMLInputElement).value).toBe('Europe/London');
     });
 
     it('shows error when GPS fails', async () => {

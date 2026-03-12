@@ -1,4 +1,4 @@
-//! SkyMap Tauri Backend
+﻿//! SkyMap Tauri Backend
 //! 
 //! Organized into the following modules:
 //! - `astronomy`: Astronomical calculations and events
@@ -30,7 +30,7 @@ use data::{
     update_telescope,
     // Locations
     add_location, delete_location, get_current_location, load_locations, save_locations,
-    set_current_location, update_location,
+    set_current_location, set_default_location, update_location,
     // Observation log
     add_observation, create_planned_session, create_session, delete_observation, delete_session, end_session,
     get_observation_stats, load_observation_log, save_observation_log, search_observations,
@@ -96,7 +96,10 @@ use platform::{
     add_recent_file, clear_recent_files, get_system_info, load_app_settings, open_path,
     restore_window_state, reveal_in_file_manager, save_app_settings, save_window_state,
     // App control
-    is_dev_mode, quit_app, reload_webview, restart_app,
+    handle_tray_icon_event, initialize_tray, is_dev_mode, is_tray_positioning_ready,
+    quit_app, reload_webview, restart_app, TrayRuntimeState,
+    // CLI bridge
+    handle_forwarded_cli_invocation, parse_cli_matches_from_args,
     // Updater
     check_for_update, clear_pending_update, download_and_install_update, download_update,
     get_current_version, has_pending_update, install_update,
@@ -105,6 +108,8 @@ use platform::{
     migrate_data_dir, migrate_cache_dir, reset_paths_to_default, validate_directory,
     // Secure map API keys
     save_map_api_key, list_map_api_keys_meta, get_map_api_key, delete_map_api_key, set_active_map_api_key,
+    // Secret vault bootstrap
+    get_or_create_secret_vault_bootstrap,
     // Plate solver
     analyse_image, delete_index, detect_plate_solvers, download_index,
     extract_stars, get_astap_databases, get_available_indexes,
@@ -117,18 +122,32 @@ use platform::{
 #[cfg(desktop)]
 use tauri::Manager;
 
+const fn desktop_debug_tooling_enabled(is_desktop: bool, is_debug: bool) -> bool {
+    is_desktop && is_debug
+}
+
+const fn persistent_logging_enabled(is_desktop: bool, is_debug: bool) -> bool {
+    !desktop_debug_tooling_enabled(is_desktop, is_debug)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Single instance plugin must be registered FIRST (desktop only)
     #[cfg(desktop)]
     let builder = tauri::Builder::default().plugin(tauri_plugin_single_instance::init(
-        |app, _args, _cwd| {
-            // Focus the main window when a new instance is attempted
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
+        |app, args, cwd| {
+            handle_forwarded_cli_invocation(app, args, cwd);
         },
     ));
+
+    #[cfg(all(desktop, debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_devtools::init());
+
+    #[cfg(desktop)]
+    let builder = builder.on_tray_icon_event(|app, event| {
+        tauri_plugin_positioner::on_tray_event(app, &event);
+        handle_tray_icon_event(app, &event);
+    });
 
     #[cfg(not(desktop))]
     let builder = tauri::Builder::default();
@@ -145,26 +164,48 @@ pub fn run() {
             // Process plugin (desktop only)
             #[cfg(desktop)]
             {
+                app.manage(TrayRuntimeState::default());
+                app.handle().plugin(tauri_plugin_cli::init())?;
+                app.handle().plugin(tauri_plugin_positioner::init())?;
+                app.handle().plugin(tauri_plugin_clipboard_manager::init())?;
+                app.handle().plugin(tauri_plugin_autostart::init(
+                    tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                    None::<Vec<&str>>,
+                ))?;
+                let salt_path = app
+                    .path()
+                    .app_local_data_dir()
+                    .map_err(|error| format!("failed to resolve app local data directory: {error}"))?
+                    .join("stronghold-salt.txt");
+                app.handle().plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
+                app.handle()
+                    .plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
+                app.handle().plugin(tauri_plugin_os::init())?;
+
+                if let Err(error) = initialize_tray(&app.handle()) {
+                    log::warn!("Tray initialization skipped: {error}");
+                }
             }
 
-            // Enable logging in both debug and release builds
-            // Debug: Info level, Release: Warn level
-            let log_level = if cfg!(debug_assertions) {
-                log::LevelFilter::Debug
-            } else {
-                log::LevelFilter::Info
-            };
-            
-            app.handle().plugin(
-                tauri_plugin_log::Builder::default()
-                    .level(log_level)
-                    .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
-                    .max_file_size(5_000_000) // 5MB max file size
-                    .build(),
-            )?;
+            if persistent_logging_enabled(cfg!(desktop), cfg!(debug_assertions)) {
+                let log_level = if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                };
+
+                app.handle().plugin(
+                    tauri_plugin_log::Builder::default()
+                        .level(log_level)
+                        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                        .max_file_size(5_000_000)
+                        .build(),
+                )?;
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -203,6 +244,7 @@ pub fn run() {
             update_location,
             delete_location,
             set_current_location,
+            set_default_location,
             get_current_location,
             // Observation log
             load_observation_log,
@@ -386,6 +428,10 @@ pub fn run() {
             reload_webview,
             #[cfg(desktop)]
             is_dev_mode,
+            #[cfg(desktop)]
+            parse_cli_matches_from_args,
+            #[cfg(desktop)]
+            is_tray_positioning_ready,
             // Secure Map API Keys (desktop only)
             #[cfg(desktop)]
             save_map_api_key,
@@ -397,6 +443,8 @@ pub fn run() {
             delete_map_api_key,
             #[cfg(desktop)]
             set_active_map_api_key,
+            #[cfg(desktop)]
+            get_or_create_secret_vault_bootstrap,
             // Plate Solver (desktop only)
             #[cfg(desktop)]
             detect_plate_solvers,
@@ -462,3 +510,25 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{desktop_debug_tooling_enabled, persistent_logging_enabled};
+
+    #[test]
+    fn desktop_runtime_policy_enables_debug_tooling_for_debug_desktop_mode() {
+        assert!(desktop_debug_tooling_enabled(true, true));
+        assert!(!desktop_debug_tooling_enabled(true, false));
+        assert!(!desktop_debug_tooling_enabled(false, true));
+    }
+
+    #[test]
+    fn desktop_runtime_policy_keeps_persistent_logging_out_of_debug_desktop_mode() {
+        assert!(!persistent_logging_enabled(true, true));
+        assert!(persistent_logging_enabled(true, false));
+        assert!(persistent_logging_enabled(false, true));
+        assert!(persistent_logging_enabled(false, false));
+    }
+}
+
+

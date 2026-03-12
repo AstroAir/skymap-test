@@ -31,6 +31,11 @@ describe('mapConfig', () => {
       expect(config.cacheResponses).toBe(true);
       expect(config.policyMode).toBe('strict');
       expect(config.searchBehaviorWhenNoAutocomplete).toBe('submit-only');
+      expect(config.uiPreferences).toEqual({
+        tileLayer: 'openstreetmap',
+        zoom: 10,
+        showLightPollution: false,
+      });
       expect(config.configVersion).toBeGreaterThanOrEqual(2);
     });
 
@@ -294,6 +299,23 @@ describe('mapConfig', () => {
       const config = mapConfig.getConfiguration();
       expect(config.searchBehaviorWhenNoAutocomplete).toBe('disabled');
     });
+
+    it('should set and merge UI preferences', () => {
+      mapConfig.setUiPreferences({
+        tileLayer: 'esri_satellite',
+        zoom: 12,
+      });
+      mapConfig.setUiPreferences({
+        showLightPollution: true,
+      });
+
+      const preferences = mapConfig.getUiPreferences();
+      expect(preferences).toEqual({
+        tileLayer: 'esri_satellite',
+        zoom: 12,
+        showLightPollution: true,
+      });
+    });
   });
 
   describe('configuration listeners', () => {
@@ -347,6 +369,29 @@ describe('mapConfig', () => {
       const config = mapConfig.getConfiguration();
       expect(config.defaultProvider).toBe('mapbox');
       expect(config.apiKeys.length).toBe(1);
+      expect(config.uiPreferences).toEqual({
+        tileLayer: 'openstreetmap',
+        zoom: 10,
+        showLightPollution: false,
+      });
+    });
+
+    it('should import UI preferences', () => {
+      const importConfig = JSON.stringify({
+        uiPreferences: {
+          tileLayer: 'cartodb_dark',
+          zoom: 9,
+          showLightPollution: true,
+        },
+      });
+
+      mapConfig.importConfiguration(importConfig, true);
+
+      expect(mapConfig.getUiPreferences()).toEqual({
+        tileLayer: 'cartodb_dark',
+        zoom: 9,
+        showLightPollution: true,
+      });
     });
 
     it('should throw on invalid import', () => {
@@ -406,24 +451,44 @@ describe('mapConfig', () => {
         cacheDuration: 7200000,
       }))).not.toThrow();
     });
+
+    it('should reject invalid uiPreferences.tileLayer', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({
+        uiPreferences: {
+          tileLayer: 'invalid-layer',
+        },
+      }))).toThrow('Invalid uiPreferences.tileLayer');
+    });
+
+    it('should reject invalid uiPreferences.zoom', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({
+        uiPreferences: {
+          zoom: -1,
+        },
+      }))).toThrow('uiPreferences.zoom must be a non-negative finite number');
+    });
+
+    it('should reject invalid uiPreferences.showLightPollution', () => {
+      expect(() => mapConfig.importConfiguration(JSON.stringify({
+        uiPreferences: {
+          showLightPollution: 'yes',
+        },
+      }))).toThrow('uiPreferences.showLightPollution must be a boolean');
+    });
   });
 
-  describe('API key obfuscation', () => {
-    it('should store API keys obfuscated in localStorage', () => {
+  describe('API key persistence hardening', () => {
+    it('should not persist raw API keys in localStorage', () => {
       mapConfig.addApiKey({
         provider: 'google',
         apiKey: 'test-secret-key',
       });
 
-      // Check that localStorage contains obfuscated key (base64)
       const lastSetCall = localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1];
       const stored = JSON.parse(lastSetCall[1]);
       const storedKey = stored.apiKeys[0].apiKey;
 
-      // Should NOT be stored in plain text
-      expect(storedKey).not.toBe('test-secret-key');
-      // Should be valid base64
-      expect(atob(storedKey)).toBe('test-secret-key');
+      expect(storedKey).toBe('');
     });
 
     it('should deobfuscate API keys when reading config', () => {

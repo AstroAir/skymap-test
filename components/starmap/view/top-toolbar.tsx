@@ -18,8 +18,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 
 import { ToolbarButton, ToolbarGroup } from '@/components/common/toolbar-button';
 import { LanguageSwitcher } from '@/components/common/language-switcher';
@@ -73,9 +75,14 @@ export const TopToolbar = memo(function TopToolbar({
   onGoToCoordinates,
 }: TopToolbarProps) {
   const t = useTranslations();
+  const skyEngine = useSettingsStore((state) => state.skyEngine);
   const openSearchRequestId = useOnboardingBridgeStore((state) => state.openSearchRequestId);
+  const toggleSearchRequestId = useOnboardingBridgeStore((state) => state.toggleSearchRequestId);
+  const toggleSessionPanelRequestId = useOnboardingBridgeStore((state) => state.toggleSessionPanelRequestId);
   const closeTransientPanelsRequestId = useOnboardingBridgeStore((state) => state.closeTransientPanelsRequestId);
   const handledSearchRequestRef = useRef(0);
+  const handledToggleSearchRequestRef = useRef(0);
+  const handledToggleSessionPanelRef = useRef(0);
   const handledCloseTransientRef = useRef(0);
 
   useEffect(() => {
@@ -92,6 +99,26 @@ export const TopToolbar = memo(function TopToolbar({
 
   useEffect(() => {
     if (
+      toggleSearchRequestId > 0 &&
+      toggleSearchRequestId !== handledToggleSearchRequestRef.current
+    ) {
+      handledToggleSearchRequestRef.current = toggleSearchRequestId;
+      onToggleSearch();
+    }
+  }, [onToggleSearch, toggleSearchRequestId]);
+
+  useEffect(() => {
+    if (
+      toggleSessionPanelRequestId > 0 &&
+      toggleSessionPanelRequestId !== handledToggleSessionPanelRef.current
+    ) {
+      handledToggleSessionPanelRef.current = toggleSessionPanelRequestId;
+      onToggleSessionPanel();
+    }
+  }, [onToggleSessionPanel, toggleSessionPanelRequestId]);
+
+  useEffect(() => {
+    if (
       closeTransientPanelsRequestId > 0 &&
       closeTransientPanelsRequestId !== handledCloseTransientRef.current
     ) {
@@ -104,7 +131,7 @@ export const TopToolbar = memo(function TopToolbar({
 
   return (
     <div
-      className="absolute top-0 left-0 right-0 pointer-events-none safe-area-top animate-fade-in"
+      className="absolute top-0 left-0 right-0 z-30 pointer-events-none safe-area-top animate-fade-in"
       style={{ paddingLeft: 'var(--safe-area-left)', paddingRight: 'var(--safe-area-right)' }}
     >
       {/* Drag region layer - covers entire top bar area, double-click to maximize */}
@@ -141,6 +168,7 @@ export const TopToolbar = memo(function TopToolbar({
               <div data-tour-id="search">
                 <Button
                   data-tour-id="search-button"
+                  data-testid="search-toggle-button"
                   variant="ghost"
                   size="icon"
                   className={cn(
@@ -199,7 +227,7 @@ export const TopToolbar = memo(function TopToolbar({
 
         {/* Center: Time Display */}
         <div className="pointer-events-auto hidden sm:block animate-fade-in">
-          {stel && <StellariumClock />}
+          {(stel || skyEngine === 'aladin') && <StellariumClock />}
         </div>
 
         {/* Right: Planning → Instruments → Config → Display → Preferences → View/Help → Window */}
@@ -322,6 +350,9 @@ const MobileMenuDrawer = memo(function MobileMenuDrawer({
     (state) => state.mobileFeaturePreferences.prioritizedTools ?? DEFAULT_MOBILE_PRIORITIZED_TOOLS,
   );
   const setSkyEngine = useSettingsStore((state) => state.setSkyEngine);
+  const aladinDisplay = useSettingsStore((state) => state.aladinDisplay);
+  const toggleAladinDisplaySetting = useSettingsStore((state) => state.toggleAladinDisplaySetting);
+  const setAladinDisplaySetting = useSettingsStore((state) => state.setAladinDisplaySetting);
   const setViewDirection = useStellariumStore((state) => state.setViewDirection);
   const openMobileDrawerRequestId = useOnboardingBridgeStore((state) => state.openMobileDrawerRequestId);
   const closeTransientPanelsRequestId = useOnboardingBridgeStore((state) => state.closeTransientPanelsRequestId);
@@ -479,7 +510,7 @@ const MobileMenuDrawer = memo(function MobileMenuDrawer({
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-4">
             {/* Time Display */}
-            {stel && (
+            {(stel || skyEngine === 'aladin') && (
               <div className="p-3 rounded-lg bg-muted/50">
                 <StellariumClock />
               </div>
@@ -534,16 +565,41 @@ const MobileMenuDrawer = memo(function MobileMenuDrawer({
               {isStellarium ? (
                 <StellariumSettings />
               ) : (
-                <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground space-y-2">
-                  <p>{t('settings.stellariumFeatureUnavailable')}</p>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setSkyEngine('stellarium')}
-                  >
-                    {t('settings.switchToStellarium')}
-                  </Button>
+                <div className="space-y-3 px-1">
+                  {/* Coordinate Grid */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">{t('settings.coordinateGrid')}</Label>
+                    <Switch
+                      checked={aladinDisplay.showCooGrid}
+                      onCheckedChange={() => toggleAladinDisplaySetting('showCooGrid')}
+                    />
+                  </div>
+                  {/* Reticle */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">{t('settings.reticle')}</Label>
+                    <Switch
+                      checked={aladinDisplay.showReticle}
+                      onCheckedChange={() => toggleAladinDisplaySetting('showReticle')}
+                    />
+                  </div>
+                  {/* Coordinate Frame */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">{t('settings.coordinateFrame')}</Label>
+                    <select
+                      className="text-sm bg-background border border-border rounded px-2 py-1"
+                      value={aladinDisplay.cooFrame}
+                      onChange={(e) => setAladinDisplaySetting('cooFrame', e.target.value as 'ICRSd' | 'galactic')}
+                    >
+                      <option value="ICRSd">{t('settings.equatorial')}</option>
+                      <option value="galactic">{t('settings.galactic')}</option>
+                    </select>
+                  </div>
+                  {/* Engine switcher */}
+                  <div className="pt-2 border-t border-border/50">
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => setSkyEngine('stellarium')}>
+                      {t('engine.switchToStellarium')}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

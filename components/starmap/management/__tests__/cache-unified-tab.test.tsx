@@ -17,6 +17,7 @@ const mockGetStats = jest.fn();
 const mockListKeys = jest.fn();
 const mockClearCache = jest.fn();
 const mockCleanup = jest.fn();
+const mockFlush = jest.fn();
 
 jest.mock('next-intl', () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) => {
@@ -44,7 +45,52 @@ jest.mock('@/lib/tauri', () => ({
     listKeys: (...args: unknown[]) => mockListKeys(...args),
     clearCache: (...args: unknown[]) => mockClearCache(...args),
     cleanup: (...args: unknown[]) => mockCleanup(...args),
+    flush: (...args: unknown[]) => mockFlush(...args),
   },
+}));
+
+jest.mock('@/lib/cache', () => ({
+  getCacheProviderDiagnostics: () => ({
+    providerId: 'tauri-unified-cache',
+    available: true,
+    supportsPersistent: true,
+    supportsClear: true,
+    supportsCleanup: true,
+    supportsFlush: true,
+    supportsInterception: true,
+  }),
+  getCacheIntegrationDiagnostics: () => ([
+    {
+      id: 'hips-registry',
+      title: 'HiPS registry fetches',
+      modulePath: 'lib/services/hips/service.ts',
+      policyId: 'hips-registry',
+      cacheMode: 'persistent-shared',
+      status: 'active',
+      strategy: 'network-first',
+      ttl: 86400000,
+      providerId: 'tauri-unified-cache',
+    },
+    {
+      id: 'astro-iss-position',
+      title: 'ISS realtime position',
+      modulePath: 'lib/services/astro-data-sources.ts',
+      policyId: 'astro-iss-position',
+      cacheMode: 'uncached',
+      status: 'uncached-by-design',
+      strategy: 'network-only',
+      ttl: 0,
+      providerId: 'tauri-unified-cache',
+    },
+  ]),
+  getCacheDiagnosticsSummary: () => ({
+    total: 2,
+    persistentShared: 1,
+    localOnly: 0,
+    uncached: 1,
+    active: 1,
+    degraded: 0,
+  }),
 }));
 
 jest.mock('@/lib/storage/platform', () => ({
@@ -55,6 +101,9 @@ jest.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, disabled, ...props }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
     <button onClick={onClick} disabled={disabled} {...props}>{children}</button>
   ),
+}));
+jest.mock('@/components/ui/badge', () => ({
+  Badge: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
 }));
 jest.mock('@/components/ui/scroll-area', () => ({ ScrollArea: ({ children }: React.PropsWithChildren) => <div>{children}</div> }));
 jest.mock('@/components/ui/alert-dialog', () => ({
@@ -99,6 +148,23 @@ describe('CacheUnifiedTab', () => {
     expect(await screen.findByText('42')).toBeInTheDocument();
     expect(screen.getByText('8192B')).toBeInTheDocument();
     expect(screen.getByText('85.0%')).toBeInTheDocument();
+    expect(screen.getByText('cache.provider')).toBeInTheDocument();
+    expect(screen.getAllByText('cache.persistentShared').length).toBeGreaterThan(0);
+  });
+
+  it('calls flush when flush button clicked', async () => {
+    _isTauri = true;
+    _isAvailable = true;
+    mockGetStats.mockResolvedValue({ total_entries: 10, total_size: 500, hit_rate: 0.5 });
+    mockListKeys.mockResolvedValue([]);
+    mockFlush.mockResolvedValue(undefined);
+
+    render(<CacheUnifiedTab isActive={true} />);
+
+    const flushButton = await screen.findByText('cache.flush');
+    fireEvent.click(flushButton);
+
+    await waitFor(() => expect(mockFlush).toHaveBeenCalled(), { timeout: 3000 });
   });
 
   // 显示 cached items 列表

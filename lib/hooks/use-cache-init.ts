@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { installFetchInterceptor, unifiedCache, type CacheStrategy } from '@/lib/offline';
+import { installFetchInterceptor, unifiedCache, getUnifiedCacheProviderDiagnostics, type CacheStrategy, type UnifiedCacheProviderDiagnostics } from '@/lib/offline';
 import { PREFETCH_RESOURCES, CACHE_CONFIG } from '@/lib/cache/config';
 import { initializeCacheSystem } from '@/lib/cache/migration';
 import { isTauri } from '@/lib/storage/platform';
@@ -56,6 +56,7 @@ export function useCacheInit(options: UseCacheInitOptions = {}) {
     additionalPrefetchUrls = [],
   } = options;
   const initialized = useRef(false);
+  const providerDiagnostics: UnifiedCacheProviderDiagnostics | null = getUnifiedCacheProviderDiagnostics();
 
   useEffect(() => {
     if (initialized.current) return;
@@ -71,7 +72,7 @@ export function useCacheInit(options: UseCacheInitOptions = {}) {
     });
 
     // Install fetch interceptor for automatic caching
-    if (enableInterception) {
+    if (enableInterception && getUnifiedCacheProviderDiagnostics().supportsInterception) {
       installFetchInterceptor(strategy);
       logger.info('Fetch interceptor installed', { strategy });
     }
@@ -111,7 +112,7 @@ export function useCacheInit(options: UseCacheInitOptions = {}) {
     let cleanupFlush: (() => void) | undefined;
     if (isTauri()) {
       const handleBeforeUnload = () => {
-        unifiedCacheApi.flush().catch(() => {});
+        unifiedCache.flush().catch(() => {});
       };
       window.addEventListener('beforeunload', handleBeforeUnload);
       cleanupFlush = () => window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -120,13 +121,10 @@ export function useCacheInit(options: UseCacheInitOptions = {}) {
     // Periodic cleanup of expired cache entries (every 30 minutes)
     const cleanupInterval = setInterval(async () => {
       try {
-        if (isTauri()) {
-          const deleted = await unifiedCacheApi.cleanup();
-          if (deleted > 0) {
-            logger.info(`Periodic cleanup removed ${deleted} expired entries`);
-          }
-        } else {
-          // Web: clear expired entries by re-fetching keys and checking TTL
+        const deleted = await unifiedCache.cleanupExpired();
+        if (deleted > 0) {
+          logger.info(`Periodic cleanup removed ${deleted} expired entries`);
+        } else if (!getUnifiedCacheProviderDiagnostics().supportsCleanup) {
           const keys = await unifiedCache.keys();
           logger.debug(`Periodic cleanup check: ${keys.length} cached entries`);
         }
@@ -142,6 +140,10 @@ export function useCacheInit(options: UseCacheInitOptions = {}) {
       clearInterval(cleanupInterval);
     };
   }, [strategy, enableInterception, enablePrefetch, additionalPrefetchUrls]);
+
+  return {
+    providerDiagnostics,
+  };
 }
 
 export default useCacheInit;

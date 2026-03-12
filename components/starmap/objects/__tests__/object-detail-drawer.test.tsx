@@ -462,7 +462,13 @@ describe('ObjectDetailDrawer', () => {
           mockSelectedObject.raDeg,
           mockSelectedObject.decDeg,
           mockSelectedObject.ra,
-          mockSelectedObject.dec
+          mockSelectedObject.dec,
+          {
+            type: mockSelectedObject.type,
+            magnitude: mockSelectedObject.magnitude,
+            size: mockSelectedObject.size,
+            constellation: mockSelectedObject.constellation,
+          }
         );
       });
     });
@@ -481,7 +487,7 @@ describe('ObjectDetailDrawer', () => {
       });
 
       await waitFor(() => {
-        expect(mockEnhanceObjectInfo).toHaveBeenCalledWith(mockObjectInfo);
+        expect(mockEnhanceObjectInfo).toHaveBeenCalledWith(mockObjectInfo, expect.any(AbortSignal));
       });
     });
 

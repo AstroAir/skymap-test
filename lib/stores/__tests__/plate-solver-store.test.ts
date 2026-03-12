@@ -33,6 +33,23 @@ jest.mock('@/lib/tauri/plate-solver-api', () => ({
     downsample: 0,
     search_radius: 30.0,
     use_sip: true,
+    astap_database: null,
+    astap_max_stars: 500,
+    astap_tolerance: 0.007,
+    astap_speed_mode: 'auto',
+    astap_min_star_size: 1.5,
+    astap_equalise_background: false,
+    astrometry_scale_low: null,
+    astrometry_scale_high: null,
+    astrometry_scale_units: 'deg_width',
+    astrometry_depth: null,
+    astrometry_no_plots: true,
+    astrometry_no_verify: false,
+    astrometry_crpix_center: true,
+    keep_wcs_file: true,
+    auto_hints: true,
+    retry_on_failure: false,
+    max_retries: 2,
   },
 }));
 
@@ -139,6 +156,23 @@ describe('usePlateSolverStore', () => {
       });
 
       expect(result.current.onlineApiKey).toBe('test-api-key');
+    });
+  });
+
+  describe('persistence hardening', () => {
+    it('should omit raw onlineApiKey from persisted state', () => {
+      const partialize = usePlateSolverStore.persist.getOptions().partialize;
+
+      if (!partialize) {
+        throw new Error('persist partialize should be defined');
+      }
+
+      const persisted = partialize({
+        ...usePlateSolverStore.getState(),
+        onlineApiKey: 'persisted-secret',
+      });
+
+      expect(persisted).not.toHaveProperty('onlineApiKey');
     });
   });
 
@@ -266,7 +300,7 @@ describe('usePlateSolverStore', () => {
         await result.current.loadConfig();
       });
 
-      expect(result.current.config).toEqual(mockConfig);
+      expect(result.current.config).toEqual(expect.objectContaining(mockConfig));
     });
 
     it('should use default config on load error', async () => {
@@ -678,18 +712,40 @@ describe('selectors', () => {
       const state = usePlateSolverStore.getState();
       expect(selectIsLocalSolverAvailable(state)).toBe(true);
     });
+
+    it('should trust solver availability metadata instead of raw index count', () => {
+      const mockSolver: SolverInfo = {
+        solver_type: 'astap',
+        name: 'ASTAP',
+        version: '2026.03.05',
+        executable_path: '/path/to/astap_cli',
+        is_available: true,
+        index_path: '/path/to/indexes',
+        installed_indexes: [],
+        profile_id: 'astap_cli',
+        profile_name: 'ASTAP CLI',
+        availability_reason: null,
+        uses_custom_executable: true,
+      } as SolverInfo;
+
+      usePlateSolverStore.setState({ detectedSolvers: [mockSolver] });
+
+      const state = usePlateSolverStore.getState();
+      expect(selectIsLocalSolverAvailable(state)).toBe(true);
+    });
   });
 
   describe('selectCanSolve', () => {
-    it('should return false for local solver without indexes', () => {
+    it('should return false for local solver marked unavailable', () => {
       const mockSolver: SolverInfo = {
         solver_type: 'astap',
         name: 'ASTAP',
         version: '1.0',
         executable_path: '/path/to/astap',
-        is_available: true,
+        is_available: false,
         index_path: '/path/to/indexes',
         installed_indexes: [],
+        availability_reason: 'No ASTAP database found',
       };
 
       usePlateSolverStore.setState({ detectedSolvers: [mockSolver] });

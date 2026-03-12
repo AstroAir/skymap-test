@@ -53,6 +53,7 @@ describe('parseSearchQuery', () => {
     const parsed = parseSearchQuery('@999,200');
     expect(parsed.intent).toBe('name');
     expect(parsed.coordinates).toBeUndefined();
+    expect(parsed.refinementHints.some(hint => hint.code === 'COORDINATE_FORMAT_HINT')).toBe(false);
   });
 
   it('parses multi-line input as batch search', () => {
@@ -65,5 +66,12 @@ describe('parseSearchQuery', () => {
     const parsed = parseSearchQuery('K07Tf8A');
     expect(parsed.intent).toBe('minor');
     expect(parsed.explicitMinor).toBe(true);
+  });
+
+  it('captures refinement metadata', () => {
+    const parsed = parseSearchQuery('messier 31');
+    expect(parsed.refinedQuery).toBe('M31');
+    expect(parsed.normalizationSteps.length).toBeGreaterThan(0);
+    expect(parsed.refinementHints.some(hint => hint.code === 'CATALOG_ALIAS_NORMALIZED')).toBe(true);
   });
 });

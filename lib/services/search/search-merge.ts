@@ -24,6 +24,7 @@ const DEFAULT_SOURCE_PRIORITY: Record<string, number> = {
 };
 
 const DEFAULT_THRESHOLD_ARCSEC = 5;
+const DEFAULT_MATCH_CONFIDENCE = 0.5;
 
 function toRadians(value: number): number {
   return (value * Math.PI) / 180;
@@ -74,6 +75,40 @@ function getSource(item: SearchResultItem): string {
 function getPriority(item: SearchResultItem, sourcePriority: Record<string, number>): number {
   const source = getSource(item);
   return sourcePriority[source] ?? sourcePriority.unknown ?? 100;
+}
+
+function getCanonicalQuality(item: SearchResultItem): number {
+  if (item.CanonicalId) return 2;
+  if ((item.Identifiers?.length ?? 0) > 0) return 1;
+  return 0;
+}
+
+function getMatchConfidence(item: SearchResultItem): number {
+  const score = item._fuzzyScore;
+  if (typeof score === 'number' && Number.isFinite(score)) return score;
+  return DEFAULT_MATCH_CONFIDENCE;
+}
+
+function getCoordinateProximityScore(
+  item: SearchResultItem,
+  coordinateContext?: { ra: number; dec: number }
+): number {
+  if (!coordinateContext || item.RA === undefined || item.Dec === undefined) return 0;
+  const separationArcsec = angularSeparationArcsec(coordinateContext.ra, coordinateContext.dec, item.RA, item.Dec);
+  return Math.max(0, 1 - separationArcsec / 3600);
+}
+
+function computeMergeScore(
+  item: SearchResultItem,
+  sourcePriority: Record<string, number>,
+  coordinateContext?: { ra: number; dec: number }
+): number {
+  const priority = getPriority(item, sourcePriority);
+  const sourceBonus = Math.max(0, 1 - priority / 10);
+  const canonicalBonus = getCanonicalQuality(item);
+  const matchBonus = getMatchConfidence(item);
+  const proximityBonus = getCoordinateProximityScore(item, coordinateContext);
+  return canonicalBonus * 100 + matchBonus * 25 + proximityBonus * 10 + sourceBonus;
 }
 
 function shouldMergeByCoordinates(
@@ -164,8 +199,19 @@ export function mergeSearchItems(
       const nameMatch =
         incomingName &&
         (incomingName === existingName || incomingAliases.has(existingName) || existingAliases.has(incomingName));
+      const canUseNameMergeFallback =
+        nameMatch &&
+        !canonicalMatch &&
+        !coordMatch.merge &&
+        (existing.RA === undefined ||
+          existing.Dec === undefined ||
+          incoming.RA === undefined ||
+          incoming.Dec === undefined) &&
+        !!existing.Type &&
+        existing.Type === incoming.Type;
 
-      if (canonicalMatch || coordMatch.merge || nameMatch) {
+      if (canonicalMatch || coordMatch.merge || canUseNameMergeFallback) {
+        const preservedStableId = existing._stableId;
         const incomingPriority = getPriority(incoming, sourcePriority);
         const existingPriority = getPriority(existing, sourcePriority);
         const primary = incomingPriority < existingPriority ? incoming : existing;
@@ -177,7 +223,8 @@ export function mergeSearchItems(
           next._angularSeparation = coordMatch.distanceArcsec;
         }
         next._sourcePriority = getPriority(next, sourcePriority);
-        next._stableId = getResultId(next);
+        next._mergeScore = computeMergeScore(next, sourcePriority, options.coordinateContext);
+        next._stableId = preservedStableId || getResultId(next);
         const idx = merged.indexOf(existing);
         merged[idx] = next;
         return;
@@ -187,6 +234,7 @@ export function mergeSearchItems(
     const toAdd = { ...incoming };
     toAdd._sourcePriority = getPriority(toAdd, sourcePriority);
     attachContextDistance(toAdd, options.coordinateContext);
+    toAdd._mergeScore = computeMergeScore(toAdd, sourcePriority, options.coordinateContext);
     toAdd._stableId = getResultId(toAdd);
     merged.push(toAdd);
   };
@@ -195,6 +243,12 @@ export function mergeSearchItems(
   for (const item of onlineResults) mergeInto(item);
 
   return merged
-    .sort((a, b) => (a._sourcePriority ?? 999) - (b._sourcePriority ?? 999))
+    .sort((a, b) => {
+      const scoreDelta = (b._mergeScore ?? 0) - (a._mergeScore ?? 0);
+      if (Math.abs(scoreDelta) > 1e-9) return scoreDelta;
+      const priorityDelta = (a._sourcePriority ?? 999) - (b._sourcePriority ?? 999);
+      if (priorityDelta !== 0) return priorityDelta;
+      return a.Name.localeCompare(b.Name);
+    })
     .slice(0, options.maxResults);
 }

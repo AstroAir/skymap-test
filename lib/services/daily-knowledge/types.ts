@@ -17,6 +17,8 @@ export type DailyKnowledgeCategory =
   | 'technique'
   | 'culture';
 
+export type DailyKnowledgeDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
 export interface DailyKnowledgeImage {
   url: string;
   thumbnailUrl?: string;
@@ -54,6 +56,9 @@ export interface DailyKnowledgeItem {
   isDateEvent: boolean;
   eventMonthDay?: string;
   factSources: DailyKnowledgeFactSource[];
+  difficulty: DailyKnowledgeDifficulty;
+  bestViewingMonths: number[];
+  observationTips: string[];
   languageStatus: DailyKnowledgeLanguageStatus;
   fetchedAt: number;
 }
@@ -88,6 +93,8 @@ export interface DailyKnowledgeFilters {
 export interface DailyKnowledgeOptions {
   locale: 'en' | 'zh';
   onlineEnhancement: boolean;
+  recentHistoryItemIds: string[];
+  repeatWindowDays: number;
   signal?: AbortSignal;
 }
 

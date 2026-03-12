@@ -26,6 +26,9 @@ describe('DEFAULT_CONFIG', () => {
     expect(DEFAULT_CONFIG.maxLogs).toBeGreaterThan(0);
     expect(DEFAULT_CONFIG.enableConsole).toBe(true);
     expect(typeof DEFAULT_CONFIG.level).toBe('number');
+    expect(DEFAULT_CONFIG.redactionEnabled).toBe(true);
+    expect(DEFAULT_CONFIG.suppressionEnabled).toBe(true);
+    expect(DEFAULT_CONFIG.suppressionWindowMs).toBeGreaterThan(0);
   });
 });
 

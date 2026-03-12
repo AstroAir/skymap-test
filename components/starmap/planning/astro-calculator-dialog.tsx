@@ -3,12 +3,12 @@
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogTrigger,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { Button } from '@/components/ui/button';
 import {
   Tabs,
@@ -75,23 +75,23 @@ export function AstroCalculatorDialog() {
   }, [addTarget]);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <ResponsiveDialog open={open} onOpenChange={setOpen} tier="complex-editor">
       <Tooltip>
         <TooltipTrigger asChild>
-          <DialogTrigger asChild>
+          <ResponsiveDialogTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9">
               <Calculator className="h-4 w-4" />
             </Button>
-          </DialogTrigger>
+          </ResponsiveDialogTrigger>
         </TooltipTrigger>
         <TooltipContent>
           <p>{t('astroCalc.title')}</p>
         </TooltipContent>
       </Tooltip>
 
-      <DialogContent className="max-w-4xl max-h-[90vh] max-h-[90dvh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+      <ResponsiveDialogContent className="max-w-4xl max-h-[100vh] max-h-[100dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calculator className="h-5 w-5 text-primary" />
               {t('astroCalc.title')}
@@ -100,8 +100,8 @@ export function AstroCalculatorDialog() {
               <MapPin className="h-3 w-3" />
               {latitude.toFixed(2)}°, {longitude.toFixed(2)}°
             </Badge>
-          </DialogTitle>
-        </DialogHeader>
+          </ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
           <TabsList className="grid w-full grid-cols-3 grid-rows-3 h-auto gap-0.5 p-1">
@@ -182,7 +182,7 @@ export function AstroCalculatorDialog() {
             </TabsContent>
           </div>
         </Tabs>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

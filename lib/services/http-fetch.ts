@@ -14,6 +14,8 @@
  */
 
 import { isTauri } from '@/lib/storage/platform';
+import { unifiedCache, type CacheStrategy, type FetchOptions as UnifiedCacheFetchOptions } from '@/lib/offline/unified-cache';
+import { resolveCachePolicy, type CachePolicyId } from '@/lib/cache/integration-policy';
 
 // Types
 export interface FetchOptions {
@@ -27,6 +29,12 @@ export interface FetchOptions {
   requestId?: string;
   /** Progress callback for downloads (Tauri only) */
   onProgress?: (progress: DownloadProgress) => void;
+  /** Named cache policy for audited integrations */
+  cachePolicy?: CachePolicyId;
+  /** Override cache strategy for the selected policy */
+  cacheStrategy?: CacheStrategy;
+  /** Override cache TTL for the selected policy */
+  cacheTtl?: number;
 }
 
 export interface FetchResponse {
@@ -134,7 +142,7 @@ function createTauriResponse(tauriResponse: {
 /**
  * Convert browser Response to FetchResponse interface
  */
-function createBrowserResponse(response: Response): FetchResponse {
+function createBrowserResponse(response: Response, fallbackUrl?: string): FetchResponse {
   let bodyUsed = false;
   let cachedBody: Uint8Array | null = null;
 
@@ -158,7 +166,7 @@ function createBrowserResponse(response: Response): FetchResponse {
     status: response.status,
     statusText: response.statusText,
     headers,
-    url: response.url,
+    url: response.url || fallbackUrl || '',
     text: async () => new TextDecoder().decode(await getBody()),
     json: async <T = unknown>() => JSON.parse(new TextDecoder().decode(await getBody())) as T,
     bytes: async () => getBody(),
@@ -170,6 +178,69 @@ function createBrowserResponse(response: Response): FetchResponse {
       return new Blob([buffer], { type });
     },
   };
+}
+
+function createNativeResponseFromTauri(tauriResponse: {
+  status: number;
+  status_text: string;
+  headers: Record<string, string>;
+  body: number[];
+  content_type: string | null;
+}): Response {
+  const headers = new Headers(tauriResponse.headers);
+  if (tauriResponse.content_type && !headers.has('content-type')) {
+    headers.set('content-type', tauriResponse.content_type);
+  }
+
+  return new Response(new Uint8Array(tauriResponse.body), {
+    status: tauriResponse.status,
+    statusText: tauriResponse.status_text,
+    headers,
+  });
+}
+
+function headersInitToRecord(headers?: HeadersInit): Record<string, string> | undefined {
+  if (!headers) return undefined;
+
+  if (headers instanceof Headers) {
+    const result: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      result[key] = value;
+    });
+    return result;
+  }
+
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(headers);
+  }
+
+  return { ...headers };
+}
+
+function toFetchResponse(value: Response | Partial<FetchResponse>, requestUrl: string): FetchResponse {
+  if (isNativeResponse(value)) {
+    return createBrowserResponse(value, requestUrl);
+  }
+
+  if (isFetchResponseLike(value)) {
+    return createFetchResponseFromLike(value, requestUrl);
+  }
+
+  throw new Error('Invalid fetch response');
+}
+
+function shouldUsePersistentCache(options: FetchOptions): boolean {
+  if (!options.cachePolicy) return false;
+
+  const method = options.method || 'GET';
+  if (method !== 'GET') return false;
+
+  const policy = resolveCachePolicy(options.cachePolicy, {
+    strategy: options.cacheStrategy,
+    ttl: options.cacheTtl,
+  });
+
+  return policy.mode === 'persistent-shared';
 }
 
 function isNativeResponse(value: unknown): value is Response {
@@ -238,6 +309,44 @@ export async function smartFetch(
   url: string,
   options: FetchOptions = {}
 ): Promise<FetchResponse> {
+  if (shouldUsePersistentCache(options)) {
+    const policy = resolveCachePolicy(options.cachePolicy!, {
+      strategy: options.cacheStrategy,
+      ttl: options.cacheTtl,
+    });
+
+    const cacheResponse = await unifiedCache.fetch(
+      url,
+      {
+        method: options.method || 'GET',
+        headers: options.headers,
+        body: options.body as BodyInit | null | undefined,
+        signal: options.signal,
+        ttl: policy.ttl,
+        cacheable: true,
+        networkFetcher: async (requestUrl, init) => {
+          const mergedOptions: FetchOptions = {
+            ...options,
+            method: (init.method as FetchOptions['method']) || options.method || 'GET',
+            headers: headersInitToRecord(init.headers) || options.headers,
+            body: options.body,
+            signal: init.signal || options.signal,
+          };
+
+          const httpApi = await getTauriHttpApi();
+          if (httpApi) {
+            return fetchWithTauriNative(httpApi, requestUrl, mergedOptions);
+          }
+
+          return fetchWithBrowserNative(requestUrl, mergedOptions);
+        },
+      } as UnifiedCacheFetchOptions,
+      policy.strategy
+    );
+
+    return toFetchResponse(cacheResponse, url);
+  }
+
   const httpApi = await getTauriHttpApi();
 
   // Use Tauri HTTP client if available
@@ -247,6 +356,118 @@ export async function smartFetch(
 
   // Fallback to browser fetch
   return fetchWithBrowser(url, options);
+}
+
+async function fetchWithTauriNative(
+  httpApi: NonNullable<typeof tauriHttpApi>,
+  url: string,
+  options: FetchOptions
+): Promise<Response> {
+  const requestId = options.requestId || generateRequestId();
+  let unlisten: (() => void) | null = null;
+
+  try {
+    if (options.onProgress) {
+      const listen = await getTauriListen();
+      if (listen) {
+        unlisten = await listen<DownloadProgress>('download-progress', (event) => {
+          if (event.payload.request_id === requestId) {
+            options.onProgress!(event.payload);
+          }
+        });
+      }
+    }
+
+    const method = options.method || 'GET';
+    let bodyBytes: number[] | undefined;
+    let contentType = options.headers?.['Content-Type'] || options.headers?.['content-type'];
+
+    if (options.body) {
+      if (typeof options.body === 'string') {
+        bodyBytes = Array.from(new TextEncoder().encode(options.body));
+        contentType = contentType || 'text/plain';
+      } else if (options.body instanceof Uint8Array) {
+        bodyBytes = Array.from(options.body);
+        contentType = contentType || 'application/octet-stream';
+      } else {
+        bodyBytes = Array.from(new TextEncoder().encode(JSON.stringify(options.body)));
+        contentType = contentType || 'application/json';
+      }
+    }
+
+    const headers: Record<string, string> = { ...options.headers };
+    if (contentType) {
+      headers['Content-Type'] = contentType;
+    }
+
+    const response = await httpApi.request({
+      method,
+      url,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      body: bodyBytes,
+      content_type: contentType,
+      timeout_ms: options.timeout,
+      allow_http: options.allowHttp || false,
+      request_id: requestId,
+    });
+
+    return createNativeResponseFromTauri(response);
+  } finally {
+    if (unlisten) {
+      unlisten();
+    }
+  }
+}
+
+async function fetchWithBrowserNative(
+  url: string,
+  options: FetchOptions
+): Promise<Response> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  if (options.timeout) {
+    timeoutId = setTimeout(() => controller.abort(), options.timeout);
+  }
+
+  const signal = options.signal
+    ? anySignal([options.signal, controller.signal])
+    : controller.signal;
+
+  try {
+    let body: string | undefined;
+    const headers = new Headers(options.headers);
+
+    if (options.body) {
+      if (typeof options.body === 'string') {
+        body = options.body;
+      } else if (options.body instanceof Uint8Array) {
+        body = new TextDecoder().decode(options.body);
+      } else {
+        body = JSON.stringify(options.body);
+        if (!headers.has('Content-Type')) {
+          headers.set('Content-Type', 'application/json');
+        }
+      }
+    }
+
+    const response = await fetch(url, {
+      method: options.method || 'GET',
+      headers,
+      body,
+      signal,
+    });
+
+    if (isNativeResponse(response)) {
+      return response;
+    }
+
+    throw new Error('Invalid fetch response');
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 /**

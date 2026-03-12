@@ -4,7 +4,13 @@
  */
 
 import type { TargetItem } from '@/lib/stores/target-list-store';
-import type { ScheduledTarget, SessionPlan, OptimizationStrategy, I18nMessage } from '@/types/starmap/planning';
+import type {
+  CalculationSourceMetadata,
+  I18nMessage,
+  OptimizationStrategy,
+  ScheduledTarget,
+  SessionPlan,
+} from '@/types/starmap/planning';
 import {
   type TwilightTimes,
   calculateTargetVisibility,
@@ -16,6 +22,30 @@ import {
   formatDuration,
   getJulianDateFromDate,
 } from './astro-utils';
+import { buildTimeScaleContext } from './time-scales';
+
+function buildPlannerCalculationMetadata(referenceDate: Date): CalculationSourceMetadata {
+  const context = buildTimeScaleContext(referenceDate);
+  const degraded = context.eop.freshness === 'fallback';
+  return {
+    source: 'calculation',
+    degraded,
+    computedAt: referenceDate.toISOString(),
+    cache: 'miss',
+    warnings: degraded ? ['eop_fallback'] : [],
+  };
+}
+
+function withCalculationParams(message: I18nMessage, metadata: CalculationSourceMetadata): I18nMessage {
+  return {
+    ...message,
+    params: {
+      ...message.params,
+      calculationSource: metadata.source,
+      calculationDegraded: metadata.degraded ? 1 : 0,
+    },
+  };
+}
 
 // ============================================================================
 // Scheduling Algorithm
@@ -32,6 +62,7 @@ export function optimizeSchedule(
   date: Date = new Date(),
   excludedIds: Set<string> = new Set()
 ): SessionPlan {
+  const calculationMetadata = buildPlannerCalculationMetadata(date);
   const jd = getJulianDateFromDate(date);
   const moonPos = getMoonPosition(jd);
   const moonPhase = getMoonPhase(jd);
@@ -168,6 +199,7 @@ export function optimizeSchedule(
         conflicts,
         isOptimal: td.feasibility.score >= 70,
         order: scheduled.length + 1,
+        calculationMetadata,
       });
       
       usedSlots.push({ start: slotStart, end: slotEnd });
@@ -227,24 +259,30 @@ export function optimizeSchedule(
   const warnings: I18nMessage[] = [];
   
   if (nightCoverage < 50) {
-    recommendations.push({ key: 'planRec.addMoreTargets' });
+    recommendations.push(withCalculationParams({ key: 'planRec.addMoreTargets' }, calculationMetadata));
   }
   if (nightCoverage > 120) {
-    warnings.push({ key: 'planRec.tooManyForOneNight' });
+    warnings.push(withCalculationParams({ key: 'planRec.tooManyForOneNight' }, calculationMetadata));
   }
   if (moonIllum > 70) {
-    warnings.push({ key: 'planRec.brightMoon' });
+    warnings.push(withCalculationParams({ key: 'planRec.brightMoon' }, calculationMetadata));
   }
   
   const excellentTargets = scheduled.filter(s => s.feasibility.recommendation === 'excellent');
   if (excellentTargets.length > 0) {
-    recommendations.push({ key: 'planRec.prioritize', params: { names: excellentTargets.map(t => t.target.name).join(', ') } });
+    recommendations.push(withCalculationParams(
+      { key: 'planRec.prioritize', params: { names: excellentTargets.map(t => t.target.name).join(', ') } },
+      calculationMetadata,
+    ));
   }
   
   if (gaps.length > 0) {
     const totalGapTime = gaps.reduce((sum, g) => sum + g.duration, 0);
     if (totalGapTime > 1) {
-      recommendations.push({ key: 'planRec.unusedDarkTime', params: { duration: formatDuration(totalGapTime) } });
+      recommendations.push(withCalculationParams(
+        { key: 'planRec.unusedDarkTime', params: { duration: formatDuration(totalGapTime) } },
+        calculationMetadata,
+      ));
     }
   }
   
@@ -256,5 +294,6 @@ export function optimizeSchedule(
     gaps,
     recommendations,
     warnings,
+    calculationMetadata,
   };
 }

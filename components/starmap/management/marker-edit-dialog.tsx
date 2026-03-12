@@ -1,12 +1,12 @@
 'use client';
 
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,14 +49,14 @@ export function MarkerEditDialog({
   t,
 }: MarkerEditDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="standard-form">
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[92vh] max-h-[92dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>
             {editingMarker ? t('markers.editMarker') : t('markers.addMarker')}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
+          </ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
+        <div className="grid gap-4 py-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           <div className="grid gap-2">
             <Label htmlFor="name">{t('markers.name')}</Label>
             <Input
@@ -170,15 +170,15 @@ export function MarkerEditDialog({
             </Popover>
           </div>
         </div>
-        <DialogFooter>
+        <ResponsiveDialogFooter stickyOnMobile>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
           <Button onClick={onSave} disabled={!formData.name.trim()}>
             {t('common.save')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

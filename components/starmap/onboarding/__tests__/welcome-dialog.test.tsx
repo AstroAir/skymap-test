@@ -8,6 +8,7 @@ jest.mock('next-intl', () => ({
   useTranslations: () => (key: string) => {
     const translations: Record<string, string> = {
       'onboarding.restartTour': 'Restart Guide',
+      'onboarding.restartAll': 'Restart Guide',
       'onboarding.welcome.title': 'Welcome to SkyMap',
       'onboarding.welcome.subtitle': 'Your personal window to the universe',
       'onboarding.welcome.startTour': 'Start Tour',

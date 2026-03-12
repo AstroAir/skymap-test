@@ -9,6 +9,7 @@ import type {
   HiPSCategory 
 } from './types';
 import { createLogger } from '@/lib/logger';
+import { smartFetch } from '@/lib/services/http-fetch';
 
 const logger = createLogger('hips-service');
 
@@ -98,8 +99,9 @@ export async function fetchRegistry(): Promise<HiPSRegistry> {
   }
   
   try {
-    const response = await fetch(ALADIN_REGISTRY_URL, {
+    const response = await smartFetch(ALADIN_REGISTRY_URL, {
       headers: { Accept: 'application/json' },
+      cachePolicy: 'hips-registry',
     });
     
     if (!response.ok) {

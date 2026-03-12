@@ -22,6 +22,9 @@ describe('useKeybindingStore', () => {
     expect(DEFAULT_KEYBINDINGS).toBeDefined();
     expect(DEFAULT_KEYBINDINGS.ZOOM_IN).toBeDefined();
     expect(DEFAULT_KEYBINDINGS.ZOOM_IN.key).toBe('+');
+    expect(DEFAULT_KEYBINDINGS.TOGGLE_AR).toBeDefined();
+    expect(DEFAULT_KEYBINDINGS.TOGGLE_AR.key).toBe('A');
+    expect(DEFAULT_KEYBINDINGS.TOGGLE_AR.shift).toBe(true);
   });
 
   it('should get effective binding falling back to default', () => {

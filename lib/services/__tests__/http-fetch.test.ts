@@ -11,6 +11,8 @@ import {
 } from '../http-fetch';
 import type { FetchResponse, DownloadProgress } from '../http-fetch';
 
+const mockUnifiedCacheFetch = jest.fn();
+
 // Mock Tauri API
 jest.mock('@tauri-apps/api/core', () => ({
   invoke: jest.fn(),
@@ -24,6 +26,12 @@ jest.mock('@/lib/storage/platform', () => ({
   isTauri: jest.fn(() => false),
 }));
 
+jest.mock('@/lib/offline/unified-cache', () => ({
+  unifiedCache: {
+    fetch: (...args: unknown[]) => mockUnifiedCacheFetch(...args),
+  },
+}));
+
 // Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -32,6 +40,7 @@ describe('Smart HTTP Fetch Utility', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetch.mockReset();
+    mockUnifiedCacheFetch.mockReset();
   });
 
   describe('smartFetch', () => {
@@ -193,6 +202,55 @@ describe('Smart HTTP Fetch Utility', () => {
           headers: expect.any(Headers),
         })
       );
+    });
+
+    it('routes persistent cache policies through unified cache', async () => {
+      mockUnifiedCacheFetch.mockResolvedValue(
+        {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          url: 'https://aladin.cds.unistra.fr/hips/list',
+          arrayBuffer: jest.fn().mockResolvedValue(new TextEncoder().encode('{"cached":true}').buffer),
+        }
+      );
+
+      const response = await smartFetch('https://aladin.cds.unistra.fr/hips/list', {
+        cachePolicy: 'hips-registry',
+      });
+      const json = await response.json<{ cached: boolean }>();
+
+      expect(json).toEqual({ cached: true });
+      expect(mockUnifiedCacheFetch).toHaveBeenCalledWith(
+        'https://aladin.cds.unistra.fr/hips/list',
+        expect.objectContaining({
+          cacheable: true,
+          ttl: expect.any(Number),
+        }),
+        'network-first'
+      );
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('bypasses persistent cache routing for uncached policies', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        url: 'http://api.open-notify.org/iss-now.json',
+        arrayBuffer: jest.fn().mockResolvedValue(new TextEncoder().encode('{"ok":true}').buffer),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await smartFetch('http://api.open-notify.org/iss-now.json', {
+        allowHttp: true,
+        cachePolicy: 'astro-iss-position',
+      });
+
+      expect(mockUnifiedCacheFetch).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
     });
   });
 

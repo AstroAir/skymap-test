@@ -6,6 +6,14 @@ import React from 'react';
 import { render } from '@testing-library/react';
 
 jest.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
+
+const autostartState = {
+  supported: false,
+  loading: false,
+  actualEnabled: false,
+  error: null,
+};
+
 jest.mock('@/lib/stores', () => ({
   useSettingsStore: Object.assign(
     jest.fn((selector) => {
@@ -22,6 +30,7 @@ jest.mock('@/lib/stores', () => ({
     const state = { openDialog: jest.fn() };
     return selector(state);
   }),
+  useAutostartStore: jest.fn((selector) => selector(autostartState)),
 }));
 jest.mock('@/lib/i18n/locale-store', () => ({
   useLocaleStore: jest.fn((selector) => {

@@ -1,4 +1,10 @@
-import { getLogs, type LogEntry, formatFullTimestamp, LOG_LEVEL_NAMES } from '@/lib/logger';
+import {
+  getLogs,
+  type LogEntry,
+  formatFullTimestamp,
+  LOG_LEVEL_NAMES,
+  buildLogDiagnosticsBundle,
+} from '@/lib/logger';
 import { isTauri } from '@/lib/storage/platform';
 import { tauriApi } from '@/lib/tauri/api';
 import { EXTERNAL_LINKS } from '@/lib/constants/external-links';
@@ -24,6 +30,9 @@ function formatLogEntry(entry: LogEntry): string {
     : String(entry.timestamp);
   const level = LOG_LEVEL_NAMES[entry.level] ?? 'info';
   let line = `[${timestamp}] [${level.toUpperCase()}] [${entry.module}] ${entry.message}`;
+  if ((entry.occurrenceCount ?? 1) > 1) {
+    line += `\nOccurrences: ${entry.occurrenceCount} (${entry.firstTimestamp?.toISOString()} -> ${entry.lastTimestamp?.toISOString()})`;
+  }
   if (entry.data !== undefined) {
     line += `\nData: ${safeStringify(entry.data)}`;
   }
@@ -75,11 +84,36 @@ function buildTitle(type: FeedbackType, title: string): string {
   return `${prefix} ${title.trim()}`.trim();
 }
 
+function sanitizeSystemDiagnostics(
+  system: FeedbackDiagnostics['system'] | undefined
+): FeedbackDiagnostics['system'] | undefined {
+  if (!system) {
+    return undefined;
+  }
+
+  // Explicitly whitelist fields to avoid leaking raw hostnames or unknown keys.
+  return {
+    os: system.os,
+    arch: system.arch,
+    tauriVersion: system.tauriVersion,
+    appVersion: system.appVersion,
+    platform: system.platform,
+    hardwareConcurrency: system.hardwareConcurrency,
+    language: system.language,
+    family: system.family,
+    osType: system.osType,
+    osVersion: system.osVersion,
+    locale: system.locale,
+    exeExtension: system.exeExtension,
+    hostId: system.hostId,
+  };
+}
+
 function summarizeDiagnostics(diagnostics: FeedbackDiagnostics): Record<string, unknown> {
   return {
     generatedAt: diagnostics.generatedAt,
     app: diagnostics.app,
-    system: diagnostics.system ?? null,
+    system: sanitizeSystemDiagnostics(diagnostics.system) ?? null,
     includesLogs: Boolean(diagnostics.logs),
     logLength: diagnostics.logs?.length ?? 0,
   };
@@ -147,31 +181,37 @@ export async function collectDiagnostics(options: {
     if (isTauri()) {
       try {
         const systemInfo = await tauriApi.appSettings.getSystemInfo();
-        diagnostics.system = {
+        diagnostics.system = sanitizeSystemDiagnostics({
           os: systemInfo.os,
           arch: systemInfo.arch,
           tauriVersion: systemInfo.tauri_version,
           appVersion: systemInfo.app_version,
-          platform: typeof navigator !== 'undefined' ? navigator.platform : undefined,
+          family: systemInfo.family,
+          osType: systemInfo.os_type,
+          osVersion: systemInfo.os_version,
+          locale: systemInfo.locale,
+          exeExtension: systemInfo.exe_extension,
+          hostId: systemInfo.host_id,
+          platform: systemInfo.platform ?? (typeof navigator !== 'undefined' ? navigator.platform : undefined),
           hardwareConcurrency:
             typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined,
           language: typeof navigator !== 'undefined' ? navigator.language : undefined,
-        };
+        });
       } catch {
-        diagnostics.system = {
+        diagnostics.system = sanitizeSystemDiagnostics({
           platform: typeof navigator !== 'undefined' ? navigator.platform : undefined,
           hardwareConcurrency:
             typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined,
           language: typeof navigator !== 'undefined' ? navigator.language : undefined,
-        };
+        });
       }
     } else {
-      diagnostics.system = {
+      diagnostics.system = sanitizeSystemDiagnostics({
         platform: typeof navigator !== 'undefined' ? navigator.platform : undefined,
         hardwareConcurrency:
           typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined,
         language: typeof navigator !== 'undefined' ? navigator.language : undefined,
-      };
+      });
     }
   }
 
@@ -296,10 +336,27 @@ export async function exportDiagnosticsBundle(
 ): Promise<string | null> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `skymap-diagnostics-${timestamp}.json`;
+  const sanitizedSystem = sanitizeSystemDiagnostics(diagnostics.system);
+  const logsBundle = buildLogDiagnosticsBundle(getLogs().slice(-MAX_LOG_ENTRIES), {
+    app: diagnostics.app,
+    filters: {
+      source: 'feedback-export',
+      maxEntries: MAX_LOG_ENTRIES,
+    },
+  });
   const payload = JSON.stringify(
     {
-      ...diagnostics,
-      logs: diagnostics.logs ? redactSensitiveData(diagnostics.logs) : undefined,
+      bundleVersion: '2.0',
+      generatedAt: diagnostics.generatedAt,
+      runtime: logsBundle.runtime,
+      app: diagnostics.app,
+      system: sanitizedSystem,
+      diagnostics: {
+        ...diagnostics,
+        system: sanitizedSystem,
+        logs: diagnostics.logs ? redactSensitiveData(diagnostics.logs) : undefined,
+      },
+      logsBundle,
     },
     null,
     2

@@ -16,9 +16,16 @@ pub fn parse_fits_header_from_bytes(data: &[u8]) -> String {
     while offset + card_size <= data.len() && blocks < max_blocks {
         let card = &data[offset..offset + card_size];
         // Convert bytes to string (ASCII)
-        let card_str: String = card.iter().map(|&b| {
-            if b >= 0x20 && b <= 0x7E { b as char } else { ' ' }
-        }).collect();
+        let card_str: String = card
+            .iter()
+            .map(|&b| {
+                if b >= 0x20 && b <= 0x7E {
+                    b as char
+                } else {
+                    ' '
+                }
+            })
+            .collect();
 
         if card_str.trim_start().starts_with("END") && card_str[3..].trim().is_empty() {
             break;
@@ -47,7 +54,13 @@ pub fn parse_fits_header_map_from_bytes(data: &[u8]) -> HashMap<String, String> 
         let card = &data[offset..offset + card_size];
         let card_str: String = card
             .iter()
-            .map(|&b| if (0x20..=0x7E).contains(&b) { b as char } else { ' ' })
+            .map(|&b| {
+                if (0x20..=0x7E).contains(&b) {
+                    b as char
+                } else {
+                    ' '
+                }
+            })
             .collect();
 
         let key = card_str.get(0..8).unwrap_or("").trim().to_string();
@@ -92,7 +105,13 @@ fn parse_fits_card_value(value: &str) -> String {
 
 /// Parse FITS `KEY = VALUE / comment` format
 pub fn parse_value(line: &str) -> Option<f64> {
-    line.split('=').nth(1)?.split('/').next()?.trim().parse().ok()
+    line.split('=')
+        .nth(1)?
+        .split('/')
+        .next()?
+        .trim()
+        .parse()
+        .ok()
 }
 
 /// Parse INI `KEY=VALUE // comment` format
@@ -168,7 +187,11 @@ pub fn parse_sip_coefficients(header: &HashMap<String, String>) -> Option<SipCoe
         || !sip.ap_coeffs.is_empty()
         || !sip.bp_coeffs.is_empty();
 
-    if has_sip { Some(sip) } else { None }
+    if has_sip {
+        Some(sip)
+    } else {
+        None
+    }
 }
 
 /// Build a WcsResult from a parsed FITS header map
@@ -201,7 +224,9 @@ pub fn parse_wcs_result_from_fits_bytes(data: &[u8]) -> Result<WcsResult, PlateS
     let wcs = wcs_from_header_map(&header);
 
     if wcs.crval1.is_none() && wcs.crval2.is_none() && wcs.cd1_1.is_none() && wcs.cdelt1.is_none() {
-        return Err(PlateSolverError::SolveFailed("WCS header did not contain usable calibration fields".to_string()));
+        return Err(PlateSolverError::SolveFailed(
+            "WCS header did not contain usable calibration fields".to_string(),
+        ));
     }
 
     Ok(wcs)
@@ -213,14 +238,19 @@ pub fn calculate_fov_from_wcs(wcs: &WcsResult) -> (Option<f64>, Option<f64>) {
         return (None, None);
     };
 
-    if let (Some(cd1_1), Some(cd1_2), Some(cd2_1), Some(cd2_2)) = (wcs.cd1_1, wcs.cd1_2, wcs.cd2_1, wcs.cd2_2) {
+    if let (Some(cd1_1), Some(cd1_2), Some(cd2_1), Some(cd2_2)) =
+        (wcs.cd1_1, wcs.cd1_2, wcs.cd2_1, wcs.cd2_2)
+    {
         let scale_x = (cd1_1 * cd1_1 + cd2_1 * cd2_1).sqrt();
         let scale_y = (cd1_2 * cd1_2 + cd2_2 * cd2_2).sqrt();
         return (Some(scale_x * naxis1 as f64), Some(scale_y * naxis2 as f64));
     }
 
     if let (Some(cdelt1), Some(cdelt2)) = (wcs.cdelt1, wcs.cdelt2) {
-        return (Some(cdelt1.abs() * naxis1 as f64), Some(cdelt2.abs() * naxis2 as f64));
+        return (
+            Some(cdelt1.abs() * naxis1 as f64),
+            Some(cdelt2.abs() * naxis2 as f64),
+        );
     }
 
     (None, None)
@@ -351,10 +381,7 @@ mod tests {
 
     #[test]
     fn test_parse_fits_header_map_with_string_value() {
-        let fits_data = build_test_fits(&[
-            "CTYPE1  = 'RA---TAN'",
-            "CTYPE2  = 'DEC--TAN'",
-        ]);
+        let fits_data = build_test_fits(&["CTYPE1  = 'RA---TAN'", "CTYPE2  = 'DEC--TAN'"]);
         let map = parse_fits_header_map_from_bytes(&fits_data);
         assert!(map.get("CTYPE1").unwrap().contains("RA---TAN"));
         assert!(map.get("CTYPE2").unwrap().contains("DEC--TAN"));
@@ -379,8 +406,14 @@ mod tests {
         header.insert("CD1_1".to_string(), "-1.2D-04".to_string()); // Fortran D notation
         header.insert("BAD".to_string(), "not_a_number".to_string());
 
-        assert!(approx_eq(parse_f64_header_value(&header, "CRVAL1").unwrap(), 180.5));
-        assert!(approx_eq(parse_f64_header_value(&header, "CD1_1").unwrap(), -1.2e-4));
+        assert!(approx_eq(
+            parse_f64_header_value(&header, "CRVAL1").unwrap(),
+            180.5
+        ));
+        assert!(approx_eq(
+            parse_f64_header_value(&header, "CD1_1").unwrap(),
+            -1.2e-4
+        ));
         assert!(parse_f64_header_value(&header, "BAD").is_none());
         assert!(parse_f64_header_value(&header, "MISSING").is_none());
     }
@@ -403,7 +436,10 @@ mod tests {
         header.insert("EMPTY".to_string(), "''".to_string());
         header.insert("BARE".to_string(), "HELLO".to_string());
 
-        assert_eq!(parse_string_header_value(&header, "CTYPE1").unwrap(), "RA---TAN-SIP");
+        assert_eq!(
+            parse_string_header_value(&header, "CTYPE1").unwrap(),
+            "RA---TAN-SIP"
+        );
         assert!(parse_string_header_value(&header, "EMPTY").is_none()); // empty after unquote
         assert_eq!(parse_string_header_value(&header, "BARE").unwrap(), "HELLO");
         assert!(parse_string_header_value(&header, "MISSING").is_none());
@@ -416,31 +452,40 @@ mod tests {
     #[test]
     fn test_calculate_fov_from_cd_matrix() {
         let wcs = WcsResult {
-            naxis1: Some(2000), naxis2: Some(1500),
-            cd1_1: Some(-0.0003), cd1_2: Some(0.0), cd2_1: Some(0.0), cd2_2: Some(0.0003),
+            naxis1: Some(2000),
+            naxis2: Some(1500),
+            cd1_1: Some(-0.0003),
+            cd1_2: Some(0.0),
+            cd2_1: Some(0.0),
+            cd2_2: Some(0.0003),
             ..Default::default()
         };
         let (w, h) = calculate_fov_from_wcs(&wcs);
-        assert!(approx_eq(w.unwrap(), 0.6));    // 0.0003 * 2000
-        assert!(approx_eq(h.unwrap(), 0.45));   // 0.0003 * 1500
+        assert!(approx_eq(w.unwrap(), 0.6)); // 0.0003 * 2000
+        assert!(approx_eq(h.unwrap(), 0.45)); // 0.0003 * 1500
     }
 
     #[test]
     fn test_calculate_fov_from_cdelt() {
         let wcs = WcsResult {
-            naxis1: Some(3000), naxis2: Some(2000),
-            cdelt1: Some(-0.00012), cdelt2: Some(0.00012),
+            naxis1: Some(3000),
+            naxis2: Some(2000),
+            cdelt1: Some(-0.00012),
+            cdelt2: Some(0.00012),
             ..Default::default()
         };
         let (w, h) = calculate_fov_from_wcs(&wcs);
-        assert!(approx_eq(w.unwrap(), 0.36));   // 0.00012 * 3000
-        assert!(approx_eq(h.unwrap(), 0.24));   // 0.00012 * 2000
+        assert!(approx_eq(w.unwrap(), 0.36)); // 0.00012 * 3000
+        assert!(approx_eq(h.unwrap(), 0.24)); // 0.00012 * 2000
     }
 
     #[test]
     fn test_calculate_fov_no_naxis() {
         let wcs = WcsResult {
-            cd1_1: Some(-0.0003), cd1_2: Some(0.0), cd2_1: Some(0.0), cd2_2: Some(0.0003),
+            cd1_1: Some(-0.0003),
+            cd1_2: Some(0.0),
+            cd2_1: Some(0.0),
+            cd2_2: Some(0.0003),
             ..Default::default()
         };
         let (w, h) = calculate_fov_from_wcs(&wcs);
@@ -451,7 +496,8 @@ mod tests {
     #[test]
     fn test_calculate_fov_no_scale_info() {
         let wcs = WcsResult {
-            naxis1: Some(2000), naxis2: Some(1500),
+            naxis1: Some(2000),
+            naxis2: Some(1500),
             ..Default::default()
         };
         let (w, h) = calculate_fov_from_wcs(&wcs);

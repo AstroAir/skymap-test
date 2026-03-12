@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   RotateCw,
@@ -10,18 +11,49 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { useEquipmentStore } from '@/lib/stores';
+import { useDeviceStore } from '@/lib/stores/device-store';
 import { CameraSelector } from './camera-selector';
 import { TelescopeSelector } from './telescope-selector';
 
 export function EquipmentSettings() {
   const t = useTranslations();
 
+  const activeCameraId = useEquipmentStore((s) => s.activeCameraId);
+  const activeTelescopeId = useEquipmentStore((s) => s.activeTelescopeId);
   const rotationAngle = useEquipmentStore((s) => s.rotationAngle);
   const setRotationAngle = useEquipmentStore((s) => s.setRotationAngle);
   const getFOVWidth = useEquipmentStore((s) => s.getFOVWidth);
   const getFOVHeight = useEquipmentStore((s) => s.getFOVHeight);
   const getImageScale = useEquipmentStore((s) => s.getImageScale);
   const getFRatio = useEquipmentStore((s) => s.getFRatio);
+  const sensorWidth = useEquipmentStore((s) => s.sensorWidth);
+  const sensorHeight = useEquipmentStore((s) => s.sensorHeight);
+  const pixelSize = useEquipmentStore((s) => s.pixelSize);
+  const focalLength = useEquipmentStore((s) => s.focalLength);
+  const aperture = useEquipmentStore((s) => s.aperture);
+
+  const syncFromEquipmentStore = useDeviceStore((s) => s.syncFromEquipmentStore);
+  const cameraDeviceProfileCount = useDeviceStore((s) => s.profiles.reduce(
+    (count, profile) => count + (profile.type === 'camera' ? 1 : 0),
+    0,
+  ));
+  const telescopeDeviceProfileCount = useDeviceStore((s) => s.profiles.reduce(
+    (count, profile) => count + (profile.type === 'telescope' ? 1 : 0),
+    0,
+  ));
+
+  useEffect(() => {
+    syncFromEquipmentStore();
+  }, [
+    activeCameraId,
+    activeTelescopeId,
+    aperture,
+    focalLength,
+    pixelSize,
+    sensorHeight,
+    sensorWidth,
+    syncFromEquipmentStore,
+  ]);
 
   const fovWidth = getFOVWidth();
   const fovHeight = getFOVHeight();
@@ -94,6 +126,10 @@ export function EquipmentSettings() {
           </div>
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Device profiles synced: {cameraDeviceProfileCount} camera, {telescopeDeviceProfileCount} telescope
+      </p>
     </div>
   );
 }

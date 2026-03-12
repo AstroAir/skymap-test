@@ -7,6 +7,7 @@ import { isTauri } from '@/lib/storage/platform';
 import { unifiedCache } from '@/lib/offline/unified-cache';
 import { unifiedCacheApi } from '@/lib/tauri/unified-cache-api';
 import { getNighttimeCacheStats } from '@/lib/catalogs/nighttime-calculator';
+import { getCacheProviderDiagnostics, getCacheIntegrationDiagnostics, type CacheIntegrationDiagnostic } from '@/lib/cache/integration-policy';
 import { formatBytes } from './config';
 import { createLogger } from '@/lib/logger';
 
@@ -35,6 +36,8 @@ export interface AggregatedCacheStats {
   totalMisses: number;
   overallHitRate: number | undefined;
   caches: CacheStatsEntry[];
+  providerDiagnostics: ReturnType<typeof getCacheProviderDiagnostics>;
+  integrationDiagnostics: CacheIntegrationDiagnostic[];
   lastUpdated: number;
 }
 
@@ -47,6 +50,8 @@ export interface AggregatedCacheStats {
  */
 export async function collectCacheStats(): Promise<AggregatedCacheStats> {
   const caches: CacheStatsEntry[] = [];
+  const providerDiagnostics = getCacheProviderDiagnostics();
+  const integrationDiagnostics = getCacheIntegrationDiagnostics();
   
   // 1. Unified Cache (Web or Tauri)
   try {
@@ -127,6 +132,8 @@ export async function collectCacheStats(): Promise<AggregatedCacheStats> {
     totalMisses,
     overallHitRate,
     caches,
+    providerDiagnostics,
+    integrationDiagnostics,
     lastUpdated: Date.now(),
   };
 }
@@ -139,11 +146,15 @@ export async function collectCacheStats(): Promise<AggregatedCacheStats> {
  * Format cache stats for display
  */
 export function formatCacheStats(stats: AggregatedCacheStats): string {
+  const providerId = stats.providerDiagnostics?.providerId ?? 'unavailable';
+  const integrationCount = stats.integrationDiagnostics?.length ?? 0;
   const lines: string[] = [
     `=== Cache Statistics ===`,
+    `Provider: ${providerId}`,
     `Total Size: ${formatBytes(stats.totalSize)}`,
     `Total Entries: ${stats.totalEntries.toLocaleString()}`,
     `Overall Hit Rate: ${stats.overallHitRate !== undefined ? `${(stats.overallHitRate * 100).toFixed(1)}%` : 'N/A'}`,
+    `Integrations: ${integrationCount}`,
     ``,
     `--- Per-Cache Breakdown ---`,
   ];

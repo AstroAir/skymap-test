@@ -221,6 +221,30 @@ describe('KeyboardShortcutsManager', () => {
     fovShortcut.action();
     expect(mockSetFOVEnabled).toHaveBeenCalledWith(true);
   });
+
+  it('includes AR toggle shortcut when onToggleAr provided', () => {
+    const onToggleAr = jest.fn();
+    render(<KeyboardShortcutsManager onToggleAr={onToggleAr} />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const arShortcut = call.shortcuts.find(
+      (s: { key: string; shift?: boolean }) => s.key === 'A' && s.shift
+    );
+
+    expect(arShortcut).toBeDefined();
+    expect(arShortcut.action).toBeDefined();
+  });
+
+  it('does not include AR toggle shortcut when onToggleAr not provided', () => {
+    render(<KeyboardShortcutsManager />);
+
+    const call = mockUseKeyboardShortcuts.mock.calls[0][0];
+    const arShortcut = call.shortcuts.find(
+      (s: { key: string; shift?: boolean }) => s.key === 'A' && s.shift
+    );
+
+    expect(arShortcut).toBeUndefined();
+  });
 });
 
 // ============================================================================
@@ -252,7 +276,7 @@ describe('KeyboardShortcutsManager (Aladin engine)', () => {
     expect(call.enabled).toBe(true);
   });
 
-  it('excludes Stellarium-only display toggle shortcuts in Aladin mode', () => {
+  it('excludes Stellarium-only display toggle shortcuts in Aladin mode while keeping grid toggle', () => {
     render(<KeyboardShortcutsManager />);
 
     const call = mockUseKeyboardShortcuts.mock.calls[0][0];
@@ -260,9 +284,11 @@ describe('KeyboardShortcutsManager (Aladin engine)', () => {
 
     // Stellarium-only display toggles should NOT be present
     expect(keys).not.toContain('l'); // constellations
-    expect(keys).not.toContain('g'); // grid
     expect(keys).not.toContain('d'); // DSO
     expect(keys).not.toContain('a'); // atmosphere
+
+    // Aladin supports coordinate grid toggle
+    expect(keys).toContain('g'); // grid
   });
 
   it('excludes time control shortcuts in Aladin mode', () => {

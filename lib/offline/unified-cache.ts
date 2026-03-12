@@ -47,6 +47,10 @@ export interface FetchOptions extends RequestInit {
   ttl?: number;
   /** Cache key override */
   cacheKey?: string;
+  /** Force persistent caching even when URL interceptor patterns do not match */
+  cacheable?: boolean;
+  /** Custom network fetcher used by shared request utilities */
+  networkFetcher?: (url: string, init: RequestInit) => Promise<Response>;
 }
 
 export type CacheStrategy = 
@@ -55,6 +59,18 @@ export type CacheStrategy =
   | 'cache-only'       // Only use cache
   | 'network-only'     // Only use network
   | 'stale-while-revalidate'; // Return cache, update in background
+
+export type UnifiedCacheProviderId = 'browser-cache-api' | 'tauri-unified-cache' | 'unavailable';
+
+export interface UnifiedCacheProviderDiagnostics {
+  providerId: UnifiedCacheProviderId;
+  available: boolean;
+  supportsPersistent: boolean;
+  supportsClear: boolean;
+  supportsCleanup: boolean;
+  supportsFlush: boolean;
+  supportsInterception: boolean;
+}
 
 // ============================================================================
 // Default Configuration
@@ -193,6 +209,39 @@ class WebCacheProvider {
       return [];
     }
   }
+
+  async cleanup(): Promise<number> {
+    if (!await this.isAvailable()) return 0;
+
+    try {
+      const cache = await caches.open(this.cacheName);
+      const requests = await cache.keys();
+      let deleted = 0;
+
+      for (const request of requests) {
+        const response = await cache.match(request);
+        if (!response) continue;
+
+        const cachedAt = response.headers.get('x-cached-at');
+        const ttl = response.headers.get('x-cache-ttl');
+        if (!cachedAt || !ttl) continue;
+
+        const expiresAt = parseInt(cachedAt, 10) + parseInt(ttl, 10);
+        if (Date.now() > expiresAt && await cache.delete(request)) {
+          deleted += 1;
+        }
+      }
+
+      return deleted;
+    } catch (error) {
+      logger.warn('WebCache cleanup error', error);
+      return 0;
+    }
+  }
+
+  async flush(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 // ============================================================================
@@ -248,6 +297,7 @@ class TauriCacheProvider {
         headers: {
           'Content-Type': result.content_type,
           'x-cached-at': result.timestamp.toString(),
+          'x-cache-ttl': result.ttl.toString(),
         },
       });
     } catch (error) {
@@ -320,6 +370,29 @@ class TauriCacheProvider {
       return await invoke<string[]>('list_unified_cache_keys');
     } catch {
       return [];
+    }
+  }
+
+  async cleanup(): Promise<number> {
+    if (!await this.isAvailable()) return 0;
+
+    try {
+      const invoke = await this.getInvoke();
+      return await invoke<number>('cleanup_unified_cache');
+    } catch (error) {
+      logger.warn('TauriCache cleanup error', error);
+      return 0;
+    }
+  }
+
+  async flush(): Promise<void> {
+    if (!await this.isAvailable()) return;
+
+    try {
+      const invoke = await this.getInvoke();
+      await invoke('flush_unified_cache');
+    } catch (error) {
+      logger.warn('TauriCache flush error', error);
     }
   }
 }
@@ -410,6 +483,42 @@ class UnifiedCacheManager {
     return false;
   }
 
+  getProviderDiagnostics(): UnifiedCacheProviderDiagnostics {
+    if (isTauri()) {
+      return {
+        providerId: 'tauri-unified-cache',
+        available: true,
+        supportsPersistent: true,
+        supportsClear: true,
+        supportsCleanup: true,
+        supportsFlush: true,
+        supportsInterception: typeof window !== 'undefined',
+      };
+    }
+
+    if (typeof globalThis !== 'undefined' && 'caches' in globalThis) {
+      return {
+        providerId: 'browser-cache-api',
+        available: true,
+        supportsPersistent: true,
+        supportsClear: true,
+        supportsCleanup: false,
+        supportsFlush: false,
+        supportsInterception: typeof window !== 'undefined',
+      };
+    }
+
+    return {
+      providerId: 'unavailable',
+      available: false,
+      supportsPersistent: false,
+      supportsClear: false,
+      supportsCleanup: false,
+      supportsFlush: false,
+      supportsInterception: false,
+    };
+  }
+
   /**
    * Get cache statistics
    */
@@ -437,6 +546,20 @@ class UnifiedCacheManager {
       return this.tauriCache;
     }
     return this.webCache;
+  }
+
+  private getNetworkFetcher(options: FetchOptions): (url: string, init: RequestInit) => Promise<Response> {
+    if (options.networkFetcher) {
+      return options.networkFetcher;
+    }
+
+    return async (url: string, init: RequestInit) => {
+      const fetchFn = typeof window !== 'undefined' && (window as unknown as { __originalFetch?: typeof fetch }).__originalFetch
+        ? (window as unknown as { __originalFetch: typeof fetch }).__originalFetch
+        : fetch;
+
+      return fetchFn(url, init);
+    };
   }
 
   /**
@@ -551,13 +674,9 @@ class UnifiedCacheManager {
    * Network-only strategy
    */
   private async networkOnly(url: string, options: FetchOptions): Promise<Response> {
-    const { forceNetwork: _fn, forceCache: _fc, ttl: _ttl, cacheKey: _ck, ...fetchOptions } = options;
-    void _fn; void _fc; void _ttl; void _ck;
-    // Use original fetch to avoid recursion when interceptor is installed
-    const fetchFn = typeof window !== 'undefined' && (window as unknown as { __originalFetch?: typeof fetch }).__originalFetch 
-      ? (window as unknown as { __originalFetch: typeof fetch }).__originalFetch 
-      : fetch;
-    return fetchFn(url, fetchOptions);
+    const { forceNetwork: _fn, forceCache: _fc, ttl: _ttl, cacheKey: _ck, cacheable: _ca, networkFetcher: _nf, ...fetchOptions } = options;
+    void _fn; void _fc; void _ttl; void _ck; void _ca; void _nf;
+    return this.getNetworkFetcher(options)(url, fetchOptions);
   }
 
   /**
@@ -600,18 +719,14 @@ class UnifiedCacheManager {
       return pending.then(r => r.clone());
     }
 
-    const { forceNetwork: _fn, forceCache: _fc, cacheKey: _ck, ttl, ...fetchOptions } = options;
-    void _fn; void _fc; void _ck;
+    const { forceNetwork: _fn, forceCache: _fc, cacheKey: _ck, ttl, cacheable, networkFetcher: _nf, ...fetchOptions } = options;
+    void _fn; void _fc; void _ck; void _nf;
     
     const fetchPromise = (async () => {
       try {
-        // Use original fetch to avoid recursion when interceptor is installed
-        const fetchFn = typeof window !== 'undefined' && (window as unknown as { __originalFetch?: typeof fetch }).__originalFetch 
-          ? (window as unknown as { __originalFetch: typeof fetch }).__originalFetch 
-          : fetch;
-        const response = await fetchFn(url, fetchOptions);
+        const response = await this.getNetworkFetcher(options)(url, fetchOptions);
         
-        if (response.ok && this.shouldCache(url)) {
+        if (response.ok && (cacheable || this.shouldCache(url))) {
           await provider.put(cacheKey, response.clone(), ttl);
         }
         
@@ -691,6 +806,16 @@ class UnifiedCacheManager {
     return provider.keys();
   }
 
+  async cleanupExpired(): Promise<number> {
+    const provider = await this.getProvider();
+    return provider.cleanup();
+  }
+
+  async flush(): Promise<void> {
+    const provider = await this.getProvider();
+    await provider.flush();
+  }
+
   /**
    * Check if online
    */
@@ -704,6 +829,10 @@ class UnifiedCacheManager {
 // ============================================================================
 
 export const unifiedCache = new UnifiedCacheManager();
+
+export function getUnifiedCacheProviderDiagnostics(): UnifiedCacheProviderDiagnostics {
+  return unifiedCache.getProviderDiagnostics();
+}
 
 // ============================================================================
 // Fetch Interceptor

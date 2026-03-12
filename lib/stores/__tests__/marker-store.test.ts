@@ -52,6 +52,7 @@ describe('useMarkerStore', () => {
     it('should have default group', () => {
       const { result } = renderHook(() => useMarkerStore());
       expect(result.current.groups).toContain('Default');
+      expect(result.current.groupVisibility.Default).toBe(true);
     });
 
     it('should have showMarkers enabled by default', () => {
@@ -247,6 +248,55 @@ describe('useMarkerStore', () => {
 
       expect(result.current.showMarkers).toBe(false);
     });
+
+    it('should hide markers when group visibility is disabled', () => {
+      const { result } = renderHook(() => useMarkerStore());
+
+      act(() => {
+        result.current.addMarker({
+          name: 'Group Marker',
+          ra: 180,
+          dec: 45,
+          raString: '12h 00m 00s',
+          decString: '+45° 00\' 00"',
+          color: '#ef4444',
+          icon: 'star',
+          group: 'GroupA',
+        });
+        result.current.setGroupVisibility('GroupA', false);
+      });
+
+      expect(result.current.getVisibleMarkers()).toHaveLength(0);
+      expect(result.current.getVisibleMarkersByGroup('GroupA')).toHaveLength(0);
+    });
+
+    it('should preserve marker visibility intent through group toggles', () => {
+      const { result } = renderHook(() => useMarkerStore());
+      let markerId: string | null = null;
+
+      act(() => {
+        markerId = result.current.addMarker({
+          name: 'Hidden Marker',
+          ra: 180,
+          dec: 45,
+          raString: '12h 00m 00s',
+          decString: '+45° 00\' 00"',
+          color: '#ef4444',
+          icon: 'star',
+          group: 'GroupA',
+        });
+      });
+
+      act(() => {
+        result.current.toggleMarkerVisibility(markerId!); // hidden individually
+        result.current.setGroupVisibility('GroupA', false);
+        result.current.setGroupVisibility('GroupA', true);
+      });
+
+      const marker = result.current.markers.find((m) => m.id === markerId);
+      expect(marker?.visible).toBe(false);
+      expect(result.current.getVisibleMarkers()).toHaveLength(0);
+    });
   });
 
   describe('group management', () => {
@@ -274,6 +324,19 @@ describe('useMarkerStore', () => {
       });
 
       expect(result.current.groups).not.toContain('ToRemove');
+    });
+
+    it('should keep group visibility state when group is renamed', () => {
+      const { result } = renderHook(() => useMarkerStore());
+
+      act(() => {
+        result.current.addGroup('OldGroup');
+        result.current.setGroupVisibility('OldGroup', false);
+        result.current.renameGroup('OldGroup', 'NewGroup');
+      });
+
+      expect(result.current.groupVisibility.OldGroup).toBeUndefined();
+      expect(result.current.groupVisibility.NewGroup).toBe(false);
     });
   });
 
@@ -487,10 +550,12 @@ describe('import/export', () => {
 
     const json = result.current.exportMarkers();
     const data = JSON.parse(json);
-    expect(data.version).toBe(2);
+    expect(data.version).toBe(3);
     expect(data.markers).toHaveLength(1);
     expect(data.markers[0].name).toBe('Export Test');
     expect(data.groups).toContain('TestGroup');
+    expect(data.groupVisibility).toBeDefined();
+    expect(data.groupVisibility.TestGroup).toBe(true);
     expect(data.showMarkers).toBe(true);
     expect(typeof data.showMarkersUpdatedAt).toBe('number');
   });
@@ -514,16 +579,22 @@ describe('import/export', () => {
         },
       ],
       groups: ['ImportedGroup'],
+      groupVisibility: {
+        ImportedGroup: false,
+      },
     });
 
-    let importResult: { count: number };
+    let importResult: { count: number; requested: number; truncated: boolean };
     act(() => {
       importResult = result.current.importMarkers(importData);
     });
 
     expect(importResult!.count).toBe(1);
+    expect(importResult!.requested).toBe(1);
+    expect(importResult!.truncated).toBe(false);
     expect(result.current.markers.some(m => m.name === 'Imported Marker')).toBe(true);
     expect(result.current.groups).toContain('ImportedGroup');
+    expect(result.current.groupVisibility.ImportedGroup).toBe(false);
   });
 
   it('should throw on invalid import data', () => {
@@ -670,6 +741,31 @@ describe('marker-store additional coverage', () => {
       expect(useMarkerStore.getState().editingMarkerId).toBe('abc');
       act(() => { useMarkerStore.getState().setEditingMarkerId(null); });
       expect(useMarkerStore.getState().editingMarkerId).toBeNull();
+    });
+  });
+
+  describe('selectMarkerForNavigation', () => {
+    it('should set active marker and return the selected marker', () => {
+      let id: string | null = null;
+      act(() => {
+        id = useMarkerStore.getState().addMarker({
+          name: 'NavTarget',
+          ra: 10,
+          dec: 20,
+          raString: '10',
+          decString: '20',
+          color: '#ff0000',
+          icon: 'star',
+        });
+      });
+
+      let selected: unknown = null;
+      act(() => {
+        selected = useMarkerStore.getState().selectMarkerForNavigation(id);
+      });
+
+      expect(selected).not.toBeNull();
+      expect(useMarkerStore.getState().activeMarkerId).toBe(id);
     });
   });
 

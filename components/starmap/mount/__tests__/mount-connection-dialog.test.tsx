@@ -164,7 +164,7 @@ describe('MountConnectionDialog', () => {
     const footer = getByTestId('dialog-footer');
     expect(footer).toBeTruthy();
     const buttons = footer.querySelectorAll('button');
-    expect(buttons.length).toBe(2); // Cancel + Connect
+    expect(buttons.length).toBe(3); // Cancel + Connect + Retry
   });
 
   it('connect button calls mountApi.connect on click', async () => {

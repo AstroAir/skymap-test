@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   MapPin,
@@ -40,6 +40,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -53,16 +54,23 @@ import { useLocations, tauriApi } from '@/lib/tauri';
 import { MapLocationPicker } from '@/components/starmap/map';
 import { cn } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/empty-state';
-import { validateLocationForm } from '@/lib/core/management-validators';
+import { findPotentialDuplicateLocation, validateLocationForm } from '@/lib/core/management-validators';
 import { fetchElevation } from '@/lib/utils/map-utils';
 import { useWebLocationStore } from '@/lib/stores/web-location-store';
 import { useShallow } from 'zustand/react/shallow';
 import { geocodingService } from '@/lib/services/geocoding-service';
 import { acquireCurrentLocation } from '@/lib/services/location-acquisition';
-import type { WebLocation, LocationManagerProps } from '@/types/starmap/management';
+import type { LocationManagerProps } from '@/types/starmap/management';
 
 interface LocationLike {
   id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  timezone?: string;
+  notes?: string;
+  bortle_class?: number;
   is_current?: boolean;
   is_default?: boolean;
 }
@@ -70,6 +78,24 @@ interface LocationLike {
 interface FieldTouchState {
   name: boolean;
   altitude: boolean;
+  timezone: boolean;
+  notes: boolean;
+}
+
+interface LocationPayload {
+  name: string;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  timezone?: string;
+  notes?: string;
+  bortle_class?: number;
+}
+
+interface DuplicateLocationState {
+  candidateId: string;
+  candidateName: string;
+  payload: LocationPayload;
 }
 
 function pickDeterministicCurrent<T extends LocationLike>(
@@ -86,6 +112,30 @@ function pickDeterministicCurrent<T extends LocationLike>(
     ?? locations.find((loc) => loc.is_default)
     ?? locations[0]
   );
+}
+
+function pickDeterministicDefault<T extends LocationLike>(
+  locations: T[],
+  preferredId?: string
+): T | null {
+  if (!locations.length) return null;
+  if (preferredId) {
+    const preferred = locations.find((loc) => loc.id === preferredId);
+    if (preferred) return preferred;
+  }
+  return locations.find((loc) => loc.is_default) ?? locations[0];
+}
+
+function sortLocationsForDisplay<T extends LocationLike>(locations: T[]): T[] {
+  return [...locations].sort((a, b) => {
+    if (!!a.is_current !== !!b.is_current) {
+      return a.is_current ? -1 : 1;
+    }
+    if (!!a.is_default !== !!b.is_default) {
+      return a.is_default ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
 }
 
 function BortleClassSelect({ value, onChange, t }: { value: string; onChange: (v: string) => void; t: (key: string) => string }) {
@@ -113,9 +163,11 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   const { locations, currentLocation, loading, refresh, setCurrent, isAvailable: isTauriAvailable } = useLocations();
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [inputMethod, setInputMethod] = useState<'manual' | 'map'>('manual');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<DuplicateLocationState | null>(null);
   
   // Hydration-safe mounting detection using useSyncExternalStore
   const mounted = useSyncExternalStore(
@@ -131,6 +183,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
     updateLocation: updateWebLocation,
     removeLocation: removeWebLocation,
     setCurrent: setWebCurrent,
+    setDefault: setWebDefault,
   } = useWebLocationStore.getState();
 
   // Form state
@@ -139,11 +192,15 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
     latitude: '',
     longitude: '',
     altitude: '',
+    timezone: '',
+    notes: '',
     bortle_class: '',
   });
   const [fieldTouched, setFieldTouched] = useState<FieldTouchState>({
     name: false,
     altitude: false,
+    timezone: false,
+    notes: false,
   });
   const fieldTouchedRef = useRef(fieldTouched);
 
@@ -154,20 +211,39 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   const normalizedWebCurrent = pickDeterministicCurrent(webLocations);
 
   // Determine which data source to use
-  const locationList = isTauriAvailable ? (locations?.locations ?? []) : webLocations;
+  const locationList = useMemo<LocationLike[]>(
+    () => (isTauriAvailable ? (locations?.locations ?? []) : webLocations),
+    [isTauriAvailable, locations?.locations, webLocations]
+  );
   const activeLocation = isTauriAvailable ? currentLocation : normalizedWebCurrent;
+  const filteredAndSortedLocations = useMemo(() => {
+    const sorted = sortLocationsForDisplay(locationList);
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return sorted;
+
+    return sorted.filter((loc) => {
+      const name = loc.name.toLowerCase();
+      const timezone = loc.timezone?.toLowerCase() ?? '';
+      const notes = loc.notes?.toLowerCase() ?? '';
+      return name.includes(query) || timezone.includes(query) || notes.includes(query);
+    });
+  }, [locationList, searchQuery]);
 
   useEffect(() => {
     if (isTauriAvailable || webLocations.length === 0) return;
 
     const currentCount = webLocations.filter((loc) => loc.is_current).length;
-    const preferred = pickDeterministicCurrent(webLocations);
+    const defaultCount = webLocations.filter((loc) => loc.is_default).length;
+    const preferredCurrent = pickDeterministicCurrent(webLocations);
+    const preferredDefault = pickDeterministicDefault(webLocations);
 
-    if (!preferred) return;
-    if (currentCount !== 1 || !preferred.is_current) {
-      setWebCurrent(preferred.id);
+    if (preferredCurrent && (currentCount !== 1 || !preferredCurrent.is_current)) {
+      setWebCurrent(preferredCurrent.id);
     }
-  }, [isTauriAvailable, setWebCurrent, webLocations]);
+    if (preferredDefault && (defaultCount !== 1 || !preferredDefault.is_default)) {
+      setWebDefault(preferredDefault.id);
+    }
+  }, [isTauriAvailable, setWebCurrent, setWebDefault, webLocations]);
 
   if (!mounted) {
     return null;
@@ -180,18 +256,93 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
   };
 
   // Start editing a location
-  const handleStartEdit = (loc: WebLocation | { id: string; name: string; latitude: number; longitude: number; altitude: number; bortle_class?: number }) => {
+  const handleStartEdit = (loc: LocationLike) => {
     setForm({
       name: loc.name,
       latitude: loc.latitude.toString(),
       longitude: loc.longitude.toString(),
       altitude: loc.altitude.toString(),
+      timezone: loc.timezone || '',
+      notes: loc.notes || '',
       bortle_class: loc.bortle_class?.toString() || '',
     });
-    setFieldTouched({ name: true, altitude: true });
+    setFieldTouched({ name: true, altitude: true, timezone: true, notes: true });
     setEditingId(loc.id);
     setAdding(true);
     setInputMethod('manual');
+  };
+
+  const toLocationPayload = (): LocationPayload => ({
+    name: form.name.trim(),
+    latitude: parseFloat(form.latitude),
+    longitude: parseFloat(form.longitude),
+    altitude: parseFloat(form.altitude) || 0,
+    timezone: form.timezone.trim() || undefined,
+    notes: form.notes.trim() || undefined,
+    bortle_class: form.bortle_class ? parseInt(form.bortle_class) : undefined,
+  });
+
+  const commitLocation = async (
+    payload: LocationPayload,
+    targetId?: string
+  ): Promise<void> => {
+    if (isTauriAvailable) {
+      if (targetId) {
+        const existing = locations?.locations.find((loc) => loc.id === targetId);
+        if (!existing) return;
+
+        await tauriApi.locations.update({
+          ...existing,
+          ...payload,
+        });
+
+        if (existing.is_current && onLocationChange) {
+          onLocationChange(payload.latitude, payload.longitude, payload.altitude);
+        }
+        toast.success(t('locations.updated') || 'Location updated');
+      } else {
+        await tauriApi.locations.add({
+          ...payload,
+          is_default: !locations?.locations.length,
+          is_current: !locations?.locations.length,
+        });
+        toast.success(t('locations.added') || 'Location added');
+        if (!locations?.locations.length && onLocationChange) {
+          onLocationChange(payload.latitude, payload.longitude, payload.altitude);
+        }
+      }
+
+      await refresh();
+      return;
+    }
+
+    if (targetId) {
+      updateWebLocation(targetId, payload);
+      const existing = webLocations.find((loc) => loc.id === targetId);
+      if (existing?.is_current && onLocationChange) {
+        onLocationChange(payload.latitude, payload.longitude, payload.altitude);
+      }
+      toast.success(t('locations.updated') || 'Location updated');
+      return;
+    }
+
+    const isFirst = webLocations.length === 0;
+    addWebLocation({
+      ...payload,
+      is_default: isFirst,
+      is_current: isFirst,
+    });
+    toast.success(t('locations.added') || 'Location added');
+    if (isFirst && onLocationChange) {
+      onLocationChange(payload.latitude, payload.longitude, payload.altitude);
+    }
+  };
+
+  const afterSave = () => {
+    resetForm();
+    setAdding(false);
+    setEditingId(null);
+    setDuplicateTarget(null);
   };
 
   const handleAdd = async () => {
@@ -201,78 +352,49 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       return;
     }
 
-    const lat = parseFloat(form.latitude);
-    const lon = parseFloat(form.longitude);
-    const alt = parseFloat(form.altitude) || 0;
-    const bortle = form.bortle_class ? parseInt(form.bortle_class) : undefined;
+    const payload = toLocationPayload();
+    if (!editingId) {
+      const duplicate = findPotentialDuplicateLocation(
+        locationList,
+        payload.name,
+        payload.latitude,
+        payload.longitude
+      );
+      if (duplicate) {
+        setDuplicateTarget({
+          candidateId: duplicate.id,
+          candidateName: duplicate.name,
+          payload,
+        });
+        return;
+      }
+    }
 
-    if (isTauriAvailable) {
-      try {
-        if (editingId) {
-          const existing = locations?.locations.find(l => l.id === editingId);
-          if (existing) {
-            await tauriApi.locations.update({
-              ...existing,
-              name: form.name,
-              latitude: lat,
-              longitude: lon,
-              altitude: alt,
-              bortle_class: bortle,
-            });
-          }
-          toast.success(t('locations.updated') || 'Location updated');
-        } else {
-          await tauriApi.locations.add({
-            name: form.name,
-            latitude: lat,
-            longitude: lon,
-            altitude: alt,
-            bortle_class: bortle,
-            is_default: !locations?.locations.length,
-            is_current: !locations?.locations.length,
-          });
-          toast.success(t('locations.added') || 'Location added');
-        }
-        setForm({ name: '', latitude: '', longitude: '', altitude: '', bortle_class: '' });
-        setFieldTouched({ name: false, altitude: false });
-        setAdding(false);
-        setEditingId(null);
-        refresh();
-      } catch (e) {
-        toast.error((e as Error).message);
-      }
-    } else {
-      if (editingId) {
-        // Web environment - update existing
-        updateWebLocation(editingId, {
-          name: form.name, latitude: lat, longitude: lon, altitude: alt, bortle_class: bortle,
-        });
-        toast.success(t('locations.updated') || 'Location updated');
-        const loc = webLocations.find(l => l.id === editingId);
-        if (loc?.is_current && onLocationChange) {
-          onLocationChange(lat, lon, alt);
-        }
-      } else {
-        // Web environment - add new
-        const isFirst = webLocations.length === 0;
-        addWebLocation({
-          name: form.name,
-          latitude: lat,
-          longitude: lon,
-          altitude: alt,
-          bortle_class: bortle,
-          is_default: isFirst,
-          is_current: isFirst,
-        });
-        toast.success(t('locations.added') || 'Location added');
-        if (isFirst && onLocationChange) {
-          onLocationChange(lat, lon, alt);
-        }
-      }
-      setForm({ name: '', latitude: '', longitude: '', altitude: '', bortle_class: '' });
-      setFieldTouched({ name: false, altitude: false });
-      setAdding(false);
-      setEditingId(null);
+    try {
+      await commitLocation(payload, editingId ?? undefined);
+      afterSave();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const handleDuplicateUpdate = async () => {
+    if (!duplicateTarget) return;
+    try {
+      await commitLocation(duplicateTarget.payload, duplicateTarget.candidateId);
+      afterSave();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const handleDuplicateKeepBoth = async () => {
+    if (!duplicateTarget) return;
+    try {
+      await commitLocation(duplicateTarget.payload);
+      afterSave();
+    } catch (e) {
+      toast.error((e as Error).message);
     }
   };
 
@@ -281,35 +403,24 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       try {
         const removedWasCurrent = (locations?.locations ?? []).some(loc => loc.id === id && loc.is_current);
         const nextLocations = await tauriApi.locations.delete(id);
-        const currentCount = nextLocations.locations.filter(loc => loc.is_current).length;
-        let nextCurrent = pickDeterministicCurrent(nextLocations.locations, nextLocations.current_location_id);
+        const nextCurrent = pickDeterministicCurrent(nextLocations.locations, nextLocations.current_location_id);
 
-        if (nextCurrent && nextLocations.locations.length > 0 && currentCount !== 1) {
-          await setCurrent(nextCurrent.id);
-          nextCurrent = pickDeterministicCurrent(nextLocations.locations, nextCurrent.id);
-        }
-
-        if (nextCurrent && onLocationChange && (removedWasCurrent || currentCount !== 1)) {
+        if (nextCurrent && onLocationChange && removedWasCurrent) {
           onLocationChange(nextCurrent.latitude, nextCurrent.longitude, nextCurrent.altitude);
         }
         toast.success(t('locations.deleted') || 'Location deleted');
-        refresh();
+        await refresh();
       } catch (e) {
         toast.error((e as Error).message);
       }
     } else {
       const removedWasCurrent = webLocations.some(loc => loc.id === id && loc.is_current);
-      const remaining = webLocations.filter(loc => loc.id !== id);
-      const nextCurrent = pickDeterministicCurrent(remaining);
-      const currentCount = remaining.filter(loc => loc.is_current).length;
 
       removeWebLocation(id);
+      const remaining = useWebLocationStore.getState().locations;
+      const nextCurrent = pickDeterministicCurrent(remaining);
 
-      if (nextCurrent && (currentCount !== 1 || !nextCurrent.is_current)) {
-          setWebCurrent(nextCurrent.id);
-        }
-
-      if (nextCurrent && onLocationChange && (removedWasCurrent || currentCount !== 1)) {
+      if (nextCurrent && onLocationChange && removedWasCurrent) {
         onLocationChange(nextCurrent.latitude, nextCurrent.longitude, nextCurrent.altitude);
       }
 
@@ -336,6 +447,29 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
         onLocationChange(loc.latitude, loc.longitude, loc.altitude);
       }
       toast.success(t('locations.setCurrent') || 'Location set as current');
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    if (isTauriAvailable) {
+      try {
+        await tauriApi.locations.setDefault(id);
+        toast.success(t('locations.setDefault') || 'Location set as default');
+        await refresh();
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    } else {
+      setWebDefault(id);
+      toast.success(t('locations.setDefault') || 'Location set as default');
+    }
+  };
+
+  const getAutoTimezone = (): string => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch {
+      return '';
     }
   };
 
@@ -373,6 +507,9 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       altitude: fieldTouchedRef.current.altitude
         ? prev.altitude
         : (altitude !== null ? altitude.toFixed(0) : prev.altitude),
+      timezone: fieldTouchedRef.current.timezone
+        ? prev.timezone
+        : (prev.timezone || getAutoTimezone()),
     }));
 
     if (!fieldTouchedRef.current.name) {
@@ -405,6 +542,9 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       latitude: location.coordinates.latitude.toFixed(6),
       longitude: location.coordinates.longitude.toFixed(6),
       name: fieldTouchedRef.current.name ? prev.name : suggestedName,
+      timezone: fieldTouchedRef.current.timezone
+        ? prev.timezone
+        : (prev.timezone || getAutoTimezone()),
     }));
 
     // Auto-fetch elevation for the selected location
@@ -423,11 +563,14 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
       latitude: '',
       longitude: '',
       altitude: '',
+      timezone: '',
+      notes: '',
       bortle_class: '',
     });
-    setFieldTouched({ name: false, altitude: false });
+    setFieldTouched({ name: false, altitude: false, timezone: false, notes: false });
     setInputMethod('manual');
     setEditingId(null);
+    setDuplicateTarget(null);
   };
 
   return (
@@ -457,6 +600,13 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
           </div>
         ) : (
           <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-1">
+            <div>
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('locations.searchPlaceholder') || 'Search locations...'}
+              />
+            </div>
             <ScrollArea className="max-h-40">
               {locationList.length === 0 ? (
                 <EmptyState
@@ -464,11 +614,18 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                   message={t('locations.noLocations') || 'No locations added'}
                   iconClassName="h-10 w-10 mb-3"
                 />
+              ) : filteredAndSortedLocations.length === 0 ? (
+                <EmptyState
+                  icon={MapPin}
+                  message={t('locations.noSearchResults') || 'No locations match your search'}
+                  iconClassName="h-10 w-10 mb-3"
+                />
               ) : (
                 <div className="space-y-2">
-                  {locationList.map((loc) => (
+                  {filteredAndSortedLocations.map((loc) => (
                     <div 
                       key={loc.id} 
+                      data-testid={`location-row-${loc.id}`}
                       className={cn(
                         'flex items-center justify-between p-2 border rounded',
                         loc.is_current && 'border-primary bg-primary/5'
@@ -480,6 +637,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                           <p className="font-medium text-sm truncate">{loc.name}</p>
                           <p className="text-xs text-muted-foreground">
                             {loc.latitude.toFixed(4)}°, {loc.longitude.toFixed(4)}°
+                            {loc.timezone && ` • ${loc.timezone}`}
                             {loc.bortle_class && ` • Bortle ${loc.bortle_class}`}
                           </p>
                         </div>
@@ -493,6 +651,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
+                                data-testid={`set-current-${loc.id}`}
                                 onClick={() => handleSetCurrent(loc.id)}
                               >
                                 <Navigation className="h-4 w-4" />
@@ -503,9 +662,26 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                             </TooltipContent>
                           </Tooltip>
                         )}
+                        {!loc.is_default && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`set-default-${loc.id}`}
+                                onClick={() => handleSetDefault(loc.id)}
+                              >
+                                <Star className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t('locations.setAsDefault') || 'Set as default'}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => handleStartEdit(loc)}>
+                            <Button variant="ghost" size="icon" data-testid={`edit-location-${loc.id}`} onClick={() => handleStartEdit(loc)}>
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
@@ -515,7 +691,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: loc.id, name: loc.name })}>
+                            <Button variant="ghost" size="icon" data-testid={`delete-location-${loc.id}`} onClick={() => setDeleteTarget({ id: loc.id, name: loc.name })}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
@@ -593,6 +769,29 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                       </div>
                       <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm(prev => ({ ...prev, bortle_class: v }))} t={t} />
                     </div>
+                    <div>
+                      <Label>{t('locations.timezone') || 'Timezone'}</Label>
+                      <Input
+                        value={form.timezone}
+                        onChange={(e) => {
+                          setFieldTouched(prev => ({ ...prev, timezone: true }));
+                          setForm(prev => ({ ...prev, timezone: e.target.value }));
+                        }}
+                        placeholder={t('locations.timezonePlaceholder') || 'e.g. Asia/Shanghai'}
+                      />
+                    </div>
+                    <div>
+                      <Label>{t('locations.notes') || 'Notes'}</Label>
+                      <Textarea
+                        value={form.notes}
+                        onChange={(e) => {
+                          setFieldTouched(prev => ({ ...prev, notes: true }));
+                          setForm(prev => ({ ...prev, notes: e.target.value }));
+                        }}
+                        placeholder={t('locations.notesPlaceholder') || 'Optional notes for this observing site'}
+                        rows={3}
+                      />
+                    </div>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={handleUseGPS}>
                         <Navigation className="h-4 w-4 mr-1" />
@@ -631,6 +830,7 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                         height={220}
                         showSearch={true}
                         showControls={true}
+                        commitMode="staged"
                         compact
                       />
                       
@@ -648,6 +848,29 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
                         />
                         </div>
                         <BortleClassSelect value={form.bortle_class} onChange={(v) => setForm(prev => ({ ...prev, bortle_class: v }))} t={t} />
+                      </div>
+                      <div>
+                        <Label>{t('locations.timezone') || 'Timezone'}</Label>
+                        <Input
+                          value={form.timezone}
+                          onChange={(e) => {
+                            setFieldTouched(prev => ({ ...prev, timezone: true }));
+                            setForm(prev => ({ ...prev, timezone: e.target.value }));
+                          }}
+                          placeholder={t('locations.timezonePlaceholder') || 'e.g. Asia/Shanghai'}
+                        />
+                      </div>
+                      <div>
+                        <Label>{t('locations.notes') || 'Notes'}</Label>
+                        <Textarea
+                          value={form.notes}
+                          onChange={(e) => {
+                            setFieldTouched(prev => ({ ...prev, notes: true }));
+                            setForm(prev => ({ ...prev, notes: e.target.value }));
+                          }}
+                          placeholder={t('locations.notesPlaceholder') || 'Optional notes for this observing site'}
+                          rows={3}
+                        />
                       </div>
                     </div>
                   </TabsContent>
@@ -699,6 +922,30 @@ export function LocationManager({ trigger, onLocationChange }: LocationManagerPr
               }}
             >
               {t('common.delete') || 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate Location Confirmation Dialog */}
+      <AlertDialog open={!!duplicateTarget} onOpenChange={(isOpen) => !isOpen && setDuplicateTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('locations.duplicateTitle') || 'Possible duplicate location'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('locations.duplicateDescription', { name: duplicateTarget?.candidateName ?? '' })
+                || `A similar location "${duplicateTarget?.candidateName}" already exists. Update it or keep both?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel') || 'Cancel'}</AlertDialogCancel>
+            <Button size="sm" variant="outline" onClick={handleDuplicateKeepBoth}>
+              {t('locations.keepBoth') || 'Keep both'}
+            </Button>
+            <AlertDialogAction onClick={handleDuplicateUpdate}>
+              {t('locations.updateExisting') || 'Update existing'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useRef, useCallback, forwardRef, useImperativeHandle, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
@@ -60,8 +60,12 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       groupedResults,
       isSearching,
       isOnlineSearching,
+      searchStage,
       searchOutcome,
       searchMessages,
+      refinementHints,
+      providerDiagnostics,
+      usedCachedOnline,
       selectedIds,
       filters,
       sortBy,
@@ -104,6 +108,11 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         setIsFocused(false);
         searchInputRef.current?.blur();
       },
+      setQuery: (nextQuery: string) => {
+        setQuery(nextQuery);
+        setHighlightedIndex(-1);
+        setHistoryIndex(-1);
+      },
     }));
 
     // Memoize flattened results for keyboard navigation
@@ -112,7 +121,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
       [groupedResults]
     );
 
-    // Pre-build itemId → globalIndex map to avoid O(n²) findIndex in render
+    // Pre-build itemId 鈫?globalIndex map to avoid O(n虏) findIndex in render
     const indexMap = useMemo(() => {
       const map = new Map<string, number>();
       flatResults.forEach((r, i) => map.set(getResultId(r), i));
@@ -273,6 +282,11 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     const hasPartialOutcome = searchOutcome === 'partial_success';
     const hasErrorOutcome = searchOutcome === 'error';
     const firstSearchMessage = searchMessages[0]?.message;
+    const firstRefinementWarning = refinementHints.find(hint => hint.level === 'warning')?.message;
+    const providerFailureSummary = providerDiagnostics
+      .filter(diagnostic => diagnostic.status === 'timeout' || diagnostic.status === 'error')
+      .map(diagnostic => `${diagnostic.source}: ${diagnostic.status}`)
+      .join(', ');
 
     // Determine if we should show the results panel
     const showResultsPanel = isFocused || query.length > 0;
@@ -288,6 +302,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
               ref={searchInputRef}
+              data-testid="search-input"
               placeholder={t('starmap.searchPlaceholder')}
               className="h-9 w-full pl-9 pr-8"
               onFocus={handleFocus}
@@ -302,6 +317,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
             />
             {query && (
               <Button
+                data-testid="starmap-search-clear"
                 variant="ghost"
                 size="icon"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
@@ -320,6 +336,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                data-testid="starmap-advanced-search-button"
                 variant="outline"
                 size="icon"
                 className="h-9 w-9 shrink-0"
@@ -388,12 +405,12 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
         {showResultsPanel && showKeyboardHints && hasResults && (
           <div className="flex items-center justify-center gap-3 py-1 text-[10px] text-muted-foreground bg-muted/30 rounded-md">
             <span className="flex items-center gap-1">
-              <Kbd>↑</Kbd>
-              <Kbd>↓</Kbd>
+              <Kbd>Enter</Kbd>
+              <Kbd>Enter</Kbd>
               {t('search.navigateHint')}
             </span>
             <span className="flex items-center gap-1">
-              <Kbd>↵</Kbd>
+              <Kbd>Enter</Kbd>
               {t('search.selectHint')}
             </span>
             <span className="flex items-center gap-1">
@@ -413,6 +430,22 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
           </div>
         )}
 
+        {/* Progressive local-ready indicator */}
+        {showResultsPanel && query && searchStage === 'local_ready' && hasResults && (
+          <div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1.5 text-[11px] text-blue-800 dark:text-blue-300">
+            {t('search.localResultsReady', {
+              defaultValue: 'Local results are ready. Merging online updates...',
+            })}
+          </div>
+        )}
+
+        {/* Query refinement hints */}
+        {showResultsPanel && query && firstRefinementWarning && (
+          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1.5 text-[11px] text-yellow-800 dark:text-yellow-300">
+            {firstRefinementWarning}
+          </div>
+        )}
+
         {/* Partial-success indicator */}
         {showResultsPanel && query && !isSearching && hasPartialOutcome && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-800 dark:text-amber-300">
@@ -420,6 +453,10 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
               defaultValue: 'Partial results: showing available matches while some sources failed.',
             })}
             {firstSearchMessage ? ` ${firstSearchMessage}` : ''}
+            {providerFailureSummary ? ` (${providerFailureSummary})` : ''}
+            {usedCachedOnline
+              ? ` ${t('search.cacheFallbackUsed', { defaultValue: 'Using cached online fallback.' })}`
+              : ''}
           </div>
         )}
 
@@ -458,7 +495,7 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
 
         {/* Search Results - Grouped */}
         {showResultsPanel && hasResults && !isSearching && (
-          <ScrollArea className="max-h-72">
+          <ScrollArea className="max-h-72" data-testid="starmap-search-results">
             <GroupedResultsList
               groupedResults={groupedResults}
               isSelected={isSelected}
@@ -623,5 +660,8 @@ export const StellariumSearch = forwardRef<StellariumSearchRef, StellariumSearch
     );
   }
 );
+
+
+
 
 

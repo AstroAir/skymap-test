@@ -1,4 +1,10 @@
-import type { SearchResultItem, SearchRunMessage, SearchRunOutcome } from '@/lib/core/types';
+import type {
+  SearchResultItem,
+  SearchRunMessage,
+  SearchRunOutcome,
+  SearchProviderDiagnostic,
+  SearchProgressStage,
+} from '@/lib/core/types';
 import {
   searchOnlineByCoordinates,
   searchOnlineByName,
@@ -10,8 +16,28 @@ import { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
 import { parseSearchQuery } from './query-parser';
 import { mergeSearchItems } from './search-merge';
 import type { ParsedSearchQuery, SearchIntent } from './search-intent';
+import { filterSearchProvidersForQuery, getEligibleSearchProviders } from '@/lib/services/online-data-provider-registry';
 
 export type UnifiedSearchMode = 'local' | 'online' | 'hybrid';
+
+export interface CachedOnlinePayload {
+  results: OnlineSearchResult[];
+  timestamp: number;
+}
+
+export interface UnifiedSearchProgress {
+  stage: Exclude<SearchProgressStage, 'idle'>;
+  parsed: ParsedSearchQuery;
+  intent: SearchIntent;
+  outcome: SearchRunOutcome;
+  results: SearchResultItem[];
+  localResults: SearchResultItem[];
+  onlineResults: SearchResultItem[];
+  issues: SearchRunIssue[];
+  providerDiagnostics: SearchProviderDiagnostic[];
+  refinementHints: ParsedSearchQuery['refinementHints'];
+  usedCachedOnline: boolean;
+}
 
 export interface UnifiedSearchOptions {
   query: string;
@@ -27,7 +53,9 @@ export interface UnifiedSearchOptions {
     parsed: ParsedSearchQuery;
     query: string;
   }) => Promise<SearchResultItem[]> | SearchResultItem[];
-  cachedOnline?: OnlineSearchResult[];
+  cachedOnline?: CachedOnlinePayload | null;
+  cacheMaxAgeMs?: number;
+  onProgress?: (update: UnifiedSearchProgress) => void;
 }
 
 export interface BatchSearchItem {
@@ -37,6 +65,8 @@ export interface BatchSearchItem {
   issues?: SearchRunIssue[];
   errors?: string[];
   warnings?: string[];
+  providerDiagnostics?: SearchProviderDiagnostic[];
+  refinementHints?: ParsedSearchQuery['refinementHints'];
 }
 
 export type SearchRunIssue = SearchRunMessage;
@@ -44,6 +74,7 @@ export type SearchRunIssue = SearchRunMessage;
 export interface UnifiedSearchResult {
   parsed: ParsedSearchQuery;
   intent: SearchIntent;
+  stage: 'finalized';
   outcome: SearchRunOutcome;
   results: SearchResultItem[];
   localResults: SearchResultItem[];
@@ -52,10 +83,13 @@ export interface UnifiedSearchResult {
   issues: SearchRunIssue[];
   errors: string[];
   warnings: string[];
+  providerDiagnostics: SearchProviderDiagnostic[];
+  refinementHints: ParsedSearchQuery['refinementHints'];
+  usedCachedOnline: boolean;
   batchItems?: BatchSearchItem[];
 }
 
-const DEFAULT_SOURCES: OnlineSearchSource[] = ['sesame', 'simbad', 'vizier', 'ned', 'mpc'];
+const DEFAULT_CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 
 function onlineResultToSearchItem(result: OnlineSearchResult): SearchResultItem {
   const typeMap: Record<string, string> = {
@@ -136,15 +170,71 @@ function summarizeIssues(issues: SearchRunIssue[]): { errors: string[]; warnings
   };
 }
 
+function classifyDiagnosticStatus(message: string): 'timeout' | 'error' {
+  return /timeout|timed out|abort/i.test(message) ? 'timeout' : 'error';
+}
+
+function normalizeEnabledSources(options: UnifiedSearchOptions, parsed: ParsedSearchQuery): OnlineSearchSource[] {
+  const enabled = options.enabledSources.filter(source => source !== 'local');
+  const queryKind = parsed.intent === 'coordinates'
+    ? 'coordinates'
+    : parsed.explicitMinor || parsed.intent === 'minor'
+      ? 'minor'
+      : 'name';
+
+  if (enabled.length > 0) {
+    const filtered = filterSearchProvidersForQuery(enabled, queryKind);
+    if (filtered.length > 0) {
+      return filtered;
+    }
+  }
+
+  return getEligibleSearchProviders(queryKind);
+}
+
+function withProviderDiagnostics(
+  sourceList: OnlineSearchSource[],
+  map: Map<OnlineSearchSource, SearchProviderDiagnostic>
+): SearchProviderDiagnostic[] {
+  return sourceList.map((source) => map.get(source) ?? {
+    source,
+    status: 'skipped',
+    message: 'Provider not queried',
+  });
+}
+
+function emitProgress(options: UnifiedSearchOptions, payload: UnifiedSearchProgress): void {
+  options.onProgress?.(payload);
+}
+
 async function runSingleSearch(
   options: UnifiedSearchOptions,
   parsed: ParsedSearchQuery
 ): Promise<UnifiedSearchResult> {
-  const query = parsed.catalogQuery || parsed.normalized;
+  const query = parsed.catalogQuery || parsed.refinedQuery || parsed.normalized;
   const issues: SearchRunIssue[] = [];
   const localSearch = options.localSearch;
   const shouldUseLocal = options.mode === 'local' || options.mode === 'hybrid';
   const shouldUseOnline = options.mode !== 'local' && options.onlineAvailable;
+  const requestedOnlineSources = shouldUseOnline
+    ? normalizeEnabledSources(options, parsed)
+    : [];
+  const unavailableOnlineSources =
+    options.mode === 'online' && !options.onlineAvailable
+      ? normalizeEnabledSources(options, parsed)
+      : [];
+  const providerSourceOrder =
+    requestedOnlineSources.length > 0 ? requestedOnlineSources : unavailableOnlineSources;
+  const providerDiagnosticsMap = new Map<OnlineSearchSource, SearchProviderDiagnostic>();
+
+  const markProvider = (
+    source: OnlineSearchSource,
+    status: SearchProviderDiagnostic['status'],
+    message?: string,
+    usedFallbackCache?: boolean
+  ) => {
+    providerDiagnosticsMap.set(source, { source, status, message, usedFallbackCache });
+  };
 
   if (options.mode === 'online' && !options.onlineAvailable) {
     issues.push({
@@ -153,15 +243,50 @@ async function runSingleSearch(
       code: 'ONLINE_UNAVAILABLE',
       message: 'Online search is unavailable',
     });
+    for (const source of normalizeEnabledSources(options, parsed)) {
+      markProvider(source, 'unavailable', 'Online search is unavailable');
+    }
   }
 
-  const localResults: SearchResultItem[] =
-    shouldUseLocal && localSearch
-      ? await Promise.resolve(localSearch({ parsed, query }))
-      : [];
+  let localResults: SearchResultItem[] = [];
+  if (shouldUseLocal && localSearch) {
+    try {
+      localResults = await Promise.resolve(localSearch({ parsed, query }));
+    } catch (error) {
+      issues.push({
+        source: 'local',
+        level: 'error',
+        code: 'LOCAL_SEARCH_FAILED',
+        message: error instanceof Error ? error.message : 'Local search failed',
+      });
+      localResults = [];
+    }
+  }
+
+  if (options.mode === 'hybrid' && requestedOnlineSources.length > 0) {
+    const localReadyResults = mergeSearchItems(localResults, [], {
+      maxResults: options.maxResults,
+      coordinateContext: parsed.coordinates,
+    });
+    emitProgress(options, {
+      stage: 'local_ready',
+      parsed,
+      intent: parsed.intent,
+      outcome: deriveOutcome(localReadyResults, issues),
+      results: localReadyResults,
+      localResults,
+      onlineResults: [],
+      issues: [...issues],
+      providerDiagnostics: withProviderDiagnostics(providerSourceOrder, providerDiagnosticsMap),
+      refinementHints: parsed.refinementHints,
+      usedCachedOnline: false,
+    });
+  }
 
   let onlineResponse: OnlineSearchResponse | undefined;
-  let onlineResults: SearchResultItem[] = [];
+  let onlineRaw: OnlineSearchResult[] = [];
+  let usedCachedOnline = false;
+  let onlineRequestFailed = false;
 
   if (shouldUseOnline) {
     try {
@@ -169,7 +294,7 @@ async function runSingleSearch(
         onlineResponse = await searchOnlineByCoordinates(
           { ra: parsed.coordinates.ra, dec: parsed.coordinates.dec, radius: options.searchRadiusDeg },
           {
-            sources: options.enabledSources.length > 0 ? options.enabledSources : ['simbad'],
+            sources: requestedOnlineSources,
             limit: options.maxResults,
             timeout: options.timeout,
             signal: options.signal,
@@ -177,37 +302,90 @@ async function runSingleSearch(
         );
       } else {
         onlineResponse = await searchOnlineByName(query, {
-          sources: options.enabledSources.length > 0 ? options.enabledSources : DEFAULT_SOURCES,
+          sources: requestedOnlineSources,
           limit: options.maxResults,
           timeout: options.timeout,
           signal: options.signal,
         });
       }
+      onlineRaw = onlineResponse.results ?? [];
     } catch (error) {
+      onlineRequestFailed = true;
+      const message = error instanceof Error ? error.message : 'Online search failed';
       issues.push({
         source: 'online',
         level: options.mode === 'online' ? 'error' : 'warning',
         code: 'ONLINE_REQUEST_FAILED',
-        message: error instanceof Error ? error.message : 'Online search failed',
+        message,
       });
+      const status = classifyDiagnosticStatus(message);
+      for (const source of requestedOnlineSources) {
+        markProvider(source, status, message);
+      }
     }
   }
 
-  const onlineRaw = onlineResponse?.results ?? (shouldUseOnline ? options.cachedOnline ?? [] : []);
-  onlineResults = onlineRaw
-    .filter(result => passesMinorObjectFilter(result, options.includeMinorObjects, parsed.explicitMinor))
-    .map(onlineResultToSearchItem);
+  if (onlineResponse) {
+    const successfulSources = new Set(onlineResponse.sources ?? []);
+    for (const source of requestedOnlineSources) {
+      if (successfulSources.has(source)) {
+        markProvider(source, 'success');
+      } else {
+        markProvider(source, 'empty', 'No matches returned from provider');
+      }
+    }
 
-  if (onlineResponse?.errors?.length) {
-    issues.push(
-      ...onlineResponse.errors.map((err) => ({
-        source: err.source,
-        level: 'warning' as const,
-        code: 'ONLINE_PROVIDER_ERROR',
-        message: `${err.source}: ${err.error}`,
-      }))
-    );
+    if (onlineResponse.errors?.length) {
+      for (const err of onlineResponse.errors) {
+        const status = classifyDiagnosticStatus(err.error);
+        markProvider(err.source, status, err.error);
+      }
+      issues.push(
+        ...onlineResponse.errors.map((err) => ({
+          source: err.source,
+          level: 'warning' as const,
+          code: 'ONLINE_PROVIDER_ERROR',
+          message: `${err.source}: ${err.error}`,
+        }))
+      );
+    }
   }
+
+  const cacheMaxAgeMs = options.cacheMaxAgeMs ?? DEFAULT_CACHE_MAX_AGE_MS;
+  const cachedOnline = options.cachedOnline;
+  if (
+    shouldUseOnline &&
+    cachedOnline?.results?.length &&
+    (onlineRequestFailed || (onlineResponse?.errors?.length ?? 0) > 0)
+  ) {
+    const ageMs = Date.now() - cachedOnline.timestamp;
+    if (ageMs <= cacheMaxAgeMs) {
+      onlineRaw = cachedOnline.results;
+      usedCachedOnline = true;
+      issues.push({
+        source: 'online-cache',
+        level: 'warning',
+        code: 'ONLINE_CACHE_FALLBACK',
+        message: 'Using cached online results due to provider degradation',
+      });
+      for (const source of requestedOnlineSources) {
+        const current = providerDiagnosticsMap.get(source);
+        if (!current || current.status !== 'success') {
+          markProvider(source, current?.status ?? 'empty', current?.message, true);
+        }
+      }
+    }
+  }
+
+  const onlineResults = onlineRaw
+    .filter(result => passesMinorObjectFilter(result, options.includeMinorObjects, parsed.explicitMinor))
+    .map(result => {
+      const mapped = onlineResultToSearchItem(result);
+      if (usedCachedOnline) {
+        mapped._fallbackSource = 'cache';
+      }
+      return mapped;
+    });
 
   const merged = mergeSearchItems(localResults, onlineResults, {
     maxResults: options.maxResults,
@@ -215,10 +393,12 @@ async function runSingleSearch(
   });
   const outcome = deriveOutcome(merged, issues);
   const { errors, warnings } = summarizeIssues(issues);
+  const providerDiagnostics = withProviderDiagnostics(providerSourceOrder, providerDiagnosticsMap);
 
-  return {
+  const finalized: UnifiedSearchResult = {
     parsed,
     intent: parsed.intent,
+    stage: 'finalized',
     outcome,
     results: merged,
     localResults,
@@ -227,7 +407,26 @@ async function runSingleSearch(
     issues,
     errors,
     warnings,
+    providerDiagnostics,
+    refinementHints: parsed.refinementHints,
+    usedCachedOnline,
   };
+
+  emitProgress(options, {
+    stage: 'finalized',
+    parsed,
+    intent: parsed.intent,
+    outcome,
+    results: merged,
+    localResults,
+    onlineResults,
+    issues: [...issues],
+    providerDiagnostics,
+    refinementHints: parsed.refinementHints,
+    usedCachedOnline,
+  });
+
+  return finalized;
 }
 
 export async function searchUnified(options: UnifiedSearchOptions): Promise<UnifiedSearchResult> {
@@ -236,6 +435,7 @@ export async function searchUnified(options: UnifiedSearchOptions): Promise<Unif
     return {
       parsed,
       intent: parsed.intent,
+      stage: 'finalized',
       outcome: 'empty',
       results: [],
       localResults: [],
@@ -243,6 +443,9 @@ export async function searchUnified(options: UnifiedSearchOptions): Promise<Unif
       issues: [],
       errors: [],
       warnings: [],
+      providerDiagnostics: [],
+      refinementHints: parsed.refinementHints,
+      usedCachedOnline: false,
     };
   }
 
@@ -252,7 +455,7 @@ export async function searchUnified(options: UnifiedSearchOptions): Promise<Unif
 
   const batchResults = await mapBatchInParallel(parsed.batchQueries, 3, async (query) => {
     const itemParsed = parseSearchQuery(query);
-    const itemResult = await runSingleSearch({ ...options, query }, itemParsed);
+    const itemResult = await runSingleSearch({ ...options, query, onProgress: undefined }, itemParsed);
     return {
       query,
       results: itemResult.results,
@@ -260,6 +463,8 @@ export async function searchUnified(options: UnifiedSearchOptions): Promise<Unif
       issues: itemResult.issues.length > 0 ? itemResult.issues : undefined,
       errors: itemResult.errors.length > 0 ? itemResult.errors : undefined,
       warnings: itemResult.warnings.length > 0 ? itemResult.warnings : undefined,
+      providerDiagnostics: itemResult.providerDiagnostics,
+      refinementHints: itemResult.refinementHints,
     } as BatchSearchItem;
   });
 
@@ -276,10 +481,17 @@ export async function searchUnified(options: UnifiedSearchOptions): Promise<Unif
   );
   const outcome = deriveOutcome(flattened, issues);
   const { errors, warnings } = summarizeIssues(issues);
+  const providerDiagnostics = batchResults.flatMap((item) =>
+    (item.providerDiagnostics ?? []).map((diagnostic) => ({
+      ...diagnostic,
+      source: `${diagnostic.source}[${item.query}]`,
+    }))
+  );
 
   return {
     parsed,
     intent: 'batch',
+    stage: 'finalized',
     outcome,
     results: flattened,
     localResults: [],
@@ -287,6 +499,9 @@ export async function searchUnified(options: UnifiedSearchOptions): Promise<Unif
     issues,
     errors,
     warnings,
+    providerDiagnostics,
+    refinementHints: parsed.refinementHints,
+    usedCachedOnline: false,
     batchItems: batchResults,
   };
 }

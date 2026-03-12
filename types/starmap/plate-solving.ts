@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Type definitions for plate-solving components
  * Extracted from components/starmap/plate-solving/ for architectural separation
  */
@@ -60,6 +60,7 @@ export interface PlateSolverUnifiedProps {
   onGoToCoordinates?: (ra: number, dec: number) => void;
   trigger?: React.ReactNode;
   className?: string;
+  autoOpenRequestId?: number;
   defaultImagePath?: string;
   raHint?: number;
   decHint?: number;
@@ -132,3 +133,4 @@ export interface AstapDatabaseManagerProps {
   className?: string;
   onDatabaseChange?: () => void;
 }
+

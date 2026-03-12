@@ -8,6 +8,7 @@ import {
   validateCameraFields,
   validateLocationForm,
   validateLocationFields,
+  findPotentialDuplicateLocation,
 } from '../management-validators';
 
 describe('management-validators', () => {
@@ -186,6 +187,33 @@ describe('management-validators', () => {
     it('validates boundary values', () => {
       expect(Object.keys(validateLocationFields({ name: 'S', latitude: '-90', longitude: '-180', altitude: '-500', bortle_class: '1' }))).toHaveLength(0);
       expect(Object.keys(validateLocationFields({ name: 'S', latitude: '90', longitude: '180', altitude: '9000', bortle_class: '9' }))).toHaveLength(0);
+    });
+  });
+
+  describe('findPotentialDuplicateLocation', () => {
+    const locations = [
+      { id: 'a', name: 'Backyard', latitude: 40.1234, longitude: -74.1234 },
+      { id: 'b', name: 'Dark Site', latitude: 41.0, longitude: -75.0 },
+    ];
+
+    it('finds duplicate by normalized name', () => {
+      const duplicate = findPotentialDuplicateLocation(locations, '  BACKYARD  ', 10, 10);
+      expect(duplicate?.id).toBe('a');
+    });
+
+    it('finds duplicate by near coordinates', () => {
+      const duplicate = findPotentialDuplicateLocation(locations, 'Other', 40.124, -74.124);
+      expect(duplicate?.id).toBe('a');
+    });
+
+    it('returns null when no duplicate is found', () => {
+      const duplicate = findPotentialDuplicateLocation(locations, 'Unique', 50, 50);
+      expect(duplicate).toBeNull();
+    });
+
+    it('ignores excluded location id', () => {
+      const duplicate = findPotentialDuplicateLocation(locations, 'Backyard', 40.1234, -74.1234, 'a');
+      expect(duplicate).toBeNull();
     });
   });
 });

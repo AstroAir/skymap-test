@@ -40,6 +40,12 @@ export interface FeedbackDiagnostics {
     platform?: string;
     hardwareConcurrency?: number;
     language?: string;
+    family?: string;
+    osType?: string;
+    osVersion?: string;
+    locale?: string;
+    exeExtension?: string;
+    hostId?: string;
   };
   logs?: string;
 }

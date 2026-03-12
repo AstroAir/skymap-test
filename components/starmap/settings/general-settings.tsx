@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useDailyKnowledgeStore } from '@/lib/stores';
+import { useAutostartStore, useDailyKnowledgeStore } from '@/lib/stores';
 import type {
   AppLocale,
   TimeFormat,
@@ -38,6 +38,18 @@ export function GeneralSettings() {
 
   const { preferences, setPreference } = usePreferencesDraftModel();
   const openDailyKnowledge = useDailyKnowledgeStore((state) => state.openDialog);
+  const autostartSupported = useAutostartStore((state) => state.supported);
+  const autostartLoading = useAutostartStore((state) => state.loading);
+  const autostartActualEnabled = useAutostartStore((state) => state.actualEnabled);
+  const autostartError = useAutostartStore((state) => state.error);
+
+  const autostartDescription = autostartError
+    ? t('settingsNew.general.launchOnStartupError', { message: autostartError })
+    : autostartLoading
+      ? t('settingsNew.general.launchOnStartupChecking')
+      : autostartActualEnabled
+        ? t('settingsNew.general.launchOnStartupEnabled')
+        : t('settingsNew.general.launchOnStartupDesc');
 
   const handleLocaleChange = (locale: AppLocale) => {
     setPreference('locale', locale);
@@ -232,6 +244,15 @@ export function GeneralSettings() {
             </p>
           </div>
 
+          {autostartSupported && (
+            <ToggleItem
+              id="launch-on-startup"
+              label={t('settingsNew.general.launchOnStartup')}
+              description={autostartDescription}
+              checked={preferences.launchOnStartup}
+              onCheckedChange={(checked) => setPreference('launchOnStartup', checked)}
+            />
+          )}
           <ToggleItem
             id="show-splash"
             label={t('settingsNew.general.showSplash')}

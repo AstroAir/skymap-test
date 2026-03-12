@@ -29,5 +29,28 @@ export * from './satellite';
 // HiPS surveys
 export * from './hips';
 
-// Object information
-export * from './object-info';
+// Object information service
+export {
+  getObjectDetailedInfo,
+  enhanceObjectInfo,
+  getCachedObjectInfo,
+  updateCachedObjectInfo,
+  clearObjectInfoCache,
+  getConstellation,
+  parseObjectType,
+  formatAngularSize,
+  getObjectDescription,
+  getDSSImageUrl,
+  getSkyViewImageUrl,
+  getAladinPreviewUrl,
+  getSimbadUrl,
+  getWikipediaUrl,
+  generateObjectImages,
+} from './object-info-service';
+export type { ObjectDetailedInfo, ObjectImage } from './object-info-service';
+
+// Clipboard service
+export * from './clipboard-service';
+
+// AR optimization packs
+export * from './ar-optimization-pack-service';

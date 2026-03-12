@@ -30,6 +30,7 @@ const mockSearchStoreState = {
     timeout: 10000,
     cacheResults: true,
     cacheDuration: 24,
+    cacheFallbackMaxAgeMinutes: 30,
     showSourceBadges: true,
     groupBySource: false,
   },

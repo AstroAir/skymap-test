@@ -60,11 +60,15 @@ jest.mock('@/lib/hooks/use-equipment-fov-props', () => ({
     sensorHeight: 24,
     setSensorHeight: mockSetSensorHeight,
     focalLength: 600,
+    pixelSize: 3.76,
+    rotationAngle: 0,
     setFocalLength: mockSetFocalLength,
+    setPixelSize: jest.fn(),
     mosaic: { enabled: false },
     setMosaic: mockSetMosaic,
     gridType: 'rule-of-thirds',
     setGridType: mockSetGridType,
+    setRotationAngle: jest.fn(),
   }),
 }));
 

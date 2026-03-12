@@ -45,3 +45,20 @@ export {
   type CacheVersion,
   type MigrationResult,
 } from './migration';
+
+// Integration policies and diagnostics
+export {
+  getCachePolicy,
+  listCachePolicies,
+  listCacheIntegrations,
+  resolveCachePolicy,
+  getCacheProviderDiagnostics,
+  getCacheIntegrationDiagnostics,
+  getCacheDiagnosticsSummary,
+  type CachePolicyId,
+  type CachePolicyDefinition,
+  type CacheIntegrationDefinition,
+  type CacheIntegrationDiagnostic,
+  type CacheIntegrationMode,
+  type CacheIntegrationStatus,
+} from './integration-policy';

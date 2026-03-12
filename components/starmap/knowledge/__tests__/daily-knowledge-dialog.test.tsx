@@ -9,6 +9,7 @@ import { isMobile } from '@/lib/storage/platform';
 
 const mockToastSuccess = jest.fn();
 const mockToastError = jest.fn();
+const mockCopyTextWithFeedback = jest.fn();
 
 jest.mock('sonner', () => ({
   toast: {
@@ -19,6 +20,10 @@ jest.mock('sonner', () => ({
 
 jest.mock('@/lib/storage/platform', () => ({
   isMobile: jest.fn(() => false),
+}));
+
+jest.mock('@/lib/utils/clipboard-feedback', () => ({
+  copyTextWithFeedback: (...args: unknown[]) => mockCopyTextWithFeedback(...args),
 }));
 
 const itemA = {
@@ -35,6 +40,9 @@ const itemA = {
   isDateEvent: true,
   eventMonthDay: '02-20',
   factSources: [{ title: 'SEDS M31', url: 'https://messier.seds.org/m/m031.html', publisher: 'SEDS' }],
+  difficulty: 'intermediate' as const,
+  bestViewingMonths: [2, 10, 11],
+  observationTips: ['Use stable seeing windows first.', 'Log capture settings for comparison.'],
   languageStatus: 'fallback' as const,
   attribution: {
     sourceName: 'Curated',
@@ -146,6 +154,7 @@ describe('daily-knowledge-dialog', () => {
     };
     mockStore.viewMode = 'pager';
     mockStore.wheelPagingEnabled = false;
+    mockCopyTextWithFeedback.mockResolvedValue(true);
 
     Object.defineProperty(global.navigator, 'share', {
       configurable: true,
@@ -189,6 +198,9 @@ describe('daily-knowledge-dialog', () => {
     expect(screen.getByText('dailyKnowledge.languageStatus.fallback')).toBeInTheDocument();
     expect(screen.getByText('dailyKnowledge.fallbackNotice')).toBeInTheDocument();
     expect(screen.getByText('dailyKnowledge.factSources')).toBeInTheDocument();
+    expect(screen.getByText('dailyKnowledge.practicalInsights')).toBeInTheDocument();
+    expect(screen.getByText('dailyKnowledge.observationTips')).toBeInTheDocument();
+    expect(screen.getByText('dailyKnowledge.difficultyBadge.intermediate')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /SEDS M31/ })).toHaveAttribute(
       'href',
       'https://messier.seds.org/m/m031.html'
@@ -252,6 +264,7 @@ describe('daily-knowledge-dialog', () => {
     render(<DailyKnowledgeDialog />);
     fireEvent.click(screen.getByRole('button', { name: 'Item B' }));
     expect(mockStore.setCurrentItemById).toHaveBeenCalledWith('item-b');
+    expect(screen.getAllByText('dailyKnowledge.observationTips').length).toBeGreaterThan(0);
   });
 
   it('uses share->clipboard fallback and supports copy action', async () => {
@@ -261,13 +274,12 @@ describe('daily-knowledge-dialog', () => {
     await Promise.resolve();
 
     const shareMock = global.navigator.share as jest.Mock;
-    const writeTextMock = global.navigator.clipboard.writeText as jest.Mock;
     expect(shareMock).toHaveBeenCalled();
-    expect(writeTextMock).toHaveBeenCalled();
+    expect(mockCopyTextWithFeedback).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'dailyKnowledge.copy' }));
     await Promise.resolve();
-    expect(writeTextMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockCopyTextWithFeedback).toHaveBeenCalledTimes(2);
   });
 
   it('shows loading state', () => {
@@ -386,15 +398,14 @@ describe('daily-knowledge-dialog', () => {
   });
 
   it('shows toast error when clipboard write fails on copy', async () => {
-    Object.defineProperty(global.navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: jest.fn().mockRejectedValue(new Error('denied')) },
-    });
+    mockCopyTextWithFeedback.mockResolvedValueOnce(false);
     render(<DailyKnowledgeDialog />);
     fireEvent.click(screen.getByRole('button', { name: 'dailyKnowledge.copy' }));
     await Promise.resolve();
     await Promise.resolve();
-    expect(mockToastError).toHaveBeenCalledWith('dailyKnowledge.copyFailed');
+    expect(mockCopyTextWithFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ errorMessage: 'dailyKnowledge.copyFailed' })
+    );
   });
 
   it('does not fallback to clipboard when share succeeds', async () => {
@@ -406,8 +417,7 @@ describe('daily-knowledge-dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'dailyKnowledge.share' }));
     await Promise.resolve();
     await Promise.resolve();
-    const writeTextMock = global.navigator.clipboard.writeText as jest.Mock;
-    expect(writeTextMock).not.toHaveBeenCalled();
+    expect(mockCopyTextWithFeedback).not.toHaveBeenCalled();
   });
 
   it('renders native language status badge', () => {
@@ -465,8 +475,7 @@ describe('daily-knowledge-dialog', () => {
     render(<DailyKnowledgeDialog />);
     fireEvent.click(screen.getByRole('button', { name: 'dailyKnowledge.copy' }));
     await Promise.resolve();
-    const writeTextMock = global.navigator.clipboard.writeText as jest.Mock;
-    const text = writeTextMock.mock.calls[0][0] as string;
+    const text = mockCopyTextWithFeedback.mock.calls[0][0].text as string;
     expect(text).toContain('Test Copyright');
     expect(text).toContain('MIT');
   });
@@ -476,16 +485,15 @@ describe('daily-knowledge-dialog', () => {
       configurable: true,
       value: jest.fn().mockRejectedValue(new Error('share-err')),
     });
-    Object.defineProperty(global.navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: jest.fn().mockRejectedValue(new Error('clip-err')) },
-    });
+    mockCopyTextWithFeedback.mockResolvedValueOnce(false);
     render(<DailyKnowledgeDialog />);
     fireEvent.click(screen.getByRole('button', { name: 'dailyKnowledge.share' }));
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
-    expect(mockToastError).toHaveBeenCalledWith('dailyKnowledge.shareFailed');
+    expect(mockCopyTextWithFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ errorMessage: 'dailyKnowledge.shareFailed' })
+    );
   });
 
   it('filters items by category', () => {

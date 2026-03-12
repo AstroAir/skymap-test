@@ -84,6 +84,8 @@ import type {
   ObservationSession, 
   Observation, 
   ObservationStats,
+  ObservationSearchHit,
+  ObservationQueryFilters,
 } from '@/lib/tauri/types';
 import type { ObservationLogProps } from '@/types/starmap/planning';
 import type { SessionDraftV2 } from '@/types/starmap/session-planner-v2';
@@ -100,8 +102,13 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
   const [sessions, setSessions] = useState<ObservationSession[]>([]);
   const [stats, setStats] = useState<ObservationStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'sessions' | 'search' | 'stats'>('sessions');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Observation[]>([]);
+  const [searchResults, setSearchResults] = useState<ObservationSearchHit[]>([]);
+  const [searchStartDate, setSearchStartDate] = useState('');
+  const [searchEndDate, setSearchEndDate] = useState('');
+  const [searchObjectType, setSearchObjectType] = useState('all');
+  const [searchMinRating, setSearchMinRating] = useState('all');
   const [selectedSession, setSelectedSession] = useState<ObservationSession | null>(null);
   const [dateFilter, setDateFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   
@@ -110,6 +117,8 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
   const [showAddObservation, setShowAddObservation] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'session' | 'observation'; id: string; sessionId?: string } | null>(null);
   const [editingSession, setEditingSession] = useState<ObservationSession | null>(null);
+  const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
+  const [editingObservationSessionId, setEditingObservationSessionId] = useState<string | null>(null);
   
   // New session form
   const [newSessionDate, setNewSessionDate] = useState(
@@ -345,55 +354,137 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     }
   }, [syncExecutionFromObservationSession, t, updateSessionCollection]);
 
+  const resetObservationForm = useCallback(() => {
+    setObsObjectName('');
+    setObsObjectType('');
+    setObsRating(3);
+    setObsDifficulty(3);
+    setObsNotes('');
+    setObsTelescopeId('');
+    setObsCameraId('');
+    setSelectedExecutionTargetId(null);
+    setEditingObservation(null);
+    setEditingObservationSessionId(null);
+  }, []);
+
+  const buildObservationFilters = useCallback((): ObservationQueryFilters | undefined => {
+    const filters: ObservationQueryFilters = {};
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery) filters.text = trimmedQuery;
+    if (searchStartDate) filters.startDate = searchStartDate;
+    if (searchEndDate) filters.endDate = searchEndDate;
+    if (searchObjectType !== 'all') filters.objectType = searchObjectType;
+    if (searchMinRating !== 'all') filters.minRating = Number(searchMinRating);
+    return Object.keys(filters).length > 0 ? filters : undefined;
+  }, [searchEndDate, searchMinRating, searchObjectType, searchQuery, searchStartDate]);
+
   const handleOpenExecutionObservation = useCallback((session: ObservationSession, targetId: string, targetName: string) => {
     setSelectedSession(session);
+    setEditingObservation(null);
+    setEditingObservationSessionId(null);
     setSelectedExecutionTargetId(targetId);
     setObsObjectName(targetName);
     setObsObjectType('');
+    setObsRating(3);
+    setObsDifficulty(3);
+    setObsNotes('');
+    setObsTelescopeId('');
+    setObsCameraId('');
     setShowAddObservation(true);
   }, []);
 
-  // Add observation to session
-  const handleAddObservation = useCallback(async () => {
-    const targetSession = selectedSession ?? sessions.find((session) => session.id === activeSession?.id) ?? null;
-    if (!isTauri() || !targetSession) return;
-    
+  const handleStartEditObservation = useCallback((sessionId: string, observation: Observation) => {
+    const session = sessions.find((entry) => entry.id === sessionId);
+    if (!session) return;
+
+    setSelectedSession(session);
+    setEditingObservation(observation);
+    setEditingObservationSessionId(sessionId);
+    setSelectedExecutionTargetId(observation.execution_target_id ?? null);
+    setObsObjectName(observation.object_name);
+    setObsObjectType(observation.object_type || '');
+    setObsRating(observation.rating ?? 3);
+    setObsDifficulty(observation.difficulty ?? 3);
+    setObsNotes(observation.notes || '');
+    setObsTelescopeId(observation.telescope_id || '');
+    setObsCameraId(observation.camera_id || '');
+    setShowAddObservation(true);
+  }, [sessions]);
+
+  // Add or edit observation in session
+  const handleSubmitObservation = useCallback(async () => {
+    const targetSessionId = editingObservationSessionId
+      ?? selectedSession?.id
+      ?? sessions.find((session) => session.id === activeSession?.id)?.id
+      ?? null;
+    if (!isTauri() || !targetSessionId) return;
+
+    const objectName = (obsObjectName || currentSelection?.name || '').trim();
+    if (!objectName) {
+      toast.error(t('observationLog.objectNameRequired'));
+      return;
+    }
+
     try {
-      const updatedSession = await tauriApi.observationLog.addObservation(targetSession.id, {
-        object_name: obsObjectName || currentSelection?.name || '',
-        object_type: obsObjectType || currentSelection?.type,
-        ra: currentSelection?.ra,
-        dec: currentSelection?.dec,
-        constellation: currentSelection?.constellation,
-        telescope_id: obsTelescopeId || undefined,
-        camera_id: obsCameraId || undefined,
-        rating: obsRating,
-        difficulty: obsDifficulty,
-        notes: obsNotes || undefined,
-        image_paths: [],
-        execution_target_id: selectedExecutionTargetId || undefined,
-      });
-      
-      toast.success(t('observationLog.observationAdded'));
+      let updatedSession: ObservationSession;
+      if (editingObservation) {
+        updatedSession = await tauriApi.observationLog.updateObservation(targetSessionId, {
+          ...editingObservation,
+          object_name: objectName,
+          object_type: obsObjectType || undefined,
+          telescope_id: obsTelescopeId || undefined,
+          camera_id: obsCameraId || undefined,
+          rating: obsRating,
+          difficulty: obsDifficulty,
+          notes: obsNotes || undefined,
+          execution_target_id: selectedExecutionTargetId || undefined,
+          image_paths: editingObservation.image_paths ?? [],
+        });
+        setSearchResults((previous) => previous.map((entry) => (
+          entry.id === editingObservation.id && entry.session_id === targetSessionId
+            ? {
+                ...entry,
+                object_name: objectName,
+                object_type: obsObjectType || undefined,
+                telescope_id: obsTelescopeId || undefined,
+                camera_id: obsCameraId || undefined,
+                rating: obsRating,
+                difficulty: obsDifficulty,
+                notes: obsNotes || undefined,
+                execution_target_id: selectedExecutionTargetId || undefined,
+              }
+            : entry
+        )));
+      } else {
+        updatedSession = await tauriApi.observationLog.addObservation(targetSessionId, {
+          object_name: objectName,
+          object_type: obsObjectType || currentSelection?.type,
+          ra: currentSelection?.ra,
+          dec: currentSelection?.dec,
+          constellation: currentSelection?.constellation,
+          telescope_id: obsTelescopeId || undefined,
+          camera_id: obsCameraId || undefined,
+          rating: obsRating,
+          difficulty: obsDifficulty,
+          notes: obsNotes || undefined,
+          image_paths: [],
+          execution_target_id: selectedExecutionTargetId || undefined,
+        });
+      }
+
+      toast.success(t(editingObservation ? 'observationLog.observationUpdated' : 'observationLog.observationAdded'));
       setShowAddObservation(false);
-      setSelectedExecutionTargetId(null);
-      setObsObjectName('');
-      setObsObjectType('');
-      setObsRating(3);
-      setObsDifficulty(3);
-      setObsNotes('');
-      setObsTelescopeId('');
-      setObsCameraId('');
+      resetObservationForm();
       updateSessionCollection(updatedSession);
       if (updatedSession.source_plan_id && updatedSession.execution_targets?.length) {
         syncExecutionFromObservationSession(updatedSession);
       }
-      loadData();
+      await loadData();
     } catch (error) {
-      logger.error('Failed to add observation', error);
-      toast.error(t('observationLog.addFailed'));
+      logger.error('Failed to save observation', error);
+      toast.error(t(editingObservation ? 'observationLog.updateFailed' : 'observationLog.addFailed'));
     }
-  }, [selectedExecutionTargetId, selectedSession, sessions, activeSession, obsObjectName, obsObjectType, obsTelescopeId, obsCameraId, obsRating, obsDifficulty, obsNotes, currentSelection, t, loadData, syncExecutionFromObservationSession, updateSessionCollection]);
+  }, [activeSession, currentSelection, editingObservation, editingObservationSessionId, loadData, obsCameraId, obsDifficulty, obsNotes, obsObjectName, obsObjectType, obsRating, obsTelescopeId, resetObservationForm, selectedExecutionTargetId, selectedSession, sessions, syncExecutionFromObservationSession, t, updateSessionCollection]);
 
   // End session
   const handleEndSession = useCallback(async (sessionId: string) => {
@@ -433,19 +524,25 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
     try {
       await tauriApi.observationLog.deleteObservation(sessionId, observationId);
       toast.success(t('observationLog.observationDeleted'));
+      setSearchResults((previous) => previous.filter((entry) => !(entry.id === observationId && entry.session_id === sessionId)));
+      if (editingObservation?.id === observationId) {
+        setShowAddObservation(false);
+        resetObservationForm();
+      }
       loadData();
     } catch (error) {
       logger.error('Failed to delete observation', error);
       toast.error(t('observationLog.deleteFailed'));
     }
-  }, [t, loadData]);
+  }, [editingObservation, loadData, resetObservationForm, t]);
 
   // Export observation log
   const handleExport = useCallback(async (format: 'csv' | 'json') => {
     if (!isTauri()) return;
     
     try {
-      const data = await tauriApi.observationLog.exportLog(format);
+      const filters = buildObservationFilters();
+      const data = await tauriApi.observationLog.exportLog(format, filters);
       const blob = new Blob([data], { type: format === 'csv' ? 'text/csv' : 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -453,12 +550,12 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       a.download = `observation-log.${format}`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(t('observationLog.exportSuccess'));
+      toast.success(t(filters ? 'observationLog.exportFilteredSuccess' : 'observationLog.exportSuccess'));
     } catch (error) {
       logger.error('Export failed', error);
       toast.error(t('observationLog.exportFailed'));
     }
-  }, [t]);
+  }, [buildObservationFilters, t]);
 
   const handleExportExecution = useCallback(async (format: ExecutionExportFormat) => {
     if (!isTauri() || !activeExecutionSession) return;
@@ -478,15 +575,15 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
 
   // Search observations
   const handleSearch = useCallback(async () => {
-    if (!isTauri() || !searchQuery.trim()) return;
+    if (!isTauri()) return;
     
     try {
-      const results = await tauriApi.observationLog.search(searchQuery);
+      const results = await tauriApi.observationLog.search(buildObservationFilters() ?? {});
       setSearchResults(results);
     } catch (error) {
       logger.error('Search failed', error);
     }
-  }, [searchQuery]);
+  }, [buildObservationFilters]);
 
   // Format date
   const formatDate = (dateStr: string) => {
@@ -553,7 +650,11 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
               <p>{t('observationLog.desktopOnly')}</p>
             </div>
           ) : (
-            <Tabs defaultValue="sessions" className="flex-1">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as 'sessions' | 'search' | 'stats')}
+              className="flex-1"
+            >
               <TabsList className="mx-4 grid w-[calc(100%-2rem)] grid-cols-3">
                 <TabsTrigger value="sessions">
                   {t('observationLog.sessions')}
@@ -805,6 +906,18 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                         <span className="truncate">{obs.object_name}</span>
                                         <div className="flex items-center gap-1">
                                           {obs.rating ? <StarRating value={obs.rating} /> : null}
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 opacity-0 group-hover/obs:opacity-100"
+                                            data-testid={`observation-log-edit-observation-${obs.id}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleStartEditObservation(session.id, obs);
+                                            }}
+                                          >
+                                            <Pencil className="h-2.5 w-2.5" />
+                                          </Button>
                                           {!session.end_time && (
                                             <Button
                                               variant="ghost"
@@ -839,7 +952,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setSelectedSession(session);
-                                        setSelectedExecutionTargetId(null);
+                                        resetObservationForm();
                                         setShowAddObservation(true);
                                       }}
                                     >
@@ -894,6 +1007,76 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                       <Search className="h-4 w-4" />
                     </Button>
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('observationLog.filterFromDate')}</Label>
+                      <Input
+                        type="date"
+                        value={searchStartDate}
+                        onChange={(e) => setSearchStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('observationLog.filterToDate')}</Label>
+                      <Input
+                        type="date"
+                        value={searchEndDate}
+                        onChange={(e) => setSearchEndDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('observationLog.filterObjectType')}</Label>
+                      <Select value={searchObjectType} onValueChange={setSearchObjectType}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t('observationLog.filterAny')}</SelectItem>
+                          <SelectItem value="galaxy">{t('objects.galaxy')}</SelectItem>
+                          <SelectItem value="nebula">{t('objects.nebula')}</SelectItem>
+                          <SelectItem value="cluster">{t('observationLog.cluster')}</SelectItem>
+                          <SelectItem value="planetary">{t('objects.planetaryNebula')}</SelectItem>
+                          <SelectItem value="star">{t('objects.star')}</SelectItem>
+                          <SelectItem value="double">{t('objects.doubleStar')}</SelectItem>
+                          <SelectItem value="planet">{t('objects.planet')}</SelectItem>
+                          <SelectItem value="moon">{t('objects.moon')}</SelectItem>
+                          <SelectItem value="other">{t('observationLog.other')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('observationLog.filterMinRating')}</Label>
+                      <Select value={searchMinRating} onValueChange={setSearchMinRating}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t('observationLog.filterAny')}</SelectItem>
+                          <SelectItem value="1">1+</SelectItem>
+                          <SelectItem value="2">2+</SelectItem>
+                          <SelectItem value="3">3+</SelectItem>
+                          <SelectItem value="4">4+</SelectItem>
+                          <SelectItem value="5">5</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSearchStartDate('');
+                        setSearchEndDate('');
+                        setSearchObjectType('all');
+                        setSearchMinRating('all');
+                        setSearchResults([]);
+                      }}
+                    >
+                      {t('observationLog.clearFilters')}
+                    </Button>
+                  </div>
 
                   <ScrollArea className="flex-1 min-h-0">
                     {searchResults.length === 0 ? (
@@ -901,7 +1084,7 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                     ) : (
                       <div className="space-y-2">
                         {searchResults.map((obs) => (
-                          <div key={obs.id} className="p-3 rounded-lg bg-muted/50 border border-border">
+                          <div key={`${obs.session_id}-${obs.id}`} className="p-3 rounded-lg bg-muted/50 border border-border">
                             <div className="flex items-start justify-between">
                               <div>
                                 <p className="font-medium">{obs.object_name}</p>
@@ -916,9 +1099,47 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
                             {obs.notes && (
                               <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{obs.notes}</p>
                             )}
+                            <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>{formatDate(obs.session_date)}</span>
+                              {obs.session_location_name && (
+                                <>
+                                  <span>•</span>
+                                  <MapPin className="h-3 w-3" />
+                                  <span>{obs.session_location_name}</span>
+                                </>
+                              )}
+                            </div>
                             <p className="text-[10px] text-muted-foreground mt-1">
                               {formatDate(obs.observed_at)}
                             </p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                data-testid={`observation-log-open-session-${obs.session_id}-${obs.id}`}
+                                onClick={() => {
+                                  const session = sessions.find((entry) => entry.id === obs.session_id);
+                                  if (!session) return;
+                                  setSelectedSession(session);
+                                  setActiveTab('sessions');
+                                }}
+                              >
+                                {t('observationLog.openSession')}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  handleStartEditObservation(obs.session_id, obs);
+                                  setActiveTab('sessions');
+                                }}
+                              >
+                                {t('common.edit')}
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1148,12 +1369,20 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
       </Dialog>
 
       {/* Add Observation Dialog */}
-      <Dialog open={showAddObservation} onOpenChange={setShowAddObservation}>
+      <Dialog
+        open={showAddObservation}
+        onOpenChange={(nextOpen) => {
+          setShowAddObservation(nextOpen);
+          if (!nextOpen) {
+            resetObservationForm();
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>{t('observationLog.addObservation')}</DialogTitle>
+            <DialogTitle>{editingObservation ? t('observationLog.editObservation') : t('observationLog.addObservation')}</DialogTitle>
             <DialogDescription>
-              {t('observationLog.addObsDesc')}
+              {editingObservation ? t('observationLog.editObsDesc') : t('observationLog.addObsDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1257,11 +1486,11 @@ export function ObservationLog({ currentSelection }: ObservationLogProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddObservation(false)}>
+            <Button variant="outline" onClick={() => { setShowAddObservation(false); resetObservationForm(); }}>
               {t('common.cancel')}
             </Button>
-            <Button onClick={handleAddObservation}>
-              {t('observationLog.addObservation')}
+            <Button onClick={handleSubmitObservation}>
+              {editingObservation ? t('common.save') : t('observationLog.addObservation')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -72,6 +72,26 @@ jest.mock('@/lib/logger', () => ({
   createLogger: () => ({ error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() }),
 }));
 
+jest.mock('@/lib/cache', () => ({
+  getCacheProviderDiagnostics: () => ({
+    providerId: 'browser-cache-api',
+    available: true,
+    supportsPersistent: true,
+    supportsClear: true,
+    supportsCleanup: false,
+    supportsFlush: false,
+    supportsInterception: true,
+  }),
+  getCacheDiagnosticsSummary: () => ({
+    total: 4,
+    persistentShared: 2,
+    localOnly: 1,
+    uncached: 1,
+    active: 2,
+    degraded: 0,
+  }),
+}));
+
 // Mock UI components
 jest.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, disabled, ...props }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (

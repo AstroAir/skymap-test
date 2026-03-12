@@ -1,14 +1,41 @@
 import type {
   DailyKnowledgeAttribution,
   DailyKnowledgeCategory,
+  DailyKnowledgeDifficulty,
   DailyKnowledgeFactSource,
   DailyKnowledgeItem,
   DailyKnowledgeLanguageStatus,
   DailyKnowledgeRelatedObject,
 } from './types';
+import {
+  DAILY_KNOWLEDGE_ALL_MONTHS,
+  DAILY_KNOWLEDGE_DIFFICULTY_LEVELS,
+} from './constants';
 
 function normalizeCategories(categories: DailyKnowledgeCategory[]): DailyKnowledgeCategory[] {
   return categories.length > 0 ? categories : ['culture'];
+}
+
+function normalizeDifficulty(difficulty?: DailyKnowledgeDifficulty): DailyKnowledgeDifficulty {
+  if (!difficulty) return 'intermediate';
+  if ((DAILY_KNOWLEDGE_DIFFICULTY_LEVELS as readonly string[]).includes(difficulty)) {
+    return difficulty;
+  }
+  return 'intermediate';
+}
+
+function normalizeBestViewingMonths(bestViewingMonths?: number[]): number[] {
+  const normalized = (bestViewingMonths ?? [])
+    .map((value) => Math.trunc(value))
+    .filter((value) => value >= 1 && value <= 12);
+  if (normalized.length === 0) {
+    return [...DAILY_KNOWLEDGE_ALL_MONTHS];
+  }
+  return Array.from(new Set(normalized)).sort((a, b) => a - b);
+}
+
+function normalizeObservationTips(observationTips?: string[]): string[] {
+  return (observationTips ?? []).map((tip) => tip.trim()).filter(Boolean);
 }
 
 export function buildItem(params: {
@@ -28,6 +55,9 @@ export function buildItem(params: {
   isDateEvent?: boolean;
   eventMonthDay?: string;
   factSources?: DailyKnowledgeFactSource[];
+  difficulty?: DailyKnowledgeDifficulty;
+  bestViewingMonths?: number[];
+  observationTips?: string[];
   languageStatus?: DailyKnowledgeLanguageStatus;
   fetchedAt?: number;
 }): DailyKnowledgeItem {
@@ -48,6 +78,9 @@ export function buildItem(params: {
     isDateEvent: params.isDateEvent ?? false,
     eventMonthDay: params.eventMonthDay,
     factSources: params.factSources ?? [],
+    difficulty: normalizeDifficulty(params.difficulty),
+    bestViewingMonths: normalizeBestViewingMonths(params.bestViewingMonths),
+    observationTips: normalizeObservationTips(params.observationTips),
     languageStatus: params.languageStatus ?? 'native',
     fetchedAt: params.fetchedAt ?? Date.now(),
   };

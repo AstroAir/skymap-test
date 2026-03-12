@@ -5,6 +5,7 @@
 
 import { isTauri } from '@/lib/storage/platform';
 import { mapKeysApi } from './map-keys-api';
+import { positionerApi } from './positioner-api';
 import type {
   EquipmentData,
   Telescope,
@@ -19,6 +20,8 @@ import type {
   Observation,
   ObservationStats,
   CreatePlannedSessionPayload,
+  ObservationQueryFilters,
+  ObservationSearchHit,
   TargetExportItem,
   ImportTargetsResult,
   ExportFormat,
@@ -162,6 +165,11 @@ export const locationsApi = {
     return invoke('set_current_location', { locationId });
   },
 
+  async setDefault(locationId: string): Promise<LocationsData> {
+    const invoke = await getInvoke();
+    return invoke('set_default_location', { locationId });
+  },
+
   async getCurrent(): Promise<ObservationLocation | null> {
     const invoke = await getInvoke();
     return invoke('get_current_location');
@@ -227,9 +235,26 @@ export const observationLogApi = {
     return invoke('get_observation_stats');
   },
 
-  async search(query: string): Promise<Observation[]> {
+  async search(
+    queryOrFilters?: string | ObservationQueryFilters,
+    filtersArg?: ObservationQueryFilters,
+  ): Promise<ObservationSearchHit[]> {
     const invoke = await getInvoke();
-    return invoke('search_observations', { query });
+
+    let query: string | undefined;
+    let filters: ObservationQueryFilters | undefined = filtersArg;
+
+    if (typeof queryOrFilters === 'string') {
+      query = queryOrFilters;
+      if (filters && !filters.text) {
+        filters = { ...filters, text: queryOrFilters };
+      }
+    } else if (queryOrFilters) {
+      filters = queryOrFilters;
+      query = queryOrFilters.text;
+    }
+
+    return invoke('search_observations', { query, filters });
   },
 
   async updateObservation(
@@ -248,9 +273,12 @@ export const observationLogApi = {
     return invoke('delete_observation', { sessionId, observationId });
   },
 
-  async exportLog(format: 'csv' | 'json'): Promise<string> {
+  async exportLog(
+    format: 'csv' | 'json',
+    filters?: ObservationQueryFilters,
+  ): Promise<string> {
     const invoke = await getInvoke();
-    return invoke('export_observation_log', { format });
+    return invoke('export_observation_log', { format, filters });
   },
 };
 
@@ -367,6 +395,7 @@ export const tauriApi = {
   sessionIo: sessionIoApi,
   appSettings: appSettingsApi,
   mapKeys: mapKeysApi,
+  positioner: positionerApi,
   
   /** Check if Tauri API is available */
   isAvailable: isTauri,

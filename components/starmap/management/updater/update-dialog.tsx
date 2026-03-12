@@ -3,13 +3,13 @@
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -266,18 +266,20 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t('title')}</DialogTitle>
-          <DialogDescription>
+    <ResponsiveDialog open={open} onOpenChange={handleClose} tier="standard-form">
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[92vh] max-h-[92dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{t('title')}</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             {t('description')}
-          </DialogDescription>
-        </DialogHeader>
-        
-        {renderContent()}
-        
-        <DialogFooter className="gap-2 sm:gap-0">
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+          {renderContent()}
+        </div>
+
+        <ResponsiveDialogFooter stickyOnMobile className="gap-2 sm:gap-0">
           {hasUpdate && !isDownloading && !isReady && (
             <>
               <Button variant="ghost" size="sm" onClick={handleSkipVersion}>
@@ -307,8 +309,8 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
               {t('close')}
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

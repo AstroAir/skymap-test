@@ -33,6 +33,7 @@ export type ShortcutActionId =
   | 'TOGGLE_GRID'
   | 'TOGGLE_DSO'
   | 'TOGGLE_ATMOSPHERE'
+  | 'TOGGLE_AR'
   | 'PAUSE_TIME'
   | 'SPEED_UP'
   | 'SLOW_DOWN'
@@ -54,6 +55,7 @@ export const DEFAULT_KEYBINDINGS: Record<ShortcutActionId, KeyBinding> = {
   TOGGLE_GRID: { key: 'g' },
   TOGGLE_DSO: { key: 'd' },
   TOGGLE_ATMOSPHERE: { key: 'a' },
+  TOGGLE_AR: { key: 'A', shift: true },
   PAUSE_TIME: { key: ' ' },
   SPEED_UP: { key: ']' },
   SLOW_DOWN: { key: '[' },

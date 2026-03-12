@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { formatBytes } from '@/lib/offline';
+import { getCacheDiagnosticsSummary, getCacheIntegrationDiagnostics, getCacheProviderDiagnostics } from '@/lib/cache';
 import { EmptyState } from '@/components/ui/empty-state';
 import { unifiedCacheApi } from '@/lib/tauri';
 import { isTauri } from '@/lib/storage/platform';
@@ -40,6 +42,9 @@ export function CacheUnifiedTab({ isActive }: CacheUnifiedTabProps) {
   const [unifiedCacheStats, setUnifiedCacheStats] = useState<{ total_entries: number; total_size: number; hit_rate: number } | null>(null);
   const [unifiedCacheKeys, setUnifiedCacheKeys] = useState<string[]>([]);
   const [loadingUnified, setLoadingUnified] = useState(false);
+  const providerDiagnostics = getCacheProviderDiagnostics();
+  const integrationDiagnostics = getCacheIntegrationDiagnostics();
+  const diagnosticsSummary = getCacheDiagnosticsSummary();
 
   const refreshUnifiedCache = useCallback(async () => {
     if (!isTauri() || !unifiedCacheApi.isAvailable()) return;
@@ -90,6 +95,19 @@ export function CacheUnifiedTab({ isActive }: CacheUnifiedTabProps) {
     }
   }, [t, refreshUnifiedCache]);
 
+  const handleFlushUnifiedCache = useCallback(async () => {
+    if (!isTauri() || !unifiedCacheApi.isAvailable() || !providerDiagnostics.supportsFlush) return;
+
+    try {
+      await unifiedCacheApi.flush();
+      toast.success(t('cache.flushComplete'));
+      await refreshUnifiedCache();
+    } catch (error) {
+      toast.error(t('cache.flushFailed'));
+      logger.error('Failed to flush unified cache', error);
+    }
+  }, [providerDiagnostics.supportsFlush, refreshUnifiedCache, t]);
+
   useEffect(() => {
     if (isActive && isTauri() && unifiedCacheApi.isAvailable()) {
       refreshUnifiedCache();
@@ -105,6 +123,37 @@ export function CacheUnifiedTab({ isActive }: CacheUnifiedTabProps) {
         </div>
       ) : unifiedCacheStats ? (
         <>
+          <div className="space-y-2 rounded border border-border/60 bg-muted/20 p-3 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('cache.provider')}</span>
+              <Badge variant="outline">
+                {providerDiagnostics.providerId === 'tauri-unified-cache'
+                  ? t('cache.providerDesktop')
+                  : providerDiagnostics.providerId === 'browser-cache-api'
+                    ? t('cache.providerBrowser')
+                    : t('cache.providerUnavailable')}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="rounded bg-background/60 p-2">
+                <div className="font-medium">{diagnosticsSummary.total}</div>
+                <div className="text-muted-foreground">{t('cache.integrationAudit')}</div>
+              </div>
+              <div className="rounded bg-background/60 p-2">
+                <div className="font-medium">{diagnosticsSummary.persistentShared}</div>
+                <div className="text-muted-foreground">{t('cache.persistentShared')}</div>
+              </div>
+              <div className="rounded bg-background/60 p-2">
+                <div className="font-medium">{diagnosticsSummary.localOnly}</div>
+                <div className="text-muted-foreground">{t('cache.localOnly')}</div>
+              </div>
+              <div className="rounded bg-background/60 p-2">
+                <div className="font-medium">{diagnosticsSummary.uncached}</div>
+                <div className="text-muted-foreground">{t('cache.uncachedByDesign')}</div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-3 text-sm">
             <div className="text-center p-2 bg-muted/30 rounded">
               <div className="font-medium">{unifiedCacheStats.total_entries}</div>
@@ -126,9 +175,20 @@ export function CacheUnifiedTab({ isActive }: CacheUnifiedTabProps) {
               size="sm"
               onClick={handleCleanupUnifiedCache}
               className="flex-1"
+              disabled={!providerDiagnostics.supportsCleanup}
             >
               <RefreshCw className="h-4 w-4 mr-1" />
               {t('cache.cleanup')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFlushUnifiedCache}
+              className="flex-1"
+              disabled={!providerDiagnostics.supportsFlush}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              {t('cache.flush')}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -136,7 +196,7 @@ export function CacheUnifiedTab({ isActive }: CacheUnifiedTabProps) {
                   variant="outline"
                   size="sm"
                   className="flex-1 text-destructive hover:text-destructive"
-                  disabled={unifiedCacheStats.total_entries === 0}
+                  disabled={unifiedCacheStats.total_entries === 0 || !providerDiagnostics.supportsClear}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
                   {t('cache.clearAll')}
@@ -187,6 +247,24 @@ export function CacheUnifiedTab({ isActive }: CacheUnifiedTabProps) {
               </ScrollArea>
             </div>
           )}
+
+          <div>
+            <h4 className="mb-2 text-sm font-medium">{t('cache.integrationAudit')}</h4>
+            <div className="space-y-1">
+              {integrationDiagnostics.map((integration) => (
+                <div key={integration.id} className="flex items-center justify-between rounded bg-muted/30 p-2 text-xs">
+                  <span className="truncate pr-2">{integration.title}</span>
+                  <Badge variant="outline">
+                    {integration.cacheMode === 'persistent-shared'
+                      ? t('cache.persistentShared')
+                      : integration.cacheMode === 'local-only'
+                        ? t('cache.localOnly')
+                        : t('cache.uncachedByDesign')}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
         </>
       ) : (
         <EmptyState

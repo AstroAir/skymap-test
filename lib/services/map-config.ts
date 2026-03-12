@@ -5,8 +5,10 @@
 
 import type { MapProviderConfig } from './map-providers/base-map-provider';
 import { mapKeysApi } from '@/lib/tauri/map-keys-api';
+import { secretVaultApi } from '@/lib/tauri/secret-vault-api';
 import { isTauri } from '@/lib/storage/platform';
 import { createLogger } from '@/lib/logger';
+import { TILE_LAYER_CONFIGS, type TileLayerType } from '@/lib/constants/map';
 
 const logger = createLogger('map-config');
 
@@ -16,6 +18,7 @@ export interface MapApiKey {
   id: string;
   provider: 'openstreetmap' | 'google' | 'mapbox';
   apiKey: string;
+  hasStoredSecret?: boolean;
   label?: string;
   isDefault?: boolean;
   isActive?: boolean;
@@ -37,6 +40,7 @@ export interface MapApiKey {
 export interface MapApiKeyMeta {
   id: string;
   provider: 'openstreetmap' | 'google' | 'mapbox';
+  hasStoredSecret?: boolean;
   label?: string;
   isDefault?: boolean;
   isActive?: boolean;
@@ -71,6 +75,12 @@ export interface MapProviderSettings {
   maxRetries?: number;
 }
 
+export interface MapUiPreferences {
+  tileLayer: TileLayerType;
+  zoom: number;
+  showLightPollution: boolean;
+}
+
 export interface MapConfiguration {
   defaultProvider: 'openstreetmap' | 'google' | 'mapbox';
   providers: MapProviderSettings[];
@@ -84,6 +94,7 @@ export interface MapConfiguration {
   offlineFallbackProvider?: 'openstreetmap';
   policyMode: 'strict' | 'balanced' | 'legacy';
   searchBehaviorWhenNoAutocomplete: 'submit-only' | 'disabled';
+  uiPreferences: MapUiPreferences;
   configVersion: number;
 }
 
@@ -152,13 +163,13 @@ class MapConfigurationService {
       offlineFallbackProvider: 'openstreetmap',
       policyMode: 'strict',
       searchBehaviorWhenNoAutocomplete: 'submit-only',
+      uiPreferences: {
+        tileLayer: 'openstreetmap',
+        zoom: 10,
+        showLightPollution: false,
+      },
       configVersion: CURRENT_CONFIG_VERSION,
     };
-  }
-
-  private obfuscateKey(key: string): string {
-    if (typeof btoa === 'undefined') return key;
-    return btoa(key);
   }
 
   private deobfuscateKey(encoded: string): string {
@@ -171,10 +182,15 @@ class MapConfigurationService {
   }
 
   private normalizeConfiguration(config: Partial<MapConfiguration>): MapConfiguration {
+    const defaults = this.getDefaultConfiguration();
     return {
-      ...this.getDefaultConfiguration(),
+      ...defaults,
       ...config,
       apiKeys: config.apiKeys ?? [],
+      uiPreferences: {
+        ...defaults.uiPreferences,
+        ...(config.uiPreferences ?? {}),
+      },
       configVersion: config.configVersion ?? CURRENT_CONFIG_VERSION,
     };
   }
@@ -204,21 +220,12 @@ class MapConfigurationService {
   }
 
   private sanitizeForStorage(): MapConfiguration {
-    if (this.isTauriEnv()) {
-      return {
-        ...this.config,
-        apiKeys: this.config.apiKeys.map(k => ({
-          ...k,
-          apiKey: '',
-        })),
-      };
-    }
-
     return {
       ...this.config,
       apiKeys: this.config.apiKeys.map(k => ({
         ...k,
-        apiKey: this.obfuscateKey(k.apiKey),
+        apiKey: '',
+        hasStoredSecret: this.isTauriEnv() ? (k.hasStoredSecret ?? !!k.apiKey) : false,
       })),
     };
   }
@@ -251,46 +258,70 @@ class MapConfigurationService {
   }
 
   private async persistKeyToSecureStore(key: MapApiKey): Promise<void> {
-    if (!this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
-    await mapKeysApi.save({
-      ...this.toMeta(key),
-      apiKey: key.apiKey,
-    });
+    const value = key.apiKey.trim();
+    if (!value) {
+      return;
+    }
+
+    await secretVaultApi.setMapApiKey(key.provider, key.id, value);
   }
 
-  private async removeKeyFromSecureStore(keyId: string): Promise<void> {
-    if (!this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
-    await mapKeysApi.remove(keyId);
-  }
-
-  private setActiveKeyInSecureStore(provider: 'openstreetmap' | 'google' | 'mapbox', keyId: string): void {
-    if (!this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
-    void mapKeysApi.setActive(provider, keyId).catch(error => logger.warn('Failed to set active key in secure store', error));
+  private async removeKeyFromSecureStore(key: Pick<MapApiKey, 'id' | 'provider'>): Promise<void> {
+    await secretVaultApi.deleteMapApiKey(key.provider, key.id);
   }
 
   private async initializeSecureKeys(): Promise<void> {
-    if (this.secureKeysInitialized || !this.isTauriEnv() || !mapKeysApi.isAvailable()) return;
+    if (this.secureKeysInitialized) return;
     this.secureKeysInitialized = true;
 
-    try {
-      const metas = await mapKeysApi.listMeta();
-      const legacyKeys = this.config.apiKeys.filter(k => !!k.apiKey);
+    if (!this.isTauriEnv()) {
+      if (this.config.apiKeys.some((key) => !!key.apiKey)) {
+        this.saveConfiguration();
+      }
+      return;
+    }
 
-      // First-run migration: move locally stored keys to secure storage.
-      if (metas.length === 0 && legacyKeys.length > 0 && typeof window !== 'undefined' && !localStorage.getItem(this.MIGRATION_KEY)) {
-        await this.migrateLegacyKeysToSecureStore(legacyKeys);
+    try {
+      const metadataById = new Map(this.config.apiKeys.map((key) => [key.id, { ...this.toMeta(key) }]));
+      const legacyMetas = await mapKeysApi.listMeta().catch(() => []);
+      for (const meta of legacyMetas) {
+        if (!metadataById.has(meta.id)) {
+          metadataById.set(meta.id, { ...meta, hasStoredSecret: true });
+        }
       }
 
-      const refreshedMetas = await mapKeysApi.listMeta();
       const secureKeys: MapApiKey[] = [];
-      for (const meta of refreshedMetas) {
-        const apiKey = await mapKeysApi.get(meta.id);
-        if (!apiKey) continue;
-        secureKeys.push({ ...meta, apiKey });
+      let shouldScrubLegacyStorage = false;
+
+      for (const meta of metadataById.values()) {
+        const legacyInConfig = this.config.apiKeys.find((key) => key.id === meta.id)?.apiKey?.trim() ?? '';
+        let apiKey = legacyInConfig || await secretVaultApi.getMapApiKey(meta.provider, meta.id);
+
+        if (!apiKey) {
+          apiKey = await mapKeysApi.get(meta.id).catch(() => null);
+          if (apiKey) {
+            await secretVaultApi.setMapApiKey(meta.provider, meta.id, apiKey);
+            shouldScrubLegacyStorage = true;
+          }
+        }
+
+        if (legacyInConfig && (!apiKey || apiKey !== legacyInConfig)) {
+          await secretVaultApi.setMapApiKey(meta.provider, meta.id, legacyInConfig);
+          apiKey = legacyInConfig;
+          shouldScrubLegacyStorage = true;
+        }
+
+        secureKeys.push({
+          ...meta,
+          apiKey: apiKey ?? '',
+          hasStoredSecret: !!apiKey,
+        });
       }
 
       this.config.apiKeys = secureKeys;
-      this.saveConfiguration();
+      if (shouldScrubLegacyStorage || secureKeys.some((key) => !!key.apiKey)) {
+        this.saveConfiguration();
+      }
     } catch (error) {
       logger.warn('Failed to initialize secure map keys', error);
     }
@@ -333,7 +364,12 @@ class MapConfigurationService {
       ...this.config,
       providers: this.config.providers.map(p => ({ ...p, config: { ...p.config } })),
       apiKeys: this.config.apiKeys.map(k => ({ ...k, quota: k.quota ? { ...k.quota } : undefined })),
+      uiPreferences: { ...this.config.uiPreferences },
     };
+  }
+
+  getUiPreferences(): MapUiPreferences {
+    return { ...this.config.uiPreferences };
   }
 
   getDefaultProvider(): 'openstreetmap' | 'google' | 'mapbox' {
@@ -401,6 +437,7 @@ class MapConfigurationService {
       ...apiKey,
       id,
       createdAt: new Date().toISOString(),
+      hasStoredSecret: !!apiKey.apiKey,
     };
 
     const existingKeys = this.getApiKeys(apiKey.provider);
@@ -421,6 +458,9 @@ class MapConfigurationService {
       this.config.apiKeys[keyIndex] = {
         ...this.config.apiKeys[keyIndex],
         ...updates,
+        hasStoredSecret: updates.apiKey !== undefined
+          ? !!updates.apiKey
+          : (updates.hasStoredSecret ?? this.config.apiKeys[keyIndex].hasStoredSecret),
       };
       this.saveConfiguration();
       void this.persistKeyToSecureStore(this.config.apiKeys[keyIndex]);
@@ -450,7 +490,9 @@ class MapConfigurationService {
     }
 
     this.saveConfiguration();
-    void this.removeKeyFromSecureStore(id);
+    if (removed) {
+      void this.removeKeyFromSecureStore(removed);
+    }
   }
 
   setDefaultApiKey(keyId: string): void {
@@ -467,7 +509,6 @@ class MapConfigurationService {
       key.lastUsed = new Date().toISOString();
       this.saveConfiguration();
       void this.persistKeyToSecureStore(key);
-      this.setActiveKeyInSecureStore(key.provider, key.id);
     }
   }
 
@@ -483,7 +524,6 @@ class MapConfigurationService {
       selectedKey.isActive = true;
       selectedKey.lastUsed = new Date().toISOString();
       void this.persistKeyToSecureStore(selectedKey);
-      this.setActiveKeyInSecureStore(provider, keyId);
     }
 
     this.saveConfiguration();
@@ -587,6 +627,14 @@ class MapConfigurationService {
     this.saveConfiguration();
   }
 
+  setUiPreferences(updates: Partial<MapUiPreferences>): void {
+    this.config.uiPreferences = {
+      ...this.config.uiPreferences,
+      ...updates,
+    };
+    this.saveConfiguration();
+  }
+
   addConfigurationListener(listener: (config: MapConfiguration) => void): () => void {
     this.listeners.push(listener);
     return () => {
@@ -655,6 +703,34 @@ class MapConfigurationService {
 
     if (c.cacheDuration !== undefined && (typeof c.cacheDuration !== 'number' || c.cacheDuration < 0)) {
       throw new Error('cacheDuration must be a non-negative number');
+    }
+
+    if (c.uiPreferences !== undefined) {
+      if (typeof c.uiPreferences !== 'object' || c.uiPreferences === null) {
+        throw new Error('uiPreferences must be an object');
+      }
+      const uiPreferences = c.uiPreferences as Record<string, unknown>;
+      if (
+        uiPreferences.tileLayer !== undefined
+        && (
+          typeof uiPreferences.tileLayer !== 'string'
+          || !(uiPreferences.tileLayer in TILE_LAYER_CONFIGS)
+        )
+      ) {
+        throw new Error(`Invalid uiPreferences.tileLayer: ${uiPreferences.tileLayer}`);
+      }
+      if (
+        uiPreferences.zoom !== undefined
+        && (typeof uiPreferences.zoom !== 'number' || uiPreferences.zoom < 0 || !Number.isFinite(uiPreferences.zoom))
+      ) {
+        throw new Error('uiPreferences.zoom must be a non-negative finite number');
+      }
+      if (
+        uiPreferences.showLightPollution !== undefined
+        && typeof uiPreferences.showLightPollution !== 'boolean'
+      ) {
+        throw new Error('uiPreferences.showLightPollution must be a boolean');
+      }
     }
 
     if (c.providers !== undefined) {

@@ -10,6 +10,7 @@
 export interface KeyboardShortcutsManagerProps {
   onToggleSearch?: () => void;
   onToggleSessionPanel?: () => void;
+  onToggleAr?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onResetView?: () => void;

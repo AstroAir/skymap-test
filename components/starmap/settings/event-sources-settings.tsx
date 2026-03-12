@@ -36,6 +36,7 @@ import {
 import { useEventSourcesStore, type EventSourceConfig } from '@/lib/stores';
 import { smartFetch } from '@/lib/services/http-fetch';
 import { createLogger } from '@/lib/logger';
+import { isTauri } from '@/lib/storage/platform';
 
 const logger = createLogger('event-sources-settings');
 
@@ -206,7 +207,9 @@ function EditSourceDialog({
               placeholder={t('eventSources.apiKeyPlaceholder')}
             />
             <p className="text-[11px] text-muted-foreground">
-              {t('eventSources.apiKeyHint')}
+              {isTauri()
+                ? t('eventSources.apiKeyHint')
+                : `${t('eventSources.apiKeyHint')} ${t('eventSources.description')}`}
             </p>
           </div>
         </div>
@@ -332,7 +335,7 @@ export function EventSourcesSettings() {
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    {source.apiKey && (
+                    {(source.hasStoredSecret || source.apiKey) && (
                       <Badge
                         variant="outline"
                         className="text-[9px] h-4 text-green-500 border-green-500/30"

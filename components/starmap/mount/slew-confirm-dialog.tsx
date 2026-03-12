@@ -6,13 +6,13 @@ import { Crosshair, AlertTriangle, Loader2, ShieldCheck, ShieldAlert } from 'luc
 
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -100,19 +100,19 @@ export function SlewConfirmDialog({
   const decDisplay = degreesToDMS(targetDec);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="compact-confirmation">
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[92vh] max-h-[92dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             <Crosshair className="h-4 w-4" />
             {t('slewConfirm')}
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             {t('slewConfirmDescription')}
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        <div className="space-y-3 py-2">
+        <div className="space-y-3 py-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           {/* Target info */}
           <Card className="py-3 gap-0 shadow-none">
             <CardContent className="px-3 space-y-1">
@@ -173,7 +173,7 @@ export function SlewConfirmDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <ResponsiveDialogFooter stickyOnMobile>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('cancel')}
           </Button>
@@ -186,8 +186,8 @@ export function SlewConfirmDialog({
             <Crosshair className="h-4 w-4 mr-2" />
             {hasDanger ? t('slewAnyway') : t('startSlew')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

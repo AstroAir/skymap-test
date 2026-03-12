@@ -22,7 +22,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -32,11 +36,33 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useWindowControls } from "@/lib/hooks/use-window-controls";
+import type { WindowPositionPreset } from "@/lib/tauri/positioner-api";
 
 interface AppControlMenuProps {
   className?: string;
   variant?: "dropdown" | "inline";
 }
+
+const screenPositionItems: Array<{ preset: WindowPositionPreset; labelKey: string }> = [
+  { preset: "TopLeft", labelKey: "positionTopLeft" },
+  { preset: "TopCenter", labelKey: "positionTopCenter" },
+  { preset: "TopRight", labelKey: "positionTopRight" },
+  { preset: "LeftCenter", labelKey: "positionLeftCenter" },
+  { preset: "Center", labelKey: "positionCenter" },
+  { preset: "RightCenter", labelKey: "positionRightCenter" },
+  { preset: "BottomLeft", labelKey: "positionBottomLeft" },
+  { preset: "BottomCenter", labelKey: "positionBottomCenter" },
+  { preset: "BottomRight", labelKey: "positionBottomRight" },
+];
+
+const trayPositionItems: Array<{ preset: WindowPositionPreset; labelKey: string }> = [
+  { preset: "TrayLeft", labelKey: "positionTrayLeft" },
+  { preset: "TrayCenter", labelKey: "positionTrayCenter" },
+  { preset: "TrayRight", labelKey: "positionTrayRight" },
+  { preset: "TrayBottomLeft", labelKey: "positionTrayBottomLeft" },
+  { preset: "TrayBottomCenter", labelKey: "positionTrayBottomCenter" },
+  { preset: "TrayBottomRight", labelKey: "positionTrayBottomRight" },
+];
 
 export function AppControlMenu({ className, variant = "dropdown" }: AppControlMenuProps) {
   const t = useTranslations("appControl");
@@ -45,6 +71,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
     isMaximized,
     isFullscreen,
     isPinned,
+    isTrayReady,
     handleMinimize,
     handleMaximize,
     handleCloseWithSave: handleClose,
@@ -54,6 +81,7 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
     handleToggleFullscreen,
     handleTogglePin,
     handleCenterWindow,
+    handleMoveWindow,
     handleWebReload,
   } = useWindowControls();
 
@@ -264,6 +292,37 @@ export function AppControlMenu({ className, variant = "dropdown" }: AppControlMe
               <Move className="mr-2 h-4 w-4" />
               {t("centerWindow")}
             </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Move className="mr-2 h-4 w-4" />
+                {t("moveWindow")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-52">
+                <DropdownMenuLabel>{t("screenPositions")}</DropdownMenuLabel>
+                {screenPositionItems.map((item) => (
+                  <DropdownMenuItem
+                    key={item.preset}
+                    onClick={() => handleMoveWindow(item.preset)}
+                  >
+                    {t(item.labelKey)}
+                  </DropdownMenuItem>
+                ))}
+                {isTrayReady && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>{t("trayPositions")}</DropdownMenuLabel>
+                    {trayPositionItems.map((item) => (
+                      <DropdownMenuItem
+                        key={item.preset}
+                        onClick={() => handleMoveWindow(item.preset)}
+                      >
+                        {t(item.labelKey)}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleMinimize}>
               <Minus className="mr-2 h-4 w-4" />

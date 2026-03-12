@@ -2,7 +2,13 @@
 
 import { useState, useCallback, useRef, useMemo, useEffect, useTransition } from 'react';
 import { useStellariumStore } from '@/lib/stores';
-import type { SearchResultItem, SearchRunMessage, SearchRunOutcome } from '@/lib/core/types';
+import type {
+  SearchResultItem,
+  SearchRunMessage,
+  SearchRunOutcome,
+  SearchProviderDiagnostic,
+  SearchProgressStage,
+} from '@/lib/core/types';
 import { useTargetListStore } from '@/lib/stores/target-list-store';
 import { useSearchStore } from '@/lib/stores/search-store';
 import { checkOnlineSearchAvailability } from '@/lib/services/online-search-service';
@@ -11,6 +17,7 @@ import {
   createCoordinateSearchResult,
   type UnifiedSearchMode,
 } from '@/lib/services/search/search-orchestrator';
+import type { SearchRefinementHint } from '@/lib/services/search/search-intent';
 import { parseSearchQuery } from '@/lib/services/search/query-parser';
 import {
   CELESTIAL_BODIES,
@@ -66,8 +73,12 @@ export interface SearchState {
   results: SearchResultItem[];
   isSearching: boolean;
   isOnlineSearching: boolean;
+  searchStage: SearchProgressStage;
   searchOutcome: SearchRunOutcome;
   searchMessages: SearchRunMessage[];
+  refinementHints: SearchRefinementHint[];
+  providerDiagnostics: SearchProviderDiagnostic[];
+  usedCachedOnline: boolean;
   selectedIds: Set<string>;
   filters: SearchFilters;
   sortBy: SortOption;
@@ -81,8 +92,12 @@ export interface UseObjectSearchReturn {
   groupedResults: Map<string, SearchResultItem[]>;
   isSearching: boolean;
   isOnlineSearching: boolean;
+  searchStage: SearchProgressStage;
   searchOutcome: SearchRunOutcome;
   searchMessages: SearchRunMessage[];
+  refinementHints: SearchRefinementHint[];
+  providerDiagnostics: SearchProviderDiagnostic[];
+  usedCachedOnline: boolean;
   selectedIds: Set<string>;
   filters: SearchFilters;
   sortBy: SortOption;
@@ -183,8 +198,12 @@ export function useObjectSearch(): UseObjectSearchReturn {
     results: [],
     isSearching: false,
     isOnlineSearching: false,
+    searchStage: 'idle',
     searchOutcome: 'empty',
     searchMessages: [],
+    refinementHints: [],
+    providerDiagnostics: [],
+    usedCachedOnline: false,
     selectedIds: new Set(),
     filters: {
       types: ['DSO', 'Planet', 'Star', 'Moon', 'Comet', 'Asteroid', 'TargetList', 'Constellation'],
@@ -202,6 +221,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const searchRequestIdRef = useRef(0);
   const [, startTransition] = useTransition();
 
   // Refs to avoid stale closure
@@ -485,6 +505,8 @@ export function useObjectSearch(): UseObjectSearchReturn {
 
   const performSearch = useCallback(async (query: string, filters: SearchFilters) => {
     const startTime = performance.now();
+    searchRequestIdRef.current += 1;
+    const requestId = searchRequestIdRef.current;
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -498,8 +520,12 @@ export function useObjectSearch(): UseObjectSearchReturn {
         results: [],
         isSearching: false,
         isOnlineSearching: false,
+        searchStage: 'idle',
         searchOutcome: 'empty',
         searchMessages: [],
+        refinementHints: [],
+        providerDiagnostics: [],
+        usedCachedOnline: false,
       }));
       setSearchStats(null);
       return;
@@ -508,14 +534,19 @@ export function useObjectSearch(): UseObjectSearchReturn {
     const mode = searchModeRef.current as UnifiedSearchMode;
     const parsed = parseSearchQuery(query);
     const normalizedCacheKey = (parsed.catalogQuery || parsed.normalized || query).toLowerCase();
-    const cached = getCachedResults(normalizedCacheKey);
+    const cacheMaxAgeMs = (searchSettings.cacheFallbackMaxAgeMinutes ?? 30) * 60 * 1000;
+    const cached = getCachedResults(normalizedCacheKey, { maxAgeMs: cacheMaxAgeMs });
     const enabledSources = getEnabledSources().filter(s => s !== 'local');
 
     setState(prev => ({
       ...prev,
       isSearching: true,
       isOnlineSearching: mode !== 'local' && state.onlineAvailable,
+      searchStage: 'idle',
       searchMessages: [],
+      refinementHints: [],
+      providerDiagnostics: [],
+      usedCachedOnline: false,
     }));
 
     try {
@@ -530,10 +561,35 @@ export function useObjectSearch(): UseObjectSearchReturn {
         includeMinorObjects,
         signal,
         localSearch: ({ query: localQuery }) => performLocalSearch(localQuery, filters),
-        cachedOnline: cached?.results,
+        cachedOnline: cached
+          ? { results: cached.results, timestamp: cached.timestamp }
+          : null,
+        cacheMaxAgeMs,
+        onProgress: (progress) => {
+          if (signal.aborted || requestId !== searchRequestIdRef.current) return;
+
+          const sorted = sortResults(progress.results, state.sortBy).slice(0, maxSearchResults);
+          const displayResults = progress.outcome === 'success' || progress.outcome === 'partial_success'
+            ? sorted
+            : [];
+
+          setState(prev => ({
+            ...prev,
+            results: displayResults,
+            isSearching: progress.stage !== 'finalized',
+            isOnlineSearching:
+              progress.stage === 'local_ready' && mode !== 'local' && state.onlineAvailable,
+            searchStage: progress.stage,
+            searchOutcome: progress.outcome,
+            searchMessages: progress.issues,
+            refinementHints: progress.refinementHints,
+            providerDiagnostics: progress.providerDiagnostics,
+            usedCachedOnline: progress.usedCachedOnline,
+          }));
+        },
       });
 
-      if (signal.aborted) return;
+      if (signal.aborted || requestId !== searchRequestIdRef.current) return;
 
       if (unified.onlineResponse?.results?.length) {
         cacheSearchResults(normalizedCacheKey, unified.onlineResponse.results, mode);
@@ -554,8 +610,12 @@ export function useObjectSearch(): UseObjectSearchReturn {
         results: displayResults,
         isSearching: false,
         isOnlineSearching: false,
+        searchStage: unified.stage,
         searchOutcome: unified.outcome,
         searchMessages: unified.issues,
+        refinementHints: unified.refinementHints,
+        providerDiagnostics: unified.providerDiagnostics,
+        usedCachedOnline: unified.usedCachedOnline,
       }));
 
       setSearchStats({
@@ -569,12 +629,13 @@ export function useObjectSearch(): UseObjectSearchReturn {
       }
     } catch (error) {
       logger.warn('Search failed', error);
-      if (!signal.aborted) {
+      if (!signal.aborted && requestId === searchRequestIdRef.current) {
         setState(prev => ({
           ...prev,
           results: [],
           isSearching: false,
           isOnlineSearching: false,
+          searchStage: 'finalized',
           searchOutcome: 'error',
           searchMessages: [{
             source: 'search',
@@ -582,6 +643,9 @@ export function useObjectSearch(): UseObjectSearchReturn {
             code: 'SEARCH_EXECUTION_FAILED',
             message: error instanceof Error ? error.message : 'Search failed',
           }],
+          refinementHints: [],
+          providerDiagnostics: [],
+          usedCachedOnline: false,
         }));
       }
     }
@@ -595,6 +659,7 @@ export function useObjectSearch(): UseObjectSearchReturn {
     performLocalSearch,
     rememberSearchHistory,
     searchSettings.groupBySource,
+    searchSettings.cacheFallbackMaxAgeMinutes,
     searchSettings.timeout,
     state.onlineAvailable,
     state.sortBy,
@@ -623,8 +688,12 @@ export function useObjectSearch(): UseObjectSearchReturn {
       ...prev,
       query: '',
       results: [],
+      searchStage: 'idle',
       searchOutcome: 'empty',
       searchMessages: [],
+      refinementHints: [],
+      providerDiagnostics: [],
+      usedCachedOnline: false,
       selectedIds: new Set(),
     }));
   }, []);
@@ -744,8 +813,12 @@ export function useObjectSearch(): UseObjectSearchReturn {
     groupedResults,
     isSearching: state.isSearching,
     isOnlineSearching: state.isOnlineSearching,
+    searchStage: state.searchStage,
     searchOutcome: state.searchOutcome,
     searchMessages: state.searchMessages,
+    refinementHints: state.refinementHints,
+    providerDiagnostics: state.providerDiagnostics,
+    usedCachedOnline: state.usedCachedOnline,
     selectedIds: state.selectedIds,
     filters: state.filters,
     sortBy: state.sortBy,

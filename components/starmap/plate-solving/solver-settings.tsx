@@ -91,6 +91,7 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
     detectSolvers,
     setConfig,
     saveConfig,
+    loadConfig,
     setOnlineApiKey,
   } = usePlateSolverStore();
 
@@ -106,7 +107,8 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
     if (detectedSolvers.length === 0) {
       detectSolvers();
     }
-  }, [detectedSolvers.length, detectSolvers]);
+    void loadConfig();
+  }, [detectedSolvers.length, detectSolvers, loadConfig]);
 
   // Validate custom path
   const handleValidatePath = useCallback(async () => {
@@ -248,9 +250,19 @@ export function SolverSettings({ onClose, className }: SolverSettingsProps) {
                   {getSolverIcon(solver)}
                   <div>
                     <div className="font-medium">{solver.name}</div>
+                    {solver.profile_name && solver.profile_name !== solver.name && (
+                      <div className="text-xs text-muted-foreground">
+                        {solver.profile_name}
+                      </div>
+                    )}
                     {solver.version && (
                       <div className="text-xs text-muted-foreground">
                         {solver.version}
+                      </div>
+                    )}
+                    {solver.availability_reason && (
+                      <div className="text-xs text-amber-600 dark:text-amber-400">
+                        {solver.availability_reason}
                       </div>
                     )}
                   </div>

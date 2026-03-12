@@ -72,6 +72,7 @@ import {
   exportDiagnosticsBundle,
 } from '@/lib/feedback/feedback-utils';
 import { openExternalUrl } from '@/lib/tauri/app-control-api';
+import { copyTextWithFeedback } from '@/lib/utils/clipboard-feedback';
 import type {
   FeedbackDiagnostics,
   FeedbackType,
@@ -263,10 +264,13 @@ export function FeedbackDialog({ trigger, open, onOpenChange }: FeedbackDialogPr
     try {
       const diagnostics = await resolveDiagnostics();
       const markdown = buildIssueBodyMarkdown({ draft, diagnostics });
-      await navigator.clipboard.writeText(markdown);
-      toast.success(t('feedback.toast.markdownCopied'));
+      await copyTextWithFeedback({
+        text: markdown,
+        successMessage: t('feedback.toast.markdownCopied'),
+        errorMessage: t('feedback.toast.copyFailed'),
+      });
     } catch {
-      toast.error(t('feedback.toast.copyFailed'));
+      // copyTextWithFeedback already handles user-facing failure toasts.
     } finally {
       setCopying(false);
     }
@@ -825,7 +829,10 @@ export function FeedbackDialog({ trigger, open, onOpenChange }: FeedbackDialogPr
     return (
       <Drawer open={dialogOpen} onOpenChange={handleOpenChange}>
         {trigger ? <DrawerTrigger asChild>{trigger}</DrawerTrigger> : null}
-        <DrawerContent className="max-h-[92vh] max-h-[92dvh]" onKeyDown={handleKeyDown}>
+        <DrawerContent
+          className="h-[100vh] h-[100dvh] max-h-[100vh] max-h-[100dvh] rounded-none border-x-0 border-b-0 flex flex-col overflow-hidden"
+          onKeyDown={handleKeyDown}
+        >
           <DrawerHeader className="pb-2">
             <div className="flex items-center justify-between gap-3">
               <DrawerTitle className="flex items-center gap-2">
@@ -836,11 +843,13 @@ export function FeedbackDialog({ trigger, open, onOpenChange }: FeedbackDialogPr
             </div>
             <DrawerDescription>{t('feedback.description')}</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2">
             {formFields}
           </div>
-          <DrawerFooter className="border-t">
-            <div className="flex flex-wrap items-center gap-2">{supportButtons}</div>
+          <DrawerFooter className="sticky bottom-0 z-10 mt-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+            <div className="flex flex-wrap items-center gap-2">
+              {supportButtons}
+            </div>
             {submitButton}
           </DrawerFooter>
         </DrawerContent>

@@ -28,6 +28,8 @@ jest.mock('../constants', () => ({
   WIKIMEDIA_TTL_MS: 604800000,
   RETRY_DELAYS_MS: [10, 20, 40] as const,
   WIKIMEDIA_MIN_REQUEST_INTERVAL_MS: 0,
+  DAILY_KNOWLEDGE_ALL_MONTHS: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const,
+  DAILY_KNOWLEDGE_DIFFICULTY_LEVELS: ['beginner', 'intermediate', 'advanced'] as const,
 }));
 
 function makeJsonResponse(body: unknown): Response {

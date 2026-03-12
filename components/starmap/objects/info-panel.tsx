@@ -287,6 +287,11 @@ export const InfoPanel = memo(function InfoPanel({
                           >
                             {t(`objectDetail.moonInterference.${liveStatusSection.moonInterferenceLevel}`)}
                           </Badge>
+                          {liveStatusSection.calculationState === 'degraded' && (
+                            <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-300">
+                              degraded
+                            </Badge>
+                          )}
                         </div>
 
                         {(liveStatusSection.riskHints.length ?? 0) > 0 && (
@@ -343,8 +348,12 @@ export const InfoPanel = memo(function InfoPanel({
                             <span className="font-mono text-foreground">{advancedMetadataSection.qualityFlag} / {advancedMetadataSection.dataFreshness}</span>
                           </div>
                           <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Calc</span>
+                            <span className="font-mono text-foreground">{advancedMetadataSection.calculationSource} / {advancedMetadataSection.calculationState}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
                             <span className="text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" /> {t('objectDetail.timestamp')}</span>
-                            <span className="font-mono text-foreground">{advancedMetadataSection.updatedAt}</span>
+                            <span className="font-mono text-foreground">{advancedMetadataSection.calculationTimestamp ?? advancedMetadataSection.updatedAt}</span>
                           </div>
                         </div>
                       )}

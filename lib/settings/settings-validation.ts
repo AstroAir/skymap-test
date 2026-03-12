@@ -76,6 +76,9 @@ export function validateSettingsDraft(draft: SettingsDraft): SettingsDraftValida
   if (!STARTUP_VIEWS.has(draft.preferences.startupView)) {
     addIssue('preferences', 'preferences.startupView', 'Startup view is invalid.');
   }
+  if (typeof draft.preferences.launchOnStartup !== 'boolean') {
+    addIssue('preferences', 'preferences.launchOnStartup', 'Launch on startup must be a boolean.');
+  }
 
   if (draft.preferences.dailyKnowledgeAutoShow && !draft.preferences.dailyKnowledgeEnabled) {
     addIssue(

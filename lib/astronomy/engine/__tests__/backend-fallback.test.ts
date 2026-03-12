@@ -22,6 +22,10 @@ describe('fallbackAstronomyBackend', () => {
         refraction: 'none',
       });
       expect(result.meta.backend).toBe('fallback');
+      expect(result.meta.source).toBe('fallback');
+      expect(result.meta.degraded).toBe(true);
+      expect(result.meta.cache).toBe('miss');
+      expect(result.meta.computedAt).toBeTruthy();
       expect(result.equatorial.ra).toBeCloseTo(10.68, 1);
     });
 
@@ -113,6 +117,7 @@ describe('fallbackAstronomyBackend', () => {
         customCoordinate: { ra: 83.82, dec: -5.39 },
       });
       expect(result.meta.backend).toBe('fallback');
+      expect(result.meta.source).toBe('fallback');
       expect(result.transitAltitude).toBeGreaterThanOrEqual(-90);
     });
 
@@ -161,6 +166,7 @@ describe('fallbackAstronomyBackend', () => {
       });
       expect(Array.isArray(result.events)).toBe(true);
       expect(result.meta.backend).toBe('fallback');
+      expect(result.meta.source).toBe('fallback');
       if (result.events.length > 1) {
         expect(result.events[0].date.getTime()).toBeLessThanOrEqual(
           result.events[1].date.getTime()
@@ -204,6 +210,7 @@ describe('fallbackAstronomyBackend', () => {
       expect(result.moon.illumination).toBeGreaterThanOrEqual(0);
       expect(result.moon.illumination).toBeLessThanOrEqual(100);
       expect(result.meta.backend).toBe('fallback');
+      expect(result.meta.degraded).toBe(true);
     });
 
     it('computes almanac with refraction none', async () => {

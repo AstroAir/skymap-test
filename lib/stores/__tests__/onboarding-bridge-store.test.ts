@@ -14,6 +14,8 @@ beforeEach(() => {
       settingsDrawerTab: null,
       settingsDrawerOpen: false,
       openSearchRequestId: 0,
+      toggleSearchRequestId: 0,
+      toggleSessionPanelRequestId: 0,
       openMobileDrawerRequestId: 0,
       openDailyKnowledgeRequestId: 0,
       mobileDrawerSection: null,
@@ -63,6 +65,20 @@ describe('useOnboardingBridgeStore', () => {
       useOnboardingBridgeStore.getState().openSearch();
     });
     expect(useOnboardingBridgeStore.getState().openSearchRequestId).toBe(1);
+  });
+
+  it('should increment toggleSearchRequestId', () => {
+    act(() => {
+      useOnboardingBridgeStore.getState().toggleSearch();
+    });
+    expect(useOnboardingBridgeStore.getState().toggleSearchRequestId).toBe(1);
+  });
+
+  it('should increment toggleSessionPanelRequestId', () => {
+    act(() => {
+      useOnboardingBridgeStore.getState().toggleSessionPanel();
+    });
+    expect(useOnboardingBridgeStore.getState().toggleSessionPanelRequestId).toBe(1);
   });
 
   it('should increment openMobileDrawerRequestId and set section', () => {

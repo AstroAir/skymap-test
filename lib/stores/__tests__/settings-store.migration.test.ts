@@ -174,11 +174,18 @@ describe('settings-store migration - additional versions', () => {
     expect(migrated.stellarium).toBeDefined();
   });
 
+  it('should migrate from version < 16 (AR profile/adaptive/network)', () => {
+    const migrate = capturedPersistOptions?.migrate;
+    const migrated = migrate!({ skyEngine: 'stellarium' }, 15) as Record<string, unknown>;
+    expect(migrated.stellarium).toBeDefined();
+  });
+
   it('should return state as-is for current version', () => {
     const migrate = capturedPersistOptions?.migrate;
     const input = { skyEngine: 'stellarium', foo: 'bar' };
-    const migrated = migrate!(input, 15);
-    expect(migrated).toEqual(input);
+    const migrated = migrate!(input, 17) as Record<string, unknown>;
+    expect(migrated.skyEngine).toBe(input.skyEngine);
+    expect(migrated.foo).toBe(input.foo);
   });
 
   it('merge should handle null/undefined persisted state', () => {
@@ -189,3 +196,30 @@ describe('settings-store migration - additional versions', () => {
     expect(merged.skyEngine).toBe('stellarium');
   });
 });
+
+describe('settings-store migration - AR camera acquisition fields', () => {
+  it('should migrate from version < 17 (AR preferred device and last-known-good acquisition)', () => {
+    const migrate = capturedPersistOptions?.migrate;
+    const migrated = migrate!({ skyEngine: 'stellarium' }, 16) as {
+      stellarium?: {
+        arCameraPreferredDevice?: unknown;
+        arCameraLastKnownGoodAcquisition?: unknown;
+      };
+    };
+
+    expect(migrated.stellarium?.arCameraPreferredDevice).toEqual({
+      deviceId: null,
+      label: null,
+      groupId: null,
+    });
+    expect(migrated.stellarium?.arCameraLastKnownGoodAcquisition).toEqual({
+      deviceId: null,
+      label: null,
+      groupId: null,
+      facingMode: 'environment',
+      stage: null,
+      updatedAt: null,
+    });
+  });
+});
+

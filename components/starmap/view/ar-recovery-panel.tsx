@@ -1,0 +1,174 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { executeARRecoveryAction, type ARRecoveryActionHandlers } from '@/lib/core/ar-recovery-actions';
+import type { ARRecoveryAction, ARSessionStatus } from '@/lib/core/ar-session';
+import { useARRuntimeStore } from '@/lib/stores/ar-runtime-store';
+import { useOnboardingBridgeStore, useSettingsStore } from '@/lib/stores';
+
+const RECOVERY_COOLDOWN_MS = 3000;
+
+interface ARRecoveryPanelProps {
+  status: ARSessionStatus;
+  recoveryActions: ARRecoveryAction[];
+  isStabilizing?: boolean;
+  className?: string;
+}
+
+function getStatusTextKey(status: ARSessionStatus): string {
+  if (status === 'preflight') return 'settings.arStatusPreflight';
+  if (status === 'degraded-camera-only') return 'settings.arStatusDegradedCameraOnly';
+  if (status === 'degraded-sensor-only') return 'settings.arStatusDegradedSensorOnly';
+  if (status === 'blocked') return 'settings.arStatusBlocked';
+  if (status === 'ready') return 'settings.arStatusReady';
+  return 'settings.arMode';
+}
+
+function getActionTextKey(action: ARRecoveryAction): string {
+  if (action === 'retry-camera') return 'settings.arRecoveryRetryCamera';
+  if (action === 'switch-camera') return 'settings.arRecoverySwitchCamera';
+  if (action === 'request-sensor-permission') return 'settings.arRecoveryRequestSensorPermission';
+  if (action === 'calibrate-sensor') return 'settings.arRecoveryCalibrateSensor';
+  if (action === 'open-camera-settings') return 'settings.arRecoveryOpenCameraSettings';
+  if (action === 'revert-last-known-good-profile') return 'settings.arRecoveryRevertProfile';
+  return 'settings.arRecoveryDisable';
+}
+
+export function ARRecoveryPanel({
+  status,
+  recoveryActions,
+  isStabilizing = false,
+  className,
+}: ARRecoveryPanelProps) {
+  const t = useTranslations();
+  const setStellariumSetting = useSettingsStore((state) => state.setStellariumSetting);
+  const openSettingsDrawer = useOnboardingBridgeStore((state) => state.openSettingsDrawer);
+  const requestRecoveryAction = useARRuntimeStore((state) => state.requestRecoveryAction);
+  const recoveryNoticeKey = useARRuntimeStore((state) => state.recoveryNoticeKey);
+  const setRecoveryNoticeKey = useARRuntimeStore((state) => state.setRecoveryNoticeKey);
+  const cameraRuntime = useARRuntimeStore((state) => state.camera);
+  const launchAssistantVisible = useARRuntimeStore((state) => state.launchAssistant.visible);
+  const openLaunchAssistant = useARRuntimeStore((state) => state.openLaunchAssistant);
+
+  const recoveryActionLastFiredAt = useARRuntimeStore((state) => state.recoveryActionLastFiredAt);
+  const [now, setNow] = useState(0);
+
+  const actions = useMemo(() => Array.from(new Set(recoveryActions)), [recoveryActions]);
+
+  const handlers = useMemo<ARRecoveryActionHandlers>(
+    () => ({
+      onRetryCamera: () => requestRecoveryAction('retry-camera'),
+      onSwitchCamera: () => requestRecoveryAction('switch-camera'),
+      onRequestSensorPermission: () => requestRecoveryAction('request-sensor-permission'),
+      onCalibrateSensor: () => requestRecoveryAction('calibrate-sensor'),
+      onOpenCameraSettings: () => openSettingsDrawer('display'),
+      onRevertLastKnownGoodProfile: () => requestRecoveryAction('revert-last-known-good-profile'),
+      onDisableAr: () => setStellariumSetting('arMode', false),
+    }),
+    [openSettingsDrawer, requestRecoveryAction, setStellariumSetting]
+  );
+
+  useEffect(() => {
+    if (status === 'ready' && recoveryNoticeKey) {
+      setRecoveryNoticeKey(null);
+    }
+  }, [recoveryNoticeKey, setRecoveryNoticeKey, status]);
+
+  useEffect(() => {
+    const currentNow = Date.now();
+    const hasActiveCooldown = actions.some(
+      (action) => {
+        const lastFiredAt = recoveryActionLastFiredAt[action];
+        return typeof lastFiredAt === 'number'
+          && lastFiredAt > 0
+          && currentNow - lastFiredAt < RECOVERY_COOLDOWN_MS;
+      }
+    );
+    if (!hasActiveCooldown) return;
+
+    const frameId = window.requestAnimationFrame(() => setNow(Date.now()));
+    const timerId = window.setInterval(() => setNow(Date.now()), 500);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearInterval(timerId);
+    };
+  }, [actions, recoveryActionLastFiredAt]);
+
+  if (launchAssistantVisible || status === 'ready' || (actions.length === 0 && !recoveryNoticeKey)) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        'absolute left-1/2 z-30 flex w-[min(94vw,36rem)] -translate-x-1/2 flex-col gap-2 rounded-lg border border-white/20 bg-black/55 px-3 py-2 text-white/95 shadow-lg backdrop-blur-sm',
+        className
+      )}
+      data-testid="ar-recovery-panel"
+    >
+      <p className="text-xs font-medium">{t(getStatusTextKey(status))}</p>
+      {(cameraRuntime.acquisitionDiagnostics.activeDevice || cameraRuntime.acquisitionDiagnostics.lastFailureStage) && (
+        <p className="text-[11px] text-white/80" data-testid="ar-recovery-diagnostics">
+          {[
+            cameraRuntime.acquisitionDiagnostics.activeDevice?.label,
+            cameraRuntime.acquisitionDiagnostics.lastFailureStage
+              ? t('settings.arCameraLastFailureStage')
+              : null,
+          ].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {actions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-7 rounded-full bg-white/15 px-3 text-xs text-white hover:bg-white/25"
+            onClick={() => openLaunchAssistant('recovery')}
+            data-testid="ar-recovery-open-launch-assistant"
+          >
+            {t('settings.arLaunchOpenAssistant')}
+          </Button>
+          {actions.map((action) => (
+            <Button
+              key={action}
+              variant="secondary"
+              size="sm"
+              className="h-7 rounded-full bg-white/15 px-3 text-xs text-white hover:bg-white/25 disabled:opacity-40"
+              disabled={(() => {
+                const lastFiredAt = recoveryActionLastFiredAt[action];
+                return typeof lastFiredAt === 'number'
+                  && lastFiredAt > 0
+                  && now - lastFiredAt < RECOVERY_COOLDOWN_MS;
+              })()}
+              onClick={() => {
+                setRecoveryNoticeKey(null);
+                executeARRecoveryAction(action, handlers, {
+                  onError: (_a, err) => {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    setRecoveryNoticeKey(msg);
+                  },
+                });
+              }}
+              data-testid={`ar-recovery-action-${action}`}
+            >
+              {t(getActionTextKey(action))}
+            </Button>
+          ))}
+        </div>
+      )}
+      {recoveryNoticeKey && (
+        <p className="text-[11px] text-amber-200" data-testid="ar-recovery-notice">
+          {t(recoveryNoticeKey)}
+        </p>
+      )}
+      {isStabilizing && (
+        <p className="text-[11px] text-sky-200" data-testid="ar-recovery-stabilizing">
+          {t('settings.arStatusStabilizing')}
+        </p>
+      )}
+    </div>
+  );
+}

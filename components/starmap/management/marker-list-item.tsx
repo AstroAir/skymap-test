@@ -19,7 +19,9 @@ import type { SkyMarker } from '@/lib/stores';
 
 interface MarkerListItemProps {
   marker: SkyMarker;
+  isActive?: boolean;
   t: (key: string) => string;
+  onSelect?: (marker: SkyMarker) => void;
   onNavigate: (marker: SkyMarker) => void;
   onToggleVisibility: (id: string) => void;
   onEdit: (marker: SkyMarker) => void;
@@ -28,7 +30,9 @@ interface MarkerListItemProps {
 
 export function MarkerListItem({
   marker,
+  isActive = false,
   t,
+  onSelect,
   onNavigate,
   onToggleVisibility,
   onEdit,
@@ -40,8 +44,18 @@ export function MarkerListItem({
     <div
       className={cn(
         'flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 group',
+        isActive && 'bg-accent/60',
         !marker.visible && 'opacity-50'
       )}
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect?.(marker)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect?.(marker);
+        }
+      }}
     >
       <IconComponent
         className="h-5 w-5 shrink-0"

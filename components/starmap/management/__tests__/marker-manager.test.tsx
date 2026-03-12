@@ -6,9 +6,46 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import type { SkyMarker } from '@/lib/stores/marker-store';
 
 // Mock stores
-const markerState = {
+interface MarkerStateMock {
+  markers: SkyMarker[];
+  groups: string[];
+  groupVisibility: Record<string, boolean>;
+  activeMarkerId: string | null;
+  selectedGroup: string;
+  showMarkers: boolean;
+  showLabels: boolean;
+  globalMarkerSize: number;
+  sortBy: string;
+  pendingCoords: unknown;
+  editingMarkerId: string | null;
+  addMarker: jest.Mock;
+  removeMarker: jest.Mock;
+  updateMarker: jest.Mock;
+  toggleMarkerVisibility: jest.Mock;
+  clearAllMarkers: jest.Mock;
+  setSelectedGroup: jest.Mock;
+  setShowMarkers: jest.Mock;
+  setGroupVisibility: jest.Mock;
+  toggleGroupVisibility: jest.Mock;
+  setShowLabels: jest.Mock;
+  setGlobalMarkerSize: jest.Mock;
+  setSortBy: jest.Mock;
+  setActiveMarker: jest.Mock;
+  selectMarkerForNavigation: jest.Mock<SkyMarker | null, [string | null]>;
+  setPendingCoords: jest.Mock;
+  setEditingMarkerId: jest.Mock;
+  addGroup: jest.Mock;
+  removeGroup: jest.Mock;
+  renameGroup: jest.Mock;
+  exportMarkers: jest.Mock;
+  importMarkers: jest.Mock;
+}
+
+const markerState: MarkerStateMock = {
   markers: [] as SkyMarker[],
   groups: [] as string[],
+  groupVisibility: { Default: true } as Record<string, boolean>,
+  activeMarkerId: null as string | null,
   selectedGroup: 'all',
   showMarkers: true,
   showLabels: true,
@@ -23,9 +60,13 @@ const markerState = {
   clearAllMarkers: jest.fn(),
   setSelectedGroup: jest.fn(),
   setShowMarkers: jest.fn(),
+  setGroupVisibility: jest.fn(),
+  toggleGroupVisibility: jest.fn(),
   setShowLabels: jest.fn(),
   setGlobalMarkerSize: jest.fn(),
   setSortBy: jest.fn(),
+  setActiveMarker: jest.fn(),
+  selectMarkerForNavigation: jest.fn(),
   setPendingCoords: jest.fn(),
   setEditingMarkerId: jest.fn(),
   addGroup: jest.fn(),
@@ -34,6 +75,10 @@ const markerState = {
   exportMarkers: jest.fn(() => '{}'),
   importMarkers: jest.fn(() => ({ count: 0 })),
 };
+
+markerState.selectMarkerForNavigation.mockImplementation((id: string | null) =>
+  id ? markerState.markers.find((m: SkyMarker) => m.id === id) ?? null : null
+);
 
 const mockUseMarkerStore = Object.assign(
   jest.fn((selector) => (selector ? selector(markerState) : markerState)),
@@ -227,6 +272,8 @@ describe('MarkerManager', () => {
     Object.assign(markerState, {
       markers: [],
       groups: [],
+      groupVisibility: { Default: true },
+      activeMarkerId: null,
       showMarkers: true,
       showLabels: true,
       globalMarkerSize: 20,
@@ -407,6 +454,7 @@ describe('MarkerManager', () => {
     ];
     render(<MarkerManager />);
     fireEvent.click(screen.getByTestId('nav-m1'));
+    expect(markerState.selectMarkerForNavigation).toHaveBeenCalledWith('m1');
     expect(stellariumState.setViewDirection).toHaveBeenCalledWith(10.68, 41.26);
   });
 

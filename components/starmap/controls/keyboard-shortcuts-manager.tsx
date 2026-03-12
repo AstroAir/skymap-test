@@ -41,12 +41,14 @@ export function KeyboardShortcutsManager({
   onZoomOut,
   onResetView,
   onClosePanel,
+  onToggleAr,
   enabled = true,
 }: KeyboardShortcutsManagerProps) {
   const t = useTranslations('shortcuts');
   const stel = useStellariumStore((state) => state.stel);
   const skyEngine = useSettingsStore((state) => state.skyEngine);
   const toggleStellariumSetting = useSettingsStore((state) => state.toggleStellariumSetting);
+  const toggleAladinDisplaySetting = useSettingsStore((state) => state.toggleAladinDisplaySetting);
   const fovEnabled = useEquipmentStore((state) => state.fovDisplay.enabled);
   const setFovEnabled = useEquipmentStore((state) => state.setFOVEnabled);
   const getBinding = useKeybindingStore((state) => state.getBinding);
@@ -101,6 +103,14 @@ export function KeyboardShortcutsManager({
       list.push(bindingToShortcut(kb('TOGGLE_GRID'), t('toggleGrid'), () => toggleStellariumSetting('equatorialLinesVisible')));
       list.push(bindingToShortcut(kb('TOGGLE_DSO'), t('toggleDso'), () => toggleStellariumSetting('dsosVisible')));
       list.push(bindingToShortcut(kb('TOGGLE_ATMOSPHERE'), t('toggleAtmosphere'), () => toggleStellariumSetting('atmosphereVisible')));
+    } else if (skyEngine === 'aladin') {
+      // Coordinate grid toggle works in Aladin mode
+      list.push(bindingToShortcut(kb('TOGGLE_GRID'), t('toggleGrid'), () => toggleAladinDisplaySetting('showCooGrid')));
+    }
+
+    // AR mode toggle
+    if (onToggleAr) {
+      list.push(bindingToShortcut(kb('TOGGLE_AR'), t('toggleAr'), onToggleAr));
     }
 
     // Time controls — Stellarium-only (Aladin Lite is not time-aware)
@@ -124,11 +134,14 @@ export function KeyboardShortcutsManager({
     onResetView,
     onToggleSearch,
     onToggleSessionPanel,
+    onToggleAr,
     onClosePanel,
     fovEnabled,
     setFovEnabled,
     isStellarium,
+    skyEngine,
     toggleStellariumSetting,
+    toggleAladinDisplaySetting,
     handlePauseTime,
     handleSpeedUp,
     handleSlowDown,

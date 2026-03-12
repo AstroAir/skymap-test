@@ -15,6 +15,9 @@ export type EngineBody =
 
 export type RefractionMode = 'none' | 'normal';
 
+export type EngineBackend = 'tauri' | 'fallback';
+export type CalculationCacheState = 'hit' | 'miss';
+
 export interface ObserverLocation {
   latitude: number;
   longitude: number;
@@ -58,10 +61,7 @@ export interface CoordinateComputationResult {
     lst: number;
     hourAngle: number;
   };
-  meta: {
-    backend: 'tauri' | 'fallback';
-    model: string;
-  };
+  meta: CalculationMeta;
 }
 
 export interface EphemerisPoint {
@@ -93,10 +93,7 @@ export interface EphemerisRequest {
 export interface EphemerisResponse {
   body: EngineBody;
   points: EphemerisPoint[];
-  meta: {
-    backend: 'tauri' | 'fallback';
-    model: string;
-  };
+  meta: CalculationMeta;
 }
 
 export interface RiseTransitSetRequest {
@@ -119,10 +116,7 @@ export interface RiseTransitSetResponse {
   darkImagingStart: Date | null;
   darkImagingEnd: Date | null;
   darkImagingHours: number;
-  meta: {
-    backend: 'tauri' | 'fallback';
-    model: string;
-  };
+  meta: CalculationMeta;
 }
 
 export type PhenomenaType = 'conjunction' | 'opposition' | 'elongation' | 'moon_phase' | 'close_approach';
@@ -148,10 +142,7 @@ export interface PhenomenaRequest {
 
 export interface PhenomenaResponse {
   events: PhenomenaEvent[];
-  meta: {
-    backend: 'tauri' | 'fallback';
-    model: string;
-  };
+  meta: CalculationMeta;
 }
 
 export interface AlmanacRequest {
@@ -178,10 +169,81 @@ export interface AlmanacResponse {
     riseTime: Date | null;
     setTime: Date | null;
   };
-  meta: {
-    backend: 'tauri' | 'fallback';
-    model: string;
-  };
+  meta: CalculationMeta;
+}
+
+export interface CalculationMeta {
+  backend: EngineBackend;
+  model: string;
+  source: EngineBackend;
+  degraded: boolean;
+  computedAt: string;
+  cache: CalculationCacheState;
+  warnings?: string[];
+}
+
+export interface NormalizedObserverLocation {
+  latitude: number;
+  longitude: number;
+  elevation: number;
+}
+
+export interface NormalizedEquatorialCoordinate {
+  ra: number;
+  dec: number;
+}
+
+export interface NormalizedCoordinateComputationInput extends Omit<CoordinateComputationInput, 'coordinate' | 'observer' | 'date'> {
+  coordinate: NormalizedEquatorialCoordinate;
+  observer: NormalizedObserverLocation;
+  date: Date;
+}
+
+export interface NormalizedEphemerisRequest extends Omit<EphemerisRequest, 'observer' | 'startDate' | 'customCoordinate'> {
+  observer: NormalizedObserverLocation;
+  startDate: Date;
+  customCoordinate?: NormalizedEquatorialCoordinate;
+}
+
+export interface NormalizedRiseTransitSetRequest extends Omit<RiseTransitSetRequest, 'observer' | 'date' | 'customCoordinate'> {
+  observer: NormalizedObserverLocation;
+  date: Date;
+  customCoordinate?: NormalizedEquatorialCoordinate;
+}
+
+export interface NormalizedPhenomenaRequest extends Omit<PhenomenaRequest, 'observer' | 'startDate' | 'endDate'> {
+  observer: NormalizedObserverLocation;
+  startDate: Date;
+  endDate: Date;
+}
+
+export interface NormalizedAlmanacRequest extends Omit<AlmanacRequest, 'observer' | 'date'> {
+  observer: NormalizedObserverLocation;
+  date: Date;
+}
+
+export type CalculationValidationErrorCode =
+  | 'invalid_date'
+  | 'invalid_latitude'
+  | 'invalid_longitude'
+  | 'invalid_elevation'
+  | 'invalid_ra'
+  | 'invalid_dec'
+  | 'invalid_steps'
+  | 'invalid_step_hours'
+  | 'invalid_date_range'
+  | 'invalid_min_altitude';
+
+export interface CalculationValidationIssue {
+  code: CalculationValidationErrorCode;
+  field: string;
+  message: string;
+}
+
+export interface NormalizedCalculationContext {
+  observerKey: string;
+  timeWindowKey: string;
+  requestKey: string;
 }
 
 export interface AstronomyEngineBackend {

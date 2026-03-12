@@ -50,6 +50,21 @@ export class AstronomyEngineCache {
   clear(): void {
     this.store.clear();
   }
+
+  deleteByPrefix(prefix: string): number {
+    let deleted = 0;
+    for (const key of this.store.keys()) {
+      if (key.startsWith(prefix)) {
+        this.store.delete(key);
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+
+  size(): number {
+    return this.store.size;
+  }
 }
 
 export const astronomyEngineCache = new AstronomyEngineCache();

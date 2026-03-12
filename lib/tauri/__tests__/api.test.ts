@@ -10,7 +10,7 @@ jest.mock('@/lib/storage/platform', () => ({
 // Mock @tauri-apps/api/core
 const mockInvoke = jest.fn();
 jest.mock('@tauri-apps/api/core', () => ({
-  invoke: mockInvoke,
+  invoke: (...args: unknown[]) => mockInvoke(...args),
 }));
 
 import { isTauri } from '@/lib/storage/platform';
@@ -267,6 +267,15 @@ describe('locationsApi', () => {
     expect(result.current_location_id).toBe('location-1');
   });
 
+  it('should set default location', async () => {
+    mockInvoke.mockResolvedValue({ locations: [], current_location_id: undefined });
+
+    const result = await locationsApi.setDefault('location-1');
+
+    expect(mockInvoke).toHaveBeenCalledWith('set_default_location', { locationId: 'location-1' });
+    expect(result).toBeDefined();
+  });
+
   it('should get current location', async () => {
     const location = { id: '1', name: 'Current Location', latitude: 45, longitude: -75, altitude: 100 };
     mockInvoke.mockResolvedValue(location);
@@ -400,13 +409,56 @@ describe('observationLogApi', () => {
   });
 
   it('should search observations', async () => {
-    const mockObservations = [{ id: '1', target_name: 'M31', target_type: 'galaxy' }];
+    const mockObservations = [{ id: '1', object_name: 'M31', object_type: 'galaxy', session_id: 's1', session_date: '2024-01-01' }];
     mockInvoke.mockResolvedValue(mockObservations);
 
     const result = await observationLogApi.search('M31');
 
-    expect(mockInvoke).toHaveBeenCalledWith('search_observations', { query: 'M31' });
+    expect(mockInvoke).toHaveBeenCalledWith('search_observations', { query: 'M31', filters: undefined });
     expect(result).toEqual(mockObservations);
+  });
+
+  it('should search observations with filter payload', async () => {
+    const mockObservations = [{ id: '1', object_name: 'M31', session_id: 's1', session_date: '2024-01-01' }];
+    mockInvoke.mockResolvedValue(mockObservations);
+
+    const result = await observationLogApi.search({
+      text: 'M31',
+      startDate: '2024-01-01',
+      endDate: '2024-01-31',
+      objectType: 'galaxy',
+      minRating: 3,
+    });
+
+    expect(mockInvoke).toHaveBeenCalledWith('search_observations', {
+      query: 'M31',
+      filters: {
+        text: 'M31',
+        startDate: '2024-01-01',
+        endDate: '2024-01-31',
+        objectType: 'galaxy',
+        minRating: 3,
+      },
+    });
+    expect(result).toEqual(mockObservations);
+  });
+
+  it('should export observation log with optional filters', async () => {
+    mockInvoke.mockResolvedValue('csv-content');
+
+    const result = await observationLogApi.exportLog('csv', {
+      startDate: '2024-01-01',
+      endDate: '2024-01-31',
+    });
+
+    expect(mockInvoke).toHaveBeenCalledWith('export_observation_log', {
+      format: 'csv',
+      filters: {
+        startDate: '2024-01-01',
+        endDate: '2024-01-31',
+      },
+    });
+    expect(result).toBe('csv-content');
   });
 });
 
@@ -495,7 +547,18 @@ describe('appSettingsApi', () => {
   });
 
   it('should get system info', async () => {
-    const mockSystemInfo = { os: 'windows', version: '1.0.0', arch: 'x64' };
+    const mockSystemInfo = {
+      os: 'windows',
+      arch: 'x64',
+      app_version: '1.0.0',
+      tauri_version: '2.9.0',
+      platform: 'windows',
+      family: 'windows',
+      os_type: 'Windows_NT',
+      os_version: '11',
+      locale: 'en-US',
+      host_id: 'host-1234abcd',
+    };
     mockInvoke.mockResolvedValue(mockSystemInfo);
 
     const result = await appSettingsApi.getSystemInfo();
@@ -528,6 +591,7 @@ describe('tauriApi', () => {
     expect(tauriApi.observationLog).toBeDefined();
     expect(tauriApi.targetIo).toBeDefined();
     expect(tauriApi.appSettings).toBeDefined();
+    expect(tauriApi.positioner).toBeDefined();
   });
 
   it('should have isAvailable function', () => {

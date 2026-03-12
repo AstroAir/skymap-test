@@ -30,6 +30,17 @@ export interface SearchRunMessage {
   code?: string;
 }
 
+export type SearchProgressStage = 'idle' | 'local_ready' | 'finalized';
+
+export type SearchProviderStatus = 'success' | 'timeout' | 'error' | 'skipped' | 'unavailable' | 'empty';
+
+export interface SearchProviderDiagnostic {
+  source: string;
+  status: SearchProviderStatus;
+  message?: string;
+  usedFallbackCache?: boolean;
+}
+
 export interface SearchResultItem {
   Name: string;
   Type?: SearchResultType;
@@ -46,8 +57,10 @@ export interface SearchResultItem {
   _isOnlineResult?: boolean;
   _onlineSource?: string;
   _sourcePriority?: number;
+  _mergeScore?: number;
   _angularSeparation?: number; // arcsec from coordinate query center
   _stableId?: string;
+  _fallbackSource?: 'cache';
   _currentAltitude?: number;
   _isVisible?: boolean;
   _transitTime?: Date;

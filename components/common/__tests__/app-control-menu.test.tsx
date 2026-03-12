@@ -6,6 +6,32 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { AppControlMenu } from '../app-control-menu';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+jest.mock('@/components/ui/dropdown-menu', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+
+  const Wrapper = ({ children }: React.PropsWithChildren) => <div>{children}</div>;
+  const Content = ({ children }: React.PropsWithChildren) => <div>{children}</div>;
+  const Item = ({ children, onClick }: React.PropsWithChildren<{ onClick?: () => void }>) => (
+    <button type="button" onClick={onClick}>{children}</button>
+  );
+  const Trigger = ({ children }: { children: React.ReactElement }) => React.cloneElement(children, {
+    'aria-haspopup': 'menu',
+    'aria-expanded': 'false',
+  } as React.HTMLAttributes<HTMLElement>);
+
+  return {
+    DropdownMenu: Wrapper,
+    DropdownMenuContent: Content,
+    DropdownMenuItem: Item,
+    DropdownMenuLabel: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+    DropdownMenuSeparator: () => <hr />,
+    DropdownMenuSub: Wrapper,
+    DropdownMenuSubContent: Content,
+    DropdownMenuSubTrigger: Item,
+    DropdownMenuTrigger: Trigger,
+  };
+});
+
 // Mock next-intl's useTranslations
 jest.mock('next-intl', () => ({
   useTranslations: (namespace?: string) => (key: string) => namespace ? `${namespace}.${key}` : key,
@@ -25,6 +51,14 @@ const mockSetAlwaysOnTop = jest.fn();
 const mockIsAlwaysOnTop = jest.fn();
 const mockSaveWindowState = jest.fn();
 const mockCenterWindow = jest.fn();
+const mockShowWindow = jest.fn();
+const mockHideWindow = jest.fn();
+const mockUnminimizeWindow = jest.fn();
+const mockFocusWindow = jest.fn();
+const mockIsWindowVisible = jest.fn();
+const mockIsWindowMinimized = jest.fn();
+const mockIsTrayPositioningReady = jest.fn();
+const mockListenForTrayActivation = jest.fn();
 
 jest.mock('@/lib/tauri/app-control-api', () => ({
   closeWindow: () => mockCloseWindow(),
@@ -40,14 +74,33 @@ jest.mock('@/lib/tauri/app-control-api', () => ({
   isAlwaysOnTop: () => mockIsAlwaysOnTop(),
   saveWindowState: () => mockSaveWindowState(),
   centerWindow: () => mockCenterWindow(),
+  showWindow: () => mockShowWindow(),
+  hideWindow: () => mockHideWindow(),
+  unminimizeWindow: () => mockUnminimizeWindow(),
+  focusWindow: () => mockFocusWindow(),
+  isWindowVisible: () => mockIsWindowVisible(),
+  isWindowMinimized: () => mockIsWindowMinimized(),
+  isTrayPositioningReady: () => mockIsTrayPositioningReady(),
+  listenForTrayActivation: (...args: unknown[]) => mockListenForTrayActivation(...args),
 }));
 
-const renderWithProviders = (ui: React.ReactElement) => {
-  return render(
+async function flushWindowControlEffects() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+const renderWithProviders = async (ui: React.ReactElement) => {
+  const rendered = render(
     <TooltipProvider>
       {ui}
     </TooltipProvider>
   );
+  await flushWindowControlEffects();
+  return rendered;
 };
 
 describe('AppControlMenu', () => {
@@ -57,31 +110,45 @@ describe('AppControlMenu', () => {
     mockIsWindowMaximized.mockResolvedValue(false);
     mockIsAlwaysOnTop.mockResolvedValue(false);
     mockSaveWindowState.mockResolvedValue(undefined);
+    mockShowWindow.mockResolvedValue(undefined);
+    mockHideWindow.mockResolvedValue(undefined);
+    mockUnminimizeWindow.mockResolvedValue(undefined);
+    mockFocusWindow.mockResolvedValue(undefined);
+    mockIsWindowVisible.mockResolvedValue(true);
+    mockIsWindowMinimized.mockResolvedValue(false);
+    mockIsTrayPositioningReady.mockResolvedValue(false);
+    mockListenForTrayActivation.mockResolvedValue(() => {});
   });
 
   describe('dropdown variant', () => {
-    it('renders dropdown trigger button', () => {
-      renderWithProviders(<AppControlMenu variant="dropdown" />);
-      const trigger = screen.getByRole('button');
+    it('renders dropdown trigger button', async () => {
+      await renderWithProviders(<AppControlMenu variant="dropdown" />);
+      const trigger = screen.getByLabelText('appControl.appControls');
       expect(trigger).toBeInTheDocument();
       expect(trigger).toHaveAttribute('aria-label', 'appControl.appControls');
     });
 
-    it('renders trigger with correct aria attributes', () => {
-      renderWithProviders(<AppControlMenu variant="dropdown" />);
-      const trigger = screen.getByRole('button');
+    it('renders trigger with correct aria attributes', async () => {
+      await renderWithProviders(<AppControlMenu variant="dropdown" />);
+      const trigger = screen.getByLabelText('appControl.appControls');
       expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
     });
+
+    it('hides tray positioning controls until tray support is ready', async () => {
+      await renderWithProviders(<AppControlMenu variant="dropdown" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('appControl.screenPositions')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText('appControl.trayPositions')).not.toBeInTheDocument();
+    });
+
   });
 
   describe('inline variant', () => {
     it('renders Tauri controls correctly', async () => {
-      renderWithProviders(<AppControlMenu variant="inline" />);
-      
-      // Wait for useEffect to complete and state to update
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await renderWithProviders(<AppControlMenu variant="inline" />);
 
       await waitFor(() => {
         // Tauri inline variant shows: pinWindow, minimize, maximize, fullscreen, close
@@ -95,7 +162,7 @@ describe('AppControlMenu', () => {
 
     it('renders Web controls correctly when not in Tauri', async () => {
       mockIsTauri.mockReturnValue(false);
-      renderWithProviders(<AppControlMenu variant="inline" />);
+      await renderWithProviders(<AppControlMenu variant="inline" />);
       
       // Component starts with isTauriEnv = false when isTauri() returns false
       // Since isTauri() returns false synchronously, web controls show immediately
@@ -106,11 +173,7 @@ describe('AppControlMenu', () => {
     });
 
     it('calls minimize on Tauri environment', async () => {
-      renderWithProviders(<AppControlMenu variant="inline" />);
-      
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await renderWithProviders(<AppControlMenu variant="inline" />);
 
       const minimizeBtn = await screen.findByLabelText('appControl.minimize');
       fireEvent.click(minimizeBtn);
@@ -118,24 +181,18 @@ describe('AppControlMenu', () => {
     });
 
     it('calls toggleFullscreen', async () => {
-      renderWithProviders(<AppControlMenu variant="inline" />);
-      
-      await act(async () => {
-        await Promise.resolve();
-      });
+      await renderWithProviders(<AppControlMenu variant="inline" />);
 
       const fullscreenBtn = await screen.findByLabelText('appControl.fullscreen');
-      fireEvent.click(fullscreenBtn);
+      await act(async () => {
+        fireEvent.click(fullscreenBtn);
+      });
       expect(mockToggleFullscreen).toHaveBeenCalled();
     });
   });
 
   it('updates state on window resize in Tauri environment', async () => {
-    renderWithProviders(<AppControlMenu variant="inline" />);
-    
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await renderWithProviders(<AppControlMenu variant="inline" />);
 
     await waitFor(() => {
       expect(screen.getByLabelText('appControl.maximize')).toBeInTheDocument();

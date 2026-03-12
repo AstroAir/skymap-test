@@ -55,6 +55,13 @@ describe('daily-knowledge/normalizers', () => {
       expect(item.languageStatus).toBe('native');
     });
 
+    it('defaults practical metadata when not provided', () => {
+      const item = buildItem(makeMinimalParams());
+      expect(item.difficulty).toBe('intermediate');
+      expect(item.bestViewingMonths).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      expect(item.observationTips).toEqual([]);
+    });
+
     it('sets fetchedAt to Date.now() when not provided', () => {
       const before = Date.now();
       const item = buildItem(makeMinimalParams());
@@ -83,6 +90,9 @@ describe('daily-knowledge/normalizers', () => {
           isDateEvent: true,
           eventMonthDay: '02-14',
           factSources: [{ title: 'Source', url: 'https://example.com', publisher: 'Pub' }],
+          difficulty: 'advanced',
+          bestViewingMonths: [12, 1, 12, 0, 13, 2],
+          observationTips: [' Tip 1 ', '', 'Tip 2'],
           languageStatus: 'fallback',
           fetchedAt: 1000,
         })
@@ -94,6 +104,9 @@ describe('daily-knowledge/normalizers', () => {
       expect(item.isDateEvent).toBe(true);
       expect(item.eventMonthDay).toBe('02-14');
       expect(item.factSources).toHaveLength(1);
+      expect(item.difficulty).toBe('advanced');
+      expect(item.bestViewingMonths).toEqual([1, 2, 12]);
+      expect(item.observationTips).toEqual(['Tip 1', 'Tip 2']);
       expect(item.languageStatus).toBe('fallback');
       expect(item.fetchedAt).toBe(1000);
     });

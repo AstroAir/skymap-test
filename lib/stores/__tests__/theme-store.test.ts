@@ -3,7 +3,7 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import { useThemeStore, themePresets } from '../theme-store';
+import { getResolvedThemeColors, useThemeStore, themePresets } from '../theme-store';
 
 describe('useThemeStore', () => {
   // Mock requestAnimationFrame to execute callbacks synchronously
@@ -347,6 +347,54 @@ describe('useThemeStore', () => {
       themePresets.forEach(preset => {
         expect(preset.colors.light.primary || preset.colors.dark.primary).toBeDefined();
       });
+    });
+  });
+
+  describe('getResolvedThemeColors', () => {
+    it('should merge preset colors with light-mode custom overrides', () => {
+      const colors = getResolvedThemeColors(
+        {
+          radius: 0.5,
+          fontFamily: 'default',
+          fontSize: 'default',
+          animationsEnabled: true,
+          activePreset: 'ocean',
+          customColors: {
+            light: {
+              primary: '#123456',
+            },
+            dark: {},
+          },
+        },
+        'light'
+      );
+
+      expect(colors.primary).toBe('#123456');
+      expect(colors.secondary).toBe(themePresets.find((preset) => preset.id === 'ocean')?.colors.light.secondary);
+    });
+
+    it('should keep light and dark mode palettes independent', () => {
+      const colors = getResolvedThemeColors(
+        {
+          radius: 0.5,
+          fontFamily: 'default',
+          fontSize: 'default',
+          animationsEnabled: true,
+          activePreset: null,
+          customColors: {
+            light: {
+              primary: '#abcdef',
+            },
+            dark: {
+              primary: '#fedcba',
+            },
+          },
+        },
+        'dark'
+      );
+
+      expect(colors.primary).toBe('#fedcba');
+      expect(colors.secondary).toBeUndefined();
     });
   });
 });

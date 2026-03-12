@@ -135,6 +135,52 @@ export interface StellariumCometsModule extends StellariumDataModule {
 // ============================================================================
 
 export type SkyCultureLanguage = 'native' | 'en' | 'zh';
+export type ARCameraPreset = 'balanced' | 'performance' | 'quality';
+export type ARCameraResolutionTier = 'auto' | '720p' | '1080p' | '4k';
+export type ARCameraFacingMode = 'user' | 'environment';
+export type ARCameraAcquisitionStage =
+  | 'remembered-device'
+  | 'preferred-device'
+  | 'requested-facing-mode'
+  | 'requested-facing-mode-safe'
+  | 'fallback-facing-mode-safe'
+  | 'safe-default';
+
+export interface ARCameraPreferredDevice {
+  deviceId: string | null;
+  label: string | null;
+  groupId: string | null;
+}
+
+export interface ARCameraLastKnownGoodAcquisition {
+  deviceId: string | null;
+  label: string | null;
+  groupId: string | null;
+  facingMode: ARCameraFacingMode;
+  stage: ARCameraAcquisitionStage | null;
+  updatedAt: number | null;
+}
+
+export interface ARAdaptiveLearnerState {
+  version: number;
+  acceptedRecommendations: number;
+  rejectedRecommendations: number;
+  repeatedManualAdjustmentCount: number;
+  lastRecommendationAt: number | null;
+  lastAcceptedAt: number | null;
+  preferredProfileOverrides: Partial<{
+    resolutionTier: ARCameraResolutionTier;
+    targetFps: number;
+    stabilizationStrength: number;
+    sensorSmoothingFactor: number;
+    calibrationSensitivity: number;
+  }>;
+  // Aggregate tuning signal only; payload MUST exclude raw media.
+  aggregateSignals: {
+    averageSessionFps: number;
+    averageRecoveryActionsPerSession: number;
+  };
+}
 
 export type StellariumProjection =
   | 'stereographic'
@@ -198,6 +244,23 @@ export interface StellariumSettings {
   arMode: boolean;
   arOpacity: number;
   arShowCompass: boolean;
+  arCameraPreset?: ARCameraPreset;
+  arCameraFacingMode?: ARCameraFacingMode;
+  arCameraResolutionTier?: ARCameraResolutionTier;
+  arCameraTargetFps?: number;
+  arCameraStabilizationStrength?: number;
+  arCameraCalibrationSensitivity?: number;
+  arCameraZoomLevel?: number;
+  arCameraTorchPreferred?: boolean;
+  arCameraPreferredDevice?: ARCameraPreferredDevice;
+  arCameraLastKnownGoodAcquisition?: ARCameraLastKnownGoodAcquisition;
+  arAdaptiveLearningEnabled?: boolean;
+  arAdaptiveAutoApply?: boolean;
+  arAdaptiveLearnerState?: ARAdaptiveLearnerState;
+  arNetworkOptimizationEnabled?: boolean;
+  arTelemetryOptIn?: boolean;
+  arRemotePackVersion?: string | null;
+  arRemotePackUpdatedAt?: number | null;
   crosshairVisible: boolean;
   crosshairColor: string;
 
@@ -455,3 +518,4 @@ declare global {
     }) => void;
   }
 }
+

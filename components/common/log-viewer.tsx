@@ -63,12 +63,14 @@ import { useLogStore } from '@/lib/stores/log-store';
 import {
   LogLevel,
   LogEntry,
+  LOG_LEVEL_NAMES,
   formatTimestamp,
   serializeData,
   formatLogEntryToText,
   groupConsecutiveLogs,
   type GroupedLogEntry,
 } from '@/lib/logger';
+import { clipboardService } from '@/lib/services/clipboard-service';
 
 /**
  * Highlight matching search text in a string
@@ -133,12 +135,15 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
   const [copied, setCopied] = useState(false);
   const hasDetails = entry.data !== undefined || entry.stack;
   
-  const handleCopy = useCallback(() => {
+  const handleCopy = useCallback(async () => {
     const text = formatLogEntryToText(entry);
-    
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await clipboardService.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Ignore clipboard failures in inline log actions.
+    }
   }, [entry]);
   
   return (
@@ -184,7 +189,7 @@ const LogEntryRow: React.FC<LogEntryRowProps> = ({ entry, isExpanded, onToggleEx
                 className="h-6 w-6"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleCopy();
+                  void handleCopy();
                 }}
               >
                 {copied ? (
@@ -273,6 +278,8 @@ export function LogViewer({
     filter,
     modules,
     stats,
+    policy,
+    suppression,
     autoScroll,
     setFilter,
     clearFilter,
@@ -280,7 +287,24 @@ export function LogViewer({
     downloadLogs,
     refresh,
     setAutoScroll,
+    setSuppressionEnabled,
   } = useLogStore();
+
+  const globalLevelLabel = useMemo(() => {
+    const levelName = LOG_LEVEL_NAMES[policy.globalLevel];
+    switch (levelName) {
+      case 'debug':
+        return t('debug');
+      case 'info':
+        return t('info');
+      case 'warn':
+        return t('warn');
+      case 'error':
+        return t('error');
+      default:
+        return String(policy.globalLevel);
+    }
+  }, [policy.globalLevel, t]);
   
   // Track the snapshot of logs when paused
   const pausedLogsRef = useRef<LogEntry[]>([]);
@@ -587,6 +611,16 @@ export function LogViewer({
                     {t('groupDuplicates')}
                   </Label>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="suppression-enabled"
+                    checked={suppression.enabled}
+                    onCheckedChange={setSuppressionEnabled}
+                  />
+                  <Label htmlFor="suppression-enabled" className="text-sm">
+                    {t('suppressionEnabled')}
+                  </Label>
+                </div>
               </div>
               
               <Button
@@ -643,11 +677,22 @@ export function LogViewer({
           <span className="text-muted-foreground">
             {t('showing', { count: displayLogs.length, total: totalCount })}
           </span>
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="flex items-center gap-1">
-              <Bug className="h-3 w-3 text-muted-foreground" />
-              {stats.byLevel.debug}
-            </span>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-muted-foreground">
+                {t('effectiveLevel')}: {globalLevelLabel}
+              </span>
+              <span className="text-muted-foreground">
+                {t('suppressed')}: {suppression.suppressedDuplicates}
+              </span>
+              {suppression.droppedTransportLogs > 0 && (
+                <span className="text-yellow-600 dark:text-yellow-400">
+                  {t('dropped')}: {suppression.droppedTransportLogs}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <Bug className="h-3 w-3 text-muted-foreground" />
+                {stats.byLevel.debug}
+              </span>
             <span className="flex items-center gap-1">
               <Info className="h-3 w-3 text-blue-500" />
               {stats.byLevel.info}

@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { parseRACoordinate, parseDecCoordinate } from '@/lib/astronomy/coordinates/conversions';
 import type { GoToCoordinatesDialogProps } from '@/types/starmap/view';
 
@@ -53,14 +53,14 @@ export const GoToCoordinatesDialog = memo(function GoToCoordinatesDialog({
   }, [onOpenChange]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t('coordinates.goToCoordinates')}</DialogTitle>
-          <DialogDescription className="sr-only">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="compact-confirmation">
+      <ResponsiveDialogContent className="sm:max-w-md">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{t('coordinates.goToCoordinates')}</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="sr-only">
             {t('coordinates.goToDescription')}
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="ra">{t('coordinates.ra')}</Label>
@@ -86,16 +86,16 @@ export const GoToCoordinatesDialog = memo(function GoToCoordinatesDialog({
             <p className="text-sm text-destructive">{coordError}</p>
           )}
         </div>
-        <DialogFooter>
+        <ResponsiveDialogFooter stickyOnMobile>
           <Button variant="outline" onClick={handleClose}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleGoToCoordinates}>
             {t('coordinates.goTo')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 });
 GoToCoordinatesDialog.displayName = 'GoToCoordinatesDialog';

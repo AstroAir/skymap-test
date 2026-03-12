@@ -18,7 +18,7 @@ jest.mock('@/lib/stores/target-list-store', () => ({
 const mockRecentSearches: { query: string }[] = [];
 const mockSearchStoreState = {
   currentSearchMode: 'local' as 'local' | 'online' | 'hybrid',
-  settings: { timeout: 15000, groupBySource: false },
+  settings: { timeout: 15000, groupBySource: false, cacheFallbackMaxAgeMinutes: 30 },
   lastStatusCheck: Date.now(),
   onlineStatus: {
     local: true,
@@ -107,7 +107,7 @@ describe('useObjectSearch', () => {
     jest.useFakeTimers();
     mockRecentSearches.length = 0;
     mockSearchStoreState.currentSearchMode = 'local';
-    mockSearchStoreState.settings = { timeout: 15000, groupBySource: false };
+    mockSearchStoreState.settings = { timeout: 15000, groupBySource: false, cacheFallbackMaxAgeMinutes: 30 };
     mockSearchStoreState.lastStatusCheck = Date.now();
     mockSearchStoreState.onlineStatus = {
       local: true,
@@ -145,8 +145,11 @@ describe('useObjectSearch', () => {
       expect(result.current.query).toBe('');
       expect(result.current.results).toEqual([]);
       expect(result.current.isSearching).toBe(false);
+      expect(result.current.searchStage).toBe('idle');
       expect(result.current.searchOutcome).toBe('empty');
       expect(result.current.searchMessages).toEqual([]);
+      expect(result.current.refinementHints).toEqual([]);
+      expect(result.current.providerDiagnostics).toEqual([]);
     });
 
     it('should have default filters', () => {
@@ -284,6 +287,85 @@ describe('useObjectSearch', () => {
       });
     });
 
+    it('ignores stale async results from earlier query when a newer query completes', async () => {
+      const searchOnlineByName = getOnlineSearchMock();
+      mockSearchStoreState.currentSearchMode = 'online';
+
+      searchOnlineByName
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              setTimeout(
+                () =>
+                  resolve({
+                    results: [
+                      {
+                        id: 'm31',
+                        name: 'M31',
+                        canonicalId: 'M31',
+                        identifiers: ['M31'],
+                        confidence: 0.9,
+                        type: 'Galaxy',
+                        category: 'galaxy',
+                        ra: 10.6847,
+                        dec: 41.2689,
+                        source: 'sesame',
+                      },
+                    ],
+                    sources: ['sesame'],
+                    totalCount: 1,
+                    searchTimeMs: 10,
+                  }),
+                500
+              );
+            })
+        )
+        .mockResolvedValueOnce({
+          results: [
+            {
+              id: 'm42',
+              name: 'M42',
+              canonicalId: 'M42',
+              identifiers: ['M42'],
+              confidence: 0.9,
+              type: 'Nebula',
+              category: 'nebula',
+              ra: 83.822,
+              dec: -5.391,
+              source: 'sesame',
+            },
+          ],
+          sources: ['sesame'],
+          totalCount: 1,
+          searchTimeMs: 10,
+        });
+
+      const { result } = renderHook(() => useObjectSearch());
+
+      act(() => {
+        result.current.search('M31');
+        jest.advanceTimersByTime(200);
+      });
+
+      act(() => {
+        result.current.search('M42');
+        jest.advanceTimersByTime(200);
+      });
+
+      await waitFor(() => {
+        expect(result.current.results.some(r => r.Name === 'M42')).toBe(true);
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+
+      await waitFor(() => {
+        expect(result.current.query).toBe('M42');
+      });
+      expect(result.current.results.some(r => r.Name === 'M42')).toBe(true);
+    });
+
     it('should clear results for empty query', async () => {
       const { result } = renderHook(() => useObjectSearch());
       
@@ -327,6 +409,62 @@ describe('useObjectSearch', () => {
 
       expect(result.current.searchOutcome).toBe('partial_success');
       expect(result.current.searchMessages.length).toBeGreaterThan(0);
+      expect(result.current.providerDiagnostics.some(d => d.status === 'timeout')).toBe(true);
+    });
+
+    it('emits local_ready stage before finalized in hybrid mode', async () => {
+      const searchOnlineByName = getOnlineSearchMock();
+      mockSearchStoreState.currentSearchMode = 'hybrid';
+      searchOnlineByName.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(
+              () =>
+                resolve({
+                  results: [],
+                  sources: [],
+                  totalCount: 0,
+                  searchTimeMs: 10,
+                }),
+              500
+            );
+          })
+      );
+
+      const { result } = renderHook(() => useObjectSearch());
+
+      act(() => {
+        result.current.search('M31');
+        jest.advanceTimersByTime(200);
+      });
+
+      await waitFor(() => {
+        expect(result.current.searchStage).toBe('local_ready');
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+
+      await waitFor(() => {
+        expect(result.current.searchStage).toBe('finalized');
+      });
+    });
+
+    it('surfaces refinement hints for malformed coordinate input', async () => {
+      mockSearchStoreState.currentSearchMode = 'local';
+      const { result } = renderHook(() => useObjectSearch());
+
+      act(() => {
+        result.current.search('@not-a-coordinate');
+        jest.advanceTimersByTime(200);
+      });
+
+      await waitFor(() => {
+        expect(result.current.searchStage).toBe('finalized');
+      });
+
+      expect(result.current.refinementHints.some(h => h.code === 'COORDINATE_FORMAT_HINT')).toBe(true);
     });
 
     it('clears stale results and reports error when online search fails', async () => {
@@ -610,7 +748,7 @@ describe('useObjectSearch', () => {
     });
 
     it('should group by source when groupBySource is enabled', async () => {
-      mockSearchStoreState.settings = { timeout: 15000, groupBySource: true };
+      mockSearchStoreState.settings = { timeout: 15000, groupBySource: true, cacheFallbackMaxAgeMinutes: 30 };
       const { result } = renderHook(() => useObjectSearch());
 
       act(() => {

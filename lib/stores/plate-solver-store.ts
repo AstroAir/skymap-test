@@ -6,10 +6,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createLogger } from '@/lib/logger';
+import { getZustandStorage } from '@/lib/storage';
+import { isTauri } from '@/lib/storage/platform';
 import {
   createInitialOnlineSolveSessionState,
   type OnlineSolveSessionState,
 } from '@/lib/plate-solving/online-solve-contract';
+import { secretVaultApi } from '@/lib/tauri/secret-vault-api';
 import type {
   SolverType,
   SolverInfo,
@@ -159,9 +162,17 @@ export const usePlateSolverStore = create<PlateSolverState>()(
       },
 
       saveConfig: async () => {
-        const { config } = get();
+        const { config, onlineApiKey } = get();
         try {
           await saveSolverConfig(config);
+          if (isTauri()) {
+            const trimmedKey = onlineApiKey.trim();
+            if (trimmedKey) {
+              await secretVaultApi.setPlateSolverApiKey(trimmedKey);
+            } else {
+              await secretVaultApi.deletePlateSolverApiKey();
+            }
+          }
         } catch (error) {
           logger.error('Failed to save solver config', error);
         }
@@ -170,7 +181,26 @@ export const usePlateSolverStore = create<PlateSolverState>()(
       loadConfig: async () => {
         try {
           const config = await loadSolverConfig();
-          set({ config });
+          const nextState: Partial<PlateSolverState> = {
+            config: {
+              ...DEFAULT_SOLVER_CONFIG,
+              ...get().config,
+              ...(config ?? DEFAULT_SOLVER_CONFIG),
+            },
+          };
+          if (isTauri()) {
+            const storedKey = await secretVaultApi.getPlateSolverApiKey();
+            const legacyKey = get().onlineApiKey.trim();
+
+            if (!storedKey && legacyKey) {
+              await secretVaultApi.setPlateSolverApiKey(legacyKey);
+              nextState.onlineApiKey = legacyKey;
+            } else if (storedKey) {
+              nextState.onlineApiKey = storedKey;
+            }
+          }
+
+          set(nextState as Partial<PlateSolverState>);
         } catch (error) {
           logger.error('Failed to load solver config', error);
           // Use default config
@@ -303,14 +333,21 @@ export const usePlateSolverStore = create<PlateSolverState>()(
     }),
     {
       name: 'plate-solver-storage',
+      storage: getZustandStorage(),
       partialize: (state) => ({
         config: state.config,
-        onlineApiKey: state.onlineApiKey,
         solveHistory: state.solveHistory,
       }),
     }
   )
 );
+
+if (typeof window !== 'undefined') {
+  const state = usePlateSolverStore.getState();
+  if (state.onlineApiKey) {
+    void state.loadConfig();
+  }
+}
 
 // ============================================================================
 // Selectors
@@ -328,7 +365,7 @@ export const selectIsLocalSolverAvailable = (state: PlateSolverState): boolean =
   const activeSolver = selectActiveSolver(state);
   if (!activeSolver) return false;
   if (activeSolver.solver_type === 'astrometry_net_online') return true;
-  return activeSolver.installed_indexes.length > 0;
+  return activeSolver.is_available;
 };
 
 export const selectCanSolve = (state: PlateSolverState): boolean => {

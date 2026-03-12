@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
 
 // Mock framer-motion to pass through
@@ -317,5 +317,28 @@ describe('UnifiedOnboarding', () => {
 
     // Tour hub should be dismissed
     expect(screen.queryByText('onboarding.hub.title')).not.toBeInTheDocument();
+  });
+
+  it('re-enters setup from persisted setup checkpoint', async () => {
+    act(() => {
+      useOnboardingStore.getState().openSetup();
+      useOnboardingStore.getState().goToSetupStep('equipment');
+      useOnboardingStore.getState().closeSetup();
+    });
+
+    render(<UnifiedOnboarding />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('equipment-step')).toBeInTheDocument();
+    });
+  });
+
+  it('restores tour hub visibility from persisted state', () => {
+    act(() => {
+      useOnboardingStore.getState().setTourHubOpen(true);
+    });
+
+    render(<UnifiedOnboarding />);
+    expect(screen.getByText('onboarding.hub.title')).toBeInTheDocument();
   });
 });

@@ -7,13 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import type { EditSourceDialogProps } from '@/types/starmap/objects';
 
 export function EditSourceDialog({
@@ -33,21 +33,21 @@ export function EditSourceDialog({
   };
   
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="standard-form">
+      <ResponsiveDialogContent className="max-h-[92vh] max-h-[92dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>
             {t('sourceConfig.editSource')}: {source.name}
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             {source.builtIn 
               ? t('sourceConfig.editBuiltInDescription')
               : t('sourceConfig.editCustomDescription')
             }
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
         
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           {/* Priority */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -98,15 +98,15 @@ export function EditSourceDialog({
           </div>
         </div>
         
-        <DialogFooter>
+        <ResponsiveDialogFooter stickyOnMobile>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleSave}>
             {t('common.save')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

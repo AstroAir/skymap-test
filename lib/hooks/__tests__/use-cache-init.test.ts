@@ -9,10 +9,21 @@ import { initializeCacheSystem } from '@/lib/cache/migration';
 // Mock the unified cache module
 jest.mock('@/lib/offline', () => ({
   installFetchInterceptor: jest.fn(),
+  getUnifiedCacheProviderDiagnostics: jest.fn(() => ({
+    providerId: 'browser-cache-api',
+    available: true,
+    supportsPersistent: true,
+    supportsClear: true,
+    supportsCleanup: false,
+    supportsFlush: false,
+    supportsInterception: true,
+  })),
   unifiedCache: {
     keys: jest.fn().mockResolvedValue([]),
     prefetch: jest.fn().mockResolvedValue(true),
     prefetchAll: jest.fn().mockResolvedValue(new Map()),
+    cleanupExpired: jest.fn().mockResolvedValue(0),
+    flush: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -135,6 +146,12 @@ describe('useCacheInit', () => {
     // Logger uses structured logging via createLogger, not raw console.log
     // Verify interceptor was installed (the actual logging is handled by the logger transport)
     expect(mockInstallFetchInterceptor).toHaveBeenCalledWith('cache-first');
+  });
+
+  it('returns provider diagnostics', () => {
+    const { result } = renderHook(() => useCacheInit());
+
+    expect(result.current.providerDiagnostics?.providerId).toBe('browser-cache-api');
   });
 
   it('calls initializeCacheSystem on startup', async () => {

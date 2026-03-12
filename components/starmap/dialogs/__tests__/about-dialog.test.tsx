@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { getVisibleDependencies } from '@/lib/constants/about-data';
 
 // Mock UI components
 jest.mock('@/components/ui/dialog', () => ({
@@ -17,8 +18,16 @@ jest.mock('@/components/ui/dialog', () => ({
 }));
 
 jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => (
-    <button onClick={onClick} data-testid="button" {...props}>{children}</button>
+  Button: ({
+    children,
+    onClick,
+    asChild,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    children?: React.ReactNode;
+    asChild?: boolean;
+  }) => (
+    asChild ? <>{children}</> : <button onClick={onClick} data-testid="button" {...props}>{children}</button>
   ),
 }));
 
@@ -66,6 +75,10 @@ import { AboutDialog } from '../about-dialog';
 describe('AboutDialog', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // @ts-expect-error test cleanup
+    delete window.__TAURI__;
+    // @ts-expect-error test cleanup
+    delete window.__TAURI_INTERNALS__;
   });
 
   it('renders without crashing', () => {
@@ -75,8 +88,7 @@ describe('AboutDialog', () => {
 
   it('renders dialog trigger button', () => {
     render(<AboutDialog />);
-    const buttons = screen.getAllByTestId('button');
-    expect(buttons.length).toBeGreaterThan(0);
+    expect(screen.getByTestId('about-button')).toBeInTheDocument();
   });
 
   it('renders dialog content', () => {
@@ -91,8 +103,7 @@ describe('AboutDialog', () => {
 
   it('trigger button has aria-label for accessibility', () => {
     render(<AboutDialog />);
-    const buttons = screen.getAllByTestId('button');
-    const triggerButton = buttons[0];
+    const triggerButton = screen.getByTestId('about-button');
     expect(triggerButton).toHaveAttribute('aria-label');
   });
 
@@ -162,5 +173,28 @@ describe('AboutDialog', () => {
   it('renders total dependencies count', () => {
     render(<AboutDialog />);
     expect(screen.getByText(/about.totalDeps/)).toBeInTheDocument();
+  });
+
+  it('hides desktop-only dependencies in web runtime', () => {
+    render(<AboutDialog />);
+
+    expect(screen.queryByText('@tauri-apps/api')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dependency-group-desktop')).not.toBeInTheDocument();
+  });
+
+  it('shows desktop dependency group in tauri runtime', () => {
+    // @ts-expect-error runtime marker for test
+    window.__TAURI__ = {};
+
+    render(<AboutDialog />);
+
+    expect(screen.getByTestId('dependency-group-desktop')).toBeInTheDocument();
+    expect(screen.getByText('@tauri-apps/api')).toBeInTheDocument();
+  });
+
+  it('renders the visible dependency rows for the active runtime', () => {
+    render(<AboutDialog />);
+
+    expect(screen.getAllByTestId('dependency-row')).toHaveLength(getVisibleDependencies(false).length);
   });
 });

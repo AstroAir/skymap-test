@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useCallback, useEffect, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,7 @@ export const RightControlPanel = memo(function RightControlPanel({
   onZoomIn,
   onZoomOut,
   onFovSliderChange,
+  onGoToCoordinates,
   onLocationChange,
 }: RightControlPanelProps) {
   const t = useTranslations();
@@ -48,17 +49,20 @@ export const RightControlPanel = memo(function RightControlPanel({
     sensorWidth, setSensorWidth,
     sensorHeight, setSensorHeight,
     focalLength, setFocalLength,
+    pixelSize, rotationAngle,
     mosaic, setMosaic,
-    gridType, setGridType,
+    gridType, setGridType, setRotationAngle, setPixelSize,
   } = useEquipmentFOVProps();
 
   const aperture = useEquipmentStore((s) => s.aperture);
-  const pixelSize = useEquipmentStore((s) => s.pixelSize);
 
   // Persisted collapsed state — survives page refresh
   const collapsed = useSettingsStore((s) => s.preferences.rightPanelCollapsed);
   const setPreference = useSettingsStore((s) => s.setPreference);
+  const skyEngine = useSettingsStore((s) => s.skyEngine);
+  const [transitionsEnabled, setTransitionsEnabled] = useState(false);
   const toggleCollapsed = useCallback(() => {
+    setTransitionsEnabled(true);
     setPreference('rightPanelCollapsed', !collapsed);
   }, [collapsed, setPreference]);
   const expandRightPanelRequestId = useOnboardingBridgeStore((state) => state.expandRightPanelRequestId);
@@ -102,10 +106,19 @@ export const RightControlPanel = memo(function RightControlPanel({
         </Tooltip>
 
         {/* Panel Content - slides right when collapsed */}
-        <div className={cn(
-          "transition-all duration-300 ease-out",
-          collapsed && "translate-x-[calc(100%+16px)] opacity-0 pointer-events-none"
-        )}>
+        <div
+          data-testid="right-control-panel-content"
+          data-state={collapsed ? 'collapsed' : 'expanded'}
+          data-transition={transitionsEnabled ? 'enabled' : 'initial'}
+          className={cn(
+            'will-change-transform',
+            transitionsEnabled
+              ? 'transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none motion-reduce:duration-0'
+              : 'transition-none',
+            collapsed && 'translate-x-[calc(100%+16px)] opacity-0 pointer-events-none'
+          )}
+          aria-hidden={collapsed}
+        >
         <ScrollArea className="max-h-[calc(100vh-160px)] max-h-[calc(100dvh-160px)] overscroll-contain">
         <div className="flex flex-col items-center gap-1.5 py-1.5 w-[52px]">
           {/* Zoom Controls */}
@@ -154,9 +167,20 @@ export const RightControlPanel = memo(function RightControlPanel({
                   sensorWidth={sensorWidth}
                   sensorHeight={sensorHeight}
                   focalLength={focalLength}
+                  pixelSize={pixelSize}
+                  rotationAngle={rotationAngle}
+                  selectedTarget={selectedObject ? {
+                    name: selectedObject.names[0] || t('common.unknown'),
+                    raDeg: selectedObject.raDeg,
+                    decDeg: selectedObject.decDeg,
+                    size: selectedObject.size,
+                  } : null}
                   onSensorWidthChange={setSensorWidth}
                   onSensorHeightChange={setSensorHeight}
                   onFocalLengthChange={setFocalLength}
+                  onPixelSizeChange={setPixelSize}
+                  onRotationAngleChange={setRotationAngle}
+                  onCenterTarget={onGoToCoordinates}
                   mosaic={mosaic}
                   onMosaicChange={setMosaic}
                   gridType={gridType}
@@ -178,7 +202,7 @@ export const RightControlPanel = memo(function RightControlPanel({
           </div>
 
           {/* Mount Controls */}
-          {stel && (
+          {(stel || skyEngine === 'aladin') && (
             <div className="bg-card/80 backdrop-blur-md rounded-lg border border-border/50 w-full" data-tour-id="mount">
               <StellariumMount />
             </div>

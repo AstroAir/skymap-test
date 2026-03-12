@@ -122,6 +122,7 @@ describe('FOVSimulator', () => {
     onMosaicChange: jest.fn(),
     gridType: 'none' as GridType,
     onGridTypeChange: jest.fn(),
+    onCenterTarget: jest.fn(),
   };
 
   beforeEach(() => {
@@ -352,5 +353,53 @@ describe('FOVSimulator', () => {
       fireEvent.change(overlapSlider, { target: { value: '20' } });
       expect(defaultProps.onMosaicChange).toHaveBeenCalled();
     }
+  });
+
+  it('renders setup preset controls', () => {
+    render(<FOVSimulator {...defaultProps} />);
+    expect(document.body.textContent).toContain('fov.setupPresets');
+    expect(document.body.textContent).toContain('fov.saveSetup');
+  });
+
+  it('calls onCenterTarget when center action clicked', () => {
+    const onCenterTarget = jest.fn();
+    render(
+      <FOVSimulator
+        {...defaultProps}
+        selectedTarget={{ name: 'M31', raDeg: 10, decDeg: 41, size: "190' x 60'" }}
+        onCenterTarget={onCenterTarget}
+      />
+    );
+
+    const centerButton = screen.getByText('fov.centerTarget');
+    fireEvent.click(centerButton);
+    expect(onCenterTarget).toHaveBeenCalledWith(10, 41);
+  });
+
+  it('calls onRotationAngleChange when auto-align clicked', () => {
+    const onRotationAngleChange = jest.fn();
+    render(
+      <FOVSimulator
+        {...defaultProps}
+        selectedTarget={{ name: 'M31', raDeg: 10, decDeg: 41, size: "190' x 60'" }}
+        onRotationAngleChange={onRotationAngleChange}
+      />
+    );
+
+    const autoAlignButton = screen.getByText('fov.autoAlign');
+    fireEvent.click(autoAlignButton);
+    expect(onRotationAngleChange).toHaveBeenCalledWith(expect.any(Number));
+  });
+
+  it('surfaces mosaic validation message for invalid overlap', () => {
+    render(
+      <FOVSimulator
+        {...defaultProps}
+        mosaic={{ enabled: true, rows: 2, cols: 2, overlap: 80, overlapUnit: 'percent' }}
+      />
+    );
+
+    expect(defaultProps.onMosaicChange).toHaveBeenCalled();
+    expect(document.body.textContent).toContain('fov.mosaicIssue.overlap_clamped');
   });
 });

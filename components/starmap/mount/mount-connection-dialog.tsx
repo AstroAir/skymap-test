@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import {
   Select,
   SelectContent,
@@ -31,6 +31,7 @@ import { mountApi, type DiscoveredDevice } from '@/lib/tauri/mount-api';
 import { isTauri } from '@/lib/tauri/app-control-api';
 import { createLogger } from '@/lib/logger';
 import type { MountProtocol } from '@/lib/core/types';
+import { PRIMARY_MOUNT_DEVICE_PROFILE_ID, useDeviceStore } from '@/lib/stores/device-store';
 
 const logger = createLogger('mount-connection');
 
@@ -41,17 +42,28 @@ interface MountConnectionDialogProps {
 
 export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDialogProps) {
   const t = useTranslations('mount');
-  const connectionConfig = useMountStore((s) => s.connectionConfig);
+  const connectionProtocol = useMountStore((s) => s.connectionConfig.protocol);
+  const connectionHost = useMountStore((s) => s.connectionConfig.host);
+  const connectionPort = useMountStore((s) => s.connectionConfig.port);
+  const connectionDeviceId = useMountStore((s) => s.connectionConfig.deviceId);
   const setConnectionConfig = useMountStore((s) => s.setConnectionConfig);
   const setCapabilities = useMountStore((s) => s.setCapabilities);
   const applyMountState = useMountStore((s) => s.applyMountState);
   const resetMountInfo = useMountStore((s) => s.resetMountInfo);
   const connected = useMountStore((s) => s.mountInfo.Connected);
+  const beginConnection = useDeviceStore((s) => s.beginConnection);
+  const markConnected = useDeviceStore((s) => s.markConnected);
+  const markFailed = useDeviceStore((s) => s.markFailed);
+  const disconnectConnection = useDeviceStore((s) => s.disconnectConnection);
+  const retryConnection = useDeviceStore((s) => s.retryConnection);
+  const syncFromMountStore = useDeviceStore((s) => s.syncFromMountStore);
+  const mountConnectionState = useDeviceStore((s) => s.connections[PRIMARY_MOUNT_DEVICE_PROFILE_ID]);
+  const mountDiagnostics = useDeviceStore((s) => s.diagnostics[PRIMARY_MOUNT_DEVICE_PROFILE_ID]);
 
-  const [protocol, setProtocol] = useState<MountProtocol>(connectionConfig.protocol);
-  const [host, setHost] = useState(connectionConfig.host);
-  const [port, setPort] = useState(String(connectionConfig.port));
-  const [deviceId, setDeviceId] = useState(String(connectionConfig.deviceId));
+  const [protocol, setProtocol] = useState<MountProtocol>(connectionProtocol);
+  const [host, setHost] = useState(connectionHost);
+  const [port, setPort] = useState(String(connectionPort));
+  const [deviceId, setDeviceId] = useState(String(connectionDeviceId));
   const [connecting, setConnecting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [devices, setDevices] = useState<DiscoveredDevice[]>([]);
@@ -60,17 +72,37 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
   // Reset local state to store values when dialog opens
   useEffect(() => {
     if (open && !connected) {
-      setProtocol(connectionConfig.protocol);
-      setHost(connectionConfig.host);
-      setPort(String(connectionConfig.port));
-      setDeviceId(String(connectionConfig.deviceId));
+      setProtocol(connectionProtocol);
+      setHost(connectionHost);
+      setPort(String(connectionPort));
+      setDeviceId(String(connectionDeviceId));
       setError('');
       setDevices([]);
     }
-  }, [open, connected, connectionConfig]);
+  }, [connected, connectionDeviceId, connectionHost, connectionPort, connectionProtocol, open]);
+
+  useEffect(() => {
+    syncFromMountStore({
+      connected,
+      protocol: connectionProtocol,
+      host: connectionHost,
+      port: connectionPort,
+      deviceId: connectionDeviceId,
+    });
+  }, [
+    connected,
+    connectionDeviceId,
+    connectionHost,
+    connectionPort,
+    connectionProtocol,
+    syncFromMountStore,
+  ]);
 
   const parsedPort = parseInt(port, 10);
   const parsedDeviceId = parseInt(deviceId, 10);
+  const latestDiagnostic = mountDiagnostics && mountDiagnostics.length > 0
+    ? mountDiagnostics[mountDiagnostics.length - 1]
+    : null;
   const isValid = useMemo(() => {
     if (protocol === 'simulator') return true;
     if (!host.trim()) return false;
@@ -85,6 +117,7 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
       return;
     }
 
+    beginConnection(PRIMARY_MOUNT_DEVICE_PROFILE_ID, 'user_connect', 'mount-dialog-connect');
     setConnecting(true);
     setError('');
 
@@ -103,27 +136,57 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
       // Fetch initial state
       const state = await mountApi.getState();
       applyMountState(state);
+      markConnected(PRIMARY_MOUNT_DEVICE_PROFILE_ID, 'user_connect', 'mount-dialog-connect');
 
       logger.info('Mount connected', { protocol, host: config.host, port: config.port });
       onOpenChange(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
+      markFailed(
+        PRIMARY_MOUNT_DEVICE_PROFILE_ID,
+        {
+          code: 'mount-connect-failed',
+          message: msg,
+          recoverable: true,
+        },
+        'user_connect',
+        'mount-dialog-connect',
+      );
       logger.error('Mount connection failed', { error: msg });
     } finally {
       setConnecting(false);
     }
-  }, [protocol, host, port, deviceId, setConnectionConfig, setCapabilities, applyMountState, onOpenChange, t]);
+  }, [
+    protocol,
+    host,
+    port,
+    deviceId,
+    setConnectionConfig,
+    setCapabilities,
+    applyMountState,
+    markConnected,
+    beginConnection,
+    markFailed,
+    onOpenChange,
+    t,
+  ]);
 
   const handleDisconnect = useCallback(async () => {
     try {
       await mountApi.disconnect();
       resetMountInfo();
+      disconnectConnection(PRIMARY_MOUNT_DEVICE_PROFILE_ID, 'user_disconnect', 'mount-dialog-disconnect');
       logger.info('Mount disconnected');
     } catch (e) {
       logger.error('Disconnect error', { error: e });
     }
-  }, [resetMountInfo]);
+  }, [disconnectConnection, resetMountInfo]);
+
+  const handleRetryConnect = useCallback(async () => {
+    retryConnection(PRIMARY_MOUNT_DEVICE_PROFILE_ID, 'mount-dialog-retry');
+    await handleConnect();
+  }, [handleConnect, retryConnection]);
 
   const handleDiscover = useCallback(async () => {
     if (!isTauri()) return;
@@ -151,25 +214,31 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
   }, []);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="standard-form">
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[92vh] max-h-[92dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             {connected ? <Wifi className="h-4 w-4 text-green-500" /> : <WifiOff className="h-4 w-4 text-muted-foreground" />}
             {t('connectionSettings')}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="sr-only">
             {t('connectionSettings')}
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
         {connected ? (
           <Card className="py-4 gap-3 shadow-none">
             <CardContent className="px-4 space-y-4">
               <div className="flex items-center gap-2">
                 <Badge variant="default" className="bg-green-600">{t('connected')}</Badge>
+                {mountConnectionState && (
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {mountConnectionState.state}
+                  </Badge>
+                )}
                 <span className="text-sm text-muted-foreground">
-                  {connectionConfig.protocol === 'simulator' ? t('simulator') : `${connectionConfig.host}:${connectionConfig.port}`}
+                  {connectionProtocol === 'simulator' ? t('simulator') : `${connectionHost}:${connectionPort}`}
                 </span>
               </div>
               <Button variant="destructive" onClick={handleDisconnect} className="w-full">
@@ -279,11 +348,35 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            {mountConnectionState && (
+              <Alert className="py-2 text-xs">
+                <AlertDescription className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span>Connection lifecycle</span>
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {mountConnectionState.state}
+                    </Badge>
+                  </div>
+                  {mountConnectionState.lastError && (
+                    <p className="text-destructive">
+                      {mountConnectionState.lastError.message}
+                    </p>
+                  )}
+                  {latestDiagnostic && (
+                    <p className="text-muted-foreground">
+                      Last event: {latestDiagnostic.from} → {latestDiagnostic.to}
+                    </p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         )}
+        </div>
 
         {!connected && (
-          <DialogFooter>
+          <ResponsiveDialogFooter stickyOnMobile>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               {t('cancel')}
             </Button>
@@ -292,9 +385,17 @@ export function MountConnectionDialog({ open, onOpenChange }: MountConnectionDia
               <Wifi className="h-4 w-4 mr-2" />
               {t('connect')}
             </Button>
-          </DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => void handleRetryConnect()}
+              disabled={connecting || !isValid || !(mountConnectionState?.state === 'failed' || mountConnectionState?.state === 'degraded')}
+            >
+              <Loader2 className={connecting ? 'h-4 w-4 mr-2 animate-spin' : 'h-4 w-4 mr-2'} />
+              Retry
+            </Button>
+          </ResponsiveDialogFooter>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

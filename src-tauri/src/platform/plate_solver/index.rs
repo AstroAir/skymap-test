@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Emitter};
 
-use super::astrometry::{get_local_astrometry_indexes, parse_index_number};
 use super::astap::get_astap_indexes;
+use super::astrometry::{get_local_astrometry_indexes, parse_index_number};
 use super::helpers::get_default_index_path_internal;
 use super::types::{
     AstrometryIndex, DownloadableIndex, DownloadableIndexFull, IndexDownloadProgress, IndexInfo,
@@ -29,19 +29,84 @@ fn astrometry_4100_index_definitions() -> &'static [Astrometry4100IndexDef] {
     // Official Astrometry.net 4100-series skymark diameters (arcminutes).
     // Reference: https://astrometry.net/doc/readme.html
     &[
-        Astrometry4100IndexDef { name: "index-4107", scale_low: 22.0, scale_high: 30.0, size_mb: 158 },
-        Astrometry4100IndexDef { name: "index-4108", scale_low: 30.0, scale_high: 42.0, size_mb: 91 },
-        Astrometry4100IndexDef { name: "index-4109", scale_low: 42.0, scale_high: 60.0, size_mb: 48 },
-        Astrometry4100IndexDef { name: "index-4110", scale_low: 60.0, scale_high: 85.0, size_mb: 24 },
-        Astrometry4100IndexDef { name: "index-4111", scale_low: 85.0, scale_high: 120.0, size_mb: 10 },
-        Astrometry4100IndexDef { name: "index-4112", scale_low: 120.0, scale_high: 170.0, size_mb: 6 },
-        Astrometry4100IndexDef { name: "index-4113", scale_low: 170.0, scale_high: 240.0, size_mb: 3 },
-        Astrometry4100IndexDef { name: "index-4114", scale_low: 240.0, scale_high: 340.0, size_mb: 2 },
-        Astrometry4100IndexDef { name: "index-4115", scale_low: 340.0, scale_high: 480.0, size_mb: 1 },
-        Astrometry4100IndexDef { name: "index-4116", scale_low: 480.0, scale_high: 680.0, size_mb: 1 },
-        Astrometry4100IndexDef { name: "index-4117", scale_low: 680.0, scale_high: 1000.0, size_mb: 1 },
-        Astrometry4100IndexDef { name: "index-4118", scale_low: 1000.0, scale_high: 1400.0, size_mb: 1 },
-        Astrometry4100IndexDef { name: "index-4119", scale_low: 1400.0, scale_high: 2000.0, size_mb: 1 },
+        Astrometry4100IndexDef {
+            name: "index-4107",
+            scale_low: 22.0,
+            scale_high: 30.0,
+            size_mb: 158,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4108",
+            scale_low: 30.0,
+            scale_high: 42.0,
+            size_mb: 91,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4109",
+            scale_low: 42.0,
+            scale_high: 60.0,
+            size_mb: 48,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4110",
+            scale_low: 60.0,
+            scale_high: 85.0,
+            size_mb: 24,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4111",
+            scale_low: 85.0,
+            scale_high: 120.0,
+            size_mb: 10,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4112",
+            scale_low: 120.0,
+            scale_high: 170.0,
+            size_mb: 6,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4113",
+            scale_low: 170.0,
+            scale_high: 240.0,
+            size_mb: 3,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4114",
+            scale_low: 240.0,
+            scale_high: 340.0,
+            size_mb: 2,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4115",
+            scale_low: 340.0,
+            scale_high: 480.0,
+            size_mb: 1,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4116",
+            scale_low: 480.0,
+            scale_high: 680.0,
+            size_mb: 1,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4117",
+            scale_low: 680.0,
+            scale_high: 1000.0,
+            size_mb: 1,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4118",
+            scale_low: 1000.0,
+            scale_high: 1400.0,
+            size_mb: 1,
+        },
+        Astrometry4100IndexDef {
+            name: "index-4119",
+            scale_low: 1400.0,
+            scale_high: 2000.0,
+            size_mb: 1,
+        },
     ]
 }
 
@@ -77,7 +142,9 @@ fn overlap_arcmin(a_min: f64, a_max: f64, b_min: f64, b_max: f64) -> f64 {
 // ============================================================================
 
 #[tauri::command]
-pub async fn get_solver_indexes(solver_type: PlateSolverType) -> Result<Vec<AstrometryIndex>, PlateSolverError> {
+pub async fn get_solver_indexes(
+    solver_type: PlateSolverType,
+) -> Result<Vec<AstrometryIndex>, PlateSolverError> {
     match solver_type {
         PlateSolverType::Astap => get_astap_indexes(),
         PlateSolverType::LocalAstrometry => get_local_astrometry_indexes(),
@@ -105,23 +172,34 @@ pub fn get_downloadable_indexes() -> Vec<DownloadableIndex> {
 }
 
 #[tauri::command]
-pub async fn get_available_indexes(solver_type: String) -> Result<Vec<DownloadableIndexFull>, PlateSolverError> {
+pub async fn get_available_indexes(
+    solver_type: String,
+) -> Result<Vec<DownloadableIndexFull>, PlateSolverError> {
     let indexes = get_downloadable_indexes();
-    Ok(indexes.into_iter().map(|idx| DownloadableIndexFull {
-        name: idx.name.clone(),
-        file_name: format!("{}.fits", idx.name),
-        download_url: idx.url,
-        size_bytes: idx.size_mb * 1024 * 1024,
-        scale_range: ScaleRange { min_arcmin: idx.scale_low, max_arcmin: idx.scale_high },
-        description: idx.description,
-        solver_type: solver_type.clone(),
-    }).collect())
+    Ok(indexes
+        .into_iter()
+        .map(|idx| DownloadableIndexFull {
+            name: idx.name.clone(),
+            file_name: format!("{}.fits", idx.name),
+            download_url: idx.url,
+            size_bytes: idx.size_mb * 1024 * 1024,
+            scale_range: ScaleRange {
+                min_arcmin: idx.scale_low,
+                max_arcmin: idx.scale_high,
+            },
+            description: idx.description,
+            solver_type: solver_type.clone(),
+        })
+        .collect())
 }
 
 #[tauri::command]
-pub async fn get_installed_indexes(solver_type: String, index_path: Option<String>) -> Result<Vec<IndexInfo>, PlateSolverError> {
+pub async fn get_installed_indexes(
+    solver_type: String,
+    index_path: Option<String>,
+) -> Result<Vec<IndexInfo>, PlateSolverError> {
     let path = index_path.or_else(|| get_default_index_path_internal(&solver_type));
-    
+
     if let Some(path) = path {
         let path_buf = PathBuf::from(&path);
         if path_buf.exists() && path_buf.is_dir() {
@@ -130,13 +208,17 @@ pub async fn get_installed_indexes(solver_type: String, index_path: Option<Strin
                 for entry in entries.flatten() {
                     let entry_path = entry.path();
                     if entry_path.extension().map(|e| e == "fits").unwrap_or(false) {
-                        let name = entry_path.file_stem()
+                        let name = entry_path
+                            .file_stem()
                             .map(|s| s.to_string_lossy().to_string())
                             .unwrap_or_default();
                         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
                         indexes.push(IndexInfo {
                             name: name.clone(),
-                            file_name: entry_path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+                            file_name: entry_path
+                                .file_name()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap_or_default(),
                             path: entry_path.to_string_lossy().to_string(),
                             size_bytes: size,
                             scale_range: parse_index_scale(&name),
@@ -152,7 +234,10 @@ pub async fn get_installed_indexes(solver_type: String, index_path: Option<Strin
 }
 
 #[tauri::command]
-pub async fn get_recommended_indexes(solver_type: String, fov_degrees: f64) -> Result<Vec<DownloadableIndexFull>, PlateSolverError> {
+pub async fn get_recommended_indexes(
+    solver_type: String,
+    fov_degrees: f64,
+) -> Result<Vec<DownloadableIndexFull>, PlateSolverError> {
     if !fov_degrees.is_finite() || fov_degrees <= 0.0 {
         return Ok(Vec::new());
     }
@@ -206,14 +291,23 @@ pub async fn get_recommended_indexes(solver_type: String, fov_degrees: f64) -> R
 }
 
 #[tauri::command]
-pub async fn download_index(app: AppHandle, index: DownloadableIndex, dest_path: String) -> Result<(), PlateSolverError> {
+pub async fn download_index(
+    app: AppHandle,
+    index: DownloadableIndex,
+    dest_path: String,
+) -> Result<(), PlateSolverError> {
     log::info!("Downloading index {} to {}", index.name, dest_path);
 
     let client = reqwest::Client::new();
-    let response = client.get(&index.url).send().await
+    let response = client
+        .get(&index.url)
+        .send()
+        .await
         .map_err(|e| PlateSolverError::DownloadFailed(e.to_string()))?;
 
-    let total = response.content_length().unwrap_or(index.size_mb * 1024 * 1024);
+    let total = response
+        .content_length()
+        .unwrap_or(index.size_mb * 1024 * 1024);
     let mut downloaded = 0u64;
 
     let mut file = std::fs::File::create(&dest_path)?;
@@ -227,11 +321,15 @@ pub async fn download_index(app: AppHandle, index: DownloadableIndex, dest_path:
         file.write_all(&chunk)?;
         downloaded += chunk.len() as u64;
 
-        let _ = app.emit("index-download-progress", IndexDownloadProgress {
-            index_name: index.name.clone(),
-            downloaded, total,
-            percent: (downloaded as f64 / total as f64) * 100.0,
-        });
+        let _ = app.emit(
+            "index-download-progress",
+            IndexDownloadProgress {
+                index_name: index.name.clone(),
+                downloaded,
+                total,
+                percent: (downloaded as f64 / total as f64) * 100.0,
+            },
+        );
     }
 
     log::info!("Index {} downloaded successfully", index.name);
@@ -317,7 +415,7 @@ mod tests {
     fn test_get_downloadable_indexes() {
         let indexes = get_downloadable_indexes();
         assert!(!indexes.is_empty());
-        
+
         // Should have the full 4107..4119 set
         let names: Vec<&str> = indexes.iter().map(|i| i.name.as_str()).collect();
         assert!(names.contains(&"index-4107"));
@@ -328,7 +426,7 @@ mod tests {
     #[test]
     fn test_downloadable_index_structure() {
         let indexes = get_downloadable_indexes();
-        
+
         for idx in &indexes {
             assert!(!idx.name.is_empty());
             assert!(!idx.url.is_empty());
@@ -339,7 +437,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_recommended_indexes_for_two_degree_fov() {
-        let recommended = get_recommended_indexes("astrometry_net".to_string(), 2.0).await.unwrap();
+        let recommended = get_recommended_indexes("astrometry_net".to_string(), 2.0)
+            .await
+            .unwrap();
         let names: Vec<&str> = recommended.iter().map(|i| i.name.as_str()).collect();
 
         // 2° = 120 arcmin -> target skymark range is roughly 12..120 arcmin
@@ -353,27 +453,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_recommended_indexes_invalid_fov() {
-        let r1 = get_recommended_indexes("astrometry_net".to_string(), 0.0).await.unwrap();
+        let r1 = get_recommended_indexes("astrometry_net".to_string(), 0.0)
+            .await
+            .unwrap();
         assert!(r1.is_empty());
 
-        let r2 = get_recommended_indexes("astrometry_net".to_string(), -1.0).await.unwrap();
+        let r2 = get_recommended_indexes("astrometry_net".to_string(), -1.0)
+            .await
+            .unwrap();
         assert!(r2.is_empty());
 
-        let r3 = get_recommended_indexes("astrometry_net".to_string(), f64::NAN).await.unwrap();
+        let r3 = get_recommended_indexes("astrometry_net".to_string(), f64::NAN)
+            .await
+            .unwrap();
         assert!(r3.is_empty());
 
-        let r4 = get_recommended_indexes("astrometry_net".to_string(), f64::INFINITY).await.unwrap();
+        let r4 = get_recommended_indexes("astrometry_net".to_string(), f64::INFINITY)
+            .await
+            .unwrap();
         assert!(r4.is_empty());
     }
 
     #[tokio::test]
     async fn test_get_recommended_indexes_wide_field() {
         // 35° = 2100 arcmin -> desired range 210..2100 -> should include wide-field indexes
-        let recommended = get_recommended_indexes("astrometry_net".to_string(), 35.0).await.unwrap();
+        let recommended = get_recommended_indexes("astrometry_net".to_string(), 35.0)
+            .await
+            .unwrap();
         let names: Vec<&str> = recommended.iter().map(|i| i.name.as_str()).collect();
         assert!(names.contains(&"index-4119")); // 1400-2000 arcmin
         assert!(names.contains(&"index-4118")); // 1000-1400 arcmin
-        // Should not include narrow-field indexes
+                                                // Should not include narrow-field indexes
         assert!(!names.contains(&"index-4107")); // 22-30 arcmin
     }
 
@@ -455,7 +565,9 @@ mod tests {
         std::fs::write(&temp, b"test").unwrap();
         assert!(temp.exists());
 
-        delete_index(temp.to_string_lossy().to_string()).await.unwrap();
+        delete_index(temp.to_string_lossy().to_string())
+            .await
+            .unwrap();
         assert!(!temp.exists());
     }
 

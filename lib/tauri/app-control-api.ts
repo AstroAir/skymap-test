@@ -10,6 +10,8 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('app-control-api');
 
+export const TRAY_ACTIVATED_EVENT = 'skymap-tray-activated';
+
 /**
  * Check if running in Tauri environment
  */
@@ -97,6 +99,108 @@ export async function minimizeWindow(): Promise<void> {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
   const appWindow = getCurrentWindow();
   await appWindow.minimize();
+}
+
+/**
+ * Restore a minimized window.
+ */
+export async function unminimizeWindow(): Promise<void> {
+  if (!isTauri()) {
+    logger.warn('unminimizeWindow is only available in Tauri environment');
+    return;
+  }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  await getCurrentWindow().unminimize();
+}
+
+/**
+ * Show the current window.
+ */
+export async function showWindow(): Promise<void> {
+  if (!isTauri()) {
+    logger.warn('showWindow is only available in Tauri environment');
+    return;
+  }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  await getCurrentWindow().show();
+}
+
+/**
+ * Hide the current window.
+ */
+export async function hideWindow(): Promise<void> {
+  if (!isTauri()) {
+    logger.warn('hideWindow is only available in Tauri environment');
+    return;
+  }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  await getCurrentWindow().hide();
+}
+
+/**
+ * Focus the current window.
+ */
+export async function focusWindow(): Promise<void> {
+  if (!isTauri()) {
+    logger.warn('focusWindow is only available in Tauri environment');
+    return;
+  }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  await getCurrentWindow().setFocus();
+}
+
+/**
+ * Check whether the current window is visible.
+ */
+export async function isWindowVisible(): Promise<boolean> {
+  if (!isTauri()) {
+    return true;
+  }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  return getCurrentWindow().isVisible();
+}
+
+/**
+ * Check whether the current window is minimized.
+ */
+export async function isWindowMinimized(): Promise<boolean> {
+  if (!isTauri()) {
+    return false;
+  }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  return getCurrentWindow().isMinimized();
+}
+
+/**
+ * Check whether tray-relative positioning is ready for this runtime.
+ */
+export async function isTrayPositioningReady(): Promise<boolean> {
+  if (!isTauri()) {
+    return false;
+  }
+
+  try {
+    return await invoke<boolean>('is_tray_positioning_ready');
+  } catch (error) {
+    logger.warn('Failed to read tray positioning readiness', error);
+    return false;
+  }
+}
+
+/**
+ * Listen for tray activation events emitted by the Rust backend.
+ */
+export async function listenForTrayActivation(
+  handler: () => void | Promise<void>
+): Promise<() => void> {
+  if (!isTauri()) {
+    return () => {};
+  }
+
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen(TRAY_ACTIVATED_EVENT, () => {
+    void handler();
+  });
 }
 
 /**

@@ -33,6 +33,7 @@ jest.mock('@/lib/stores', () => ({
   useMarkerStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
       markers: [marker],
+      groupVisibility: { Default: true },
       showMarkers: true,
       showLabels: true,
       globalMarkerSize: 20,
@@ -181,6 +182,7 @@ describe('SkyMarkers', () => {
     );
 
     fireEvent.click(screen.getByText('markers.goTo'));
+    expect(mockSetActiveMarker).toHaveBeenCalledWith('m1');
     expect(onNavigate).toHaveBeenCalledWith(marker);
   });
 

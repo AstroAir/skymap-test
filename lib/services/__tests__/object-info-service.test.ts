@@ -210,7 +210,7 @@ describe('object-info-service', () => {
 
   describe('getObjectDescription', () => {
     it('should generate galaxy description', () => {
-      const desc = getObjectDescription('Galaxy', 'galaxy', ['M31'], 3.4, '2.5 Mly', 'Sb');
+      const desc = getObjectDescription('Galaxy', 'galaxy', ['M31'], { magnitude: 3.4, distance: '2.5 Mly', morphologicalType: 'Sb' });
       
       expect(desc).toContain('M31');
       expect(desc).toContain('galaxy');
@@ -220,7 +220,7 @@ describe('object-info-service', () => {
     });
 
     it('should generate nebula description', () => {
-      const desc = getObjectDescription('Emission Nebula', 'nebula', ['M42'], 4.0);
+      const desc = getObjectDescription('Emission Nebula', 'nebula', ['M42'], { magnitude: 4.0 });
       
       expect(desc).toContain('M42');
       expect(desc).toContain('emission nebula');
@@ -228,14 +228,14 @@ describe('object-info-service', () => {
     });
 
     it('should generate cluster description', () => {
-      const desc = getObjectDescription('Globular Cluster', 'cluster', ['M13'], 5.8, '25,000 ly');
+      const desc = getObjectDescription('Globular Cluster', 'cluster', ['M13'], { magnitude: 5.8, distance: '25,000 ly' });
       
       expect(desc).toContain('M13');
       expect(desc).toContain('globular cluster');
     });
 
     it('should generate star description', () => {
-      const desc = getObjectDescription('Star', 'star', ['Vega'], 0.03);
+      const desc = getObjectDescription('Star', 'star', ['Vega'], { magnitude: 0.03 });
       
       expect(desc).toContain('Vega');
       expect(desc).toContain('star');

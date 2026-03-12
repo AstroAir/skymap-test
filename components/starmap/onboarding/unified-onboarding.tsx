@@ -58,7 +58,11 @@ export function UnifiedOnboarding({
 }: UnifiedOnboardingProps) {
   const t = useTranslations();
   const phase = useOnboardingStore((state) => state.phase);
+  const resumeCheckpoint = useOnboardingStore((state) => state.resumeCheckpoint);
+  const tourHubOpen = useOnboardingStore((state) => state.tourHubOpen);
   const isSetupOpen = useOnboardingStore((state) => state.isSetupOpen);
+  const isTourActive = useOnboardingStore((state) => state.isTourActive);
+  const openSetup = useOnboardingStore((state) => state.openSetup);
   const setupStep = useOnboardingStore((state) => state.setupStep);
   const setupCompletedSteps = useOnboardingStore((state) => state.setupCompletedSteps);
   const setupNextStep = useOnboardingStore((state) => state.setupNextStep);
@@ -73,14 +77,17 @@ export function UnifiedOnboarding({
   const getSetupStepIndex = useOnboardingStore((state) => state.getSetupStepIndex);
   const recordSetupSkip = useOnboardingStore((state) => state.recordSetupSkip);
   const startTourById = useOnboardingStore((state) => state.startTourById);
+  const restartTourModule = useOnboardingStore((state) => state.restartTourModule);
+  const resumeTour = useOnboardingStore((state) => state.resumeTour);
   const getTourProgress = useOnboardingStore((state) => state.getTourProgress);
   const completedTours = useOnboardingStore((state) => state.completedTours);
+  const setTourHubOpen = useOnboardingStore((state) => state.setTourHubOpen);
+  const resolveEntrySurface = useOnboardingStore((state) => state.resolveEntrySurface);
 
   const [direction, setDirection] = useState(1);
   const [showSetupSkipConfirm, setShowSetupSkipConfirm] = useState(false);
   const [pendingSetupSkipStep, setPendingSetupSkipStep] =
     useState<'location' | 'equipment' | null>(null);
-  const [showTourHub, setShowTourHub] = useState(false);
 
   useEffect(() => {
     if (!initialTourId) return;
@@ -89,6 +96,41 @@ export function UnifiedOnboarding({
     }, 300);
     return () => window.clearTimeout(timer);
   }, [initialTourId, startTourById]);
+
+  useEffect(() => {
+    if (initialTourId) return;
+    const entry = resolveEntrySurface();
+
+    if (entry === 'setup' && !isSetupOpen && phase !== 'tour') {
+      openSetup();
+      return;
+    }
+
+    if (entry === 'tour-hub' && !tourHubOpen) {
+      setTourHubOpen(true);
+      return;
+    }
+
+    if (
+      entry === 'resume-tour'
+      && !isTourActive
+      && resumeCheckpoint?.phase === 'tour'
+      && resumeCheckpoint.activeTourId
+    ) {
+      resumeTour(resumeCheckpoint.activeTourId);
+    }
+  }, [
+    initialTourId,
+    isSetupOpen,
+    isTourActive,
+    openSetup,
+    phase,
+    resolveEntrySurface,
+    resumeCheckpoint,
+    resumeTour,
+    setTourHubOpen,
+    tourHubOpen,
+  ]);
 
   const handleAdvanceSetup = useCallback(() => {
     setDirection(1);
@@ -194,7 +236,7 @@ export function UnifiedOnboarding({
 
   const handleTourCompleted = (tourId: TourId) => {
     if (tourId === 'first-run-core') {
-      setShowTourHub(true);
+      setTourHubOpen(true);
       onComplete?.();
     }
     onTourCompleted?.(tourId);
@@ -372,7 +414,7 @@ export function UnifiedOnboarding({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={showTourHub} onOpenChange={setShowTourHub}>
+      <Dialog open={tourHubOpen} onOpenChange={setTourHubOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -407,11 +449,23 @@ export function UnifiedOnboarding({
                       size="sm"
                       variant={done ? 'outline' : 'default'}
                       onClick={() => {
-                        setShowTourHub(false);
+                        setTourHubOpen(false);
+                        if (done) {
+                          restartTourModule(tour.id);
+                          return;
+                        }
+                        if (progress.currentStepIndex > 0 && !progress.completed) {
+                          resumeTour(tour.id);
+                          return;
+                        }
                         startTourById(tour.id);
                       }}
                     >
-                      {done ? t('onboarding.hub.restart') : t('onboarding.hub.start')}
+                      {done
+                        ? t('onboarding.hub.restart')
+                        : progress.currentStepIndex > 0 && !progress.completed
+                          ? t('onboarding.hub.resume')
+                          : t('onboarding.hub.start')}
                     </Button>
                   </CardContent>
                 </Card>
@@ -419,7 +473,7 @@ export function UnifiedOnboarding({
             })}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowTourHub(false)}>
+            <Button variant="ghost" onClick={() => setTourHubOpen(false)}>
               {t('onboarding.hub.finishLater')}
             </Button>
           </DialogFooter>

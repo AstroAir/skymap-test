@@ -50,7 +50,9 @@ export interface WebLocation {
   latitude: number;
   longitude: number;
   altitude: number;
+  timezone?: string;
   bortle_class?: number;
+  notes?: string;
   is_default: boolean;
   is_current: boolean;
 }

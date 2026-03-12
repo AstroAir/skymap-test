@@ -20,6 +20,22 @@ function wait(ms: number) {
   });
 }
 
+async function resolveStepTarget(
+  selector: string,
+  retries = 4,
+  retryDelayMs = 90,
+): Promise<Element | null> {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const target = document.querySelector(selector);
+    if (target) return target;
+    if (attempt < retries) {
+      // Wait for transient UI updates (drawer/panel animations) before retrying.
+      await wait(retryDelayMs);
+    }
+  }
+  return null;
+}
+
 export function OnboardingTour({
   onTourStart,
   onTourEnd,
@@ -174,23 +190,21 @@ export function OnboardingTour({
         return;
       }
       stepCleanupRef.current = cleanup ?? null;
+      const target = await resolveStepTarget(currentStep.targetSelector);
+      if (cancelled || target) return;
 
       if (
-        currentStep.fallbackMode === 'skip' &&
-        currentStep.placement !== 'center'
+        currentStep.fallbackMode === 'skip'
+        && currentStep.placement !== 'center'
+        && currentStep.capabilityId
       ) {
-        await wait(120);
-        if (cancelled) return;
-        const target = document.querySelector(currentStep.targetSelector);
-        if (!target && currentStep.capabilityId) {
-          const reason: StepSkipReason = {
-            code: 'missing-selector',
-            messageKey: 'onboarding.skipReasons.missing-selector',
-            details: currentStep.targetSelector,
-          };
-          skipCapability(currentStep.capabilityId, reason);
-          nextStep();
-        }
+        const reason: StepSkipReason = {
+          code: 'missing-selector',
+          messageKey: 'onboarding.skipReasons.missing-selector',
+          details: currentStep.targetSelector,
+        };
+        skipCapability(currentStep.capabilityId, reason);
+        nextStep();
       }
     };
 

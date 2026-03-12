@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { OnboardingTour } from '../onboarding-tour';
 import { useOnboardingStore } from '@/lib/stores/onboarding-store';
+import type { TourStep } from '@/types/starmap/onboarding';
 
 // Mock next-intl
 jest.mock('next-intl', () => ({
@@ -220,5 +221,71 @@ describe('OnboardingTour', () => {
 
     // Clean up
     document.body.removeChild(button);
+  });
+
+  it('keeps the current step active with center fallback when target is missing', async () => {
+    const centerFallbackStep: TourStep = {
+      id: 'center-fallback-step',
+      targetSelector: '[data-tour-id="missing-center-target"]',
+      titleKey: 'onboarding.steps.welcome.title',
+      descriptionKey: 'onboarding.steps.welcome.description',
+      placement: 'bottom',
+      fallbackMode: 'center',
+    };
+
+    act(() => {
+      useOnboardingStore.setState({
+        isTourActive: true,
+        phase: 'tour',
+        activeTourId: null,
+        activeTourSteps: [centerFallbackStep],
+        currentStepIndex: 0,
+      });
+    });
+
+    render(<OnboardingTour />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Welcome')).toBeInTheDocument();
+      expect(useOnboardingStore.getState().currentStepIndex).toBe(0);
+      expect(useOnboardingStore.getState().skippedCapabilities).toEqual({});
+    });
+  });
+
+  it('retries missing target then records skip reason and advances for skip fallback', async () => {
+    const skipFallbackStep: TourStep = {
+      id: 'skip-fallback-step',
+      capabilityId: 'missing-tool',
+      targetSelector: '[data-tour-id="missing-skip-target"]',
+      titleKey: 'onboarding.steps.search.title',
+      descriptionKey: 'onboarding.steps.search.description',
+      placement: 'bottom',
+      fallbackMode: 'skip',
+    };
+    const nextCenterStep: TourStep = {
+      id: 'next-step',
+      targetSelector: '[data-tour-id="canvas"]',
+      titleKey: 'onboarding.steps.welcome.title',
+      descriptionKey: 'onboarding.steps.welcome.description',
+      placement: 'center',
+      fallbackMode: 'center',
+    };
+
+    act(() => {
+      useOnboardingStore.setState({
+        isTourActive: true,
+        phase: 'tour',
+        activeTourId: null,
+        activeTourSteps: [skipFallbackStep, nextCenterStep],
+        currentStepIndex: 0,
+      });
+    });
+
+    render(<OnboardingTour />);
+
+    await waitFor(() => {
+      expect(useOnboardingStore.getState().currentStepIndex).toBe(1);
+      expect(useOnboardingStore.getState().skippedCapabilities['missing-tool']?.code).toBe('missing-selector');
+    }, { timeout: 2500 });
   });
 });

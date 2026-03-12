@@ -238,10 +238,10 @@ export function OnboardingRestartButton({
   className,
 }: OnboardingRestartButtonProps) {
   const t = useTranslations();
-  const resetAll = useOnboardingStore((state) => state.resetAll);
+  const restartAllOnboarding = useOnboardingStore((state) => state.restartAllOnboarding);
 
   const handleRestart = () => {
-    resetAll();
+    restartAllOnboarding();
   };
 
   return (
@@ -252,7 +252,7 @@ export function OnboardingRestartButton({
       className={cn('gap-2', className)}
     >
       <Sparkles className="w-4 h-4" />
-      {t('onboarding.restartTour')}
+      {t('onboarding.restartAll')}
     </Button>
   );
 }

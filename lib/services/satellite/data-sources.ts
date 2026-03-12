@@ -4,7 +4,7 @@
 
 import type { TLEDataSource, TLEData, TLEFetchResult, SatelliteCategory } from './types';
 import { parseTLEText } from './propagator';
-import { smartFetch } from '../http-fetch';
+import { smartFetch } from '@/lib/services/http-fetch';
 
 // ============================================================================
 // Data Source Configuration
@@ -83,7 +83,11 @@ export async function fetchTLEFromSource(
   }
   
   try {
-    const response = await smartFetch(source.url, { timeout: 30000 });
+    const response = await smartFetch(source.url, {
+      timeout: 30000,
+      cachePolicy: 'satellite-tle',
+      cacheTtl: source.updateInterval * 3600 * 1000,
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -143,7 +147,11 @@ export async function fetchTLEByNoradId(
   const url = `https://celestrak.org/NORAD/elements/gp.php?CATNR=${noradId}&FORMAT=tle`;
   
   try {
-    const response = await smartFetch(url, { timeout: 30000 });
+    const response = await smartFetch(url, {
+      timeout: 30000,
+      cachePolicy: 'satellite-tle',
+      cacheTtl: 12 * 3600 * 1000,
+    });
     if (!response.ok) return null;
     
     const text = await response.text();

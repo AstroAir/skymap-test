@@ -7,14 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogTrigger,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import type { ImageSourceConfig, DataSourceConfig } from '@/lib/services/object-info-config';
 import type { AddCustomSourceDialogProps } from '@/types/starmap/objects';
 
@@ -66,27 +66,27 @@ export function AddCustomSourceDialog({
   };
   
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <ResponsiveDialog open={open} onOpenChange={setOpen} tier="standard-form">
+      <ResponsiveDialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <Plus className="h-3.5 w-3.5" />
           {t('sourceConfig.addCustom')}
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
+      </ResponsiveDialogTrigger>
+      <ResponsiveDialogContent className="max-h-[92vh] max-h-[92dvh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>
             {type === 'image' 
               ? t('sourceConfig.addImageSource') 
               : t('sourceConfig.addDataSource')
             }
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             {t('sourceConfig.addCustomDescription')}
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
         
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           <div className="space-y-2">
             <Label htmlFor="name">{t('sourceConfig.sourceName')}</Label>
             <Input
@@ -153,15 +153,15 @@ export function AddCustomSourceDialog({
           </div>
         </div>
         
-        <DialogFooter>
+        <ResponsiveDialogFooter stickyOnMobile>
           <Button variant="outline" onClick={() => setOpen(false)}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={!name || !baseUrl}>
             {t('common.add')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

@@ -8,6 +8,7 @@ import type {
   TimeScale,
 } from '@/lib/core/types';
 import type { ObjectDetailedInfo } from '@/lib/services/object-info-service';
+import { getConstellationFromCoords } from '@/lib/astronomy/constellation-boundaries';
 
 export const TARGET_INFO_SECTION_ORDER = [
   'identity',
@@ -29,6 +30,8 @@ export const TARGET_DISPLAY_THRESHOLDS = {
 
 export type AltitudeVisibilityState = 'below_horizon' | 'observable' | 'optimal';
 export type MoonInterferenceLevel = 'high' | 'moderate' | 'low';
+export type CalculationQualityState = 'normal' | 'degraded';
+export type CalculationSourceState = 'tauri' | 'fallback' | 'calculation' | 'engine';
 
 export interface TargetAstroDisplayData {
   altitude: number;
@@ -41,6 +44,9 @@ export interface TargetAstroDisplayData {
   qualityFlag: CoordinateQualityFlag;
   dataFreshness: EopFreshness;
   updatedAt: string;
+  calculationSource?: CalculationSourceState;
+  calculationDegraded?: boolean;
+  calculationTimestamp?: string;
   riskHints: string[];
 }
 
@@ -62,6 +68,7 @@ export interface TargetDisplayLiveStatusSection {
   azimuth: string;
   altitudeState: AltitudeVisibilityState;
   moonInterferenceLevel: MoonInterferenceLevel;
+  calculationState: CalculationQualityState;
   riskHints: string[];
 }
 
@@ -79,6 +86,9 @@ export interface TargetDisplayAdvancedMetadataSection {
   qualityFlag: CoordinateQualityFlag;
   dataFreshness: EopFreshness;
   updatedAt: string | null;
+  calculationSource: CalculationSourceState;
+  calculationState: CalculationQualityState;
+  calculationTimestamp: string | null;
 }
 
 export interface TargetDisplayModel {
@@ -117,6 +127,15 @@ export function getMoonInterferenceLevel(moonDistanceDeg: number): MoonInterfere
     return 'moderate';
   }
   return 'high';
+}
+
+export function getCalculationQualityState(
+  qualityFlag: CoordinateQualityFlag,
+  dataFreshness: EopFreshness,
+  explicitDegraded?: boolean
+): CalculationQualityState {
+  if (explicitDegraded) return 'degraded';
+  return qualityFlag === 'fallback' || dataFreshness === 'fallback' ? 'degraded' : 'normal';
 }
 
 export function getAltitudeStateTextClass(state: AltitudeVisibilityState): string {
@@ -198,7 +217,9 @@ export function buildTargetDisplayModel({
     type: objectInfo?.type ?? selectedObject.type ?? null,
     magnitude: formatMagnitude(rawMagnitude),
     size: rawSize,
-    constellation: selectedObject.constellation ?? null,
+    constellation: selectedObject.constellation
+      || objectInfo?.constellation
+      || getConstellationFromCoords(selectedObject.raDeg, selectedObject.decDeg),
     coordinates: {
       ra: selectedObject.ra,
       dec: selectedObject.dec,
@@ -221,6 +242,11 @@ export function buildTargetDisplayModel({
     azimuth: formatAngle(targetData.azimuth),
     altitudeState: getAltitudeVisibilityState(targetData.altitude),
     moonInterferenceLevel: getMoonInterferenceLevel(targetData.moonDistance),
+    calculationState: getCalculationQualityState(
+      targetData.qualityFlag,
+      targetData.dataFreshness,
+      targetData.calculationDegraded,
+    ),
     riskHints: targetData.riskHints ?? [],
   };
 
@@ -238,6 +264,13 @@ export function buildTargetDisplayModel({
     qualityFlag: targetData.qualityFlag,
     dataFreshness: targetData.dataFreshness,
     updatedAt: formatTargetTimestamp(targetData.updatedAt, locale),
+    calculationSource: targetData.calculationSource ?? 'calculation',
+    calculationState: getCalculationQualityState(
+      targetData.qualityFlag,
+      targetData.dataFreshness,
+      targetData.calculationDegraded,
+    ),
+    calculationTimestamp: formatTargetTimestamp(targetData.calculationTimestamp ?? targetData.updatedAt, locale),
   };
 
   return {

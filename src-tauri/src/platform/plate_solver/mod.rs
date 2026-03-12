@@ -1,14 +1,14 @@
 //! Plate solving module
 //! Integrates with ASTAP and Astrometry.net for astronomical plate solving
 
-pub mod types;
-pub mod fits;
 pub mod astap;
 pub mod astrometry;
-pub mod online;
-pub mod index;
 pub mod config;
+pub mod fits;
 pub mod helpers;
+pub mod index;
+pub mod online;
+pub mod types;
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -21,41 +21,30 @@ use types::SolveProgressEvent;
 static ACTIVE_SOLVE_PID: Mutex<Option<u32>> = Mutex::new(None);
 
 #[tauri::command]
-pub async fn detect_plate_solvers() -> Result<Vec<SolverInfo>, PlateSolverError> {
+pub async fn detect_plate_solvers(app: AppHandle) -> Result<Vec<SolverInfo>, PlateSolverError> {
     let mut solvers = Vec::new();
+    let config = config::load_solver_config(app).await.unwrap_or_default();
 
-    // Check for ASTAP
-    let astap_paths = astap::get_astap_paths();
-    for path in astap_paths {
-        if PathBuf::from(&path).exists() {
-            let version = astap::get_astap_version(&path);
-            solvers.push(SolverInfo {
-                solver_type: PlateSolverType::Astap,
-                name: "ASTAP".to_string(),
-                version,
-                path: path.clone(),
-                available: true,
-                index_path: astap::get_astap_index_path(&path),
-            });
-            break;
-        }
+    if let Some(astap) = astap::detect_astap_solver(
+        (config.solver_type == "astap")
+            .then_some(config.executable_path.as_deref())
+            .flatten(),
+        (config.solver_type == "astap")
+            .then_some(config.index_path.as_deref())
+            .flatten(),
+    ) {
+        solvers.push(astap);
     }
 
-    // Check for local Astrometry.net
-    let astrometry_paths = astrometry::get_astrometry_paths();
-    for path in astrometry_paths {
-        if PathBuf::from(&path).exists() {
-            let version = astrometry::get_astrometry_version(&path);
-            solvers.push(SolverInfo {
-                solver_type: PlateSolverType::LocalAstrometry,
-                name: "Astrometry.net (local)".to_string(),
-                version,
-                path: path.clone(),
-                available: true,
-                index_path: astrometry::get_astrometry_index_path(),
-            });
-            break;
-        }
+    if let Some(astrometry) = astrometry::detect_astrometry_solver(
+        (config.solver_type == "astrometry_net")
+            .then_some(config.executable_path.as_deref())
+            .flatten(),
+        (config.solver_type == "astrometry_net")
+            .then_some(config.index_path.as_deref())
+            .flatten(),
+    ) {
+        solvers.push(astrometry);
     }
 
     // Always add online Astrometry.net as fallback
@@ -63,9 +52,14 @@ pub async fn detect_plate_solvers() -> Result<Vec<SolverInfo>, PlateSolverError>
         solver_type: PlateSolverType::AstrometryNet,
         name: "Astrometry.net (online)".to_string(),
         version: None,
-        path: "https://nova.astrometry.net".to_string(),
-        available: true,
+        executable_path: "https://nova.astrometry.net".to_string(),
+        is_available: true,
         index_path: None,
+        installed_indexes: Vec::new(),
+        profile_id: None,
+        profile_name: None,
+        availability_reason: None,
+        uses_custom_executable: false,
     });
 
     Ok(solvers)
@@ -87,24 +81,34 @@ pub async fn cancel_plate_solve() -> Result<(), PlateSolverError> {
         }
         #[cfg(not(target_os = "windows"))]
         {
-            unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+            }
         }
     }
     Ok(())
 }
 
 #[tauri::command]
-pub async fn plate_solve(_app: AppHandle, config: PlateSolverConfig) -> Result<PlateSolveResult, PlateSolverError> {
+pub async fn plate_solve(
+    _app: AppHandle,
+    config: PlateSolverConfig,
+) -> Result<PlateSolveResult, PlateSolverError> {
     let start = std::time::Instant::now();
 
     // Verify image exists
     if !PathBuf::from(&config.image_path).exists() {
-        return Err(PlateSolverError::InvalidImage(format!("Image not found: {}", config.image_path)));
+        return Err(PlateSolverError::InvalidImage(format!(
+            "Image not found: {}",
+            config.image_path
+        )));
     }
 
     let result = match config.solver_type {
         PlateSolverType::Astap => astap::solve_with_astap(&config).await,
-        PlateSolverType::LocalAstrometry => astrometry::solve_with_local_astrometry(&config).await,
+        PlateSolverType::LocalAstrometry => {
+            astrometry::solve_with_local_astrometry(&config, None).await
+        }
         PlateSolverType::AstrometryNet => online::solve_with_online_astrometry(&config).await,
     };
 
@@ -114,28 +118,45 @@ pub async fn plate_solve(_app: AppHandle, config: PlateSolverConfig) -> Result<P
             Ok(r)
         }
         Err(e) => Ok(PlateSolveResult {
-            success: false, ra: None, dec: None, rotation: None, scale: None,
-            width_deg: None, height_deg: None, flipped: None,
+            success: false,
+            ra: None,
+            dec: None,
+            rotation: None,
+            scale: None,
+            width_deg: None,
+            height_deg: None,
+            flipped: None,
             error_message: Some(e.to_string()),
+            wcs_file: None,
             solve_time_ms: start.elapsed().as_millis() as u64,
         }),
     }
 }
 
 #[tauri::command]
-pub async fn solve_image_local(app: AppHandle, config: SolverConfig, params: types::SolveParameters) -> Result<SolveResult, PlateSolverError> {
+pub async fn solve_image_local(
+    app: AppHandle,
+    config: SolverConfig,
+    params: types::SolveParameters,
+) -> Result<SolveResult, PlateSolverError> {
     let start = std::time::Instant::now();
-    
+
     if !PathBuf::from(&params.image_path).exists() {
-        return Err(PlateSolverError::InvalidImage(format!("Image not found: {}", params.image_path)));
+        return Err(PlateSolverError::InvalidImage(format!(
+            "Image not found: {}",
+            params.image_path
+        )));
     }
 
     // Emit: preparing
-    let _ = app.emit("solve-progress", SolveProgressEvent {
-        stage: "preparing".to_string(),
-        progress: 5.0,
-        message: "Validating image and building solver arguments...".to_string(),
-    });
+    let _ = app.emit(
+        "solve-progress",
+        SolveProgressEvent {
+            stage: "preparing".to_string(),
+            progress: 5.0,
+            message: "Validating image and building solver arguments...".to_string(),
+        },
+    );
 
     let solver_config = PlateSolverConfig {
         solver_type: match config.solver_type.as_str() {
@@ -154,34 +175,38 @@ pub async fn solve_image_local(app: AppHandle, config: SolverConfig, params: typ
     };
 
     // Emit: solving
-    let _ = app.emit("solve-progress", SolveProgressEvent {
-        stage: "solving".to_string(),
-        progress: 15.0,
-        message: "Running plate solver...".to_string(),
-    });
+    let _ = app.emit(
+        "solve-progress",
+        SolveProgressEvent {
+            stage: "solving".to_string(),
+            progress: 15.0,
+            message: "Running plate solver...".to_string(),
+        },
+    );
 
     let result = match solver_config.solver_type {
-        PlateSolverType::Astap => astap::solve_with_astap_enhanced(&solver_config, Some(&config)).await,
-        PlateSolverType::LocalAstrometry => astrometry::solve_with_local_astrometry(&solver_config).await,
-        PlateSolverType::AstrometryNet => online::solve_with_online_astrometry(&solver_config).await,
+        PlateSolverType::Astap => {
+            astap::solve_with_astap_enhanced(&solver_config, Some(&config)).await
+        }
+        PlateSolverType::LocalAstrometry => {
+            astrometry::solve_with_local_astrometry(&solver_config, Some(&config)).await
+        }
+        PlateSolverType::AstrometryNet => {
+            online::solve_with_online_astrometry(&solver_config).await
+        }
     };
 
     // Emit: parsing results
-    let _ = app.emit("solve-progress", SolveProgressEvent {
-        stage: "parsing".to_string(),
-        progress: 85.0,
-        message: "Parsing solve results...".to_string(),
-    });
+    let _ = app.emit(
+        "solve-progress",
+        SolveProgressEvent {
+            stage: "parsing".to_string(),
+            progress: 85.0,
+            message: "Parsing solve results...".to_string(),
+        },
+    );
 
     let solve_time_ms = start.elapsed().as_millis() as u64;
-
-    // Check for WCS file to return path
-    let wcs_file_path = PathBuf::from(&params.image_path).with_extension("wcs");
-    let wcs_file = if wcs_file_path.exists() {
-        Some(wcs_file_path.to_string_lossy().to_string())
-    } else {
-        None
-    };
 
     match result {
         Ok(r) => Ok(SolveResult {
@@ -198,30 +223,43 @@ pub async fn solve_image_local(app: AppHandle, config: SolverConfig, params: typ
             solver_name: config.solver_type.clone(),
             solve_time_ms,
             error_message: r.error_message,
-            wcs_file,
+            wcs_file: r.wcs_file,
+            local_diagnostics: None,
         }),
-        Err(e) => Ok(SolveResult {
-            success: false,
-            ra: None, dec: None, ra_hms: None, dec_dms: None,
-            position_angle: None, pixel_scale: None, fov_width: None, fov_height: None,
-            flipped: None,
-            solver_name: config.solver_type,
-            solve_time_ms,
-            error_message: Some(e.to_string()),
-            wcs_file: None,
-        }),
+        Err(e) => {
+            let local_diagnostics = match &e {
+                PlateSolverError::LocalInvocation(diagnostics) => Some(diagnostics.clone()),
+                _ => None,
+            };
+            Ok(SolveResult {
+                success: false,
+                ra: None,
+                dec: None,
+                ra_hms: None,
+                dec_dms: None,
+                position_angle: None,
+                pixel_scale: None,
+                fov_width: None,
+                fov_height: None,
+                flipped: None,
+                solver_name: config.solver_type,
+                solve_time_ms,
+                error_message: Some(e.to_string()),
+                wcs_file: None,
+                local_diagnostics,
+            })
+        }
     }
 }
 
 // Re-export all public types
 pub use types::{
     AstapDatabaseInfo, AstrometryIndex, DownloadableIndex, DownloadableIndexFull,
-    ImageAnalysisResult, IndexDownloadProgress, IndexInfo, OnlineAnnotation,
-    OnlineSolveConfig, OnlineSolveProgress, OnlineSolveResult,
-    PlateSolveResult, PlateSolverConfig, PlateSolverError, PlateSolverType,
-    ScaleRange, SipCoefficients, SolveParameters, SolveResult,
-    SolverConfig, SolverInfo,
-    StarDetection, WcsResult,
+    ImageAnalysisResult, IndexDownloadProgress, IndexInfo, LocalInvocationDiagnostics,
+    LocalSolveWorkspace, LocalSolverProfileId, OnlineAnnotation, OnlineSolveConfig,
+    OnlineSolveProgress, OnlineSolveResult, PlateSolveResult, PlateSolverConfig, PlateSolverError,
+    PlateSolverType, ScaleRange, SipCoefficients, SolveParameters, SolveResult, SolverConfig,
+    SolverInfo, StarDetection, WcsResult,
 };
 
 // Re-export commands from submodules

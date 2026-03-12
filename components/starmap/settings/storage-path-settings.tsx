@@ -34,6 +34,7 @@ import type { PathInfo } from '@/lib/tauri/path-config-api';
 import { formatBytes } from '@/lib/offline';
 import { createLogger } from '@/lib/logger';
 import { SettingsSection } from './settings-shared';
+import { copyTextWithFeedback } from '@/lib/utils/clipboard-feedback';
 
 const logger = createLogger('storage-path-settings');
 
@@ -156,10 +157,13 @@ export function StoragePathSettings() {
       await appSettingsApi.revealInFileManager(path);
     } catch (_revealErr) {
       // Fallback: copy path to clipboard
-      try {
-        await navigator.clipboard.writeText(path);
-        toast.success(t('dataManager.directoryCopied'), { description: path });
-      } catch (_clipboardErr) {
+      const copied = await copyTextWithFeedback({
+        text: path,
+        successMessage: t('dataManager.directoryCopied'),
+        errorMessage: 'Failed to copy path',
+        successDescription: path,
+      });
+      if (!copied) {
         toast.info(path);
       }
     }

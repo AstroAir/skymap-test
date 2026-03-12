@@ -146,3 +146,38 @@ export function validateLocationFields(form: LocationFormValues): FieldErrors<'n
   }
   return errors;
 }
+
+export interface DuplicateLocationCandidate {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+function normalizeLocationName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+export function findPotentialDuplicateLocation<T extends DuplicateLocationCandidate>(
+  locations: T[],
+  name: string,
+  latitude: number,
+  longitude: number,
+  excludeId?: string,
+  tolerance: number = 0.002,
+): T | null {
+  const normalizedInputName = normalizeLocationName(name);
+
+  const duplicate = locations.find((loc) => {
+    if (excludeId && loc.id === excludeId) return false;
+
+    const sameName = normalizeLocationName(loc.name) === normalizedInputName;
+    const nearCoordinates = (
+      Math.abs(loc.latitude - latitude) <= tolerance
+      && Math.abs(loc.longitude - longitude) <= tolerance
+    );
+    return sameName || nearCoordinates;
+  });
+
+  return duplicate ?? null;
+}

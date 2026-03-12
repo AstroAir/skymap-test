@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Type definitions for starmap search components
  * Extracted from components/starmap/search/ for architectural separation
  */
@@ -17,6 +17,7 @@ import type { UseObjectSearchReturn } from '@/lib/hooks/use-object-search';
 export interface StellariumSearchRef {
   focusSearchInput: () => void;
   closeSearch: () => void;
+  setQuery?: (query: string) => void;
 }
 
 export interface StellariumSearchProps {
@@ -89,3 +90,6 @@ export interface FavoritesQuickAccessProps {
   onNavigate?: (ra: number, dec: number) => void;
   className?: string;
 }
+
+
+

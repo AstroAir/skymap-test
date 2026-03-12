@@ -69,11 +69,11 @@ export const GAIN_STRATEGY_OPTIONS = [
 // ============================================================================
 
 export const GRID_TYPE_OPTIONS: { value: GridType; labelKey: string; icon: string }[] = [
-  { value: 'none', labelKey: 'fov.gridNone', icon: '○' },
-  { value: 'crosshair', labelKey: 'fov.gridCrosshair', icon: '┼' },
-  { value: 'thirds', labelKey: 'fov.gridThirds', icon: '▦' },
-  { value: 'golden', labelKey: 'fov.gridGolden', icon: '◫' },
-  { value: 'diagonal', labelKey: 'fov.gridDiagonal', icon: '╳' },
+  { value: 'none', labelKey: 'fov.gridNone', icon: 'O' },
+  { value: 'crosshair', labelKey: 'fov.gridCrosshair', icon: '+' },
+  { value: 'thirds', labelKey: 'fov.gridThirds', icon: '#' },
+  { value: 'golden', labelKey: 'fov.gridGolden', icon: 'G' },
+  { value: 'diagonal', labelKey: 'fov.gridDiagonal', icon: 'X' },
 ];
 
 // Mosaic configuration limits
@@ -126,6 +126,46 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   arMode: false,
   arOpacity: 0.7,
   arShowCompass: true,
+  arCameraPreset: 'balanced' as const,
+  arCameraFacingMode: 'environment' as const,
+  arCameraResolutionTier: '1080p' as const,
+  arCameraTargetFps: 30,
+  arCameraStabilizationStrength: 0.6,
+  arCameraCalibrationSensitivity: 0.5,
+  arCameraZoomLevel: 1,
+  arCameraTorchPreferred: false,
+  arCameraPreferredDevice: {
+    deviceId: null,
+    label: null,
+    groupId: null,
+  },
+  arCameraLastKnownGoodAcquisition: {
+    deviceId: null,
+    label: null,
+    groupId: null,
+    facingMode: 'environment' as const,
+    stage: null,
+    updatedAt: null,
+  },
+  arAdaptiveLearningEnabled: true,
+  arAdaptiveAutoApply: false,
+  arAdaptiveLearnerState: {
+    version: 1,
+    acceptedRecommendations: 0,
+    rejectedRecommendations: 0,
+    repeatedManualAdjustmentCount: 0,
+    lastRecommendationAt: null,
+    lastAcceptedAt: null,
+    preferredProfileOverrides: {},
+    aggregateSignals: {
+      averageSessionFps: 0,
+      averageRecoveryActionsPerSession: 0,
+    },
+  },
+  arNetworkOptimizationEnabled: true,
+  arTelemetryOptIn: false,
+  arRemotePackVersion: null,
+  arRemotePackUpdatedAt: null,
   crosshairVisible: true,
   crosshairColor: 'rgba(255, 255, 255, 0.3)',
 
@@ -142,3 +182,4 @@ export const DEFAULT_STELLARIUM_SETTINGS = {
   mountFrame: 5 as const,
   viewYOffset: 0,
 };
+

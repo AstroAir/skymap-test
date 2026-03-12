@@ -3,7 +3,10 @@ import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
 import { getZustandStorage } from '@/lib/storage';
 import { getDailyKnowledge } from '@/lib/services/daily-knowledge';
-import { HISTORY_LIMIT } from '@/lib/services/daily-knowledge/constants';
+import {
+  DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS,
+  HISTORY_LIMIT,
+} from '@/lib/services/daily-knowledge/constants';
 import type {
   DailyKnowledgeFilters,
   DailyKnowledgeHistory,
@@ -74,6 +77,17 @@ function trimHistory(history: DailyKnowledgeHistory[]): DailyKnowledgeHistory[] 
     .slice(0, HISTORY_LIMIT);
 }
 
+function getRecentHistoryItemIds(
+  history: DailyKnowledgeHistory[],
+  repeatWindowDays: number,
+  nowMs = Date.now()
+): string[] {
+  if (repeatWindowDays <= 0) return [];
+  const cutoff = nowMs - repeatWindowDays * 24 * 60 * 60 * 1000;
+  const recent = history.filter((entry) => entry.shownAt >= cutoff).map((entry) => entry.itemId);
+  return Array.from(new Set(recent));
+}
+
 export const useDailyKnowledgeStore = create<DailyKnowledgeState>()(
   persist(
     (set, get) => ({
@@ -117,11 +131,17 @@ export const useDailyKnowledgeStore = create<DailyKnowledgeState>()(
       loadByDate: async (dateKey, entry = 'manual') => {
         const settings = useSettingsStore.getState();
         const locale = settings.preferences.locale;
+        const recentHistoryItemIds = getRecentHistoryItemIds(
+          get().history,
+          DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS
+        );
         set({ loading: true, error: null });
         try {
           const result = await getDailyKnowledge(dateKey, locale, {
             locale,
             onlineEnhancement: settings.preferences.dailyKnowledgeOnlineEnhancement,
+            recentHistoryItemIds,
+            repeatWindowDays: DAILY_KNOWLEDGE_REPEAT_WINDOW_DAYS,
           });
           set({
             loading: false,

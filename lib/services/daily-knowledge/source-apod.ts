@@ -1,4 +1,4 @@
-import { unifiedCache } from '@/lib/offline/unified-cache';
+import { smartFetch } from '@/lib/services/http-fetch';
 import { APOD_REQUEST_TIMEOUT_MS, APOD_TTL_MS, DAILY_KNOWLEDGE_APOD_URL } from './constants';
 import { buildItem } from './normalizers';
 import { createRequestSignal, isAbortLikeError, isRetryableStatus, parseRetryAfterMs, withRetry } from './policy';
@@ -46,15 +46,16 @@ export async function fetchApodItem(
   try {
     const response = await withRetry(
       async () => {
-        const res = await unifiedCache.fetch(
-          url,
-          { ttl: APOD_TTL_MS, signal },
-          'network-first'
-        );
+        const res = await smartFetch(url, {
+          signal,
+          cachePolicy: 'daily-knowledge-apod',
+          cacheStrategy: 'network-first',
+          cacheTtl: APOD_TTL_MS,
+        });
         if (!res.ok) {
           throw new HttpStatusError(
             res.status,
-            parseRetryAfterMs(res.headers.get('Retry-After')),
+            parseRetryAfterMs(new Headers(res.headers).get('Retry-After')),
             `APOD request failed with status ${res.status}`
           );
         }

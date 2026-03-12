@@ -112,6 +112,7 @@ export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps
           onOpenChange={(open) => { if (!open) onClose(); }}
         >
           <DrawerContent
+            data-testid="search-panel"
             data-starmap-ui-control="true"
             className="sm:hidden max-h-[75vh] max-h-[75dvh] bg-card border-border"
           >
@@ -129,6 +130,7 @@ export const SearchPanel = memo(forwardRef<StellariumSearchRef, SearchPanelProps
 
     return (
       <Card
+        data-testid="search-panel"
         data-starmap-ui-control="true"
         className={cn(
         'absolute top-14 sm:top-16 left-2 sm:left-3 w-[calc(100vw-16px)] sm:w-96 md:w-[420px] sm:max-w-[calc(100vw-24px)] bg-card/95 backdrop-blur-sm border-border z-50 shadow-xl transition-all duration-200',

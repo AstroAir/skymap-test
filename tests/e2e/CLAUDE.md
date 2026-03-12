@@ -25,6 +25,7 @@ The `e2e` module contains Playwright end-to-end tests that verify the applicatio
 
 ```
 tests/e2e/
+├── coverage-matrix.md   # Critical workflow coverage matrix and tier ownership
 ├── fixtures/
 │   ├── page-objects/    # Page Object Model classes
 │   ├── test-data.ts      # Test data constants
@@ -93,6 +94,10 @@ pnpm exec playwright test
 
 # Specific browser
 pnpm exec playwright test --project=chromium
+
+# Tiered suites (critical workflow tags)
+pnpm run test:e2e:smoke
+pnpm run test:e2e:regression
 
 # Specific file
 pnpm exec playwright test tests/e2e/starmap/info-panel.spec.ts
@@ -163,11 +168,20 @@ test.describe('Feature Name', () => {
 
 ### Best Practices
 
-1. **Use data-testid** attributes for stable selectors
-2. **Wait for elements** rather than using fixed delays
+1. **Use selector priority order**: `getByRole` -> `data-testid` -> constrained semantic locator
+2. **Wait for explicit readiness** rather than relying on fixed delays
 3. **Use Page Objects** for reusable interactions
 4. **Test user outcomes**, not implementation details
 5. **Keep tests independent** - each test should clean up after itself
+
+### Tiering And Matrix
+
+- Workflow ownership and gaps are tracked in [`coverage-matrix.md`](./coverage-matrix.md).
+- Tagging convention:
+  - `@smoke`: fast, high-signal checks for each critical workflow category.
+  - `@regression`: broader release-confidence checks (desktop CI profile excludes `@mobile` by default).
+- Primary regression CI command:
+  - `pnpm run test:e2e:regression` (Chromium, `@regression`, excludes `@mobile`).
 
 ---
 

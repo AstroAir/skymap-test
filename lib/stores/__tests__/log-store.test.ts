@@ -13,7 +13,20 @@ jest.mock('@/lib/logger', () => ({
   getFilteredLogs: jest.fn((): unknown[] => []),
   clearLogs: jest.fn(),
   setLogLevel: jest.fn(),
-  getLogLevel: jest.fn(() => 'info'),
+  getLogLevel: jest.fn(() => 1),
+  getLogPolicyState: jest.fn(() => ({
+    environmentDefaultLevel: 0,
+    globalLevel: 1,
+    moduleLevels: {},
+  })),
+  getLogSuppressionStats: jest.fn(() => ({
+    enabled: true,
+    windowMs: 2000,
+    groupedEntries: 0,
+    suppressedDuplicates: 0,
+    droppedTransportLogs: 0,
+  })),
+  setLogSuppressionEnabled: jest.fn(),
   onLogsChanged: jest.fn(() => jest.fn()),
   getUniqueModules: jest.fn((): string[] => []),
   getLogStats: jest.fn(() => ({
@@ -33,9 +46,17 @@ function resetLogStore() {
     logs: [],
     totalCount: 0,
     filter: { level: undefined, module: undefined, search: undefined, limit: 500 },
-    level: 'info' as never,
+    level: 1 as never,
     modules: [],
     stats: { total: 0, byLevel: { debug: 0, info: 0, warn: 0, error: 0 }, byModule: {} },
+    policy: { environmentDefaultLevel: 0, globalLevel: 1, moduleLevels: {} } as never,
+    suppression: {
+      enabled: true,
+      windowMs: 2000,
+      groupedEntries: 0,
+      suppressedDuplicates: 0,
+      droppedTransportLogs: 0,
+    } as never,
     isPanelOpen: false,
     autoScroll: true,
   });
@@ -115,9 +136,9 @@ describe('useLogStore', () => {
 
   describe('setLevel', () => {
     it('should call setLogLevel and update state', () => {
-      act(() => { useLogStore.getState().setLevel('debug' as never); });
-      expect(mockLogger.setLogLevel).toHaveBeenCalledWith('debug');
-      expect(useLogStore.getState().level).toBe('debug');
+      act(() => { useLogStore.getState().setLevel(0 as never); });
+      expect(mockLogger.setLogLevel).toHaveBeenCalledWith(0);
+      expect(useLogStore.getState().level).toBe(0);
     });
   });
 
@@ -184,6 +205,17 @@ describe('useLogStore', () => {
       expect(useLogStore.getState().autoScroll).toBe(false);
       act(() => { useLogStore.getState().setAutoScroll(true); });
       expect(useLogStore.getState().autoScroll).toBe(true);
+    });
+  });
+
+  describe('setSuppressionEnabled', () => {
+    it('should call logger api and refresh suppression stats', () => {
+      act(() => {
+        useLogStore.getState().setSuppressionEnabled(false);
+      });
+
+      expect(mockLogger.setLogSuppressionEnabled).toHaveBeenCalledWith(false);
+      expect(mockLogger.getLogSuppressionStats).toHaveBeenCalled();
     });
   });
 

@@ -33,6 +33,21 @@ export interface SolverInfo {
   is_available: boolean;
   index_path: string | null;
   installed_indexes: IndexInfo[];
+  profile_id?: string | null;
+  profile_name?: string | null;
+  availability_reason?: string | null;
+  uses_custom_executable?: boolean;
+}
+
+export interface LocalInvocationDiagnostics {
+  error_code: string;
+  profile_id: string | null;
+  executable_path: string | null;
+  workspace_path: string | null;
+  exit_code: number | null;
+  availability_reason: string | null;
+  stdout_excerpt: string | null;
+  stderr_excerpt: string | null;
 }
 
 export type AstapSpeedMode = 'auto' | 'slow';
@@ -93,6 +108,7 @@ export interface SolveResult {
   solve_time_ms: number;
   error_message: string | null;
   wcs_file: string | null;
+  local_diagnostics?: LocalInvocationDiagnostics | null;
 }
 
 export interface DownloadableIndex {
@@ -303,14 +319,16 @@ export const DEFAULT_SOLVER_CONFIG: SolverConfig = {
  * Detect all installed plate solvers
  */
 export async function detectPlateSolvers(): Promise<SolverInfo[]> {
-  return invoke<SolverInfo[]>('detect_plate_solvers');
+  const solvers = await invoke<Array<Record<string, unknown>>>('detect_plate_solvers');
+  return solvers.map(normalizeSolverInfo);
 }
 
 /**
  * Get info for a specific solver type
  */
 export async function getSolverInfo(solverType: SolverType): Promise<SolverInfo> {
-  return invoke<SolverInfo>('get_solver_info', { solverType });
+  const solver = await invoke<Record<string, unknown>>('get_solver_info', { solverType });
+  return normalizeSolverInfo(solver);
 }
 
 /**
@@ -633,6 +651,38 @@ export function convertToLegacyResult(result: SolveResult): {
     solverName: result.solver_name,
     solveTime: result.solve_time_ms,
     errorMessage: result.error_message ?? undefined,
+  };
+}
+
+function normalizeSolverInfo(payload: Record<string, unknown>): SolverInfo {
+  return {
+    solver_type: payload.solver_type as SolverType,
+    name: typeof payload.name === 'string' ? payload.name : '',
+    version: typeof payload.version === 'string' ? payload.version : null,
+    executable_path:
+      typeof payload.executable_path === 'string'
+        ? payload.executable_path
+        : typeof payload.path === 'string'
+          ? payload.path
+          : '',
+    is_available:
+      typeof payload.is_available === 'boolean'
+        ? payload.is_available
+        : typeof payload.available === 'boolean'
+          ? payload.available
+          : false,
+    index_path: typeof payload.index_path === 'string' ? payload.index_path : null,
+    installed_indexes: Array.isArray(payload.installed_indexes)
+      ? (payload.installed_indexes as IndexInfo[])
+      : [],
+    profile_id: typeof payload.profile_id === 'string' ? payload.profile_id : null,
+    profile_name: typeof payload.profile_name === 'string' ? payload.profile_name : null,
+    availability_reason:
+      typeof payload.availability_reason === 'string' ? payload.availability_reason : null,
+    uses_custom_executable:
+      typeof payload.uses_custom_executable === 'boolean'
+        ? payload.uses_custom_executable
+        : false,
   };
 }
 

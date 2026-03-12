@@ -11,11 +11,16 @@ import {
   LogLevel,
   LogEntry,
   LogFilter,
+  LogPolicyState,
+  LogSuppressionStats,
   getLogs,
   getFilteredLogs,
   clearLogs as clearAllLogs,
   setLogLevel,
   getLogLevel,
+  getLogPolicyState,
+  getLogSuppressionStats,
+  setLogSuppressionEnabled,
   onLogsChanged,
   getUniqueModules,
   getLogStats,
@@ -40,6 +45,10 @@ export interface LogStoreState {
     byLevel: Record<string, number>;
     byModule: Record<string, number>;
   };
+  /** Effective logger policy state */
+  policy: LogPolicyState;
+  /** Duplicate suppression and transport pressure stats */
+  suppression: LogSuppressionStats;
   /** Whether the log panel is open */
   isPanelOpen: boolean;
   /** Whether auto-scroll is enabled */
@@ -71,6 +80,8 @@ export interface LogStoreActions {
   togglePanel: () => void;
   /** Set auto-scroll */
   setAutoScroll: (enabled: boolean) => void;
+  /** Set duplicate suppression enabled state */
+  setSuppressionEnabled: (enabled: boolean) => void;
 }
 
 export type LogStore = LogStoreState & LogStoreActions;
@@ -113,6 +124,8 @@ export const useLogStore = create<LogStore>((set, get) => {
       byLevel: { debug: 0, info: 0, warn: 0, error: 0 },
       byModule: {},
     },
+    policy: getLogPolicyState(),
+    suppression: getLogSuppressionStats(),
     isPanelOpen: false,
     autoScroll: true,
     
@@ -129,12 +142,16 @@ export const useLogStore = create<LogStore>((set, get) => {
       // Get modules and stats from all logs (not filtered)
       const modules = getUniqueModules(allLogs);
       const stats = getLogStats(allLogs);
+      const policy = getLogPolicyState();
+      const suppression = getLogSuppressionStats();
       
       set({
         logs: filteredLogs,
         totalCount: allLogs.length,
         modules,
         stats,
+        policy,
+        suppression,
       });
     },
     
@@ -151,7 +168,10 @@ export const useLogStore = create<LogStore>((set, get) => {
     
     setLevel: (level) => {
       setLogLevel(level);
-      set({ level });
+      set({
+        level,
+        policy: getLogPolicyState(),
+      });
     },
     
     clearLogs: () => {
@@ -165,6 +185,7 @@ export const useLogStore = create<LogStore>((set, get) => {
           byLevel: { debug: 0, info: 0, warn: 0, error: 0 },
           byModule: {},
         },
+        suppression: getLogSuppressionStats(),
       });
     },
     
@@ -239,6 +260,12 @@ export const useLogStore = create<LogStore>((set, get) => {
     
     setAutoScroll: (enabled) => {
       set({ autoScroll: enabled });
+    },
+
+    setSuppressionEnabled: (enabled) => {
+      setLogSuppressionEnabled(enabled);
+      set({ suppression: getLogSuppressionStats() });
+      get().refresh();
     },
   };
 });

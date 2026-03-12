@@ -42,6 +42,9 @@ const baseResult = {
       attribution: { sourceName: 'Curated' },
       isDateEvent: false,
       factSources: [{ title: 'SEDS M31', url: 'https://messier.seds.org/m/m031.html', publisher: 'SEDS' }],
+      difficulty: 'intermediate' as const,
+      bestViewingMonths: [1, 2, 3, 10, 11, 12],
+      observationTips: ['Tip A', 'Tip B'],
       languageStatus: 'native' as const,
       fetchedAt: Date.now(),
     },
@@ -60,6 +63,9 @@ const baseResult = {
     attribution: { sourceName: 'Curated' },
     isDateEvent: false,
     factSources: [{ title: 'SEDS M31', url: 'https://messier.seds.org/m/m031.html', publisher: 'SEDS' }],
+    difficulty: 'intermediate' as const,
+    bestViewingMonths: [1, 2, 3, 10, 11, 12],
+    observationTips: ['Tip A', 'Tip B'],
     languageStatus: 'native' as const,
     fetchedAt: Date.now(),
   },
@@ -177,6 +183,27 @@ describe('daily-knowledge-store', () => {
     expect(state.currentItem?.id).toBe('curated-andromeda-distance');
     expect(state.lastShownDate).toBe(getLocalDateKey());
     expect(state.history[0].entry).toBe('auto');
+  });
+
+  it('passes recent history IDs for repeat-avoidance selection', async () => {
+    const now = Date.now();
+    useDailyKnowledgeStore.setState({
+      history: [
+        { itemId: 'recent-item', shownAt: now - 2 * 24 * 60 * 60 * 1000, entry: 'manual', dateKey: '2026-02-18' },
+        { itemId: 'old-item', shownAt: now - 12 * 24 * 60 * 60 * 1000, entry: 'manual', dateKey: '2026-02-08' },
+      ],
+    });
+
+    await useDailyKnowledgeStore.getState().loadByDate('2026-02-20', 'manual');
+
+    expect(mockGetDailyKnowledge).toHaveBeenCalledWith(
+      '2026-02-20',
+      'en',
+      expect.objectContaining({
+        recentHistoryItemIds: ['recent-item'],
+        repeatWindowDays: 7,
+      })
+    );
   });
 
   it('refreshes stale cached items when opening dialog on a new date', async () => {

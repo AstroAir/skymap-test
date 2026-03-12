@@ -22,7 +22,7 @@ describe('MemoryTransport', () => {
   let transport: MemoryTransport;
 
   beforeEach(() => {
-    transport = new MemoryTransport({ maxLogs: 100, autoTrim: true });
+    transport = new MemoryTransport({ maxLogs: 100, autoTrim: true, suppressionEnabled: false });
   });
 
   afterEach(() => {
@@ -123,7 +123,11 @@ describe('MemoryTransport', () => {
       transport.subscribe(listener);
       const entry = makeEntry();
       transport.write(entry);
-      expect(listener).toHaveBeenCalledWith(entry);
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+        id: entry.id,
+        module: entry.module,
+        message: entry.message,
+      }));
     });
 
     it('unsubscribes correctly', () => {
@@ -189,6 +193,46 @@ describe('MemoryTransport', () => {
       expect(transport.getLogCount()).toBe(5);
       transport.setConfig({ maxLogs: 3 });
       expect(transport.getLogCount()).toBe(3);
+    });
+  });
+
+  describe('duplicate suppression', () => {
+    it('groups duplicates within suppression window', () => {
+      const suppressed = new MemoryTransport({
+        maxLogs: 100,
+        autoTrim: true,
+        suppressionEnabled: true,
+        suppressionWindowMs: 2000,
+      });
+
+      suppressed.write(makeEntry({ message: 'repeat' }));
+      suppressed.write(makeEntry({ message: 'repeat' }));
+      suppressed.write(makeEntry({ message: 'repeat' }));
+
+      const logs = suppressed.getLogs();
+      expect(logs).toHaveLength(1);
+      expect(logs[0].occurrenceCount).toBe(3);
+
+      const stats = suppressed.getSuppressionStats();
+      expect(stats.groupedEntries).toBe(1);
+      expect(stats.suppressedDuplicates).toBe(2);
+      suppressed.dispose();
+    });
+
+    it('does not group outside suppression window', () => {
+      const suppressed = new MemoryTransport({
+        maxLogs: 100,
+        autoTrim: true,
+        suppressionEnabled: true,
+        suppressionWindowMs: 50,
+      });
+
+      const firstTime = new Date();
+      suppressed.write(makeEntry({ message: 'repeat', timestamp: firstTime }));
+      suppressed.write(makeEntry({ message: 'repeat', timestamp: new Date(firstTime.getTime() + 100) }));
+
+      expect(suppressed.getLogs()).toHaveLength(2);
+      suppressed.dispose();
     });
   });
 

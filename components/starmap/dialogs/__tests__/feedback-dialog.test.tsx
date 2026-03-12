@@ -13,6 +13,7 @@ const mockCollectDiagnostics = jest.fn();
 const mockBuildGitHubIssueUrl = jest.fn();
 const mockBuildIssueBodyMarkdown = jest.fn();
 const mockExportDiagnosticsBundle = jest.fn();
+const mockCopyTextWithFeedback = jest.fn();
 
 jest.mock('@/lib/tauri/app-control-api', () => ({
   openExternalUrl: (url: string) => mockOpenExternalUrl(url),
@@ -23,6 +24,10 @@ jest.mock('@/lib/feedback/feedback-utils', () => ({
   buildGitHubIssueUrl: (...args: unknown[]) => mockBuildGitHubIssueUrl(...args),
   buildIssueBodyMarkdown: (...args: unknown[]) => mockBuildIssueBodyMarkdown(...args),
   exportDiagnosticsBundle: (...args: unknown[]) => mockExportDiagnosticsBundle(...args),
+}));
+
+jest.mock('@/lib/utils/clipboard-feedback', () => ({
+  copyTextWithFeedback: (...args: unknown[]) => mockCopyTextWithFeedback(...args),
 }));
 
 jest.mock('sonner', () => ({
@@ -78,6 +83,7 @@ describe('FeedbackDialog', () => {
       estimatedLength: 120,
     });
     mockExportDiagnosticsBundle.mockResolvedValue('skymap-diagnostics.json');
+    mockCopyTextWithFeedback.mockResolvedValue(true);
   });
 
   // ========================================================================
@@ -276,10 +282,6 @@ describe('FeedbackDialog', () => {
   // ========================================================================
 
   it('copies markdown to clipboard on valid form', async () => {
-    Object.assign(navigator, {
-      clipboard: { writeText: jest.fn().mockResolvedValue(undefined) },
-    });
-
     render(<FeedbackDialog open onOpenChange={jest.fn()} />);
     fillBugFields();
 
@@ -287,8 +289,13 @@ describe('FeedbackDialog', () => {
 
     await waitFor(() => {
       expect(mockBuildIssueBodyMarkdown).toHaveBeenCalled();
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('## Summary');
-      expect(toast.success).toHaveBeenCalledWith('feedback.toast.markdownCopied');
+      expect(mockCopyTextWithFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: '## Summary',
+          successMessage: 'feedback.toast.markdownCopied',
+          errorMessage: 'feedback.toast.copyFailed',
+        })
+      );
     });
   });
 
@@ -303,10 +310,8 @@ describe('FeedbackDialog', () => {
     });
   });
 
-  it('handles clipboard write failure gracefully', async () => {
-    Object.assign(navigator, {
-      clipboard: { writeText: jest.fn().mockRejectedValue(new Error('denied')) },
-    });
+  it('handles clipboard helper failure gracefully', async () => {
+    mockCopyTextWithFeedback.mockResolvedValueOnce(false);
 
     render(<FeedbackDialog open onOpenChange={jest.fn()} />);
     fillBugFields();
@@ -314,7 +319,7 @@ describe('FeedbackDialog', () => {
     fireEvent.click(screen.getByTestId('feedback-copy-button'));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('feedback.toast.copyFailed');
+      expect(mockCopyTextWithFeedback).toHaveBeenCalled();
     });
   });
 

@@ -31,6 +31,7 @@ const mockClearLogs = jest.fn();
 const mockDownloadLogs = jest.fn();
 const mockRefresh = jest.fn();
 const mockSetAutoScroll = jest.fn();
+const mockSetSuppressionEnabled = jest.fn();
 
 let mockLogs: Array<{
   id: string;
@@ -52,6 +53,18 @@ jest.mock('@/lib/stores/log-store', () => ({
       byLevel: { debug: 0, info: 1, warn: 0, error: 0 },
       total: 1,
     },
+    policy: {
+      environmentDefaultLevel: 0,
+      globalLevel: 0,
+      moduleLevels: {},
+    },
+    suppression: {
+      enabled: true,
+      windowMs: 2000,
+      groupedEntries: 0,
+      suppressedDuplicates: 0,
+      droppedTransportLogs: 0,
+    },
     autoScroll: true,
     setFilter: mockSetFilter,
     clearFilter: mockClearFilter,
@@ -59,6 +72,7 @@ jest.mock('@/lib/stores/log-store', () => ({
     downloadLogs: mockDownloadLogs,
     refresh: mockRefresh,
     setAutoScroll: mockSetAutoScroll,
+    setSuppressionEnabled: mockSetSuppressionEnabled,
   }),
 }));
 
@@ -121,6 +135,10 @@ const messages = {
     last1hr: '1 hour',
     allTime: 'All',
     groupDuplicates: 'Group duplicates',
+    suppressionEnabled: 'Suppress repeated logs',
+    effectiveLevel: 'Effective level',
+    suppressed: 'Suppressed',
+    dropped: 'Dropped',
   },
 };
 

@@ -64,12 +64,50 @@ pub struct SystemInfo {
     pub arch: String,
     pub app_version: String,
     pub tauri_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub os_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub os_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exe_extension: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_id: Option<String>,
 }
 
 fn get_settings_path(app: &AppHandle) -> Result<PathBuf, StorageError> {
     let dir = super::path_config::resolve_data_dir(app)?;
     if !dir.exists() { fs::create_dir_all(&dir)?; }
     Ok(dir.join("app_settings.json"))
+}
+
+fn to_optional_non_empty(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn derive_host_id(hostname: &str) -> Option<String> {
+    let trimmed = hostname.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    // Stable non-reversible identifier for diagnostics grouping.
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for byte in trimmed.as_bytes() {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    Some(format!("host-{hash:016x}"))
 }
 
 #[tauri::command]
@@ -140,11 +178,25 @@ pub async fn clear_recent_files(app: AppHandle) -> Result<(), StorageError> {
 
 #[tauri::command]
 pub async fn get_system_info() -> Result<SystemInfo, StorageError> {
+    let detected_arch = tauri_plugin_os::arch();
+    let arch = if detected_arch.trim().is_empty() {
+        std::env::consts::ARCH.to_string()
+    } else {
+        detected_arch.to_string()
+    };
+
     Ok(SystemInfo {
         os: std::env::consts::OS.to_string(),
-        arch: std::env::consts::ARCH.to_string(),
+        arch,
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         tauri_version: tauri::VERSION.to_string(),
+        platform: to_optional_non_empty(tauri_plugin_os::platform().to_string()),
+        family: to_optional_non_empty(tauri_plugin_os::family().to_string()),
+        os_type: to_optional_non_empty(tauri_plugin_os::type_().to_string()),
+        os_version: to_optional_non_empty(tauri_plugin_os::version().to_string()),
+        locale: tauri_plugin_os::locale().and_then(to_optional_non_empty),
+        exe_extension: to_optional_non_empty(tauri_plugin_os::exe_extension().to_string()),
+        host_id: derive_host_id(&tauri_plugin_os::hostname()),
     })
 }
 
@@ -358,12 +410,20 @@ mod tests {
             arch: "x86_64".to_string(),
             app_version: "0.1.0".to_string(),
             tauri_version: "2.0.0".to_string(),
+            platform: Some("windows".to_string()),
+            family: Some("windows".to_string()),
+            os_type: Some("Windows_NT".to_string()),
+            os_version: Some("11".to_string()),
+            locale: Some("en-US".to_string()),
+            exe_extension: Some("exe".to_string()),
+            host_id: Some("host-1234abcd".to_string()),
         };
 
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("windows"));
         assert!(json.contains("x86_64"));
         assert!(json.contains("0.1.0"));
+        assert!(json.contains("host-1234abcd"));
     }
 
     #[test]
@@ -378,6 +438,7 @@ mod tests {
         let info: SystemInfo = serde_json::from_str(json).unwrap();
         assert_eq!(info.os, "macos");
         assert_eq!(info.arch, "aarch64");
+        assert_eq!(info.host_id, None);
     }
 
     #[test]
@@ -387,10 +448,51 @@ mod tests {
             arch: "x86_64".to_string(),
             app_version: "0.1.0".to_string(),
             tauri_version: "2.0.0".to_string(),
+            platform: Some("linux".to_string()),
+            family: Some("unix".to_string()),
+            os_type: Some("Linux".to_string()),
+            os_version: Some("6.10".to_string()),
+            locale: Some("en-US".to_string()),
+            exe_extension: None,
+            host_id: Some("host-4f2d10aa".to_string()),
         };
 
         let cloned = info.clone();
         assert_eq!(cloned.os, info.os);
+        assert_eq!(cloned.host_id, info.host_id);
+    }
+
+    #[test]
+    fn test_system_info_deserialization_with_optional_fields() {
+        let json = r#"{
+            "os": "linux",
+            "arch": "x86_64",
+            "app_version": "1.0.0",
+            "tauri_version": "2.2.0",
+            "platform": "linux",
+            "family": "unix",
+            "os_type": "Linux",
+            "os_version": "6.8",
+            "locale": "en-US",
+            "exe_extension": "",
+            "host_id": "host-b53f4ba2"
+        }"#;
+
+        let info: SystemInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.platform.as_deref(), Some("linux"));
+        assert_eq!(info.host_id.as_deref(), Some("host-b53f4ba2"));
+        assert_eq!(info.exe_extension.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn test_derive_host_id_is_stable() {
+        let first = derive_host_id("observatory-host");
+        let second = derive_host_id("observatory-host");
+        let third = derive_host_id("different-host");
+
+        assert_eq!(first, second);
+        assert_ne!(first, third);
+        assert!(first.unwrap().starts_with("host-"));
     }
 
     // ------------------------------------------------------------------------

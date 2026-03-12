@@ -1,0 +1,323 @@
+export type SearchProviderId =
+  | 'sesame'
+  | 'simbad'
+  | 'vizier'
+  | 'ned'
+  | 'mpc'
+  | 'sbdb'
+  | 'local';
+
+export type ObjectInfoDataProviderId =
+  | 'simbad'
+  | 'wikipedia'
+  | 'vizier'
+  | 'ned'
+  | 'sbdb'
+  | 'dss'
+  | 'nasa-apod'
+  | 'local'
+  | 'stellarium';
+
+export type SearchQueryKind = 'name' | 'coordinates' | 'minor';
+
+export type ProviderCapability =
+  | 'name_search'
+  | 'coordinate_search'
+  | 'small_body_search'
+  | 'metadata_enrichment'
+  | 'description_enrichment'
+  | 'image_enrichment'
+  | 'survey_enrichment';
+
+interface SearchProviderConfig {
+  enabled: boolean;
+  priority: number;
+  timeout: number;
+  queryKinds: SearchQueryKind[];
+  availabilityCheckPath?: string;
+}
+
+interface ObjectInfoProviderConfig {
+  enabled: boolean;
+  priority: number;
+  timeout: number;
+  apiEndpoint?: string;
+}
+
+export interface OnlineDataProviderDefinition {
+  id: SearchProviderId | ObjectInfoDataProviderId;
+  name: string;
+  description: string;
+  baseUrl?: string;
+  endpoint?: string;
+  tapEndpoint?: string;
+  identifierEndpoint?: string;
+  observationEndpoint?: string;
+  search?: SearchProviderConfig;
+  objectInfo?: ObjectInfoProviderConfig;
+  capabilities: ProviderCapability[];
+}
+
+const SEARCH_PROVIDER_PRIORITY: Record<SearchQueryKind, SearchProviderId[]> = {
+  name: ['sesame', 'simbad', 'vizier', 'ned'],
+  coordinates: ['simbad'],
+  minor: ['sbdb', 'mpc', 'sesame', 'simbad'],
+};
+
+export const ONLINE_DATA_PROVIDER_REGISTRY: Record<string, OnlineDataProviderDefinition> = {
+  sesame: {
+    id: 'sesame',
+    name: 'Sesame',
+    description: 'CDS name resolver (SIMBAD + NED + VizieR)',
+    baseUrl: 'https://cds.unistra.fr',
+    endpoint: '/cgi-bin/Sesame',
+    search: {
+      enabled: true,
+      priority: 0,
+      timeout: 10000,
+      queryKinds: ['name', 'minor'],
+      availabilityCheckPath: '/cgi-bin/Sesame/-ox/SNV?M31',
+    },
+    capabilities: ['name_search'],
+  },
+  simbad: {
+    id: 'simbad',
+    name: 'SIMBAD',
+    description: 'CDS astronomical database with rich object metadata',
+    baseUrl: 'https://simbad.cds.unistra.fr',
+    tapEndpoint: '/simbad/sim-tap/sync',
+    search: {
+      enabled: true,
+      priority: 1,
+      timeout: 15000,
+      queryKinds: ['name', 'coordinates', 'minor'],
+      availabilityCheckPath: '/simbad/',
+    },
+    objectInfo: {
+      enabled: true,
+      priority: 1,
+      timeout: 5000,
+      apiEndpoint: '/simbad/sim-tap/sync',
+    },
+    capabilities: ['name_search', 'coordinate_search', 'metadata_enrichment'],
+  },
+  sbdb: {
+    id: 'sbdb',
+    name: 'JPL SBDB',
+    description: 'JPL Small-Body Database for comet and asteroid metadata',
+    baseUrl: 'https://ssd-api.jpl.nasa.gov',
+    endpoint: '/sbdb.api',
+    search: {
+      enabled: true,
+      priority: 2,
+      timeout: 12000,
+      queryKinds: ['minor'],
+      availabilityCheckPath: '/sbdb.api?sstr=1P&phys-par=1',
+    },
+    objectInfo: {
+      enabled: true,
+      priority: 3,
+      timeout: 5000,
+      apiEndpoint: '/sbdb.api',
+    },
+    capabilities: ['small_body_search', 'metadata_enrichment'],
+  },
+  mpc: {
+    id: 'mpc',
+    name: 'MPC',
+    description: 'Minor Planet Center designation resolver',
+    baseUrl: 'https://data.minorplanetcenter.net',
+    identifierEndpoint: '/api/query-identifier',
+    observationEndpoint: '/api/get-obs',
+    search: {
+      enabled: true,
+      priority: 3,
+      timeout: 15000,
+      queryKinds: ['minor'],
+      availabilityCheckPath: '/api/query-identifier',
+    },
+    capabilities: ['small_body_search'],
+  },
+  vizier: {
+    id: 'vizier',
+    name: 'VizieR',
+    description: 'CDS catalog library with extensive survey catalogs',
+    baseUrl: 'https://vizier.cds.unistra.fr',
+    tapEndpoint: '/viz-bin/votable',
+    search: {
+      enabled: false,
+      priority: 4,
+      timeout: 20000,
+      queryKinds: ['name'],
+      availabilityCheckPath: '/viz-bin/VizieR',
+    },
+    objectInfo: {
+      enabled: false,
+      priority: 4,
+      timeout: 5000,
+      apiEndpoint: '/viz-bin/votable',
+    },
+    capabilities: ['name_search', 'metadata_enrichment', 'survey_enrichment'],
+  },
+  ned: {
+    id: 'ned',
+    name: 'NED',
+    description: 'NASA/IPAC Extragalactic Database',
+    baseUrl: 'https://ned.ipac.caltech.edu',
+    endpoint: '/cgi-bin/objsearch',
+    search: {
+      enabled: false,
+      priority: 5,
+      timeout: 15000,
+      queryKinds: ['name'],
+      availabilityCheckPath: '/',
+    },
+    objectInfo: {
+      enabled: false,
+      priority: 5,
+      timeout: 5000,
+      apiEndpoint: '/cgi-bin/objsearch',
+    },
+    capabilities: ['name_search', 'metadata_enrichment'],
+  },
+  wikipedia: {
+    id: 'wikipedia',
+    name: 'Wikipedia',
+    description: 'Wikipedia summaries and lead images for well-known targets',
+    baseUrl: 'https://en.wikipedia.org',
+    objectInfo: {
+      enabled: true,
+      priority: 2,
+      timeout: 5000,
+      apiEndpoint: '/api/rest_v1/page/summary',
+    },
+    capabilities: ['description_enrichment', 'image_enrichment'],
+  },
+  dss: {
+    id: 'dss',
+    name: 'Digitized Sky Survey',
+    description: 'Digitized Sky Survey image cutouts',
+    baseUrl: 'https://archive.stsci.edu/cgi-bin/dss_search',
+    objectInfo: {
+      enabled: true,
+      priority: 4,
+      timeout: 10000,
+    },
+    capabilities: ['image_enrichment', 'survey_enrichment'],
+  },
+  'nasa-apod': {
+    id: 'nasa-apod',
+    name: 'NASA APOD',
+    description: 'Astronomy Picture of the Day archive',
+    baseUrl: 'https://api.nasa.gov',
+    objectInfo: {
+      enabled: false,
+      priority: 6,
+      timeout: 5000,
+      apiEndpoint: '/planetary/apod',
+    },
+    capabilities: ['description_enrichment', 'image_enrichment'],
+  },
+  local: {
+    id: 'local',
+    name: 'Local',
+    description: 'Built-in offline object metadata',
+    search: {
+      enabled: true,
+      priority: -1,
+      timeout: 100,
+      queryKinds: ['name', 'coordinates', 'minor'],
+    },
+    objectInfo: {
+      enabled: true,
+      priority: 0,
+      timeout: 100,
+    },
+    capabilities: ['metadata_enrichment'],
+  },
+  stellarium: {
+    id: 'stellarium',
+    name: 'Stellarium Engine',
+    description: 'Embedded Stellarium Web Engine metadata',
+    objectInfo: {
+      enabled: true,
+      priority: 0,
+      timeout: 100,
+    },
+    capabilities: ['metadata_enrichment'],
+  },
+};
+
+export function getSearchProviderDefinition(id: SearchProviderId): OnlineDataProviderDefinition {
+  return ONLINE_DATA_PROVIDER_REGISTRY[id];
+}
+
+export function getSearchProviderDefinitions(): OnlineDataProviderDefinition[] {
+  return Object.values(ONLINE_DATA_PROVIDER_REGISTRY)
+    .filter((provider) => provider.search)
+    .sort((left, right) => (left.search?.priority ?? 999) - (right.search?.priority ?? 999));
+}
+
+export function getEligibleSearchProviders(kind: SearchQueryKind): SearchProviderId[] {
+  const eligible = new Set(
+    getSearchProviderDefinitions()
+      .filter((provider) => provider.search?.queryKinds.includes(kind))
+      .map((provider) => provider.id as SearchProviderId)
+  );
+
+  return SEARCH_PROVIDER_PRIORITY[kind].filter((providerId) => eligible.has(providerId));
+}
+
+export function filterSearchProvidersForQuery(
+  sources: SearchProviderId[],
+  kind: SearchQueryKind
+): SearchProviderId[] {
+  const requested = new Set(sources);
+  return getEligibleSearchProviders(kind).filter((providerId) => requested.has(providerId));
+}
+
+export function getDefaultSearchSourceConfigs(): Array<{
+  id: SearchProviderId;
+  enabled: boolean;
+  priority: number;
+}> {
+  return getSearchProviderDefinitions().map((provider) => ({
+    id: provider.id as SearchProviderId,
+    enabled: provider.search?.enabled ?? false,
+    priority: provider.search?.priority ?? 999,
+  }));
+}
+
+export function getDefaultSearchOnlineStatus(): Record<SearchProviderId, boolean> {
+  return getSearchProviderDefinitions().reduce<Record<SearchProviderId, boolean>>((acc, provider) => {
+    acc[provider.id as SearchProviderId] = true;
+    return acc;
+  }, {} as Record<SearchProviderId, boolean>);
+}
+
+export function getDefaultObjectInfoDataSourceConfigs(): Array<{
+  id: Extract<ObjectInfoDataProviderId, 'simbad' | 'wikipedia' | 'vizier' | 'ned' | 'sbdb'>;
+  name: string;
+  type: Extract<ObjectInfoDataProviderId, 'simbad' | 'wikipedia' | 'vizier' | 'ned' | 'sbdb'>;
+  enabled: boolean;
+  priority: number;
+  baseUrl: string;
+  apiEndpoint: string;
+  timeout: number;
+  description: string;
+}> {
+  return (['simbad', 'wikipedia', 'sbdb', 'vizier', 'ned'] as const).map((providerId) => {
+    const provider = ONLINE_DATA_PROVIDER_REGISTRY[providerId];
+    return {
+      id: providerId,
+      name: provider.name,
+      type: providerId,
+      enabled: provider.objectInfo?.enabled ?? false,
+      priority: provider.objectInfo?.priority ?? 999,
+      baseUrl: provider.baseUrl ?? '',
+      apiEndpoint: provider.objectInfo?.apiEndpoint ?? provider.endpoint ?? provider.tapEndpoint ?? '',
+      timeout: provider.objectInfo?.timeout ?? provider.search?.timeout ?? 5000,
+      description: provider.description,
+    };
+  });
+}

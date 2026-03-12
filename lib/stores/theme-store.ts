@@ -37,16 +37,42 @@ export interface ThemeCustomization {
   };
 }
 
-interface ThemeStore {
+export type ThemeMode = 'light' | 'dark';
+
+export interface ThemePreviewData {
+  mode: ThemeMode;
+  tokens: ThemeColors;
+}
+
+export interface ThemeContrastWarning {
+  pairId: string;
+  mode: ThemeMode;
+  foregroundToken: keyof ThemeColors;
+  backgroundToken: keyof ThemeColors;
+  ratio: number;
+  threshold: number;
+}
+
+export interface ThemeStorePersistedState {
   customization: ThemeCustomization;
+  userPresets: ThemePreset[];
+}
+
+interface ThemeStore extends ThemeStorePersistedState {
   setCustomization: (customization: Partial<ThemeCustomization>) => void;
   setRadius: (radius: number) => void;
   setFontFamily: (font: ThemeCustomization['fontFamily']) => void;
   setFontSize: (size: ThemeCustomization['fontSize']) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
   setActivePreset: (presetId: string | null) => void;
-  setCustomColor: (mode: 'light' | 'dark', key: keyof ThemeColors, value: string) => void;
-  clearCustomColor: (mode: 'light' | 'dark', key: keyof ThemeColors) => void;
+  setCustomColor: (mode: ThemeMode, key: keyof ThemeColors, value: string) => void;
+  clearCustomColor: (mode: ThemeMode, key: keyof ThemeColors) => void;
+  replaceUserPresets: (userPresets: ThemePreset[]) => void;
+  saveCurrentAsPreset: (name: string) => string | null;
+  duplicatePreset: (presetId: string, name: string) => string | null;
+  renameUserPreset: (presetId: string, name: string) => void;
+  saveCurrentToUserPreset: (presetId: string) => void;
+  deleteUserPreset: (presetId: string) => void;
   resetCustomization: () => void;
   applyCustomization: () => void;
 }
@@ -76,6 +102,43 @@ const themeColorKeys: (keyof ThemeColors)[] = [
   'border',
   'destructive',
 ];
+
+const previewContrastPairs: Array<{
+  pairId: string;
+  foregroundToken: keyof ThemeColors;
+  backgroundToken: keyof ThemeColors;
+}> = [
+  { pairId: 'foreground/background', foregroundToken: 'foreground', backgroundToken: 'background' },
+  { pairId: 'foreground/card', foregroundToken: 'foreground', backgroundToken: 'card' },
+  { pairId: 'foreground/muted', foregroundToken: 'foreground', backgroundToken: 'muted' },
+];
+
+const contrastThreshold = 4.5;
+
+const defaultThemeTokens: Record<ThemeMode, ThemeColors> = {
+  light: {
+    background: 'oklch(0.9755 0.0045 258.3245)',
+    foreground: 'oklch(0.2558 0.0433 268.0662)',
+    card: 'oklch(0.9341 0.0132 251.5628)',
+    primary: 'oklch(0.4815 0.1178 263.3758)',
+    secondary: 'oklch(0.8567 0.1164 81.0092)',
+    muted: 'oklch(0.9202 0.0080 106.5563)',
+    accent: 'oklch(0.6896 0.0714 234.0387)',
+    destructive: 'oklch(0.2611 0.0376 322.5267)',
+    border: 'oklch(0.7791 0.0156 251.1926)',
+  },
+  dark: {
+    background: 'oklch(0.2204 0.0198 275.8439)',
+    foreground: 'oklch(0.9366 0.0129 266.6974)',
+    card: 'oklch(0.2703 0.0407 281.3036)',
+    primary: 'oklch(0.4815 0.1178 263.3758)',
+    secondary: 'oklch(0.9097 0.1440 95.1120)',
+    muted: 'oklch(0.2424 0.0324 281.0890)',
+    accent: 'oklch(0.8469 0.0524 264.7751)',
+    destructive: 'oklch(0.5280 0.1200 357.1130)',
+    border: 'oklch(0.3072 0.0287 281.7681)',
+  },
+};
 
 export const customizableThemeColorKeys = [...themeColorKeys] as const;
 
@@ -217,9 +280,100 @@ function sanitizeModeColors(value: unknown): Partial<ThemeColors> {
   return next;
 }
 
+function cloneThemePreset(preset: ThemePreset): ThemePreset {
+  return {
+    id: preset.id,
+    name: preset.name,
+    colors: {
+      light: { ...preset.colors.light },
+      dark: { ...preset.colors.dark },
+    },
+  };
+}
+
+export function sanitizeThemePresets(input: unknown): ThemePreset[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const builtInIds = new Set(themePresets.map((preset) => preset.id));
+  const seenIds = new Set<string>();
+  const sanitized: ThemePreset[] = [];
+
+  for (const item of input) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const raw = item as Partial<ThemePreset>;
+    const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+    const colors = raw.colors;
+
+    if (!id || !name || builtInIds.has(id) || seenIds.has(id) || !colors || typeof colors !== 'object') {
+      continue;
+    }
+
+    sanitized.push({
+      id,
+      name,
+      colors: {
+        light: sanitizeModeColors((colors as ThemePreset['colors']).light),
+        dark: sanitizeModeColors((colors as ThemePreset['colors']).dark),
+      },
+    });
+    seenIds.add(id);
+  }
+
+  return sanitized;
+}
+
+export function getAvailableThemePresets(userPresets: ThemePreset[] = []): ThemePreset[] {
+  return [...themePresets, ...userPresets.map(cloneThemePreset)];
+}
+
+function findThemePreset(presetId: string | null | undefined, userPresets: ThemePreset[] = []): ThemePreset | undefined {
+  if (!presetId) {
+    return undefined;
+  }
+  return getAvailableThemePresets(userPresets).find((preset) => preset.id === presetId);
+}
+
+function createPresetId(name: string, existingIds: Set<string>): string {
+  const base = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'custom-theme';
+
+  let candidate = `custom-${base}`;
+  let suffix = 2;
+  while (existingIds.has(candidate)) {
+    candidate = `custom-${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function sanitizeActivePreset(
+  value: unknown,
+  fallback: string | null,
+  userPresets: ThemePreset[] = [],
+): string | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string' && findThemePreset(value, userPresets)) {
+    return value;
+  }
+  return fallback && findThemePreset(fallback, userPresets) ? fallback : null;
+}
+
 function sanitizeThemeCustomization(
   incoming: Partial<ThemeCustomization> | undefined,
-  base: ThemeCustomization
+  base: ThemeCustomization,
+  userPresets: ThemePreset[] = [],
 ): ThemeCustomization {
   const source = incoming ?? {};
 
@@ -247,17 +401,9 @@ function sanitizeThemeCustomization(
       : defaultCustomization.animationsEnabled)
     : base.animationsEnabled;
 
-  let activePreset = base.activePreset;
-  if (hasOwn(source, 'activePreset')) {
-    const preset = source.activePreset;
-    if (preset === null) {
-      activePreset = null;
-    } else if (typeof preset === 'string' && themePresets.some((item) => item.id === preset)) {
-      activePreset = preset;
-    } else {
-      activePreset = null;
-    }
-  }
+  const activePreset = hasOwn(source, 'activePreset')
+    ? sanitizeActivePreset(source.activePreset, null, userPresets)
+    : sanitizeActivePreset(base.activePreset, null, userPresets);
 
   let lightColors = base.customColors.light;
   let darkColors = base.customColors.dark;
@@ -290,49 +436,321 @@ function sanitizeThemeCustomization(
   };
 }
 
+export function migrateThemeStoreState(
+  persistedState: unknown,
+  _version: number,
+): ThemeStorePersistedState {
+  const raw = persistedState as
+    | ThemeStorePersistedState
+    | { customization?: Partial<ThemeCustomization>; userPresets?: ThemePreset[] }
+    | Partial<ThemeCustomization>
+    | undefined;
+
+  const userPresets = raw && typeof raw === 'object' && hasOwn(raw, 'userPresets')
+    ? sanitizeThemePresets((raw as { userPresets?: ThemePreset[] }).userPresets)
+    : [];
+
+  const customization = raw && typeof raw === 'object' && hasOwn(raw, 'customization')
+    ? (raw as { customization?: Partial<ThemeCustomization> }).customization
+    : raw as Partial<ThemeCustomization> | undefined;
+
+  return {
+    customization: sanitizeThemeCustomization(customization, defaultCustomization, userPresets),
+    userPresets,
+  };
+}
+
+export function getPresetThemeColors(
+  customization: ThemeCustomization,
+  mode: ThemeMode,
+  userPresets: ThemePreset[] = [],
+): Partial<ThemeColors> {
+  const activePreset = findThemePreset(customization.activePreset, userPresets);
+  return activePreset ? activePreset.colors[mode] : {};
+}
+
+export function getResolvedThemeColors(
+  customization: ThemeCustomization,
+  mode: ThemeMode,
+  userPresets: ThemePreset[] = [],
+): Partial<ThemeColors> {
+  return {
+    ...getPresetThemeColors(customization, mode, userPresets),
+    ...customization.customColors[mode],
+  };
+}
+
+export function getEffectiveThemeColors(
+  customization: ThemeCustomization,
+  mode: ThemeMode,
+  userPresets: ThemePreset[] = [],
+): ThemeColors {
+  return {
+    ...defaultThemeTokens[mode],
+    ...getResolvedThemeColors(customization, mode, userPresets),
+  };
+}
+
+export function getThemePreviewData(
+  customization: ThemeCustomization,
+  mode: ThemeMode,
+  userPresets: ThemePreset[] = [],
+): ThemePreviewData {
+  return {
+    mode,
+    tokens: getEffectiveThemeColors(customization, mode, userPresets),
+  };
+}
+
+function clampUnit(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function linearToSrgb(value: number): number {
+  const clamped = clampUnit(value);
+  if (clamped <= 0.0031308) {
+    return 12.92 * clamped;
+  }
+  return 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+}
+
+function parseHexColor(value: string): [number, number, number] | null {
+  const hex = value.replace('#', '').trim();
+  if (![3, 6].includes(hex.length) || /[^0-9a-f]/i.test(hex)) {
+    return null;
+  }
+  const normalized = hex.length === 3
+    ? hex.split('').map((item) => `${item}${item}`).join('')
+    : hex;
+
+  return [
+    parseInt(normalized.slice(0, 2), 16) / 255,
+    parseInt(normalized.slice(2, 4), 16) / 255,
+    parseInt(normalized.slice(4, 6), 16) / 255,
+  ];
+}
+
+function parseRgbChannel(value: string): number | null {
+  if (value.endsWith('%')) {
+    const percent = Number.parseFloat(value.slice(0, -1));
+    return Number.isFinite(percent) ? clampUnit(percent / 100) : null;
+  }
+  const channel = Number.parseFloat(value);
+  return Number.isFinite(channel) ? clampUnit(channel / 255) : null;
+}
+
+function parseRgbColor(value: string): [number, number, number] | null {
+  const match = value.match(/^rgba?\((.+)\)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(/[\s,\/]+/).filter(Boolean);
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const red = parseRgbChannel(parts[0]);
+  const green = parseRgbChannel(parts[1]);
+  const blue = parseRgbChannel(parts[2]);
+  return red === null || green === null || blue === null ? null : [red, green, blue];
+}
+
+function hueToRgb(p: number, q: number, t: number): number {
+  let next = t;
+  if (next < 0) next += 1;
+  if (next > 1) next -= 1;
+  if (next < 1 / 6) return p + (q - p) * 6 * next;
+  if (next < 1 / 2) return q;
+  if (next < 2 / 3) return p + (q - p) * (2 / 3 - next) * 6;
+  return p;
+}
+
+function parseHslColor(value: string): [number, number, number] | null {
+  const match = value.match(/^hsla?\((.+)\)$/i);
+  if (!match) {
+    return null;
+  }
+  const parts = match[1].split(/[\s,\/]+/).filter(Boolean);
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const hue = Number.parseFloat(parts[0]);
+  const saturation = Number.parseFloat(parts[1].replace('%', '')) / 100;
+  const lightness = Number.parseFloat(parts[2].replace('%', '')) / 100;
+  if (![hue, saturation, lightness].every(Number.isFinite)) {
+    return null;
+  }
+
+  const normalizedHue = ((hue % 360) + 360) % 360 / 360;
+  if (saturation === 0) {
+    return [lightness, lightness, lightness];
+  }
+
+  const q = lightness < 0.5
+    ? lightness * (1 + saturation)
+    : lightness + saturation - lightness * saturation;
+  const p = 2 * lightness - q;
+  return [
+    hueToRgb(p, q, normalizedHue + 1 / 3),
+    hueToRgb(p, q, normalizedHue),
+    hueToRgb(p, q, normalizedHue - 1 / 3),
+  ];
+}
+
+function parseOklchColor(value: string): [number, number, number] | null {
+  const match = value.match(/^oklch\((.+)\)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].trim().split(/[\s\/]+/).filter(Boolean);
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const lightness = Number.parseFloat(parts[0]);
+  const chroma = Number.parseFloat(parts[1]);
+  const hue = Number.parseFloat(parts[2]);
+  if (![lightness, chroma, hue].every(Number.isFinite)) {
+    return null;
+  }
+
+  const hueRadians = (hue * Math.PI) / 180;
+  const a = chroma * Math.cos(hueRadians);
+  const b = chroma * Math.sin(hueRadians);
+
+  const lValue = lightness + 0.3963377774 * a + 0.2158037573 * b;
+  const mValue = lightness - 0.1055613458 * a - 0.0638541728 * b;
+  const sValue = lightness - 0.0894841775 * a - 1.291485548 * b;
+
+  const lCube = lValue ** 3;
+  const mCube = mValue ** 3;
+  const sCube = sValue ** 3;
+
+  const red = linearToSrgb(4.0767416621 * lCube - 3.3077115913 * mCube + 0.2309699292 * sCube);
+  const green = linearToSrgb(-1.2684380046 * lCube + 2.6097574011 * mCube - 0.3413193965 * sCube);
+  const blue = linearToSrgb(-0.0041960863 * lCube - 0.7034186147 * mCube + 1.707614701 * sCube);
+  return [red, green, blue];
+}
+
+function parseCssColor(value: string): [number, number, number] | null {
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return parseHexColor(normalized)
+    ?? parseRgbColor(normalized)
+    ?? parseHslColor(normalized)
+    ?? parseOklchColor(normalized)
+    ?? (() => {
+      if (typeof document === 'undefined') {
+        return null;
+      }
+
+      const element = document.createElement('span');
+      element.style.color = '';
+      element.style.color = normalized;
+      if (!element.style.color) {
+        return null;
+      }
+
+      document.body.appendChild(element);
+      const computed = getComputedStyle(element).color;
+      element.remove();
+      return computed && computed !== normalized ? parseCssColor(computed) : null;
+    })();
+}
+
+function toRelativeLuminance([red, green, blue]: [number, number, number]): number {
+  const linear = [red, green, blue].map((channel) => (
+    channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4
+  ));
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function getContrastRatio(foreground: string, background: string): number | null {
+  const foregroundRgb = parseCssColor(foreground);
+  const backgroundRgb = parseCssColor(background);
+  if (!foregroundRgb || !backgroundRgb) {
+    return null;
+  }
+  const lighter = Math.max(toRelativeLuminance(foregroundRgb), toRelativeLuminance(backgroundRgb));
+  const darker = Math.min(toRelativeLuminance(foregroundRgb), toRelativeLuminance(backgroundRgb));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+export function getThemeContrastWarnings(
+  customization: ThemeCustomization,
+  mode: ThemeMode,
+  userPresets: ThemePreset[] = [],
+): ThemeContrastWarning[] {
+  const tokens = getEffectiveThemeColors(customization, mode, userPresets);
+
+  return previewContrastPairs.flatMap(({ pairId, foregroundToken, backgroundToken }) => {
+    const ratio = getContrastRatio(tokens[foregroundToken], tokens[backgroundToken]);
+    if (ratio === null || ratio >= contrastThreshold) {
+      return [];
+    }
+
+    return [{
+      pairId,
+      mode,
+      foregroundToken,
+      backgroundToken,
+      ratio,
+      threshold: contrastThreshold,
+    } satisfies ThemeContrastWarning];
+  });
+}
+
+export function isValidThemeColorValue(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (typeof window !== 'undefined' && window.CSS && typeof window.CSS.supports === 'function') {
+    return window.CSS.supports('color', normalized);
+  }
+
+  if (typeof document !== 'undefined') {
+    const tester = document.createElement('span').style;
+    tester.color = '';
+    tester.color = normalized;
+    return tester.color !== '';
+  }
+
+  return true;
+}
+
 // Batch DOM updates for better performance
 let pendingUpdate: number | null = null;
 
-function applyThemeToDOM(customization: ThemeCustomization) {
-  // Cancel any pending update
+function applyThemeToDOM(customization: ThemeCustomization, userPresets: ThemePreset[]) {
   if (pendingUpdate !== null) {
     cancelAnimationFrame(pendingUpdate);
   }
 
-  // Batch DOM updates in a single animation frame
   pendingUpdate = requestAnimationFrame(() => {
     pendingUpdate = null;
     const root = document.documentElement;
-
-    // Collect all style changes
     const styleUpdates: [string, string][] = [];
 
-    // Apply radius
     styleUpdates.push(['--radius', `${customization.radius}rem`]);
-
-    // Apply font family
     styleUpdates.push(['--font-sans', fontFamilyMap[customization.fontFamily]]);
-
-    // Apply font size
     styleUpdates.push(['--font-size-scale', String(fontSizeScale[customization.fontSize])]);
 
-    // Clear all previous color inline styles before applying new ones
-    themeColorKeys.forEach(key => {
+    themeColorKeys.forEach((key) => {
       root.style.removeProperty(`--${key}`);
     });
 
-    // Apply custom colors based on current theme
     const isDark = root.classList.contains('dark');
-    const colors = isDark ? customization.customColors.dark : customization.customColors.light;
-
-    // Find active preset colors
-    const activePreset = themePresets.find(p => p.id === customization.activePreset);
-    const presetColors = activePreset
-      ? (isDark ? activePreset.colors.dark : activePreset.colors.light)
-      : {};
-
-    // Merge preset and custom colors
-    const mergedColors = { ...presetColors, ...colors };
+    const mergedColors = getResolvedThemeColors(customization, isDark ? 'dark' : 'light', userPresets);
 
     Object.entries(mergedColors).forEach(([key, value]) => {
       if (value) {
@@ -340,15 +758,12 @@ function applyThemeToDOM(customization: ThemeCustomization) {
       }
     });
 
-    // Apply all style updates at once
     styleUpdates.forEach(([prop, value]) => {
       root.style.setProperty(prop, value);
     });
 
-    // Update font size on root
     root.style.fontSize = `${fontSizeScale[customization.fontSize] * 16}px`;
 
-    // Apply animations class
     if (!customization.animationsEnabled) {
       root.classList.add('reduce-motion');
     } else {
@@ -357,21 +772,35 @@ function applyThemeToDOM(customization: ThemeCustomization) {
   });
 }
 
-/**
- * Get the CSS font-family string for a given font family option.
- */
 export function getFontPreview(font: ThemeCustomization['fontFamily']): string {
   return fontFamilyMap[font];
+}
+
+function buildPresetFromCurrentState(
+  presetId: string,
+  name: string,
+  customization: ThemeCustomization,
+  userPresets: ThemePreset[],
+): ThemePreset {
+  return {
+    id: presetId,
+    name,
+    colors: {
+      light: getEffectiveThemeColors(customization, 'light', userPresets),
+      dark: getEffectiveThemeColors(customization, 'dark', userPresets),
+    },
+  };
 }
 
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({
       customization: defaultCustomization,
+      userPresets: [],
 
       setCustomization: (customization) => {
         set((state) => ({
-          customization: sanitizeThemeCustomization(customization, state.customization),
+          customization: sanitizeThemeCustomization(customization, state.customization, state.userPresets),
         }));
         get().applyCustomization();
       },
@@ -393,7 +822,8 @@ export const useThemeStore = create<ThemeStore>()(
       },
 
       setActivePreset: (activePreset) => {
-        get().setCustomization({ activePreset });
+        const validPresetId = sanitizeActivePreset(activePreset, null, get().userPresets);
+        get().setCustomization({ activePreset: validPresetId });
       },
 
       setCustomColor: (mode, key, value) => {
@@ -419,48 +849,149 @@ export const useThemeStore = create<ThemeStore>()(
         });
       },
 
+      replaceUserPresets: (userPresets) => {
+        const sanitized = sanitizeThemePresets(userPresets);
+        set((state) => ({
+          userPresets: sanitized,
+          customization: sanitizeThemeCustomization(state.customization, state.customization, sanitized),
+        }));
+        get().applyCustomization();
+      },
+
+      saveCurrentAsPreset: (name) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          return null;
+        }
+
+        const state = get();
+        const existingIds = new Set(getAvailableThemePresets(state.userPresets).map((preset) => preset.id));
+        const presetId = createPresetId(trimmedName, existingIds);
+        const preset = buildPresetFromCurrentState(presetId, trimmedName, state.customization, state.userPresets);
+
+        set({
+          userPresets: [...state.userPresets, preset],
+          customization: {
+            ...state.customization,
+            activePreset: preset.id,
+          },
+        });
+        get().applyCustomization();
+        return preset.id;
+      },
+
+      duplicatePreset: (presetId, name) => {
+        const trimmedName = name.trim();
+        const sourcePreset = findThemePreset(presetId, get().userPresets);
+        if (!trimmedName || !sourcePreset) {
+          return null;
+        }
+
+        const existingIds = new Set(getAvailableThemePresets(get().userPresets).map((preset) => preset.id));
+        const nextId = createPresetId(trimmedName, existingIds);
+        const nextPreset: ThemePreset = {
+          id: nextId,
+          name: trimmedName,
+          colors: {
+            light: { ...sourcePreset.colors.light },
+            dark: { ...sourcePreset.colors.dark },
+          },
+        };
+
+        set((state) => ({
+          userPresets: [...state.userPresets, nextPreset],
+          customization: {
+            ...state.customization,
+            activePreset: nextId,
+          },
+        }));
+        get().applyCustomization();
+        return nextId;
+      },
+
+      renameUserPreset: (presetId, name) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          return;
+        }
+
+        set((state) => ({
+          userPresets: state.userPresets.map((preset) => (
+            preset.id === presetId ? { ...preset, name: trimmedName } : preset
+          )),
+        }));
+      },
+
+      saveCurrentToUserPreset: (presetId) => {
+        const state = get();
+        const preset = state.userPresets.find((item) => item.id === presetId);
+        if (!preset) {
+          return;
+        }
+
+        const nextPreset = buildPresetFromCurrentState(preset.id, preset.name, state.customization, state.userPresets);
+        set({
+          userPresets: state.userPresets.map((item) => item.id === presetId ? nextPreset : item),
+        });
+        get().applyCustomization();
+      },
+
+      deleteUserPreset: (presetId) => {
+        set((state) => {
+          const nextUserPresets = state.userPresets.filter((preset) => preset.id !== presetId);
+          const nextActivePreset = state.customization.activePreset === presetId ? null : state.customization.activePreset;
+          return {
+            userPresets: nextUserPresets,
+            customization: sanitizeThemeCustomization(
+              { ...state.customization, activePreset: nextActivePreset },
+              state.customization,
+              nextUserPresets,
+            ),
+          };
+        });
+        get().applyCustomization();
+      },
+
       resetCustomization: () => {
-        set({ customization: { ...defaultCustomization, customColors: { light: {}, dark: {} } } });
-        // Reset CSS variables
+        set((state) => ({
+          customization: sanitizeThemeCustomization(
+            { ...defaultCustomization, customColors: { light: {}, dark: {} } },
+            defaultCustomization,
+            state.userPresets,
+          ),
+        }));
+
         const root = document.documentElement;
         root.style.removeProperty('--radius');
         root.style.removeProperty('--font-sans');
         root.style.removeProperty('--font-size-scale');
         root.style.fontSize = '';
         root.classList.remove('reduce-motion');
-        themeColorKeys.forEach(key => {
+        themeColorKeys.forEach((key) => {
           root.style.removeProperty(`--${key}`);
         });
       },
 
       applyCustomization: () => {
         if (typeof window !== 'undefined') {
-          applyThemeToDOM(get().customization);
+          applyThemeToDOM(get().customization, get().userPresets);
         }
       },
     }),
     {
       name: 'theme-customization',
       storage: getZustandStorage(),
-      version: 1,
-      migrate: (persistedState) => {
-        const raw = persistedState as { customization?: Partial<ThemeCustomization> } | Partial<ThemeCustomization> | undefined;
-        const customization = raw && typeof raw === 'object' && hasOwn(raw, 'customization')
-          ? (raw as { customization?: Partial<ThemeCustomization> }).customization
-          : raw as Partial<ThemeCustomization> | undefined;
-
-        return {
-          customization: sanitizeThemeCustomization(customization, defaultCustomization),
-        };
-      },
+      version: 2,
+      migrate: migrateThemeStoreState,
       partialize: (state) => ({
         customization: state.customization,
+        userPresets: state.userPresets,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
           setTimeout(() => state.applyCustomization(), 0);
         }
       },
-    }
-  )
+    },
+  ),
 );

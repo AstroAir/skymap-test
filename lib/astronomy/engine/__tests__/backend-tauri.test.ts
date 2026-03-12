@@ -159,6 +159,9 @@ describe('tauriAstronomyBackend', () => {
       expect(result.ecliptic.longitude).toBeGreaterThanOrEqual(0);
       expect(result.sidereal.lst).toBe(100);
       expect(result.meta.backend).toBe('tauri');
+      expect(result.meta.source).toBe('tauri');
+      expect(result.meta.degraded).toBe(false);
+      expect(result.meta.cache).toBe('miss');
     });
 
     it('passes refraction flag correctly', async () => {
@@ -227,6 +230,7 @@ describe('tauriAstronomyBackend', () => {
       expect(result.isCircumpolar).toBe(false);
       expect(result.neverRises).toBe(false);
       expect(result.meta.backend).toBe('tauri');
+      expect(result.meta.source).toBe('tauri');
     });
 
     it('throws for unsupported body', async () => {
@@ -320,6 +324,7 @@ describe('tauriAstronomyBackend', () => {
 
       expect(result.transitAltitude).toBe(55);
       expect(result.meta.backend).toBe('tauri');
+      expect(result.meta.degraded).toBe(false);
     });
   });
 
@@ -348,6 +353,7 @@ describe('tauriAstronomyBackend', () => {
       expect(result.body).toBe('Custom');
       expect(result.points).toHaveLength(3);
       expect(result.meta.backend).toBe('tauri');
+      expect(result.meta.source).toBe('tauri');
     });
 
     it('computes ephemeris for Moon with phase', async () => {
@@ -430,6 +436,7 @@ describe('tauriAstronomyBackend', () => {
       expect(result.events[0].type).toBe('conjunction');
       expect(result.events[1].type).toBe('moon_phase');
       expect(result.meta.backend).toBe('tauri');
+      expect(result.meta.cache).toBe('miss');
     });
 
     it('maps different event types correctly', async () => {
@@ -525,6 +532,7 @@ describe('tauriAstronomyBackend', () => {
       expect(result.moon.phase).toBe(0.5);
       expect(result.moon.illumination).toBe(100);
       expect(result.meta.backend).toBe('tauri');
+      expect(result.meta.source).toBe('tauri');
     });
   });
 });

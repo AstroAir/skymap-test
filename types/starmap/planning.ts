@@ -109,6 +109,7 @@ export interface ScheduledTarget {
   conflicts: string[];
   isOptimal: boolean;
   order: number;
+  calculationMetadata?: CalculationSourceMetadata;
 }
 
 export interface SessionPlan {
@@ -120,11 +121,21 @@ export interface SessionPlan {
   recommendations: I18nMessage[];
   warnings: I18nMessage[];
   conflicts?: SessionConflict[];
+  calculationMetadata?: CalculationSourceMetadata;
 }
 
 export interface SessionConflict {
   type: string;
   message: string;
+  calculationMetadata?: CalculationSourceMetadata;
+}
+
+export interface CalculationSourceMetadata {
+  source: 'tauri' | 'fallback' | 'calculation' | 'engine';
+  degraded: boolean;
+  computedAt: string;
+  cache?: 'hit' | 'miss';
+  warnings?: string[];
 }
 
 export type OptimizationStrategy = 'altitude' | 'transit' | 'moon' | 'duration' | 'balanced';

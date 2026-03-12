@@ -73,7 +73,7 @@ describe('MarkerListItem', () => {
   it('renders 4 action buttons', () => {
     render(<MarkerListItem {...defaultProps} />);
     const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(5);
   });
 
   it('applies opacity when marker is not visible', () => {
@@ -86,7 +86,7 @@ describe('MarkerListItem', () => {
   // 点击导航按钮
   it('calls onNavigate when navigate button clicked', () => {
     render(<MarkerListItem {...defaultProps} />);
-    const buttons = screen.getAllByRole('button');
+    const buttons = screen.getAllByRole('button').slice(1);
     fireEvent.click(buttons[0]);
     expect(defaultProps.onNavigate).toHaveBeenCalledWith(mockMarker);
   });
@@ -94,7 +94,7 @@ describe('MarkerListItem', () => {
   // 点击可见性切换按钮
   it('calls onToggleVisibility when toggle button clicked', () => {
     render(<MarkerListItem {...defaultProps} />);
-    const buttons = screen.getAllByRole('button');
+    const buttons = screen.getAllByRole('button').slice(1);
     fireEvent.click(buttons[1]);
     expect(defaultProps.onToggleVisibility).toHaveBeenCalledWith('marker-1');
   });
@@ -102,7 +102,7 @@ describe('MarkerListItem', () => {
   // 点击编辑按钮
   it('calls onEdit when edit button clicked', () => {
     render(<MarkerListItem {...defaultProps} />);
-    const buttons = screen.getAllByRole('button');
+    const buttons = screen.getAllByRole('button').slice(1);
     fireEvent.click(buttons[2]);
     expect(defaultProps.onEdit).toHaveBeenCalledWith(mockMarker);
   });
@@ -110,8 +110,16 @@ describe('MarkerListItem', () => {
   // 点击删除按钮
   it('calls onDelete when delete button clicked', () => {
     render(<MarkerListItem {...defaultProps} />);
-    const buttons = screen.getAllByRole('button');
+    const buttons = screen.getAllByRole('button').slice(1);
     fireEvent.click(buttons[3]);
     expect(defaultProps.onDelete).toHaveBeenCalledWith(mockMarker);
+  });
+
+  it('calls onSelect when row is clicked', () => {
+    const onSelect = jest.fn();
+    render(<MarkerListItem {...defaultProps} onSelect={onSelect} />);
+    const rowButton = screen.getAllByRole('button')[0];
+    fireEvent.click(rowButton);
+    expect(onSelect).toHaveBeenCalledWith(mockMarker);
   });
 });

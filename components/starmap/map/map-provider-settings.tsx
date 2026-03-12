@@ -297,7 +297,7 @@ export function MapProviderSettings({ trigger, onSettingsChange }: MapProviderSe
                             {getProviderStatusBadge(provider.provider)}
                           </div>
                           <p className="text-xs text-muted-foreground">{info.description}</p>
-                          {info.requiresKey && !mapConfig.getActiveApiKey(provider.provider) && (
+                          {info.requiresKey && !mapConfig.getActiveApiKey(provider.provider)?.apiKey && (
                             <div className="flex items-center gap-1 text-xs text-amber-500">
                               <AlertTriangle className="h-3 w-3" />
                               {t('map.apiKeyRequired') || 'API key required'}

@@ -23,6 +23,7 @@ import { NotificationSettings } from './notification-settings';
 import { SearchBehaviorSettings } from './search-settings';
 import { AccessibilitySettings } from './accessibility-settings';
 import { KeyboardSettings } from './keyboard-settings';
+import { GlobalShortcutSettings } from './global-shortcut-settings';
 import { MobileSettings } from './mobile-settings';
 
 const PREF_SECTIONS = [
@@ -33,6 +34,7 @@ const PREF_SECTIONS = [
   { id: 'search', icon: Search, labelKey: 'settingsNew.search.title' },
   { id: 'accessibility', icon: Accessibility, labelKey: 'settingsNew.accessibility.title' },
   { id: 'keyboard', icon: Keyboard, labelKey: 'settingsNew.keyboard.title' },
+  { id: 'global-shortcuts', icon: Keyboard, labelKey: 'settingsNew.globalShortcuts.title' },
   { id: 'mobile', icon: Smartphone, labelKey: 'settingsNew.mobile.title' },
 ] as const;
 
@@ -110,6 +112,10 @@ export function PreferencesTabContent() {
           <Separator />
           <div ref={setSectionRef('keyboard')}>
             <KeyboardSettings />
+          </div>
+          <Separator />
+          <div ref={setSectionRef('global-shortcuts')}>
+            <GlobalShortcutSettings />
           </div>
           <Separator />
           <div ref={setSectionRef('mobile')}>

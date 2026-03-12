@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Compass, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,16 @@ export function SensorControlToggle({ className, showStatusLabel = false }: Sens
   const viewDirection = useStellariumStore((state) => state.viewDirection);
   const setSensorRuntime = useARRuntimeStore((state) => state.setSensorRuntime);
   const resetSensorRuntime = useARRuntimeStore((state) => state.resetSensorRuntime);
+  const requestSensorPermissionVersion = useARRuntimeStore(
+    (state) => state.recoveryRequestVersion['request-sensor-permission']
+  );
+  const requestSensorCalibrationVersion = useARRuntimeStore(
+    (state) => state.recoveryRequestVersion['calibrate-sensor']
+  );
+  const setRecoveryNoticeKey = useARRuntimeStore((state) => state.setRecoveryNoticeKey);
   const [calibrationDialogOpen, setCalibrationDialogOpen] = useState(false);
+  const handledPermissionRequestRef = useRef(0);
+  const handledCalibrationRequestRef = useRef(0);
   
   // Track if component is on client to avoid hydration mismatch
   const isClient = useIsClient();
@@ -158,11 +167,11 @@ export function SensorControlToggle({ className, showStatusLabel = false }: Sens
     resetSensorRuntime();
   }, [resetSensorRuntime, sensorControl, stellarium.arMode]);
 
-  const handleCalibrateNow = useCallback(() => {
+  const handleCalibrateNow = useCallback((): boolean => {
     const latitude = profileInfo.AstrometrySettings.Latitude;
     const longitude = profileInfo.AstrometrySettings.Longitude;
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return;
+      return false;
     }
 
     let current = viewDirection;
@@ -173,7 +182,7 @@ export function SensorControlToggle({ className, showStatusLabel = false }: Sens
         current = null;
       }
     }
-    if (!current) return;
+    if (!current) return false;
 
     calibrateToCurrentView({
       raDeg: rad2deg(current.ra),
@@ -183,20 +192,52 @@ export function SensorControlToggle({ className, showStatusLabel = false }: Sens
       at: new Date(),
     });
     setCalibrationDialogOpen(false);
+    setRecoveryNoticeKey(null);
+    return true;
   }, [
     profileInfo.AstrometrySettings.Latitude,
     profileInfo.AstrometrySettings.Longitude,
     viewDirection,
     getCurrentViewDirection,
     calibrateToCurrentView,
+    setRecoveryNoticeKey,
   ]);
 
-  const handleRetryPermission = useCallback(async () => {
+  const handleRetryPermission = useCallback(async (): Promise<boolean> => {
     const granted = await requestPermission();
     if (granted && !sensorControl) {
       toggleStellariumSetting('sensorControl');
     }
-  }, [requestPermission, sensorControl, toggleStellariumSetting]);
+    if (granted) {
+      setRecoveryNoticeKey(null);
+    }
+    return granted;
+  }, [requestPermission, sensorControl, setRecoveryNoticeKey, toggleStellariumSetting]);
+
+  useEffect(() => {
+    if (requestSensorPermissionVersion === handledPermissionRequestRef.current) return;
+    handledPermissionRequestRef.current = requestSensorPermissionVersion;
+    void (async () => {
+      const granted = await handleRetryPermission();
+      if (!granted) {
+        setRecoveryNoticeKey('settings.arRecoveryPermissionRequestFailed');
+      }
+    })();
+  }, [handleRetryPermission, requestSensorPermissionVersion, setRecoveryNoticeKey]);
+
+  useEffect(() => {
+    if (requestSensorCalibrationVersion === handledCalibrationRequestRef.current) return;
+    handledCalibrationRequestRef.current = requestSensorCalibrationVersion;
+    const timerId = window.setTimeout(() => {
+      const calibrated = handleCalibrateNow();
+      if (!calibrated) {
+        setRecoveryNoticeKey('settings.arRecoveryCalibrationUnavailable');
+      }
+    }, 0);
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [handleCalibrateNow, requestSensorCalibrationVersion, setRecoveryNoticeKey]);
 
   const getDegradedReasonText = useCallback((reason: SensorDegradedReason | null) => {
     if (reason === 'relative-source') return t('settings.sensorDegradedRelativeSource');

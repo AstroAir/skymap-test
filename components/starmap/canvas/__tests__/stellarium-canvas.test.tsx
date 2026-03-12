@@ -471,8 +471,7 @@ describe('StellariumCanvas', () => {
         render(<StellariumCanvas />);
 
         await act(async () => {
-          jest.advanceTimersByTime(200);
-          jest.runOnlyPendingTimers();
+          jest.advanceTimersByTime(300);
         });
 
         await waitFor(() => {

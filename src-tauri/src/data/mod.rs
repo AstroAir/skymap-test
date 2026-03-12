@@ -47,7 +47,7 @@ pub use locations::{
     LocationsData, ObservationLocation,
     // Commands
     add_location, delete_location, get_current_location, load_locations, save_locations,
-    set_current_location, update_location,
+    set_current_location, set_default_location, update_location,
 };
 
 // Re-export target list types and commands
@@ -85,7 +85,7 @@ pub use markers::{
 pub use observation_log::{
     // Types
     CreatePlannedSessionPayload, ExecutionSummary, ExecutionTarget, Observation, ObservationLogData,
-    ObservationSession, ObservationStats, WeatherConditions,
+    ObservationQueryFilters, ObservationSearchHit, ObservationSession, ObservationStats, WeatherConditions,
     // Commands
     add_observation, create_planned_session, create_session, delete_observation, delete_session, end_session,
     get_observation_stats, load_observation_log, save_observation_log, search_observations,

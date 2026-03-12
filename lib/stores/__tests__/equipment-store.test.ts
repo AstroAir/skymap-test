@@ -18,6 +18,9 @@ describe('useEquipmentStore', () => {
         customEyepieces: [],
         customBarlows: [],
         customOcularTelescopes: [],
+        fovSetups: [],
+        selectedFovSetupId: null,
+        fovSimulatorLastTab: 'camera',
         ocularDisplay: {
           enabled: false,
           opacity: 70,
@@ -308,6 +311,133 @@ describe('useEquipmentStore', () => {
       expect(result.current.ocularDisplay.opacity).toBe(85);
       expect(result.current.ocularDisplay.appliedFov).toBe(1.25);
       expect(result.current.ocularDisplay.showCrosshair).toBe(false);
+    });
+  });
+
+  describe('fov setup workflow', () => {
+    it('should save setup snapshot and select it', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+
+      act(() => {
+        result.current.setSensorWidth(30);
+        result.current.setSensorHeight(20);
+        result.current.setFocalLength(800);
+        result.current.setPixelSize(2.4);
+        result.current.setRotationAngle(25);
+        result.current.setMosaic({
+          enabled: true,
+          rows: 3,
+          cols: 2,
+          overlap: 20,
+          overlapUnit: 'percent',
+        });
+        result.current.setFOVDisplay({
+          enabled: true,
+          gridType: 'thirds',
+          frameColor: '#00ff00',
+          frameStyle: 'dashed',
+        });
+      });
+
+      let savedId: string | null = null;
+      act(() => {
+        savedId = result.current.saveFovSetup('Widefield');
+      });
+
+      expect(savedId).toBeTruthy();
+      expect(result.current.fovSetups).toHaveLength(1);
+      expect(result.current.fovSetups[0].name).toBe('Widefield');
+      expect(result.current.selectedFovSetupId).toBe(savedId);
+      expect(result.current.fovSetups[0].sensorWidth).toBe(30);
+      expect(result.current.fovSetups[0].mosaic.rows).toBe(3);
+      expect(result.current.fovSetups[0].fovDisplay.gridType).toBe('thirds');
+    });
+
+    it('should apply setup values', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+
+      let savedId: string | null = null;
+      act(() => {
+        result.current.setSensorWidth(36);
+        result.current.setSensorHeight(24);
+        result.current.setFocalLength(400);
+        result.current.setPixelSize(3.76);
+        result.current.setRotationAngle(0);
+        savedId = result.current.saveFovSetup('Base');
+      });
+
+      act(() => {
+        result.current.setSensorWidth(10);
+        result.current.setSensorHeight(10);
+        result.current.setFocalLength(1200);
+        result.current.setPixelSize(1.5);
+        result.current.setRotationAngle(55);
+      });
+
+      act(() => {
+        if (savedId) {
+          result.current.applyFovSetup(savedId);
+        }
+      });
+
+      expect(result.current.sensorWidth).toBe(36);
+      expect(result.current.sensorHeight).toBe(24);
+      expect(result.current.focalLength).toBe(400);
+      expect(result.current.pixelSize).toBe(3.76);
+      expect(result.current.rotationAngle).toBe(0);
+      expect(result.current.selectedFovSetupId).toBe(savedId);
+    });
+
+    it('should rename and remove setup', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+
+      let savedId: string | null = null;
+      act(() => {
+        savedId = result.current.saveFovSetup('Old Name');
+      });
+
+      act(() => {
+        if (savedId) {
+          result.current.renameFovSetup(savedId, 'New Name');
+        }
+      });
+
+      expect(result.current.fovSetups[0].name).toBe('New Name');
+
+      act(() => {
+        if (savedId) {
+          result.current.removeFovSetup(savedId);
+        }
+      });
+
+      expect(result.current.fovSetups).toHaveLength(0);
+      expect(result.current.selectedFovSetupId).toBeNull();
+    });
+
+    it('should persist simulator tab selection', () => {
+      const { result } = renderHook(() => useEquipmentStore());
+
+      act(() => {
+        result.current.setFovSimulatorLastTab('mosaic');
+      });
+
+      expect(result.current.fovSimulatorLastTab).toBe('mosaic');
+    });
+
+    it('migration should inject defaults for fov workflow fields', () => {
+      const migrate = useEquipmentStore.persist?.getOptions().migrate;
+      expect(typeof migrate).toBe('function');
+      if (!migrate) return;
+
+      const migrated = migrate({
+        exposureDefaults: { exposureTime: 240 },
+        ocularDisplay: { enabled: true },
+      } as Record<string, unknown>, 3);
+
+      const migratedState = migrated as Record<string, unknown>;
+      expect(Array.isArray(migratedState.fovSetups)).toBe(true);
+      expect(migratedState.selectedFovSetupId).toBeNull();
+      expect(migratedState.fovSimulatorLastTab).toBe('camera');
     });
   });
 

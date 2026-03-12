@@ -8,6 +8,10 @@ import {
   calculateImageScale,
   calculateSensorResolution,
   calculateMosaicCoverage,
+  parseAngularSizeArcmin,
+  evaluateTargetFit,
+  evaluateTargetFitFromSize,
+  validateMosaicSettings,
   calculateOverlayDimensions,
   calculateMosaicLayout,
 } from '../fov-calculations';
@@ -88,6 +92,97 @@ describe('calculateMosaicCoverage', () => {
     );
     expect(result).not.toBeNull();
     expect(result!.totalPanels).toBe(6);
+  });
+});
+
+describe('parseAngularSizeArcmin', () => {
+  it('parses arcminute dimensions', () => {
+    const parsed = parseAngularSizeArcmin("120' x 90'");
+    expect(parsed).not.toBeNull();
+    expect(parsed!.widthArcmin).toBeCloseTo(120);
+    expect(parsed!.heightArcmin).toBeCloseTo(90);
+    expect(parsed!.majorArcmin).toBeCloseTo(120);
+  });
+
+  it('parses degree dimensions', () => {
+    const parsed = parseAngularSizeArcmin('2.0° × 1.5°');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.widthArcmin).toBeCloseTo(120);
+    expect(parsed!.heightArcmin).toBeCloseTo(90);
+  });
+
+  it('parses arcsecond dimensions', () => {
+    const parsed = parseAngularSizeArcmin('30" x 20"');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.widthArcmin).toBeCloseTo(0.5);
+    expect(parsed!.heightArcmin).toBeCloseTo(0.333, 2);
+  });
+
+  it('returns null for invalid input', () => {
+    expect(parseAngularSizeArcmin(undefined)).toBeNull();
+    expect(parseAngularSizeArcmin('unknown')).toBeNull();
+  });
+});
+
+describe('evaluateTargetFit', () => {
+  it('classifies too_large, tight, good, roomy', () => {
+    const tooLarge = evaluateTargetFit(120, 1.2, 1.0); // 120/60=2.0
+    const tight = evaluateTargetFit(50, 1.2, 1.0); // 50/60=0.83
+    const good = evaluateTargetFit(28, 1.2, 1.0); // 28/60=0.47
+    const roomy = evaluateTargetFit(10, 1.2, 1.0); // 10/60=0.16
+
+    expect(tooLarge?.status).toBe('too_large');
+    expect(tight?.status).toBe('tight');
+    expect(good?.status).toBe('good');
+    expect(roomy?.status).toBe('roomy');
+  });
+
+  it('returns null on invalid input', () => {
+    expect(evaluateTargetFit(0, 1, 1)).toBeNull();
+    expect(evaluateTargetFit(10, 0, 1)).toBeNull();
+  });
+});
+
+describe('evaluateTargetFitFromSize', () => {
+  it('evaluates fit from size text', () => {
+    const result = evaluateTargetFitFromSize("50' x 20'", 1.5, 1.0);
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe('tight');
+  });
+
+  it('returns null when no size available', () => {
+    expect(evaluateTargetFitFromSize(undefined, 1, 1)).toBeNull();
+  });
+});
+
+describe('validateMosaicSettings', () => {
+  it('clamps invalid rows, cols, and overlap', () => {
+    const result = validateMosaicSettings({
+      enabled: true,
+      rows: 100,
+      cols: -1,
+      overlap: 80,
+      overlapUnit: 'percent',
+    });
+
+    expect(result.sanitized.rows).toBe(10);
+    expect(result.sanitized.cols).toBe(1);
+    expect(result.sanitized.overlap).toBe(50);
+    expect(result.issues.some((i) => i.code === 'rows_clamped')).toBe(true);
+    expect(result.issues.some((i) => i.code === 'cols_clamped')).toBe(true);
+    expect(result.issues.some((i) => i.code === 'overlap_clamped')).toBe(true);
+  });
+
+  it('adds warning for high panel count', () => {
+    const result = validateMosaicSettings({
+      enabled: true,
+      rows: 5,
+      cols: 5,
+      overlap: 20,
+      overlapUnit: 'percent',
+    });
+
+    expect(result.issues.some((i) => i.code === 'panel_count_high')).toBe(true);
   });
 });
 

@@ -2,12 +2,13 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { altAzToRaDec } from '@/lib/astronomy/coordinates/transforms';
 import { SensorControlToggle } from '../sensor-control-toggle';
 import type { ARSessionStatus } from '@/lib/core/ar-session';
+import { useARRuntimeStore } from '@/lib/stores/ar-runtime-store';
 
 const mockToggleStellariumSetting = jest.fn();
 const mockSetStellariumSetting = jest.fn();
@@ -25,6 +26,12 @@ let mockSensorCalibrationRequired = true;
 let mockDegradedReason: 'relative-source' | 'low-confidence' | 'stale-sample' | null = null;
 let mockError: string | null = null;
 let mockArSessionStatus: ARSessionStatus = 'ready';
+let mockViewDirection: { ra: number; dec: number; alt: number; az: number } | null = {
+  ra: 1.0,
+  dec: 0.5,
+  alt: 0.2,
+  az: 0.3,
+};
 
 interface SettingsState {
   stellarium: {
@@ -80,11 +87,10 @@ jest.mock('@/lib/stores', () => ({
     });
   },
   useStellariumStore: <T,>(selector: (state: StellariumState) => T): T => {
-    const direction = { ra: 1.0, dec: 0.5, alt: 0.2, az: 0.3 };
     return selector({
       setViewDirection: mockSetViewDirection,
-      viewDirection: direction,
-      getCurrentViewDirection: () => direction,
+      viewDirection: mockViewDirection,
+      getCurrentViewDirection: () => mockViewDirection,
     });
   },
   useMountStore: <T,>(selector: (state: MountState) => T): T => {
@@ -158,6 +164,8 @@ const messages = {
     sensorDegradedStaleSample: 'Sample stale',
     sensorRetryPermission: 'Retry permission',
     arStatusDegradedCameraOnly: 'AR degraded: camera-only mode',
+    arRecoveryPermissionRequestFailed: 'Permission is still denied. Check browser settings.',
+    arRecoveryCalibrationUnavailable: 'Unable to calibrate from the current view.',
     sensorStatusActive: 'Tracking',
     sensorAccuracy: 'Accuracy',
     sensorCalibrationDescription: 'Point to current map center.',
@@ -184,6 +192,13 @@ describe('SensorControlToggle', () => {
     mockDegradedReason = null;
     mockError = null;
     mockArSessionStatus = 'ready';
+    mockViewDirection = {
+      ra: 1.0,
+      dec: 0.5,
+      alt: 0.2,
+      az: 0.3,
+    };
+    useARRuntimeStore.getState().resetRecoveryState();
   });
 
   it('renders a button with test id', () => {
@@ -298,5 +313,56 @@ describe('SensorControlToggle', () => {
 
     renderWithProviders(<SensorControlToggle showStatusLabel />);
     expect(screen.getByText('settings.sensorRetryPermission')).toBeInTheDocument();
+  });
+
+  it('handles recovery permission request from AR recovery panel actions', async () => {
+    mockSensorControl = false;
+    mockIsPermissionGranted = false;
+    mockRequestPermission.mockResolvedValue(true);
+
+    renderWithProviders(<SensorControlToggle />);
+
+    act(() => {
+      useARRuntimeStore.getState().requestRecoveryAction('request-sensor-permission');
+    });
+
+    await waitFor(() => {
+      expect(mockRequestPermission).toHaveBeenCalled();
+      expect(mockToggleStellariumSetting).toHaveBeenCalledWith('sensorControl');
+    });
+  });
+
+  it('handles quick calibration request from AR recovery panel actions', async () => {
+    mockSensorControl = true;
+    mockIsPermissionGranted = true;
+    mockStatus = 'calibration-required';
+
+    renderWithProviders(<SensorControlToggle />);
+
+    act(() => {
+      useARRuntimeStore.getState().requestRecoveryAction('calibrate-sensor');
+    });
+
+    await waitFor(() => {
+      expect(mockCalibrateToCurrentView).toHaveBeenCalled();
+    });
+    expect(useARRuntimeStore.getState().recoveryNoticeKey).toBeNull();
+  });
+
+  it('sets recovery notice when quick calibration context is unavailable', async () => {
+    mockSensorControl = true;
+    mockIsPermissionGranted = true;
+    mockStatus = 'calibration-required';
+    mockViewDirection = null;
+
+    renderWithProviders(<SensorControlToggle />);
+
+    act(() => {
+      useARRuntimeStore.getState().requestRecoveryAction('calibrate-sensor');
+    });
+
+    await waitFor(() => {
+      expect(useARRuntimeStore.getState().recoveryNoticeKey).toBe('settings.arRecoveryCalibrationUnavailable');
+    });
   });
 });

@@ -95,9 +95,16 @@ export type MarkerUpdate = Partial<Omit<SkyMarker, 'description'>> & {
   description?: string | null;
 };
 
+export interface MarkerImportResult {
+  count: number;
+  requested: number;
+  truncated: boolean;
+}
+
 interface MarkerState {
   markers: SkyMarker[];
   groups: string[];
+  groupVisibility: Record<string, boolean>;
   activeMarkerId: string | null;
   showMarkers: boolean;
   showMarkersUpdatedAt: number;
@@ -114,6 +121,7 @@ interface MarkerState {
   removeMarker: (id: string) => void;
   updateMarker: (id: string, updates: MarkerUpdate) => void;
   setActiveMarker: (id: string | null) => void;
+  selectMarkerForNavigation: (id: string | null) => SkyMarker | null;
 
   // Bulk operations
   removeMarkersByGroup: (group: string) => void;
@@ -123,6 +131,8 @@ interface MarkerState {
   toggleMarkerVisibility: (id: string) => void;
   setAllMarkersVisible: (visible: boolean) => void;
   setShowMarkers: (show: boolean) => void;
+  setGroupVisibility: (group: string, visible: boolean) => void;
+  toggleGroupVisibility: (group: string) => void;
   setShowLabels: (show: boolean) => void;
   setGlobalMarkerSize: (size: number) => void;
   setSortBy: (sortBy: MarkerSortBy) => void;
@@ -135,10 +145,13 @@ interface MarkerState {
   // Getters
   getMarkersByGroup: (group?: string) => SkyMarker[];
   getVisibleMarkers: () => SkyMarker[];
+  getVisibleMarkersByGroup: (group: string) => SkyMarker[];
+  isGroupVisible: (group?: string) => boolean;
+  isMarkerEffectivelyVisible: (marker: SkyMarker) => boolean;
 
   // Import/Export
   exportMarkers: () => string;
-  importMarkers: (json: string) => { count: number };
+  importMarkers: (json: string) => MarkerImportResult;
 
   // Tauri sync
   syncWithTauri: () => Promise<void>;
@@ -148,6 +161,7 @@ interface MarkerState {
 interface MarkerSnapshot {
   markers: SkyMarker[];
   groups: string[];
+  groupVisibility: Record<string, boolean>;
   showMarkers: boolean;
   showMarkersUpdatedAt: number;
 }
@@ -156,6 +170,8 @@ interface ImportPayload {
   version?: number;
   markers?: unknown[];
   groups?: unknown[];
+  groupVisibility?: Record<string, unknown>;
+  group_visibility?: Record<string, unknown>;
   showMarkers?: boolean;
   showMarkersUpdatedAt?: number;
   show_markers?: boolean;
@@ -232,6 +248,52 @@ const ensureGroups = (groups: string[], markers: SkyMarker[]): string[] => {
   }
 
   return [...out];
+};
+
+const normalizeGroupVisibilityInput = (value: unknown): Record<string, boolean> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const out: Record<string, boolean> = {};
+  for (const [rawGroup, rawVisible] of Object.entries(value)) {
+    const normalized = normalizeGroup(rawGroup);
+    if (!normalized) continue;
+    out[normalized] = typeof rawVisible === 'boolean' ? rawVisible : true;
+  }
+  return out;
+};
+
+const ensureGroupVisibility = (
+  groups: string[],
+  groupVisibility: Record<string, boolean> = {},
+): Record<string, boolean> => {
+  const out: Record<string, boolean> = {};
+
+  for (const group of groups) {
+    out[group] = true;
+  }
+
+  for (const [rawGroup, rawVisible] of Object.entries(groupVisibility)) {
+    const normalized = normalizeGroup(rawGroup);
+    if (!normalized) continue;
+    out[normalized] = typeof rawVisible === 'boolean' ? rawVisible : true;
+  }
+
+  out[DEFAULT_GROUP] = out[DEFAULT_GROUP] ?? true;
+  return out;
+};
+
+const markerGroup = (marker: Pick<SkyMarker, 'group'>): string => normalizeGroup(marker.group) ?? DEFAULT_GROUP;
+
+const isEffectivelyVisible = (
+  marker: SkyMarker,
+  showMarkers: boolean,
+  groupVisibility: Record<string, boolean>,
+): boolean => {
+  if (!showMarkers || !marker.visible) return false;
+  const group = markerGroup(marker);
+  return groupVisibility[group] ?? true;
 };
 
 const toFrontendMarker = (marker: TauriSkyMarker): SkyMarker => {
@@ -325,10 +387,12 @@ const mergeMarkerSnapshots = (local: MarkerSnapshot, remote: TauriMarkersData): 
   const localShowTs = toFiniteNumber(local.showMarkersUpdatedAt) ?? 0;
   const remoteShowTs = toFiniteNumber(remote.show_markers_updated_at) ?? 0;
   const showMarkers = remoteShowTs >= localShowTs ? Boolean(remote.show_markers) : Boolean(local.showMarkers);
+  const groups = ensureGroups(remote.groups ?? local.groups, mergedMarkers);
 
   return {
     markers: mergedMarkers,
-    groups: ensureGroups(remote.groups ?? local.groups, mergedMarkers),
+    groups,
+    groupVisibility: ensureGroupVisibility(groups, local.groupVisibility),
     showMarkers,
     showMarkersUpdatedAt: Math.max(localShowTs, remoteShowTs),
   };
@@ -344,9 +408,11 @@ const toTauriSnapshot = (snapshot: MarkerSnapshot): TauriMarkersData => {
 };
 
 const getLocalSnapshot = (state: MarkerState): MarkerSnapshot => {
+  const groups = ensureGroups(state.groups, state.markers);
   return {
     markers: state.markers.map(normalizeMarker),
-    groups: ensureGroups(state.groups, state.markers),
+    groups,
+    groupVisibility: ensureGroupVisibility(groups, state.groupVisibility),
     showMarkers: state.showMarkers,
     showMarkersUpdatedAt: toFiniteNumber(state.showMarkersUpdatedAt) ?? 0,
   };
@@ -385,6 +451,7 @@ export const useMarkerStore = create<MarkerState>()(
         set({
           markers: snapshot.markers,
           groups: snapshot.groups,
+          groupVisibility: ensureGroupVisibility(snapshot.groups, snapshot.groupVisibility),
           showMarkers: snapshot.showMarkers,
           showMarkersUpdatedAt: snapshot.showMarkersUpdatedAt,
         });
@@ -405,6 +472,7 @@ export const useMarkerStore = create<MarkerState>()(
       return {
         markers: [],
         groups: [DEFAULT_GROUP],
+        groupVisibility: { [DEFAULT_GROUP]: true },
         activeMarkerId: null,
         showMarkers: true,
         showMarkersUpdatedAt: 0,
@@ -436,9 +504,11 @@ export const useMarkerStore = create<MarkerState>()(
 
           set((state) => {
             const markers = [...state.markers, newMarker];
+            const groups = ensureGroups(state.groups, markers);
             return {
               markers,
-              groups: ensureGroups(state.groups, markers),
+              groups,
+              groupVisibility: ensureGroupVisibility(groups, state.groupVisibility),
             };
           });
 
@@ -491,10 +561,12 @@ export const useMarkerStore = create<MarkerState>()(
                 updatedAt: now,
               });
             });
+            const groups = ensureGroups(state.groups, markers);
 
             return {
               markers,
-              groups: ensureGroups(state.groups, markers),
+              groups,
+              groupVisibility: ensureGroupVisibility(groups, state.groupVisibility),
             };
           });
 
@@ -516,6 +588,16 @@ export const useMarkerStore = create<MarkerState>()(
         },
 
         setActiveMarker: (id) => set({ activeMarkerId: id }),
+        selectMarkerForNavigation: (id) => {
+          if (!id) {
+            set({ activeMarkerId: null });
+            return null;
+          }
+
+          const marker = get().markers.find((m) => m.id === id) ?? null;
+          set({ activeMarkerId: marker?.id ?? null });
+          return marker;
+        },
 
         // ========== Bulk operations ==========
         removeMarkersByGroup: (group) => {
@@ -535,7 +617,12 @@ export const useMarkerStore = create<MarkerState>()(
         },
 
         clearAllMarkers: () => {
-          set({ markers: [], activeMarkerId: null, groups: [DEFAULT_GROUP] });
+          set({
+            markers: [],
+            activeMarkerId: null,
+            groups: [DEFAULT_GROUP],
+            groupVisibility: { [DEFAULT_GROUP]: true },
+          });
 
           if (isTauri()) {
             void markersApi.clearAll().then(reconcileRemote).catch((err) => logger.error('Failed to clear all markers in Tauri', err));
@@ -576,6 +663,25 @@ export const useMarkerStore = create<MarkerState>()(
           }
         },
 
+        setGroupVisibility: (group, visible) => {
+          const normalized = normalizeGroup(group);
+          if (!normalized) return;
+
+          set((state) => {
+            const groups = ensureGroups([...state.groups, normalized], state.markers);
+            const groupVisibility = ensureGroupVisibility(groups, state.groupVisibility);
+            groupVisibility[normalized] = visible;
+            return { groups, groupVisibility };
+          });
+        },
+
+        toggleGroupVisibility: (group) => {
+          const normalized = normalizeGroup(group);
+          if (!normalized) return;
+          const visible = get().isGroupVisible(normalized);
+          get().setGroupVisibility(normalized, !visible);
+        },
+
         setShowLabels: (show) => set({ showLabels: show }),
         setGlobalMarkerSize: (size) => set({ globalMarkerSize: Math.max(8, Math.min(48, size)) }),
         setSortBy: (sortBy) => set({ sortBy }),
@@ -585,9 +691,12 @@ export const useMarkerStore = create<MarkerState>()(
           const normalized = normalizeGroup(group);
           if (!normalized) return;
 
-          set((state) => ({
-            groups: ensureGroups([...state.groups, normalized], state.markers),
-          }));
+          set((state) => {
+            const groups = ensureGroups([...state.groups, normalized], state.markers);
+            const groupVisibility = ensureGroupVisibility(groups, state.groupVisibility);
+            groupVisibility[normalized] = groupVisibility[normalized] ?? true;
+            return { groups, groupVisibility };
+          });
 
           if (isTauri()) {
             void markersApi.addGroup(normalized).then(reconcileRemote).catch((err) => logger.error('Failed to add group in Tauri', err));
@@ -602,8 +711,14 @@ export const useMarkerStore = create<MarkerState>()(
             const markers = state.markers.map((m) =>
               m.group === normalized ? { ...m, group: DEFAULT_GROUP } : m
             );
+            const groups = ensureGroups(state.groups.filter((g) => g !== normalized), markers);
+            const groupVisibility = ensureGroupVisibility(
+              groups,
+              Object.fromEntries(Object.entries(state.groupVisibility).filter(([groupName]) => groupName !== normalized)),
+            );
             return {
-              groups: ensureGroups(state.groups.filter((g) => g !== normalized), markers),
+              groups,
+              groupVisibility,
               markers,
             };
           });
@@ -622,8 +737,16 @@ export const useMarkerStore = create<MarkerState>()(
             const markers = state.markers.map((m) =>
               m.group === oldNormalized ? { ...m, group: newNormalized } : m
             );
+            const groups = ensureGroups(state.groups.map((g) => (g === oldNormalized ? newNormalized : g)), markers);
+            const groupVisibility = ensureGroupVisibility(groups, state.groupVisibility);
+            const previousVisibility = state.groupVisibility[oldNormalized];
+            if (typeof previousVisibility === 'boolean') {
+              groupVisibility[newNormalized] = previousVisibility;
+            }
+            delete groupVisibility[oldNormalized];
             return {
-              groups: ensureGroups(state.groups.map((g) => (g === oldNormalized ? newNormalized : g)), markers),
+              groups,
+              groupVisibility,
               markers,
             };
           });
@@ -661,17 +784,35 @@ export const useMarkerStore = create<MarkerState>()(
 
         getVisibleMarkers: () => {
           const state = get();
-          if (!state.showMarkers) return [];
-          return state.markers.filter((m) => m.visible);
+          return state.markers.filter((m) => isEffectivelyVisible(m, state.showMarkers, state.groupVisibility));
+        },
+
+        getVisibleMarkersByGroup: (group) => {
+          const state = get();
+          const normalized = normalizeGroup(group);
+          if (!normalized) return [];
+          return state.markers.filter((m) => markerGroup(m) === normalized && isEffectivelyVisible(m, state.showMarkers, state.groupVisibility));
+        },
+
+        isGroupVisible: (group) => {
+          const normalized = normalizeGroup(group) ?? DEFAULT_GROUP;
+          return get().groupVisibility[normalized] ?? true;
+        },
+
+        isMarkerEffectivelyVisible: (marker) => {
+          const state = get();
+          return isEffectivelyVisible(marker, state.showMarkers, state.groupVisibility);
         },
 
         // ========== Import/Export ==========
         exportMarkers: () => {
           const state = get();
+          const groups = ensureGroups(state.groups, state.markers);
           const data = {
-            version: 2,
+            version: 3,
             markers: state.markers.map(normalizeMarker),
-            groups: ensureGroups(state.groups, state.markers),
+            groups,
+            groupVisibility: ensureGroupVisibility(groups, state.groupVisibility),
             showMarkers: state.showMarkers,
             showMarkersUpdatedAt: state.showMarkersUpdatedAt,
           };
@@ -680,7 +821,13 @@ export const useMarkerStore = create<MarkerState>()(
 
         importMarkers: (json) => {
           try {
-            const parsed = JSON.parse(json) as ImportPayload | unknown[];
+            let parsed: ImportPayload | unknown[];
+            try {
+              parsed = JSON.parse(json) as ImportPayload | unknown[];
+            } catch {
+              throw new Error('Invalid marker import JSON');
+            }
+
             const payload: ImportPayload = Array.isArray(parsed) ? { markers: parsed, version: 1 } : parsed;
             const sourceMarkers = Array.isArray(payload.markers) ? payload.markers : [];
 
@@ -690,11 +837,14 @@ export const useMarkerStore = create<MarkerState>()(
 
             const now = Date.now();
             const state = get();
-            const remaining = MAX_MARKERS - state.markers.length;
+            const requested = sourceMarkers.length;
+            const remaining = Math.max(0, MAX_MARKERS - state.markers.length);
             const imported = sourceMarkers.slice(0, remaining).map((m, i) => parseImportedMarker(m, i, now));
             const importedGroups = Array.isArray(payload.groups)
               ? payload.groups.map(normalizeGroup).filter((g): g is string => Boolean(g))
               : [];
+            const importedGroupVisibility = normalizeGroupVisibilityInput(payload.groupVisibility ?? payload.group_visibility);
+            const visibilityGroups = Object.keys(importedGroupVisibility);
 
             const importedShowMarkers =
               typeof payload.showMarkers === 'boolean'
@@ -705,9 +855,20 @@ export const useMarkerStore = create<MarkerState>()(
               ?? toFiniteNumber(payload.show_markers_updated_at)
               ?? now;
 
+            const nextMarkers = [...state.markers, ...imported];
+            const nextGroups = ensureGroups(
+              [...state.groups, ...importedGroups, ...visibilityGroups],
+              nextMarkers,
+            );
+            const nextGroupVisibility = ensureGroupVisibility(nextGroups, {
+              ...state.groupVisibility,
+              ...importedGroupVisibility,
+            });
+
             const nextSnapshot: MarkerSnapshot = {
-              markers: [...state.markers, ...imported],
-              groups: ensureGroups([...state.groups, ...importedGroups], [...state.markers, ...imported]),
+              markers: nextMarkers,
+              groups: nextGroups,
+              groupVisibility: nextGroupVisibility,
               showMarkers: importedShowMarkers ?? state.showMarkers,
               showMarkersUpdatedAt: importedShowMarkers !== undefined ? importedShowTs : state.showMarkersUpdatedAt,
             };
@@ -720,10 +881,15 @@ export const useMarkerStore = create<MarkerState>()(
               );
             }
 
-            return { count: imported.length };
+            return {
+              count: imported.length,
+              requested,
+              truncated: imported.length < requested,
+            };
           } catch (error) {
             logger.error('Failed to import markers', error);
-            throw error;
+            if (error instanceof Error) throw error;
+            throw new Error('Failed to import markers');
           }
         },
       };
@@ -734,6 +900,7 @@ export const useMarkerStore = create<MarkerState>()(
       partialize: (state) => ({
         markers: state.markers,
         groups: state.groups,
+        groupVisibility: state.groupVisibility,
         showMarkers: state.showMarkers,
         showMarkersUpdatedAt: state.showMarkersUpdatedAt,
         showLabels: state.showLabels,

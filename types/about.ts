@@ -19,10 +19,22 @@ export interface LicenseInfo {
   descriptionKey: string;
 }
 
+export type DependencySource = 'npm' | 'cargo';
+
+export type DependencyRuntime = 'shared' | 'desktop';
+
 export interface DependencyInfo {
   name: string;
   version: string;
   type: string;
+  source: DependencySource;
+  runtime: DependencyRuntime;
+  manifestSection: string;
+}
+
+export interface DependencyGroup {
+  runtime: DependencyRuntime;
+  items: DependencyInfo[];
 }
 
 export interface DataCreditInfo {

@@ -19,6 +19,8 @@ describe('useEquipmentFOVRead', () => {
     expect(result.current).toHaveProperty('sensorWidth');
     expect(result.current).toHaveProperty('sensorHeight');
     expect(result.current).toHaveProperty('focalLength');
+    expect(result.current).toHaveProperty('pixelSize');
+    expect(result.current).toHaveProperty('rotationAngle');
     expect(result.current).toHaveProperty('mosaic');
     expect(result.current).toHaveProperty('gridType');
   });
@@ -31,6 +33,8 @@ describe('useEquipmentFOVRead', () => {
     expect(result.current.sensorWidth).toBe(storeState.sensorWidth);
     expect(result.current.sensorHeight).toBe(storeState.sensorHeight);
     expect(result.current.focalLength).toBe(storeState.focalLength);
+    expect(result.current.pixelSize).toBe(storeState.pixelSize);
+    expect(result.current.rotationAngle).toBe(storeState.rotationAngle);
     expect(result.current.gridType).toBe(storeState.fovDisplay.gridType);
   });
 
@@ -54,6 +58,8 @@ describe('useEquipmentFOVProps', () => {
     expect(result.current).toHaveProperty('sensorWidth');
     expect(result.current).toHaveProperty('sensorHeight');
     expect(result.current).toHaveProperty('focalLength');
+    expect(result.current).toHaveProperty('pixelSize');
+    expect(result.current).toHaveProperty('rotationAngle');
     expect(result.current).toHaveProperty('mosaic');
     expect(result.current).toHaveProperty('gridType');
 
@@ -62,6 +68,7 @@ describe('useEquipmentFOVProps', () => {
     expect(typeof result.current.setSensorWidth).toBe('function');
     expect(typeof result.current.setSensorHeight).toBe('function');
     expect(typeof result.current.setFocalLength).toBe('function');
+    expect(typeof result.current.setPixelSize).toBe('function');
     expect(typeof result.current.setMosaic).toBe('function');
     expect(typeof result.current.setGridType).toBe('function');
     expect(typeof result.current.setRotationAngle).toBe('function');

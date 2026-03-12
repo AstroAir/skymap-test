@@ -12,16 +12,16 @@ import { formatRA, formatDec } from '@/lib/astronomy/coordinates/formats';
 import { parseRACoordinate, parseDecCoordinate } from '@/lib/astronomy/coordinates/conversions';
 import { parseQuery } from '@/lib/astronomy/object-resolver/parser/parse-query';
 import { buildCanonicalId } from '@/lib/astronomy/object-resolver/parser/normalize';
+import {
+  filterSearchProvidersForQuery,
+  getEligibleSearchProviders,
+  getSearchProviderDefinition,
+  type SearchProviderId,
+} from './online-data-provider-registry';
 
 const logger = createLogger('online-search-service');
 
-export type OnlineSearchSource =
-  | 'simbad'
-  | 'sesame'
-  | 'vizier'
-  | 'ned'
-  | 'mpc'
-  | 'local';
+export type OnlineSearchSource = SearchProviderId;
 
 export type ObjectCategory =
   | 'galaxy'
@@ -84,71 +84,44 @@ export interface OnlineSearchResponse {
 
 type SearchErrors = Array<{ source: OnlineSearchSource; error: string }>;
 
+function buildSearchSourceConfig(id: Exclude<OnlineSearchSource, 'local'>) {
+  const provider = getSearchProviderDefinition(id);
+  return {
+    id,
+    name: provider.name,
+    description: provider.description,
+    baseUrl: provider.baseUrl!,
+    endpoint: provider.endpoint,
+    tapEndpoint: provider.tapEndpoint,
+    identifierEndpoint: provider.identifierEndpoint,
+    observationEndpoint: provider.observationEndpoint,
+    enabled: provider.search?.enabled ?? false,
+    priority: provider.search?.priority ?? 999,
+    timeout: provider.search?.timeout ?? 15000,
+  };
+}
+
 export const ONLINE_SEARCH_SOURCES = {
-  simbad: {
-    id: 'simbad' as const,
-    name: 'SIMBAD',
-    description: 'CDS astronomical database with 20M+ objects',
-    baseUrl: 'https://simbad.cds.unistra.fr',
-    tapEndpoint: '/simbad/sim-tap/sync',
-    enabled: true,
-    priority: 1,
-    timeout: 15000,
-  },
-  sesame: {
-    id: 'sesame' as const,
-    name: 'Sesame',
-    description: 'CDS name resolver (SIMBAD + NED + VizieR)',
-    baseUrl: 'https://cds.unistra.fr',
-    endpoint: '/cgi-bin/Sesame',
-    enabled: true,
-    priority: 0,
-    timeout: 10000,
-  },
-  vizier: {
-    id: 'vizier' as const,
-    name: 'VizieR',
-    description: 'CDS catalog library with 27k+ catalogs',
-    baseUrl: 'https://vizier.cds.unistra.fr',
-    tapEndpoint: '/viz-bin/votable',
-    enabled: true,
-    priority: 2,
-    timeout: 20000,
-  },
-  ned: {
-    id: 'ned' as const,
-    name: 'NED',
-    description: 'NASA/IPAC Extragalactic Database',
-    baseUrl: 'https://ned.ipac.caltech.edu',
-    endpoint: '/cgi-bin/objsearch',
-    enabled: true,
-    priority: 3,
-    timeout: 15000,
-  },
-  mpc: {
-    id: 'mpc' as const,
-    name: 'MPC',
-    description: 'Minor Planet Center designation resolver',
-    baseUrl: 'https://data.minorplanetcenter.net',
-    identifierEndpoint: '/api/query-identifier',
-    observationEndpoint: '/api/get-obs',
-    enabled: true,
-    priority: 0,
-    timeout: 15000,
-  },
+  sesame: buildSearchSourceConfig('sesame'),
+  simbad: buildSearchSourceConfig('simbad'),
+  sbdb: buildSearchSourceConfig('sbdb'),
+  vizier: buildSearchSourceConfig('vizier'),
+  ned: buildSearchSourceConfig('ned'),
+  mpc: buildSearchSourceConfig('mpc'),
 };
 
-const DEFAULT_NAME_SOURCES: OnlineSearchSource[] = ['sesame', 'simbad', 'vizier', 'ned'];
-const DEFAULT_COORDINATE_SOURCES: OnlineSearchSource[] = ['simbad'];
-const DEFAULT_MINOR_SOURCES: OnlineSearchSource[] = ['mpc', 'sesame', 'simbad'];
+const DEFAULT_NAME_SOURCES: OnlineSearchSource[] = getEligibleSearchProviders('name');
+const DEFAULT_COORDINATE_SOURCES: OnlineSearchSource[] = getEligibleSearchProviders('coordinates');
+const DEFAULT_MINOR_SOURCES: OnlineSearchSource[] = getEligibleSearchProviders('minor');
 
 const SOURCE_TRUST: Record<OnlineSearchSource, number> = {
-  mpc: 0,
-  sesame: 1,
-  simbad: 2,
-  vizier: 3,
-  ned: 4,
-  local: 5,
+  sbdb: 0,
+  mpc: 1,
+  sesame: 2,
+  simbad: 3,
+  vizier: 4,
+  ned: 5,
+  local: 6,
 };
 
 const SIMBAD_TYPE_MAP: Record<string, { type: string; category: ObjectCategory }> = {
@@ -828,6 +801,77 @@ async function searchMpcMinorObject(query: string, timeout = 15000, signal?: Abo
   }];
 }
 
+async function searchSbdbMinorObject(query: string, timeout = 15000, signal?: AbortSignal): Promise<OnlineSearchResult[]> {
+  const provider = ONLINE_SEARCH_SOURCES.sbdb;
+  const params = new URLSearchParams({ sstr: query, 'phys-par': '1' });
+  const url = `${provider.baseUrl}${provider.endpoint}?${params.toString()}`;
+  const response = await fetchWithRetry(url, {
+    timeout,
+    signal,
+    headers: { Accept: 'application/json' },
+  }, 0);
+
+  if (!response.ok) {
+    throw new Error(`SBDB API error: ${response.status}`);
+  }
+
+  const payload = await response.json<Record<string, unknown>>();
+  const object = (payload.object as Record<string, unknown> | undefined) ?? {};
+  const orbitClass = (object.orbit_class as Record<string, unknown> | undefined)?.name;
+  const fullName = firstNonEmpty([
+    typeof object.fullname === 'string' ? object.fullname : null,
+    typeof object.shortname === 'string' ? object.shortname : null,
+    typeof object.pdes === 'string' ? object.pdes : null,
+    typeof object.des === 'string' ? object.des : null,
+    query,
+  ]);
+
+  if (!fullName) {
+    return [];
+  }
+
+  const fallbackCoordinateResult = await searchMpcMinorObject(query, timeout, signal).catch(() => []);
+  const coordinateSeed = fallbackCoordinateResult[0];
+  if (!coordinateSeed) {
+    return [];
+  }
+
+  const isComet = /comet/i.test(String(orbitClass ?? fullName));
+  const identifiers = dedupeStrings([
+    query,
+    typeof object.fullname === 'string' ? object.fullname : undefined,
+    typeof object.shortname === 'string' ? object.shortname : undefined,
+    typeof object.pdes === 'string' ? object.pdes : undefined,
+    typeof object.des === 'string' ? object.des : undefined,
+    typeof object.spkid === 'string' ? object.spkid : undefined,
+    ...coordinateSeed.identifiers,
+  ]);
+
+  return [{
+    ...coordinateSeed,
+    id: generateResultId(fullName, 'sbdb'),
+    name: fullName,
+    canonicalId: toCanonicalId(
+      typeof object.pdes === 'string' ? object.pdes : undefined,
+      typeof object.des === 'string' ? object.des : undefined,
+      typeof object.fullname === 'string' ? object.fullname : undefined,
+      coordinateSeed.canonicalId,
+      query
+    ),
+    identifiers,
+    confidence: 0.98,
+    alternateNames: dedupeStrings([
+      ...(coordinateSeed.alternateNames ?? []),
+      ...identifiers.filter((value) => value !== fullName),
+    ]),
+    type: isComet ? 'Comet' : 'Asteroid',
+    category: isComet ? 'comet' : 'asteroid',
+    source: 'sbdb',
+    sourceUrl: url,
+    description: typeof orbitClass === 'string' ? orbitClass : coordinateSeed.description,
+  }];
+}
+
 function collectUsedSources(results: OnlineSearchResult[]): OnlineSearchSource[] {
   const seen = new Set<OnlineSearchSource>();
   for (const result of results) seen.add(result.source);
@@ -856,13 +900,14 @@ export async function searchOnlineByName(
   const stagedResults: OnlineSearchResult[] = [];
 
   if (parsed.kind === 'coordinate' && parsed.coordinate) {
+    const coordinateSources = filterSearchProvidersForQuery(sources, 'coordinates');
     return searchOnlineByCoordinates({
       ra: parsed.coordinate.ra,
       dec: parsed.coordinate.dec,
       radius: searchRadius,
     }, {
       ...options,
-      sources: sources.filter(source => source === 'simbad' || source === 'local'),
+      sources: coordinateSources.length > 0 ? coordinateSources : DEFAULT_COORDINATE_SOURCES,
       limit,
       timeout,
       signal,
@@ -870,7 +915,13 @@ export async function searchOnlineByName(
   }
 
   if (parsed.kind === 'minor') {
-    const minorSources = sources.length > 0 ? sources : DEFAULT_MINOR_SOURCES;
+    const filteredMinorSources = filterSearchProvidersForQuery(sources, 'minor');
+    const minorSources = filteredMinorSources.length > 0 ? filteredMinorSources : DEFAULT_MINOR_SOURCES;
+
+    if (minorSources.includes('sbdb')) {
+      const sbdbResults = await runSource('sbdb', () => searchSbdbMinorObject(query, timeout, signal), errors);
+      if (sbdbResults?.length) stagedResults.push(...sbdbResults);
+    }
 
     if (minorSources.includes('mpc')) {
       const mpcResults = await runSource('mpc', () => searchMpcMinorObject(query, timeout, signal), errors);
@@ -885,21 +936,24 @@ export async function searchOnlineByName(
       if (simbadResults?.length) stagedResults.push(...simbadResults);
     }
   } else {
-    if (sources.includes('sesame')) {
+    const filteredNameSources = filterSearchProvidersForQuery(sources, 'name');
+    const nameSources = filteredNameSources.length > 0 ? filteredNameSources : DEFAULT_NAME_SOURCES;
+
+    if (nameSources.includes('sesame')) {
       const sesameResults = await runSource('sesame', () => searchSesame(query, timeout, signal), errors);
       if (sesameResults?.length) stagedResults.push(...sesameResults);
     }
 
-    if (sources.includes('simbad')) {
+    if (nameSources.includes('simbad')) {
       const simbadResults = await runSource('simbad', () => searchSimbadByName(query, limit, timeout, signal), errors);
       if (simbadResults?.length) stagedResults.push(...simbadResults);
     }
 
     const supplements = await Promise.all([
-      sources.includes('vizier')
+      nameSources.includes('vizier')
         ? runSource('vizier', () => searchVizierCatalogs(query, undefined, limit, timeout, signal), errors)
         : Promise.resolve(null),
-      sources.includes('ned')
+      nameSources.includes('ned')
         ? runSource('ned', () => searchNED(query, limit, timeout, signal), errors)
         : Promise.resolve(null),
     ]);
@@ -931,12 +985,13 @@ export async function searchOnlineByCoordinates(
     timeout = 15000,
     signal,
   } = options;
+  const coordinateSources = filterSearchProvidersForQuery(sources, 'coordinates');
 
   const start = performance.now();
   const errors: SearchErrors = [];
   const results: OnlineSearchResult[] = [];
 
-  if (sources.includes('simbad')) {
+  if ((coordinateSources.length > 0 ? coordinateSources : DEFAULT_COORDINATE_SOURCES).includes('simbad')) {
     const simbadResults = await runSource(
       'simbad',
       () => searchSimbadByCoordinates(params.ra, params.dec, params.radius, limit, timeout, signal),
@@ -974,6 +1029,7 @@ export async function checkOnlineSearchAvailability(): Promise<Record<OnlineSear
   const result: Record<OnlineSearchSource, boolean> = {
     simbad: false,
     sesame: false,
+    sbdb: false,
     vizier: false,
     ned: false,
     mpc: false,
@@ -981,12 +1037,15 @@ export async function checkOnlineSearchAvailability(): Promise<Record<OnlineSear
   };
 
   const checks = [
-    smartFetch(`${ONLINE_SEARCH_SOURCES.sesame.baseUrl}${ONLINE_SEARCH_SOURCES.sesame.endpoint}/-ox/SNV?M31`, { timeout: 5000 })
+    smartFetch(`${ONLINE_SEARCH_SOURCES.sesame.baseUrl}${getSearchProviderDefinition('sesame').search?.availabilityCheckPath}`, { timeout: 5000 })
       .then(r => { result.sesame = r.ok; })
       .catch(() => { result.sesame = false; }),
-    smartFetch(`${ONLINE_SEARCH_SOURCES.simbad.baseUrl}/simbad/`, { timeout: 5000 })
+    smartFetch(`${ONLINE_SEARCH_SOURCES.simbad.baseUrl}${getSearchProviderDefinition('simbad').search?.availabilityCheckPath}`, { timeout: 5000 })
       .then(r => { result.simbad = r.ok; })
       .catch(() => { result.simbad = false; }),
+    smartFetch(`${ONLINE_SEARCH_SOURCES.sbdb.baseUrl}${getSearchProviderDefinition('sbdb').search?.availabilityCheckPath}`, { timeout: 5000 })
+      .then(r => { result.sbdb = r.ok; })
+      .catch(() => { result.sbdb = false; }),
     smartFetch(`${ONLINE_SEARCH_SOURCES.vizier.baseUrl}/viz-bin/VizieR`, { timeout: 5000 })
       .then(r => { result.vizier = r.ok; })
       .catch(() => { result.vizier = false; }),

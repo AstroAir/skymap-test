@@ -24,7 +24,14 @@ const mockSetFontFamily = jest.fn();
 const mockSetFontSize = jest.fn();
 const mockSetAnimationsEnabled = jest.fn();
 const mockSetActivePreset = jest.fn();
+const mockSetCustomColor = jest.fn();
+const mockClearCustomColor = jest.fn();
 const mockResetCustomization = jest.fn();
+const mockSaveCurrentAsPreset = jest.fn();
+const mockDuplicatePreset = jest.fn();
+const mockRenameUserPreset = jest.fn();
+const mockSaveCurrentToUserPreset = jest.fn();
+const mockDeleteUserPreset = jest.fn();
 
 jest.mock('@/lib/stores/theme-store', () => ({
   useThemeStore: () => ({
@@ -33,15 +40,96 @@ jest.mock('@/lib/stores/theme-store', () => ({
       fontFamily: 'default',
       fontSize: 'default',
       animationsEnabled: true,
-      activePreset: null,
+      activePreset: 'custom-night',
+      customColors: {
+        light: { primary: '#fafafa' },
+        dark: { primary: '#101010' },
+      },
     },
+    userPresets: [
+      {
+        id: 'custom-night',
+        name: 'Custom Night',
+        colors: {
+          light: { primary: '#123456', background: '#f8f8f8' },
+          dark: { primary: '#abcdef', background: '#050505' },
+        },
+      },
+    ],
     setRadius: mockSetRadius,
     setFontFamily: mockSetFontFamily,
     setFontSize: mockSetFontSize,
     setAnimationsEnabled: mockSetAnimationsEnabled,
     setActivePreset: mockSetActivePreset,
+    setCustomColor: mockSetCustomColor,
+    clearCustomColor: mockClearCustomColor,
     resetCustomization: mockResetCustomization,
+    saveCurrentAsPreset: mockSaveCurrentAsPreset,
+    duplicatePreset: mockDuplicatePreset,
+    renameUserPreset: mockRenameUserPreset,
+    saveCurrentToUserPreset: mockSaveCurrentToUserPreset,
+    deleteUserPreset: mockDeleteUserPreset,
   }),
+  customizableThemeColorKeys: [
+    'primary',
+    'secondary',
+    'accent',
+    'background',
+    'foreground',
+    'muted',
+    'card',
+    'border',
+    'destructive',
+  ],
+  getPresetThemeColors: (customization: { activePreset: string | null }, mode: 'light' | 'dark') => {
+    const preset = [
+      {
+        id: 'preset1',
+        colors: {
+          light: { primary: '#000', secondary: '#111', accent: '#222' },
+          dark: { primary: '#fff', secondary: '#eee', accent: '#ddd' },
+        },
+      },
+    ].find((item) => item.id === customization.activePreset);
+
+    return preset ? preset.colors[mode] : {};
+  },
+  isValidThemeColorValue: (value: string) => value !== 'not-a-valid-color',
+  getAvailableThemePresets: (userPresets: Array<{ id: string; name: string; colors: { light: Record<string, string>; dark: Record<string, string> } }> = []) => ([
+    {
+      id: 'preset1',
+      name: 'Preset 1',
+      colors: {
+        light: { primary: '#000', secondary: '#111', accent: '#222' },
+        dark: { primary: '#fff', secondary: '#eee', accent: '#ddd' },
+      },
+    },
+    ...userPresets,
+  ]),
+  getThemePreviewData: (_customization: unknown, mode: 'light' | 'dark') => ({
+    mode,
+    tokens: {
+      primary: mode === 'light' ? '#123456' : '#abcdef',
+      secondary: mode === 'light' ? '#ddeeff' : '#334455',
+      accent: mode === 'light' ? '#8899aa' : '#556677',
+      background: mode === 'light' ? '#ffffff' : '#050505',
+      foreground: mode === 'light' ? '#121212' : '#f5f5f5',
+      muted: mode === 'light' ? '#eeeeee' : '#222222',
+      card: mode === 'light' ? '#f6f6f6' : '#111111',
+      border: mode === 'light' ? '#cccccc' : '#333333',
+      destructive: '#cc0000',
+    },
+  }),
+  getThemeContrastWarnings: (_customization: unknown, mode: 'light' | 'dark') => mode === 'light'
+    ? [{
+      pairId: 'foreground/background',
+      mode,
+      foregroundToken: 'foreground',
+      backgroundToken: 'background',
+      ratio: 2.1,
+      threshold: 4.5,
+    }]
+    : [],
   themePresets: [
     {
       id: 'preset1',
@@ -88,12 +176,51 @@ const messages = {
     fontSizeSmall: 'Small',
     fontSizeDefault: 'Default',
     fontSizeLarge: 'Large',
+    clearColor: 'Clear color',
+    invalidColor: 'Invalid color',
+    colorValuePlaceholder: 'Enter a color',
+    colors: 'Colors',
+    customOverridesPreset: 'Custom overrides preset',
+    customPresets: 'Custom Presets',
+    presetNamePlaceholder: 'Preset name',
+    savePreset: 'Save preset',
+    duplicatePreset: 'Duplicate preset',
+    renamePreset: 'Rename preset',
+    updatePreset: 'Update preset',
+    deletePreset: 'Delete preset',
+    previewWorkspace: 'Preview workspace',
+    previewMode: 'Preview mode',
+    previewLight: 'Preview light',
+    previewDark: 'Preview dark',
+    accessibilityWarnings: 'Accessibility warnings',
+    noAccessibilityWarnings: 'No accessibility warnings',
+    warningPairForegroundBackground: 'Foreground vs background',
   },
   common: {
     reset: 'Reset',
     close: 'Close',
     lightMode: 'Light Mode',
     darkMode: 'Dark Mode',
+  },
+  settingsNew: {
+    appearance: {
+      themeMode: 'Theme mode',
+      light: 'Light',
+      dark: 'Dark',
+      system: 'System',
+      colors: 'Colors',
+      colorMode: 'Edit palette',
+      colorPresets: 'Color presets',
+      fontFamily: 'Font family',
+      fontSize: 'Font size',
+      typography: 'Typography',
+      borderRadius: 'Border radius',
+      roundness: 'Roundness',
+      preview: 'Preview',
+      square: 'Square',
+      rounded: 'Rounded',
+      enableAnimationsDesc: 'Enable animations',
+    },
   },
 };
 
@@ -143,6 +270,55 @@ describe('ThemeCustomizer', () => {
     expect(screen.getByText('theme.animations')).toBeInTheDocument();
   });
 
+  it('shows theme mode and palette controls in appearance tab', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThemeCustomizer open={true} />);
+
+    await user.click(screen.getByText('theme.appearance'));
+
+    expect(screen.getByText('settingsNew.appearance.themeMode')).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText('theme.colorValuePlaceholder')).toHaveLength(9);
+  });
+
+  it('commits valid palette overrides from the quick customizer', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThemeCustomizer open={true} />);
+
+    await user.click(screen.getByText('theme.appearance'));
+
+    const inputs = screen.getAllByPlaceholderText('theme.colorValuePlaceholder');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], '#123456');
+    fireEvent.blur(inputs[0]);
+
+    expect(mockSetCustomColor).toHaveBeenCalledWith('light', 'primary', '#123456');
+  });
+
+  it('hydrates palette inputs from persisted customization state', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThemeCustomizer open={true} />);
+
+    await user.click(screen.getByText('theme.appearance'));
+
+    const inputs = screen.getAllByPlaceholderText('theme.colorValuePlaceholder');
+    expect(inputs[0]).toHaveValue('#fafafa');
+  });
+
+  it('shows an error for invalid palette overrides in the quick customizer', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThemeCustomizer open={true} />);
+
+    await user.click(screen.getByText('theme.appearance'));
+
+    const inputs = screen.getAllByPlaceholderText('theme.colorValuePlaceholder');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], 'not-a-valid-color');
+    fireEvent.blur(inputs[0]);
+
+    expect(mockSetCustomColor).not.toHaveBeenCalled();
+    expect(screen.getByText('theme.invalidColor')).toBeInTheDocument();
+  });
+
   it('switches to typography tab', async () => {
     const user = userEvent.setup();
     renderWithProviders(<ThemeCustomizer open={true} />);
@@ -162,5 +338,29 @@ describe('ThemeCustomizer', () => {
     renderWithProviders(<ThemeCustomizer open={true} onOpenChange={mockOnOpenChange} />);
     fireEvent.click(screen.getByText('common.close'));
     expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('renders custom preset controls and saves a reusable preset', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThemeCustomizer open={true} />);
+
+    expect(screen.getByText('Custom Night')).toBeInTheDocument();
+    const nameInput = screen.getByPlaceholderText('theme.presetNamePlaceholder');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Aurora');
+    await user.click(screen.getByText('theme.savePreset'));
+
+    expect(mockSaveCurrentAsPreset).toHaveBeenCalledWith('Aurora');
+  });
+
+  it('renders preview workspace and accessibility guidance in appearance tab', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ThemeCustomizer open={true} />);
+
+    await user.click(screen.getByText('theme.appearance'));
+
+    expect(screen.getAllByText('theme.previewWorkspace').length).toBeGreaterThan(0);
+    expect(screen.getByText('theme.accessibilityWarnings')).toBeInTheDocument();
+    expect(screen.getByText('theme.warningPairForegroundBackground')).toBeInTheDocument();
   });
 });

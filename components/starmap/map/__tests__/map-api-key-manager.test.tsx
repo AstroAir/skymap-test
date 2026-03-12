@@ -29,6 +29,14 @@ jest.mock('sonner', () => ({
 
 import { toast as mockToast } from 'sonner';
 
+jest.mock('@/lib/utils/clipboard-feedback', () => ({
+  copyTextWithFeedback: jest.fn(),
+}));
+
+import { copyTextWithFeedback } from '@/lib/utils/clipboard-feedback';
+
+const mockCopyTextWithFeedback = copyTextWithFeedback as jest.Mock;
+
 // Mock UI components
 jest.mock('@/components/ui/button', () => ({
   Button: ({
@@ -234,6 +242,7 @@ describe('MapApiKeyManager', () => {
     jest.clearAllMocks();
     mockMapConfig.getApiKeys.mockReturnValue([]);
     mockMapConfig.addConfigurationListener.mockReturnValue(() => {});
+    mockCopyTextWithFeedback.mockResolvedValue(true);
   });
 
   afterAll(() => {
@@ -437,11 +446,6 @@ describe('MapApiKeyManager', () => {
 
   describe('Copy API Key', () => {
     it('copies API key to clipboard', async () => {
-      const mockClipboard = {
-        writeText: jest.fn().mockResolvedValue(undefined),
-      };
-      Object.assign(navigator, { clipboard: mockClipboard });
-
       mockMapConfig.getApiKeys.mockReturnValue([
         {
           id: 'key-1',
@@ -465,16 +469,17 @@ describe('MapApiKeyManager', () => {
         });
 
         await waitFor(() => {
-          expect(mockClipboard.writeText).toHaveBeenCalledWith('AIza123456789');
+          expect(mockCopyTextWithFeedback).toHaveBeenCalledWith(
+            expect.objectContaining({
+              text: 'AIza123456789',
+            })
+          );
         });
       }
     });
 
     it('shows error toast when copy fails', async () => {
-      const mockClipboard = {
-        writeText: jest.fn().mockRejectedValue(new Error('Copy failed')),
-      };
-      Object.assign(navigator, { clipboard: mockClipboard });
+      mockCopyTextWithFeedback.mockResolvedValueOnce(false);
 
       mockMapConfig.getApiKeys.mockReturnValue([
         {
@@ -498,6 +503,10 @@ describe('MapApiKeyManager', () => {
           fireEvent.click(copyButton);
         });
       }
+
+      await waitFor(() => {
+        expect(mockCopyTextWithFeedback).toHaveBeenCalled();
+      });
     });
   });
 

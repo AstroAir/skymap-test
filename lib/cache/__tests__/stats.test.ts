@@ -35,6 +35,42 @@ jest.mock('@/lib/catalogs/nighttime-calculator', () => ({
   })),
 }));
 
+jest.mock('@/lib/cache/integration-policy', () => ({
+  getCacheProviderDiagnostics: jest.fn(() => ({
+    providerId: 'browser-cache-api',
+    available: true,
+    supportsPersistent: true,
+    supportsClear: true,
+    supportsCleanup: false,
+    supportsFlush: false,
+    supportsInterception: true,
+  })),
+  getCacheIntegrationDiagnostics: jest.fn(() => ([
+    {
+      id: 'hips-registry',
+      title: 'HiPS registry fetches',
+      modulePath: 'lib/services/hips/service.ts',
+      policyId: 'hips-registry',
+      cacheMode: 'persistent-shared',
+      status: 'active',
+      strategy: 'network-first',
+      ttl: 86400000,
+      providerId: 'browser-cache-api',
+    },
+    {
+      id: 'nighttime-calculations',
+      title: 'Nighttime calculations',
+      modulePath: 'lib/catalogs/nighttime-calculator.ts',
+      policyId: 'nighttime-calculations',
+      cacheMode: 'local-only',
+      status: 'local-only',
+      strategy: 'cache-first',
+      ttl: 3600000,
+      providerId: 'browser-cache-api',
+    },
+  ])),
+}));
+
 import { isTauri } from '@/lib/storage/platform';
 import { unifiedCache } from '@/lib/offline/unified-cache';
 import { unifiedCacheApi } from '@/lib/tauri/unified-cache-api';
@@ -53,13 +89,47 @@ import defaultCacheStats from '../stats';
 const mockIsTauri = isTauri as jest.Mock;
 const mockGetNighttimeCacheStats = getNighttimeCacheStats as jest.Mock;
 
+function makeDiagnosticsStats(overrides: Partial<AggregatedCacheStats> = {}): AggregatedCacheStats {
+  return {
+    totalSize: 0,
+    totalEntries: 0,
+    totalHits: 0,
+    totalMisses: 0,
+    overallHitRate: undefined,
+    caches: [],
+    providerDiagnostics: {
+      providerId: 'browser-cache-api',
+      available: true,
+      supportsPersistent: true,
+      supportsClear: true,
+      supportsInterception: true,
+      supportsCleanup: false,
+      supportsFlush: false,
+    },
+    integrationDiagnostics: [],
+    lastUpdated: Date.now(),
+    ...overrides,
+  };
+}
+
 describe('formatCacheStats', () => {
-  const mockStats: AggregatedCacheStats = {
-    totalSize: 1024 * 1024 * 100, // 100MB
+  const mockStats: AggregatedCacheStats = makeDiagnosticsStats({
+    totalSize: 1024 * 1024 * 100,
     totalEntries: 500,
     totalHits: 800,
     totalMisses: 200,
     overallHitRate: 0.8,
+    integrationDiagnostics: [{
+      id: 'test-integration',
+      title: 'Test integration',
+      modulePath: 'test/module',
+      policyId: 'hips-registry',
+      cacheMode: 'persistent-shared',
+      status: 'active',
+      strategy: 'network-first',
+      ttl: 60_000,
+      providerId: 'browser-cache-api',
+    }],
     caches: [
       {
         name: 'Test Cache 1',
@@ -82,8 +152,7 @@ describe('formatCacheStats', () => {
         errors: 5,
       },
     ],
-    lastUpdated: Date.now(),
-  };
+  });
 
   it('should format stats as string', () => {
     const result = formatCacheStats(mockStats);
@@ -135,15 +204,13 @@ describe('formatCacheStats', () => {
 
 describe('getCacheStatsSummary', () => {
   it('should return a summary string', () => {
-    const stats: AggregatedCacheStats = {
+    const stats: AggregatedCacheStats = makeDiagnosticsStats({
       totalSize: 1024 * 1024 * 125,
       totalEntries: 1234,
       totalHits: 870,
       totalMisses: 130,
       overallHitRate: 0.87,
-      caches: [],
-      lastUpdated: Date.now(),
-    };
+    });
     
     const result = getCacheStatsSummary(stats);
     
@@ -157,30 +224,20 @@ describe('getCacheStatsSummary', () => {
   });
 
   it('should handle undefined hit rate', () => {
-    const stats: AggregatedCacheStats = {
-      totalSize: 0,
-      totalEntries: 0,
-      totalHits: 0,
-      totalMisses: 0,
-      overallHitRate: undefined,
-      caches: [],
-      lastUpdated: Date.now(),
-    };
+    const stats: AggregatedCacheStats = makeDiagnosticsStats();
     
     const result = getCacheStatsSummary(stats);
     expect(result).toContain('-');
   });
 
   it('should format small sizes correctly', () => {
-    const stats: AggregatedCacheStats = {
+    const stats: AggregatedCacheStats = makeDiagnosticsStats({
       totalSize: 512,
       totalEntries: 5,
       totalHits: 3,
       totalMisses: 2,
       overallHitRate: 0.6,
-      caches: [],
-      lastUpdated: Date.now(),
-    };
+    });
     
     const result = getCacheStatsSummary(stats);
     expect(result).toContain('B');
@@ -240,6 +297,8 @@ describe('collectCacheStats', () => {
     expect(webCache!.misses).toBe(20);
     expect(webCache!.hitRate).toBe(0.833);
     expect(webCache!.errors).toBe(1);
+    expect(stats.providerDiagnostics.providerId).toBe('browser-cache-api');
+    expect(stats.integrationDiagnostics.length).toBe(2);
   });
 
   it('should collect Tauri cache stats in Tauri environment', async () => {
@@ -272,6 +331,7 @@ describe('collectCacheStats', () => {
     expect(stats.totalMisses).toBeGreaterThan(0);
     expect(stats.overallHitRate).toBeDefined();
     expect(stats.lastUpdated).toBeGreaterThan(0);
+    expect(stats.providerDiagnostics.available).toBe(true);
   });
 
   it('should compute overallHitRate as undefined when no hits and misses', async () => {

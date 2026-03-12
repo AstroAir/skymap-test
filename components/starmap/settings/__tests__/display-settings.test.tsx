@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import { useARRuntimeStore } from '@/lib/stores/ar-runtime-store';
 
 const mockSettingsState = {
   skyEngine: 'stellarium' as const,
@@ -41,6 +42,26 @@ const mockSettingsState = {
     sensorCalibrationAzimuthOffsetDeg: 0,
     sensorCalibrationAltitudeOffsetDeg: 0,
     sensorCalibrationUpdatedAt: null,
+    arCameraPreset: 'balanced' as const,
+    arCameraFacingMode: 'environment' as const,
+    arCameraResolutionTier: '1080p' as const,
+    arCameraTargetFps: 30,
+    arCameraStabilizationStrength: 0.6,
+    arCameraCalibrationSensitivity: 0.5,
+    arCameraZoomLevel: 1,
+    arCameraTorchPreferred: false,
+    arCameraPreferredDevice: { deviceId: null, label: null, groupId: null },
+    arCameraLastKnownGoodAcquisition: null,
+    arAdaptiveLearningEnabled: false,
+    arAdaptiveAutoApply: false,
+    arAdaptiveLearnerState: null,
+    arNetworkOptimizationEnabled: false,
+    arTelemetryOptIn: false,
+    arRemotePackVersion: null,
+    arRemotePackUpdatedAt: null,
+    arMode: false,
+    arOpacity: 0.7,
+    arShowCompass: true,
     crosshairVisible: true,
     crosshairColor: 'rgba(255, 255, 255, 0.3)',
     projectionType: 'stereographic' as const,
@@ -125,6 +146,25 @@ import { DisplaySettings } from '../display-settings';
 describe('DisplaySettings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useARRuntimeStore.setState((state) => ({
+      camera: {
+        ...state.camera,
+        availableDevices: [
+          { deviceId: 'cam-back', label: 'Back Camera', groupId: 'g1' },
+          { deviceId: 'cam-front', label: 'Front Camera', groupId: 'g2' },
+        ],
+        acquisitionDiagnostics: {
+          currentStage: 'preferred-device',
+          attemptedStages: ['preferred-device'],
+          lastFailureStage: null,
+          lastFailureMessage: null,
+          stalePreferredDevice: false,
+          staleRememberedDevice: false,
+          usedRememberedPlan: false,
+          activeDevice: { deviceId: 'cam-back', label: 'Back Camera', groupId: 'g1' },
+        },
+      },
+    }));
   });
 
   it('renders display settings sections', () => {
@@ -156,6 +196,25 @@ describe('DisplaySettings', () => {
 describe('DisplaySettings state rendering', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useARRuntimeStore.setState((state) => ({
+      camera: {
+        ...state.camera,
+        availableDevices: [
+          { deviceId: 'cam-back', label: 'Back Camera', groupId: 'g1' },
+          { deviceId: 'cam-front', label: 'Front Camera', groupId: 'g2' },
+        ],
+        acquisitionDiagnostics: {
+          currentStage: 'preferred-device',
+          attemptedStages: ['preferred-device'],
+          lastFailureStage: null,
+          lastFailureMessage: null,
+          stalePreferredDevice: false,
+          staleRememberedDevice: false,
+          usedRememberedPlan: false,
+          activeDevice: { deviceId: 'cam-back', label: 'Back Camera', groupId: 'g1' },
+        },
+      },
+    }));
   });
 
   it('renders with default settings from store', () => {
@@ -172,4 +231,15 @@ describe('DisplaySettings state rendering', () => {
     render(<DisplaySettings />);
     expect(screen.getByTestId('stellarium-survey-selector')).toBeInTheDocument();
   });
+});
+
+it('renders AR camera device preference and diagnostics', () => {
+  render(<DisplaySettings />);
+  expect(screen.getByText('settings.arCameraDevicePreference')).toBeInTheDocument();
+  expect(screen.getAllByText(/Back Camera/).length).toBeGreaterThan(0);
+});
+
+it('renders AR launch assistant entry in camera settings', () => {
+  render(<DisplaySettings />);
+  expect(screen.getByText('settings.arLaunchOpenAssistant')).toBeInTheDocument();
 });

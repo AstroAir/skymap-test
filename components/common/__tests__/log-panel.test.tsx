@@ -41,6 +41,13 @@ jest.mock('@/lib/stores/log-store', () => ({
       byLevel: { debug: 0, info: 1, warn: 0, error: 0 },
       total: 1,
     },
+    suppression: {
+      enabled: true,
+      windowMs: 2000,
+      groupedEntries: 0,
+      suppressedDuplicates: 0,
+      droppedTransportLogs: 0,
+    },
     logs: [],
     totalCount: 0,
     filter: {},
@@ -52,6 +59,7 @@ jest.mock('@/lib/stores/log-store', () => ({
     downloadLogs: jest.fn(),
     refresh: jest.fn(),
     setAutoScroll: jest.fn(),
+    setSuppressionEnabled: jest.fn(),
   }),
 }));
 
@@ -99,6 +107,10 @@ const messages = {
     last1hr: '1 hour',
     allTime: 'All',
     groupDuplicates: 'Group duplicates',
+    suppressionEnabled: 'Suppress repeated logs',
+    effectiveLevel: 'Effective level',
+    suppressed: 'Suppressed',
+    dropped: 'Dropped',
   },
 };
 

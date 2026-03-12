@@ -18,18 +18,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/starmap/dialogs/responsive-dialog-shell';
 import { useTargetListStore, type TargetItem } from '@/lib/stores';
 
 interface TargetDetailDialogProps {
@@ -41,9 +41,9 @@ interface TargetDetailDialogProps {
 export function TargetDetailDialog({ target, open, onOpenChange }: TargetDetailDialogProps) {
   if (!target) return null;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} tier="standard-form">
       <TargetDetailForm key={target.id} target={target} onOpenChange={onOpenChange} />
-    </Dialog>
+    </ResponsiveDialog>
   );
 }
 
@@ -134,15 +134,15 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
   };
 
   return (
-      <DialogContent className="sm:max-w-[440px] bg-card border-border">
-        <DialogHeader>
-          <DialogTitle className="text-foreground flex items-center gap-2">
+      <ResponsiveDialogContent className="sm:max-w-[440px] bg-card border-border flex max-h-[92vh] max-h-[92dvh] flex-col overflow-hidden">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="text-foreground flex items-center gap-2">
             <Target className="h-4 w-4 text-primary" />
             {target.name}
-          </DialogTitle>
-        </DialogHeader>
+          </ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
 
-        <div className="space-y-4 mt-2">
+        <div className="space-y-4 mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           {/* Coordinates (read-only) */}
           <div className="text-xs text-muted-foreground font-mono">
             RA: {target.raString} / Dec: {target.decString}
@@ -311,7 +311,7 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-card/95 pt-2 pb-[calc(var(--safe-area-bottom)+0.25rem)] backdrop-blur supports-[backdrop-filter]:bg-card/80">
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
@@ -320,6 +320,6 @@ function TargetDetailForm({ target, onOpenChange }: { target: TargetItem; onOpen
             </Button>
           </div>
         </div>
-      </DialogContent>
+      </ResponsiveDialogContent>
   );
 }

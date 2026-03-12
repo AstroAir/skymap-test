@@ -360,3 +360,175 @@ describe('useCamera', () => {
     });
   });
 });
+
+describe('useCamera acquisition planning', () => {
+  type PreferredDeviceProp = {
+    deviceId: string;
+    label: string;
+    groupId: string;
+  } | null;
+
+  it('uses preferred device exact constraint when available', async () => {
+    mockEnumerateDevices.mockResolvedValue([
+      { kind: 'videoinput', deviceId: 'cam-front', label: 'Front', groupId: 'g1' },
+      { kind: 'videoinput', deviceId: 'cam-back', label: 'Back', groupId: 'g2' },
+    ]);
+
+    const { result } = renderHook(() =>
+      useCamera({
+        preferredDevice: {
+          deviceId: 'cam-back',
+          label: 'Back',
+          groupId: 'g2',
+        },
+      }),
+    );
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    expect(mockGetUserMedia).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        video: expect.objectContaining({
+          deviceId: { exact: 'cam-back' },
+        }),
+      }),
+    );
+    expect(result.current.acquisitionDiagnostics.currentStage).toBe('preferred-device');
+    expect(result.current.lastKnownGoodAcquisition).toMatchObject({
+      deviceId: 'cam-back',
+      stage: 'preferred-device',
+    });
+  });
+
+  it('falls back after a preferred-device failure and records attempted stages', async () => {
+    mockEnumerateDevices.mockResolvedValue([
+      { kind: 'videoinput', deviceId: 'cam-front', label: 'Front', groupId: 'g1' },
+      { kind: 'videoinput', deviceId: 'cam-back', label: 'Back', groupId: 'g2' },
+    ]);
+
+    const preferredError = new Error('Preferred camera missing');
+    preferredError.name = 'NotFoundError';
+    mockGetUserMedia
+      .mockRejectedValueOnce(preferredError)
+      .mockResolvedValueOnce(new MockMediaStream());
+
+    const { result } = renderHook(() =>
+      useCamera({
+        preferredDevice: {
+          deviceId: 'cam-back',
+          label: 'Back',
+          groupId: 'g2',
+        },
+        facingMode: 'environment',
+      }),
+    );
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    expect(mockGetUserMedia).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        video: expect.objectContaining({
+          deviceId: { exact: 'cam-back' },
+        }),
+      }),
+    );
+    expect(mockGetUserMedia).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        video: expect.objectContaining({
+          facingMode: 'environment',
+        }),
+      }),
+    );
+    expect(result.current.acquisitionDiagnostics.attemptedStages).toEqual([
+      'preferred-device',
+      'requested-facing-mode',
+    ]);
+    expect(result.current.acquisitionDiagnostics.lastFailureStage).toBe('preferred-device');
+  });
+
+  it('reuses the last successful acquisition stage on visibility resume', async () => {
+    let localVisibilityState: DocumentVisibilityState = 'visible';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => localVisibilityState,
+    });
+
+    const firstAttemptError = new Error('Initial stage failed');
+    firstAttemptError.name = 'NotFoundError';
+
+    mockGetUserMedia
+      .mockRejectedValueOnce(firstAttemptError)
+      .mockResolvedValueOnce(new MockMediaStream());
+
+    const { result } = renderHook(() => useCamera({ facingMode: 'environment' }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    expect(result.current.lastKnownGoodAcquisition?.stage).toBe('requested-facing-mode-safe');
+
+    mockGetUserMedia.mockClear();
+    mockGetUserMedia.mockResolvedValueOnce(new MockMediaStream());
+
+    localVisibilityState = 'hidden';
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    localVisibilityState = 'visible';
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await waitFor(() => {
+      expect(result.current.acquisitionDiagnostics.usedRememberedPlan).toBe(true);
+    });
+    expect(result.current.acquisitionDiagnostics.currentStage).toBe('remembered-device');
+  });
+
+  it('uses updated preferred device after options rerender', async () => {
+    mockEnumerateDevices.mockResolvedValue([
+      { kind: 'videoinput', deviceId: 'cam-front', label: 'Front', groupId: 'g1' },
+      { kind: 'videoinput', deviceId: 'cam-back', label: 'Back', groupId: 'g2' },
+    ]);
+
+    const { result, rerender } = renderHook(
+      ({ preferredDevice }: { preferredDevice: PreferredDeviceProp }) =>
+        useCamera({ preferredDevice }),
+      {
+        initialProps: {
+          preferredDevice: null as PreferredDeviceProp,
+        },
+      },
+    );
+
+    rerender({
+      preferredDevice: {
+        deviceId: 'cam-back',
+        label: 'Back',
+        groupId: 'g2',
+      },
+    });
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    expect(mockGetUserMedia).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        video: expect.objectContaining({
+          deviceId: { exact: 'cam-back' },
+        }),
+      }),
+    );
+  });
+});
